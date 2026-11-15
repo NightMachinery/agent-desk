@@ -258,8 +258,12 @@ a keyword: `ASK` or `ANSWERED` for questions, `NEW` or none for the rest.
   (`ATTACH`, then `INSERT OR IGNORE ... SELECT`). SQLite's own lock, with the
   busy timeout, serialises it against other writers.
 - `merge ssh:<host>` pipes `agent-desk export` from the host into a local
-  import, then the local export into `agent-desk import` on the host. No
-  database file crosses the network.
+  import, then the local export into `agent-desk import` on the host, which
+  then runs `deliver`. No database file crosses the network.
+  `AGENT_DESK_REMOTE_COMMAND` replaces the remote `agent-desk` (a full path,
+  or one with variables such as `AGENT_DESK_HOME=...`), and `AGENT_DESK_SSH`
+  replaces `ssh`. An answer the other side cannot deliver yet is reported but
+  does not fail the merge.
 - Merging is idempotent and order-free, because events are immutable and ids
   are global. Running it twice, or in either direction first, gives the same
   store.
@@ -392,20 +396,30 @@ approved hook, deferred to phase 8, copies the user's own messages.
 
     Answer to q-7f3a "Which split for the rerun?": B, and keep the old cache.
 
-- Paseo agent: `paseo send <uuid> ...` (it revives an archived agent).
-- tmux pane: `tmux send-keys`, text then Enter, after checking that the pane
-  still runs the recorded session.
+- Paseo agent: `paseo send --no-wait <uuid> ...` (it revives an archived
+  agent).
+- tmux pane: the text through `tmux load-buffer` and `paste-buffer -p`
+  (bracketed paste, so a multi-line answer stays one message), then Enter,
+  after checking that the pane still runs the recorded session: its
+  `pane_pid` is the one recorded at asking time, and the `@agent_session`
+  identity the agents' tmux hooks leave on its session, if any, names it.
 - Anything else: `deliver_command`. In the author's setup that is the typing
   path behind `h-agent-usage-continue-send` in
   `zshlang/auto-load/others/agent-usage.zsh`.
 - Unreachable session: the answer stays recorded and undelivered; print how
-  to resume the session. A later `deliver` retries.
+  to resume the session. A later `deliver` retries, and exits nonzero while
+  any answer stays undelivered.
+- An answer recorded with `--from-chat` already reached its session and is
+  never delivered.
+- Deliveries take a lock in the store directory, so two runs never type one
+  answer twice.
 
 A blocked agent ends its turn after asking and never polls. For a question
 with a default, the agent may be mid-turn when the answer arrives. `paseo
 send` with its default behaviour (`steer`) queues the message and hands it to
 a mid-turn Claude agent without disturbing its running tool call, so deliver
-sends at once; it must never pass `--behavior interrupt`.
+sends at once; it must never pass `--behavior interrupt`. Codex agents behave
+the same.
 
 ## Notifications
 
@@ -489,7 +503,6 @@ One atomic commit group each. Stop after each phase and run its check.
 
 ## To verify early
 
-- `paseo send` to a mid-turn Codex agent (verified for Claude only).
 - Whether a sandboxed Codex session may write to the store directory; if not,
   the skill must say how to allow it.
 - An in-process subagent shares its parent's session and so writes as the

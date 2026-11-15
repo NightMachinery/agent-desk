@@ -92,11 +92,26 @@ fails, says by how much, and writes nothing. `tasks`, `user-verbatim` and
     agent-desk show example-proj/rerun-nov   # one subtree
     agent-desk show --all --format md        # include read items and finished runs
     agent-desk show --format json
-    agent-desk answer q-7f3a 'B'             # record an answer
+    agent-desk answer q-7f3a 'B'             # record it and type it into the asking session
     agent-desk read t-k2m9                   # mark one item read
     agent-desk read example-proj/rerun-nov   # mark everything under a node read
     agent-desk unread t-k2m9                 # undo a read mark
     agent-desk search cache
+
+### Answers reach the agent
+
+`agent-desk answer` (and the inbox) records the answer, then types this into
+the session that asked:
+
+    Answer to q-7f3a "Which split for the rerun?": B
+
+A Paseo agent gets it through `paseo send`, which queues it if the agent is
+busy. An agent in a tmux pane gets it pasted into that pane, but only while the
+pane still runs the same process and session. Anything else goes to
+`deliver_command` if you configured one. When the session cannot be reached,
+the answer stays recorded and undelivered, the command prints how to resume
+the session, and `agent-desk deliver` tries again later. A question asked on
+another machine is answered there after the next merge.
 
 ### The inbox
 
@@ -167,8 +182,14 @@ opens the inbox scoped to the item's node.
 
     agent-desk snapshot /tmp/copy.db   # consistent copy of the live store
     agent-desk merge /tmp/copy.db      # add the events it has that this store lacks
+    agent-desk merge ssh:otherhost     # both ways over ssh; no database file is copied
     agent-desk export > events.jsonl   # every event as JSON lines
     agent-desk import < events.jsonl   # add the ones that are new
+
+`merge ssh:` runs `agent-desk` on the other machine; set
+`AGENT_DESK_REMOTE_COMMAND` if it is not on that machine's PATH for
+non-interactive ssh (for example `~/go/bin/agent-desk`). Each side then
+delivers the answers whose questions it asked.
 
 Copy a store only with `snapshot`: copying the file of a live database can
 give a broken copy. Merged and imported events raise notifications only with
