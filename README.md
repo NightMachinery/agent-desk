@@ -30,7 +30,8 @@ and gives the user one place to read it and answer.
 
 Built so far: the store, the agent and user commands, the terminal inbox,
 rendered org files, notification hooks, answer delivery and merging stores (by
-file or over ssh). Not yet: the agent skill and the HTML app.
+file or over ssh), and done reports filed when a session ends. Not yet: the
+agent skill and the HTML app.
 
 - [docs/usage.md](docs/usage.md): how to use it.
 - [docs/spec.md](docs/spec.md): the full design and the build order.

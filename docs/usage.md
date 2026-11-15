@@ -71,7 +71,18 @@ Notices and reports:
     The site is live; the old feed is gone.
     R
 
-`--notify` asks for a notification (once notifications exist).
+`--notify` asks for a notification.
+
+When a session ends, its summary goes on stdin:
+
+    agent-desk done --title 'Rerun finished' --report ~/reports/rerun.org <<'S'
+    All five seeds done; the fix holds.
+    S
+
+This files a done report and sets the node's `status` to "Finished." (or
+"Finished; see report."). A done report from a run's root coordinator marks
+the run finished. `agent-done` does this for you where it is installed.
+`agent-desk show --mine` shows only the calling session's own node.
 
 Slots hold what is true now, not history:
 

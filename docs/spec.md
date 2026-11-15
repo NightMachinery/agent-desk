@@ -214,6 +214,8 @@ Agent side:
     agent-desk clear <slot>
     agent-desk link <slot> <file>
     agent-desk answer <id> --from-chat 'text'   #: record only, no delivery
+    agent-desk done [--title T] [--report F]    <<'S' ... S   #: also sets status
+    agent-desk show --mine [--format json]      #: only this session's node
 
 `set` over the cap fails with the count and the cap, and writes nothing.
 
@@ -455,6 +457,10 @@ The author's integration, in `~/scripts`:
 - `agent-done` appends a `done` event with the summary and report path, sets
   the node's `status` slot to "Finished; see report.", and mentions open
   `blocked` questions in the report. It refuses nothing and removes nothing.
+  It runs `agent-desk done` (the report path in `meta.report`) and, when the
+  desk accepts it and has a `notify_command`, skips its own Agent Done card: the desk's done card is the
+  one notification, and clicking it opens the report. A worker, which the
+  desk refuses, keeps the Agent Done card.
 
 ## Phases
 
