@@ -83,9 +83,10 @@ func (h *harness) app(env map[string]string, stdin string) (*App, *bytes.Buffer,
 				return v + "\n", nil
 			},
 		},
-		Now:  func() time.Time { return now },
-		Host: h.host,
-		Home: h.desk,
+		Now:       func() time.Time { return now },
+		Host:      h.host,
+		Home:      h.desk,
+		WaitHooks: true,
 	}
 	return a, &out, &errb
 }

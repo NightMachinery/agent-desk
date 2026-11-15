@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/NightMachinery/agent-desk/internal/config"
 	"github.com/NightMachinery/agent-desk/internal/desk"
 	"github.com/NightMachinery/agent-desk/internal/ident"
 	"github.com/NightMachinery/agent-desk/internal/ids"
@@ -29,8 +30,11 @@ type App struct {
 	Now    func() time.Time
 	Host   string
 	Home   string // store directory
+	// WaitHooks makes detached hook commands synchronous, for tests.
+	WaitHooks bool
 
-	st *store.Store
+	st  *store.Store
+	cfg *config.Config
 }
 
 // New returns an App for the real environment.
@@ -82,7 +86,8 @@ User side:
   agent-desk read <id|path-prefix> [--host H]
   agent-desk unread <id>
   agent-desk search <text> [--host H]
-  agent-desk export | import | snapshot <file> | merge <file> | render
+  agent-desk open <id|path>       what a notification click runs (open_command)
+  agent-desk export | import [--notify] | snapshot <file> | merge <file> [--notify] | render
 
 Store: ${AGENT_DESK_HOME:-~/.agents/desk}. See docs/usage.md.
 `
@@ -168,6 +173,8 @@ func (a *App) run(args []string) error {
 		return a.cmdInbox(rest)
 	case "inbox-list", "inbox-preview", "inbox-act":
 		return a.cmdInboxHelper(cmd, rest)
+	case "open":
+		return a.cmdOpen(rest)
 	case "render":
 		if _, err := parse(rest, nil, nil, 0, 0); err != nil {
 			return err
@@ -318,6 +325,7 @@ func (a *App) commit(evs []store.Event, show string) error {
 	if err := a.render(); err != nil {
 		fmt.Fprintf(a.Stderr, "agent-desk: warning: rendering failed: %v\n", err)
 	}
+	a.announce(evs, true)
 	return nil
 }
 
@@ -832,17 +840,20 @@ func (a *App) cmdExport(args []string) error {
 	return st.Export(a.Stdout)
 }
 
-func (a *App) imported(added []store.Event) error {
+func (a *App) imported(added []store.Event, notify bool) error {
 	fmt.Fprintln(a.Stdout, "ok")
 	fmt.Fprintf(a.Stderr, "agent-desk: %d new event(s)\n", len(added))
-	if len(added) > 0 {
-		return a.renderWarn()
+	if len(added) == 0 {
+		return nil
 	}
-	return nil
+	err := a.renderWarn()
+	a.announce(added, notify)
+	return err
 }
 
 func (a *App) cmdImport(args []string) error {
-	if _, err := parse(args, nil, nil, 0, 0); err != nil {
+	o, err := parse(args, []string{"notify"}, nil, 0, 0)
+	if err != nil {
 		return err
 	}
 	st, err := a.store()
@@ -853,7 +864,7 @@ func (a *App) cmdImport(args []string) error {
 	if err != nil {
 		return err
 	}
-	return a.imported(added)
+	return a.imported(added, o.bools["notify"])
 }
 
 func (a *App) cmdSnapshot(args []string) error {
@@ -873,7 +884,7 @@ func (a *App) cmdSnapshot(args []string) error {
 }
 
 func (a *App) cmdMerge(args []string) error {
-	o, err := parse(args, nil, nil, 1, 1)
+	o, err := parse(args, []string{"notify"}, nil, 1, 1)
 	if err != nil {
 		return err
 	}
@@ -889,5 +900,41 @@ func (a *App) cmdMerge(args []string) error {
 	if err != nil {
 		return err
 	}
-	return a.imported(added)
+	return a.imported(added, o.bools["notify"])
+}
+
+// cmdOpen opens an item or node for the user: what a notification click
+// runs. With open_command configured it hands over the item; otherwise, in
+// a terminal, it opens the inbox scoped to the item's node.
+func (a *App) cmdOpen(args []string) error {
+	o, err := parse(args, nil, nil, 1, 1)
+	if err != nil {
+		return err
+	}
+	d, err := a.load()
+	if err != nil {
+		return err
+	}
+	var p Payload
+	if strings.Contains(o.pos[0], "/") {
+		self, _ := os.Executable()
+		p = Payload{Action: "open", Path: strings.Trim(o.pos[0], "/"), AgentDesk: self, DeskHome: a.Home, Local: true}
+	} else {
+		e, err := d.Resolve(o.pos[0])
+		if err != nil {
+			return err
+		}
+		p = a.payload(d, "open", e)
+	}
+	c, err := a.config()
+	if err != nil {
+		return err
+	}
+	if c.OpenCommand != "" {
+		return a.runHook(c.OpenCommand, p, true)
+	}
+	if isTerminal(a.Stdout) {
+		return a.cmdInbox([]string{p.Path})
+	}
+	return fmt.Errorf("no open_command in %s; run agent-desk inbox %s", config.Path(a.Env.Getenv, a.Env.Home), p.Path)
 }
