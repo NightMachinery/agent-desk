@@ -29,7 +29,7 @@ and gives the user one place to read it and answer.
     agent-desk show
 
 Built so far: the store, the agent and user commands, the terminal inbox,
-rendered org files and merging stores by file. Not yet: notifications, typing
+rendered org files, notification hooks and merging stores by file. Not yet: typing
 answers back into sessions, the agent skill and the HTML app.
 
 - [docs/usage.md](docs/usage.md): how to use it.

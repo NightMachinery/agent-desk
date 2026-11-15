@@ -144,6 +144,25 @@ Each item is a heading with a `:DESK_ID:` property and a keyword: `ASK` or
 `ANSWERED` for questions, `NEW` for unread items. `agent-desk render`
 re-renders by hand.
 
+## Notifications and other machine-specific commands
+
+The core knows nothing about your desktop. It runs commands you name in
+`~/.config/agent-desk/config.toml` (or `$AGENT_DESK_CONFIG`), each under
+`sh -c` with the event as JSON on stdin:
+
+    notify_command  = "my-notifier"        # a question, a tell --notify, a done report
+    dismiss_command = "my-notifier --remove"   # its question was answered or it was read
+    open_command    = "my-opener"          # what `agent-desk open <id>` does
+
+The JSON carries `action`, `display_id`, `path`, `event` (the full event),
+`cause` (for a dismissal, the answer or read), `local` (written on this
+machine), and `agent_desk`, this binary's path, for building a click action
+such as `agent-desk open q-7f3a`. Notify and dismiss run detached; their
+output goes to `~/.agents/desk/hooks.log`. With no config, nothing is run.
+
+`agent-desk open <id|path>` hands the item to `open_command`, or without one
+opens the inbox scoped to the item's node.
+
 ## Several machines
 
     agent-desk snapshot /tmp/copy.db   # consistent copy of the live store
@@ -152,5 +171,7 @@ re-renders by hand.
     agent-desk import < events.jsonl   # add the ones that are new
 
 Copy a store only with `snapshot`: copying the file of a live database can
-give a broken copy. Merging is idempotent and order-free, since events never
+give a broken copy. Merged and imported events raise notifications only with
+`--notify`, but a question answered elsewhere still has its notification
+dismissed here. Merging is idempotent and order-free, since events never
 change and ids are globally unique. Items from another machine show its name.

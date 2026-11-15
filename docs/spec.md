@@ -410,7 +410,23 @@ sends at once; it must never pass `--behavior interrupt`.
 ## Notifications
 
 Core: on every `ask`, every `tell --notify` and every `done`, run
-`notify_command`; on an answer or a `read`, run `dismiss_command`.
+`notify_command`; on an answer or a `read`, run `dismiss_command` for the
+question or item it closes.
+
+- Each command runs under `sh -c`, detached, so a slow notifier never holds
+  up an agent's write; its output goes to `~/.agents/desk/hooks.log`.
+- Stdin is one JSON object: `action` (`notify`, `dismiss`, `open`,
+  `deliver`), `display_id`, `path` (the node), `event` (the item notified or
+  dismissed), `cause` (the answer or read that dismisses), `local` (whether
+  the item was written on this host), `agent_desk` (this binary's path, for
+  click actions) and `desk_home`.
+- `agent-desk open <id|path>` is what a click runs: it hands the item to
+  `open_command`, or without one opens the inbox scoped to the item's node.
+- Imported and merged events notify only with `--notify`; the dismissals they
+  call for always run, so a question answered on another machine loses its
+  card here after the next merge.
+- The config file is `${AGENT_DESK_CONFIG:-~/.config/agent-desk/config.toml}`;
+  an unknown key is an error, so a typo does not silently disable a command.
 
 The author's integration, in `~/scripts`:
 
