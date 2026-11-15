@@ -113,18 +113,29 @@ variable (children inherit the parent's environment, which is how
     agent-desk join rerun-nov/coord --takeover   #: replacement coordinator
 
 - `join` appends a `join` event binding this session id to the node.
-- A node bound to another session refuses `join` without `--takeover`.
+- A node bound to another session refuses `join` without `--takeover`. After
+  a takeover the old session's writes are refused.
+- A nested coordinator joins only under a node that has been joined.
 - A write from a session with no binding: if the session has no parent agent,
   auto-join `adhoc/<slug>` (slug from the Paseo title or the session's short
   id). If it has a parent, refuse with "workers report to their parent; ask it
-  to give you a node". Parent detection: reuse the idea of
-  `h-bell-agent-role` in `zshlang/auto-load/others/luna-bells.zsh` and the
-  Paseo agent record; reimplement in Go.
-- Session identity is resolved in Go from the agent's environment
-  (`CLAUDE_CODE_SESSION_ID`, `CODEX_THREAD_ID`, older `CODEX_SESSION_ID`,
-  Antigravity's equivalent) and, for Paseo, confirmed against the agent record
-  the way `h-agent-done-paseo-id` does. Port that logic; do not shell out to
-  zsh on the write path.
+  to give you a node", adding that a coordinator can `join` explicitly: an
+  agent launched by another agent but reporting to the user has a parent too.
+- Session identity is resolved in Go from the agent's environment:
+  `CLAUDE_CODE_SESSION_ID`, `CODEX_THREAD_ID` (older `CODEX_SESSION_ID`) or
+  `ANTIGRAVITY_CONVERSATION_ID`. Nested agents inherit each other's
+  variables; `AI_AGENT`, which the innermost agent sets, picks which applies.
+  No zsh runs on the write path.
+- Parent detection, ported from `h-bell-agent-role` and
+  `h-agent-done-paseo-id`:
+  - Paseo: the record `$PASEO_HOME/agents/*/<PASEO_AGENT_ID>.json` names
+    this session only if its `persistence.nativeHandle` is this session id.
+    Then the parent is its `labels["paseo.parent-agent-id"]`, if any.
+    Otherwise this session was started by that agent, which is its parent.
+  - tmux (skipped for a confirmed Paseo agent, whose `TMUX_PANE` is the
+    daemon's): an explicit `@agent_role` of `main` or `sub` on the pane's
+    session wins; otherwise `TMUX_SUBAGENT_NODE` or an `ag--*` session name
+    means a parent.
 
 ## Store
 
@@ -149,16 +160,21 @@ variable (children inherit the parent's environment, which is how
 - `PRAGMA journal_mode=WAL; synchronous=FULL; busy_timeout=5000`.
 - Indexes on `kind`, `path`, `ref`. Current state comes from SQL views
   (`slot_current`, `question_state`, `unread`), never from stored flags.
-- `meta.from`: agent, seat, session id, Paseo agent id, parent, working
-  directory, transcript path. `meta.source`: `cli`, `chat` or `web`.
+- `meta.from`: agent, seat (the `CLAUDE_CONFIG_DIR` or `CODEX_HOME` that
+  selects the account, when set), session id, Paseo agent id, parent, working
+  directory, transcript path, tmux pane. `meta.source`: `cli`, `chat` or `web`.
   Other keys: `default` (ask), `file` (link), `supersedes`.
-- Driver: `modernc.org/sqlite` (pure Go, no cgo). Verify it builds through
-  the repository's Go path (below) before writing anything else.
+- Driver: `modernc.org/sqlite` (pure Go, no cgo).
+- The store refuses a directory on a network filesystem (NFS, SMB, AFP,
+  WebDAV, FUSE and the like, by `statfs`), where WAL mode's shared-memory
+  locking does not work, and says to merge stores instead.
 - `agent-desk export` prints the events as JSONL, and `import` inserts
   events whose ids are new.
 - Display ids: kind letter plus the shortest unique suffix of the ULID's
-  random part, at least 4 characters (`q-7f3a`, `t-k2m9`). Commands accept any
-  unique prefix.
+  random part, at least 4 characters (`q-7f3a`, `t-k2m9`). Letters: `q` ask,
+  `a` answer, `t` tell, `d` done, `s` set, `c` clear, `l` link, `j` join,
+  `r` read, `v` delivered. Commands accept the display id, the part after the
+  dash, any unique prefix of that part, or a full ULID.
 
 Event semantics:
 
@@ -211,6 +227,9 @@ User side:
     agent-desk search <text>
     agent-desk export | import | snapshot <file> | merge <source>
     agent-desk deliver | render | serve
+
+`read` refuses a question: it leaves "Needs you" only when answered. Agent-side
+writes come only from agent sessions; a shell with no agent session id is refused.
 
 Note on `unread`: there is no deleting a `read` event. Model it as a later
 event that cancels it (`kind=read`, `meta.cancel=true`); the view takes the
@@ -377,9 +396,10 @@ approved hook, deferred to phase 8, copies the user's own messages.
   to resume the session. A later `deliver` retries.
 
 A blocked agent ends its turn after asking and never polls. For a question
-with a default, the agent may be mid-turn when the answer arrives; verify
-what `paseo send` does then, and if it cannot queue, leave the answer
-undelivered until the session is idle.
+with a default, the agent may be mid-turn when the answer arrives. `paseo
+send` with its default behaviour (`steer`) queues the message and hands it to
+a mid-turn Claude agent without disturbing its running tool call, so deliver
+sends at once; it must never pass `--behavior interrupt`.
 
 ## Notifications
 
@@ -447,13 +467,8 @@ One atomic commit group each. Stop after each phase and run its check.
 
 ## To verify early
 
-- `modernc.org/sqlite` builds and passes the concurrency check on macOS and
-  Linux.
-- Session identity for Claude Code, Codex and Antigravity, and parent
-  detection for Paseo agents and tmux subagents. An in-process subagent
-  shares its parent's session and so writes as the parent; the skill tells it
-  not to.
-- What `paseo send` does to an agent that is mid-turn.
-- Whether the author's `build.py` takes a fourth app without restructuring.
-- Refuse to open a store on a network filesystem, where WAL mode does not
-  work, and say why.
+- `paseo send` to a mid-turn Codex agent (verified for Claude only).
+- Whether a sandboxed Codex session may write to the store directory; if not,
+  the skill must say how to allow it.
+- An in-process subagent shares its parent's session and so writes as the
+  parent; the skill tells it not to.

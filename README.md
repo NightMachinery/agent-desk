@@ -17,17 +17,23 @@ and gives the user one place to read it and answer.
 - Everything is an immutable event in one SQLite file, so nothing is lost and
   stores on several machines can be merged.
 
-## Status
+## Try it
 
-Design stage. Nothing is implemented yet; the commands below are the plan.
+    go install github.com/NightMachinery/agent-desk@latest
 
+    agent-desk join rerun-nov/coord
     agent-desk ask --blocked --title 'Which split for the rerun?' <<'Q'
     ...context, options, recommendation...
     Q
     agent-desk set status 'Seeds 3/5 done. ETA 14:00.'
-    agent-desk inbox
+    agent-desk show
 
-The full design and the build order are in [docs/spec.md](docs/spec.md).
+Built so far: the store, the agent and user commands, rendered org files and
+merging stores by file. Not yet: the interactive inbox, notifications, typing
+answers back into sessions, the agent skill and the HTML app.
+
+- [docs/usage.md](docs/usage.md): how to use it.
+- [docs/spec.md](docs/spec.md): the full design and the build order.
 
 ## License
 

@@ -1,0 +1,127 @@
+# Using agent-desk
+
+All example values here are made up.
+
+## Install
+
+    go install github.com/NightMachinery/agent-desk@latest
+
+or, from a clone, `go install .`. The binary lands in `$(go env GOBIN)`, or in
+`~/go/bin` when that is unset; make sure that directory is on `PATH` for the
+shells your agents run.
+
+The store lives in `${AGENT_DESK_HOME:-~/.agents/desk}`: the database
+`desk.db` and the rendered files under `render/`. It must be on a local
+filesystem; the tool refuses a network one, because SQLite's WAL mode does not
+work there. To combine machines, merge their stores (below).
+
+## Words
+
+- **Event**: one immutable row. Everything is an event; nothing is changed or
+  deleted, and the database itself refuses `UPDATE` and `DELETE`.
+- **Path**: where an event belongs, `project/run/role[/role...]`, such as
+  `example-proj/rerun-nov/coord/eval-lead`.
+- **Node**: a path prefix: a project, a run, or an agent in a run.
+- **Slot**: a named box of current-state text at a node, such as `status`.
+  Writing it replaces the text shown; the old text stays as an older event.
+- **Display id**: the short id printed by every write, such as `q-7f3a`. The
+  letter is the kind (`q` question, `a` answer, `t` notice, `d` done report,
+  `s` slot text, `l` linked slot, `c` cleared slot, `j` join, `r` read mark).
+  Commands accept the display id, its part after the dash, any unique prefix of
+  that part, or a full id.
+
+## Agent side
+
+Only coordinators write. A coordinator first joins a node:
+
+    agent-desk join rerun-nov/coord              # first coordinator of a run
+    agent-desk join rerun-nov/coord/eval-lead    # nested, under its parent
+    agent-desk join rerun-nov/coord --takeover   # replacing a coordinator
+
+The project is the repository the working directory is in (`--project` to
+override). A node already bound to another session refuses `join` unless
+`--takeover` is given, and the session it was taken from can no longer write
+there. A nested coordinator can only join under a node someone has joined.
+
+A session that never joined and has no parent agent is joined automatically to
+`<project>/adhoc/<slug>` on its first write. A session with a parent agent (a
+Paseo agent's child, a tmux subagent) is refused: workers report to their
+parent, which can give one a node if it should write.
+
+Questions, with the context, options and recommendation on stdin:
+
+    agent-desk ask --blocked --title 'Which split for the rerun?' <<'Q'
+    The rerun needs a train/test split.
+    A. Reuse the cached split: fast, but it predates the fix.
+    B. Regenerate: an hour longer, consistent with the fix.
+    I recommend B.
+    Q
+
+`--blocked` means the agent stops until answered. `--default 'A: reuse the
+cache'` means it continues on that choice unless told otherwise.
+
+Mention the printed id (`q-7f3a`) when raising the question in chat. When the
+user answers in chat, record it, or the question stays open in the inbox:
+
+    agent-desk answer q-7f3a --from-chat 'B, keep the old cache'
+
+Notices and reports:
+
+    agent-desk tell --title 'Deploy finished' <<'R'
+    The site is live; the old feed is gone.
+    R
+
+`--notify` asks for a notification (once notifications exist).
+
+Slots hold what is true now, not history:
+
+    agent-desk set status 'Seeds 3/5 done. ETA 14:00.'
+    agent-desk set findings < findings.txt
+    agent-desk clear next
+    agent-desk link tasks TASKS.org
+
+Caps: `status` 2 lines, `next` 5, everything else 15. A `set` over its cap
+fails, says by how much, and writes nothing. `tasks`, `user-verbatim` and
+`state` only take `link`: the board shows the linked file's current content.
+
+## User side
+
+    agent-desk show                          # needs you, new, runs
+    agent-desk show example-proj/rerun-nov   # one subtree
+    agent-desk show --all --format md        # include read items and finished runs
+    agent-desk show --format json
+    agent-desk answer q-7f3a 'B'             # record an answer
+    agent-desk read t-k2m9                   # mark one item read
+    agent-desk read example-proj/rerun-nov   # mark everything under a node read
+    agent-desk unread t-k2m9                 # undo a read mark
+    agent-desk search cache
+
+What counts as unread: notices, done reports, and the current text of each
+slot, until marked read. A slot that changes is unread again. `status` slots
+are never unread; they are shown while their node is live. An open question is
+never hidden by reading: it leaves "Needs you" only when answered.
+
+A run that is finished (its root coordinator filed a done report), has no open
+question and nothing unread is hidden unless `--all` is given. Every view
+accepts `--host` to show one machine's events.
+
+After every write the tool re-renders plain org files, so `cat` is enough:
+
+    ~/.agents/desk/render/inbox.org
+    ~/.agents/desk/render/board/<project>.org
+    ~/.agents/desk/render/ledger/<yyyy-mm>.org
+
+Each item is a heading with a `:DESK_ID:` property and a keyword: `ASK` or
+`ANSWERED` for questions, `NEW` for unread items. `agent-desk render`
+re-renders by hand.
+
+## Several machines
+
+    agent-desk snapshot /tmp/copy.db   # consistent copy of the live store
+    agent-desk merge /tmp/copy.db      # add the events it has that this store lacks
+    agent-desk export > events.jsonl   # every event as JSON lines
+    agent-desk import < events.jsonl   # add the ones that are new
+
+Copy a store only with `snapshot`: copying the file of a live database can
+give a broken copy. Merging is idempotent and order-free, since events never
+change and ids are globally unique. Items from another machine show its name.
