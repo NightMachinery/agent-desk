@@ -32,6 +32,8 @@ work there. To combine machines, merge their stores (below).
 
 ## Agent side
 
+Agents learn this part from the skill, [skills/agent-desk](../skills/agent-desk/SKILL.md).
+
 Only coordinators write. A coordinator first joins a node:
 
     agent-desk join rerun-nov/coord              # first coordinator of a run
@@ -94,6 +96,16 @@ Slots hold what is true now, not history:
 Caps: `status` 2 lines, `next` 5, everything else 15. A `set` over its cap
 fails, says by how much, and writes nothing. `tasks`, `user-verbatim` and
 `state` only take `link`: the board shows the linked file's current content.
+
+### Under Codex's sandbox
+
+A sandboxed Codex session may write only its workspace, and SQLite in WAL mode
+must write even to read, so every `agent-desk` command fails there; the error
+says so. Either the agent reruns the command with escalated permissions, or
+you allow the store once, in Codex's `config.toml`:
+
+    [sandbox_workspace_write]
+    writable_roots = ["/Users/you/.agents/desk"]
 
 ## User side
 

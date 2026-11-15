@@ -28,10 +28,15 @@ and gives the user one place to read it and answer.
     agent-desk set status 'Seeds 3/5 done. ETA 14:00.'
     agent-desk show
 
+Agents learn the rules (who writes, how to ask, slot discipline) from the
+skill in [skills/agent-desk](skills/agent-desk/SKILL.md). Link or copy that
+directory into your agents' skills directory, such as `~/.claude/skills/` or
+`~/.agents/skills/`.
+
 Built so far: the store, the agent and user commands, the terminal inbox,
 rendered org files, notification hooks, answer delivery and merging stores (by
-file or over ssh), and done reports filed when a session ends. Not yet: the
-agent skill and the HTML app.
+file or over ssh), done reports filed when a session ends, and the agent
+skill. Not yet: the HTML app.
 
 - [docs/usage.md](docs/usage.md): how to use it.
 - [docs/spec.md](docs/spec.md): the full design and the build order.

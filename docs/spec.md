@@ -510,6 +510,12 @@ One atomic commit group each. Stop after each phase and run its check.
 ## To verify early
 
 - Whether a sandboxed Codex session may write to the store directory; if not,
-  the skill must say how to allow it.
+  the skill must say how to allow it. Checked 2026-11-15 with Codex 0.169: it
+  can neither write nor read it (SQLite in WAL mode writes its `-shm` file
+  even to read), from a Paseo agent in auto-review mode and under
+  `codex sandbox -P :workspace`. Naming the store in
+  `sandbox_workspace_write.writable_roots` fixes it, as does running the
+  command with escalated permissions. Under `CODEX_SANDBOX` the open error
+  says both; the skill and `docs/usage.md` say both.
 - An in-process subagent shares its parent's session and so writes as the
-  parent; the skill tells it not to.
+  parent; the skill tells it not to. Done.
