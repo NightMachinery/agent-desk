@@ -589,3 +589,35 @@ func TestExportImportRoundTrip(t *testing.T) {
 	}
 	h2.fails(nil, `{"id":"x"}`, "required", "import")
 }
+
+func TestDone(t *testing.T) {
+	h := newHarness(t)
+	a := h.as(sessA)
+	h.ok(a, "", "join", "r1/coord")
+	q := h.ok(a, "ctx", "ask", "--blocked", "--title", "Still open?")
+	out := h.ok(a, "", "show", "--mine", "--format", "json")
+	if !strings.Contains(out, q) {
+		t.Fatalf("--mine misses the open question: %s", out)
+	}
+	d := h.ok(a, "All done.", "done", "--title", "Rerun finished", "--report", "/tmp/example/report.org")
+	if !strings.HasPrefix(d, "d-") {
+		t.Fatalf("done printed %q", d)
+	}
+	st, err := store.Open(h.desk)
+	must(t, err)
+	defer st.Close()
+	slots, _ := st.Query("slot_current", "path = 'example-proj/r1/coord/status'")
+	if len(slots) != 1 || slots[0].Body != "Finished; see report." {
+		t.Fatalf("status: %+v", slots)
+	}
+	dones, _ := st.Query("events", "kind = 'done'")
+	if len(dones) != 1 || !strings.Contains(string(dones[0].Meta), `"report":"/tmp/example/report.org"`) || dones[0].Body != "All done." {
+		t.Fatalf("done: %+v", dones)
+	}
+	// The run is finished, but its open question and unread report keep it shown.
+	runs := h.showJSON("", false)["runs"].([]any)
+	if len(runs) != 1 {
+		t.Fatalf("runs: %v", runs)
+	}
+	h.fails(h.as(sessB), "", "has not joined", "show", "--mine")
+}

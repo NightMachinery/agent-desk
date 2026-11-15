@@ -80,10 +80,11 @@ Agent side (only coordinators write; workers report to their parent):
   agent-desk clear <slot>
   agent-desk link <slot> <file>
   agent-desk answer <id> --from-chat 'text'   record an answer given in chat
+  agent-desk done --title T [--report FILE]   <<'S' ... S   (agent-done calls this)
 
 User side:
   agent-desk inbox [<path-prefix>] [--all]    interactive (needs fzf)
-  agent-desk show [<path-prefix>] [--all] [--host H] [--format org|md|json]
+  agent-desk show [<path-prefix>|--mine] [--all] [--host H] [--format org|md|json]
   agent-desk answer <id> 'text'       record, then type it into the asking session
   agent-desk deliver                  retry answers not yet delivered
   agent-desk read <id|path-prefix> [--host H]
@@ -151,6 +152,8 @@ func (a *App) run(args []string) error {
 		return a.cmdTell(rest)
 	case "set":
 		return a.cmdSet(rest)
+	case "done":
+		return a.cmdDone(rest)
 	case "clear":
 		return a.cmdClear(rest)
 	case "link":
@@ -355,13 +358,7 @@ func (a *App) writer(d *desk.Desk, project string) (ident.From, string, *store.E
 			"CLAUDE_CODE_SESSION_ID, CODEX_THREAD_ID, CODEX_SESSION_ID or ANTIGRAVITY_CONVERSATION_ID is set. " +
 			"Only agent sessions write to the desk")
 	}
-	var bound store.Event
-	found := false
-	for _, e := range d.Events {
-		if e.Kind == "join" && e.Host == a.Host && sessionOf(e) == from.Session {
-			bound, found = e, true
-		}
-	}
+	bound, found := a.binding(d, from)
 	if found {
 		owner, _ := nodeOwner(d, bound.Path)
 		if sessionOf(owner) != from.Session {
@@ -389,6 +386,18 @@ func (a *App) writer(d *desk.Desk, project string) (ident.From, string, *store.E
 	}
 	j := a.event("join", node, from, "cli", map[string]any{"auto": true})
 	return from, node, &j, nil
+}
+
+// binding is this session's latest join on this host.
+func (a *App) binding(d *desk.Desk, from ident.From) (store.Event, bool) {
+	var bound store.Event
+	found := false
+	for _, e := range d.Events {
+		if e.Kind == "join" && e.Host == a.Host && from.Session != "" && sessionOf(e) == from.Session {
+			bound, found = e, true
+		}
+	}
+	return bound, found
 }
 
 func shortID(s string) string {
@@ -775,7 +784,7 @@ func (a *App) cmdUnread(args []string) error {
 // --- reading -----------------------------------------------------------------
 
 func (a *App) cmdShow(args []string) error {
-	o, err := parse(args, []string{"all"}, []string{"format", "host"}, 0, 1)
+	o, err := parse(args, []string{"all", "mine"}, []string{"format", "host"}, 0, 1)
 	if err != nil {
 		return err
 	}
@@ -786,6 +795,16 @@ func (a *App) cmdShow(args []string) error {
 	f := desk.Filter{All: o.bools["all"], Host: o.vals["host"]}
 	if len(o.pos) == 1 {
 		f.Prefix = strings.Trim(o.pos[0], "/")
+	}
+	if o.bools["mine"] {
+		if len(o.pos) == 1 {
+			return usagef("give a path or --mine, not both")
+		}
+		bound, ok := a.binding(d, ident.Resolve(a.Env))
+		if !ok {
+			return errors.New("this session has not joined a node")
+		}
+		f.Prefix = bound.Path
 	}
 	v := d.Build(f)
 	switch o.vals["format"] {
@@ -960,4 +979,39 @@ func (a *App) cmdOpen(args []string) error {
 		return a.cmdInbox([]string{p.Path})
 	}
 	return fmt.Errorf("no open_command in %s; run agent-desk inbox %s", config.Path(a.Env.Getenv, a.Env.Home), p.Path)
+}
+
+// cmdDone files a finished session's summary and report path, and sets its
+// status slot to say so, in one transaction.
+func (a *App) cmdDone(args []string) error {
+	o, err := parse(args, nil, []string{"title", "report", "project"}, 0, 0)
+	if err != nil {
+		return err
+	}
+	title := strings.TrimSpace(o.vals["title"])
+	if title == "" {
+		title = "Session finished"
+	}
+	body, err := a.stdinText()
+	if err != nil {
+		return err
+	}
+	extra := map[string]any{}
+	if r := o.vals["report"]; r != "" {
+		if !filepath.IsAbs(r) {
+			r = filepath.Join(a.Env.Cwd, r)
+		}
+		extra["report"] = r
+	}
+	return a.agentWrite(o.vals["project"], func(from ident.From, node string, _ *desk.Desk) ([]store.Event, error) {
+		e := a.event("done", node, from, "cli", extra)
+		e.Title, e.Body = title, body
+		status := "Finished."
+		if extra["report"] != nil {
+			status = "Finished; see report."
+		}
+		st := a.event("set", node+"/status", from, "cli", nil)
+		st.Body = status
+		return []store.Event{e, st}, nil
+	})
 }
