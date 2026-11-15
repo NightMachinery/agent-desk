@@ -495,6 +495,13 @@ One atomic commit group each. Stop after each phase and run its check.
    to the machine's own configuration, not to this repository. Write actions
    (answer, mark read) need protection against cross-site requests even on a
    private network.
+   Every view is a URL, so any view or filter can be bookmarked (asked by the
+   user, 2026-11-16): a project or any subtree by path, one item by display
+   id, and filters such as one session, one host, show all and a search as
+   query parameters. The server renders each URL itself; filter controls are
+   plain links and GET forms, so changing a filter changes the URL. Script
+   only adds actions and live refresh. No front-end framework: one would need
+   a build step, and these pages need none.
 8. **Later, each needing the user's go-ahead:**
    - Emacs commands on rendered headings.
    - An `instruction` event kind, written by a prompt hook that copies each
