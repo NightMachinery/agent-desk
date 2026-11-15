@@ -1,0 +1,459 @@
+# agents-stream: implementation spec
+
+@Fable5.2 [2026-11-15 Sun]
+
+For the implementing agent. Nothing here is built yet. Values in examples are
+fabricated; keep it that way in code, tests and docs, because this repository
+is public.
+
+## Goal
+
+Agents' questions and reports for the user get lost in transcripts. Build a
+store that agents write to and the user reads from one place, with
+notifications, a dashboard, and answers routed back to the asking agent.
+
+## Terms
+
+- **Event**: one immutable row in the store. Everything is an event.
+- **Ledger**: the events addressed to the user that never change: questions,
+  answers, notices, done reports.
+- **Slot**: a named box of current-state text at a path. Writing a slot
+  replaces its text; the previous text remains as an older event.
+- **Board**: the current text of all slots, arranged as a tree.
+- **Path**: where an event belongs: `project/run/role[/role...]`, plus a slot
+  name for slot events.
+- **Node**: a path prefix (a project, a run, or an agent within a run).
+- **Coordinator**: a session that has joined a node. Only coordinators write.
+- **Open question**: a question with no answer event.
+- **Unread**: an item whose latest version the user has not marked read.
+- **Reply address**: the ids stored with a question that let an answer be
+  typed into the asking session later.
+
+## Decided
+
+All settled with the user on 2026-11-15.
+
+- Store: SQLite, one append-only `events` table as the only source of truth.
+- All commands are one Go program.
+- Surfaces, in order: terminal, then an HTML app served by the tool on each
+  machine. Emacs commands and a Paseo plugin come later.
+- Only coordinators write. Workers report to their parent.
+- One board per project; paths are hierarchical; agent segments are role
+  slugs, not agent ids.
+- Nothing is deleted when a run or session ends. The user marks things read,
+  and read things are hidden from dashboards. A changed slot is unread again.
+- A question appears both in chat and in the ledger. The agent files it with
+  a command and raises it in chat however it likes. No hook files anything on
+  the agent's behalf.
+- Task lists, verbatim user instructions and run state stay in their existing
+  files for now; the board links to them.
+- Stores on different machines can be merged.
+
+## Repository and integration boundary
+
+This repository holds the generic tool and its skill:
+
+    go.mod, main.go, internal/...   the Go module; `go install` gives the binary
+    skills/agents-stream/SKILL.md   how agents use it (phase 6, not before)
+    docs/spec.md                    this file
+    docs/                           user documentation, written as phases land
+
+The skill directory must not exist until the commands it describes work:
+skill linkers pick up every `skills/*/SKILL.md` at agent launch, and a skill
+for a missing tool would mislead every session.
+
+Everything specific to one person's machine stays out of this repository and
+is reached through commands named in `~/.config/agents-stream/config.toml`,
+each run with the event as JSON on stdin:
+
+    notify_command   raise a notification for an event
+    dismiss_command  remove that notification
+    open_command     open an item or a session for the user
+    deliver_command  type an answer into a session the core cannot reach
+
+Unset means: no notification, and delivery limited to what the core does
+itself (Paseo, tmux). The author's own integration (a macOS notification app,
+Telegram escalation, kitty delivery, `agent-done`, Emacs) lives in their
+scripts repository, cloned at `~/scripts`. Paths below such as `zshlang/...`
+and `docs/agent-done.md` refer to that repository; read its `AGENTS.md`
+before changing anything there, and commit there separately.
+
+The store location is `${AGENTS_STREAM_HOME:-~/.agents/stream}`.
+
+## Paths
+
+    example-proj/rerun-nov/coord/status
+    example-proj/rerun-nov/coord/eval-lead/findings
+    example-proj/adhoc/fix-login/status
+
+- `project`: basename of the repository root of the working directory, or of
+  the working directory itself outside a repository. When the repository root
+  is the home directory (a dotfiles repository), it is the first directory
+  below home on the way to the working directory. Override with `--project`.
+- `run`: named at join time. `adhoc` when a session never joined.
+- `role` segments: the chain of coordinators from the run's root down, each a
+  slug `[a-z0-9-]{1,24}`. A nested coordinator sits under its parent's path.
+- Slot names: free slugs. Conventional ones: `status` (2 lines), `findings`
+  (15), `artifacts` (15), `next` (5). Default cap for others: 15 lines.
+  Reserved for linked files: `tasks`, `user-verbatim`, `state`.
+
+Why slugs and not agent ids: an id changes when a coordinator is
+replaced or handed to another provider, which would leave the old agent's
+slots stale beside the new one's; and ids are unreadable on a dashboard and
+untypable in a command. The real ids are stored in every event's `meta.from`.
+
+### Joining
+
+A session gets its path by registering, never from an inherited environment
+variable (children inherit the parent's environment, which is how
+`PASEO_AGENT_ID` misleads; see "Which agent" in `docs/agent-done.md`).
+
+    agents-stream join rerun-nov/coord              #: first coordinator of a run
+    agents-stream join rerun-nov/coord/eval-lead    #: nested coordinator
+    agents-stream join rerun-nov/coord --takeover   #: replacement coordinator
+
+- `join` appends a `join` event binding this session id to the node.
+- A node bound to another session refuses `join` without `--takeover`.
+- A write from a session with no binding: if the session has no parent agent,
+  auto-join `adhoc/<slug>` (slug from the Paseo title or the session's short
+  id). If it has a parent, refuse with "workers report to their parent; ask it
+  to give you a node". Parent detection: reuse the idea of
+  `h-bell-agent-role` in `zshlang/auto-load/others/luna-bells.zsh` and the
+  Paseo agent record; reimplement in Go.
+- Session identity is resolved in Go from the agent's environment
+  (`CLAUDE_CODE_SESSION_ID`, `CODEX_THREAD_ID`, older `CODEX_SESSION_ID`,
+  Antigravity's equivalent) and, for Paseo, confirmed against the agent record
+  the way `h-agent-done-paseo-id` does. Port that logic; do not shell out to
+  zsh on the write path.
+
+## Store
+
+`~/.agents/stream/stream.db`, per machine, never inside a repository.
+
+    CREATE TABLE events (
+      id    TEXT PRIMARY KEY,  -- ULID: globally unique, sortable by time
+      ts    TEXT NOT NULL,     -- RFC 3339 with offset
+      host  TEXT NOT NULL,
+      kind  TEXT NOT NULL,     -- join ask answer delivered tell done set clear
+                               -- link read
+      path  TEXT NOT NULL,
+      ref   TEXT,              -- event this one refers to
+      level TEXT,              -- ask: blocked | default.  tell: fyi | notify
+      title TEXT,
+      body  TEXT,
+      meta  TEXT NOT NULL      -- JSON
+    ) STRICT;
+
+- Triggers abort every `UPDATE` and `DELETE` on `events`. Append-only is
+  enforced by the database, not by convention.
+- `PRAGMA journal_mode=WAL; synchronous=FULL; busy_timeout=5000`.
+- Indexes on `kind`, `path`, `ref`. Current state comes from SQL views
+  (`slot_current`, `question_state`, `unread`), never from stored flags.
+- `meta.from`: agent, seat, session id, Paseo agent id, parent, working
+  directory, transcript path. `meta.source`: `cli`, `chat` or `web`.
+  Other keys: `default` (ask), `file` (link), `supersedes`.
+- Driver: `modernc.org/sqlite` (pure Go, no cgo). Verify it builds through
+  the repository's Go path (below) before writing anything else.
+- `agents-stream export` prints the events as JSONL, and `import` inserts
+  events whose ids are new.
+- Display ids: kind letter plus the shortest unique suffix of the ULID's
+  random part, at least 4 characters (`q-7f3a`, `t-k2m9`). Commands accept any
+  unique prefix.
+
+Event semantics:
+
+- `ask`: a question. `level=blocked` means the agent stops until answered;
+  `level=default` means it continues on `meta.default` unless told otherwise.
+- `answer`: `ref` is the `ask`. A second answer to the same question is
+  allowed and is the one that counts (a changed decision).
+- `delivered`: `ref` is an `answer` that has been typed into its session.
+- `tell`: a notice or interim report. `level=notify` raises a notification.
+- `done`: a finished session's summary and report path, from `agent-done`.
+- `set`: new text for the slot at `path`. `clear`: the slot is empty from now.
+- `link`: the slot at `path` shows the file `meta.file` (rendered at view
+  time; never unread).
+- `read`: `ref` is the exact event the user has seen. Marking a node read
+  expands, at command time, into one `read` per current unread item under it.
+
+Unread rules: a `tell`, a `done`, and the latest `set` of a slot are
+unread until a `read` names that event. A new `set` is a new event, so an
+updated slot is unread again. Otherwise fresh information in a slot the user
+once dismissed would stay hidden, which is the original problem. Exception:
+`status` slots are never unread; they change constantly and are shown while
+their run is live.
+
+## Commands
+
+One binary, `agents-stream`, built from the module at the root of this
+repository. Bodies come on stdin. Every write
+prints one line: the display id or `ok`.
+
+Agent side:
+
+    agents-stream join <run>/<role-path> [--takeover]
+    agents-stream ask --blocked --title T                 <<'Q' ... Q
+    agents-stream ask --default 'A: reuse the cache' --title T <<'Q' ... Q
+    agents-stream tell [--notify] --title T               <<'R' ... R
+    agents-stream set <slot> [text]        #: or text on stdin; cap enforced
+    agents-stream clear <slot>
+    agents-stream link <slot> <file>
+    agents-stream answer <id> --from-chat 'text'   #: record only, no delivery
+
+`set` over the cap fails with the count and the cap, and writes nothing.
+
+User side:
+
+    agents-stream inbox                 #: interactive dashboard (below)
+    agents-stream show [<path-prefix>] [--all] [--format org|md|json]
+    agents-stream answer <id> 'text'    #: record, then deliver
+    agents-stream read <id|path-prefix> #: mark read
+    agents-stream unread <id>           #: append a superseding marker; see note
+    agents-stream search <text>
+    agents-stream export | import | snapshot <file> | merge <source>
+    agents-stream deliver | render | serve
+
+Note on `unread`: there is no deleting a `read` event. Model it as a later
+event that cancels it (`kind=read`, `meta.cancel=true`); the view takes the
+latest.
+
+After every write the tool re-renders plain files, atomically (temp file plus
+rename), so a human or a recovering agent needs only `cat`:
+
+    ~/.agents/stream/render/inbox.org
+    ~/.agents/stream/render/board/<project>.org
+    ~/.agents/stream/render/ledger/<yyyy-mm>.org
+
+In the rendered org, each item is a heading with a `:STREAM_ID:` property and
+a keyword: `ASK` or `ANSWERED` for questions, `NEW` or none for the rest.
+
+## Merging stores
+
+    agents-stream snapshot /tmp/copy.db    #: consistent copy of a live store
+    agents-stream merge /tmp/copy.db       #: take what that file has
+    agents-stream merge ssh:otherhost      #: both directions
+
+- `snapshot` uses `VACUUM INTO`. It is the only supported way to copy a store;
+  copying the file of a live WAL database can produce a broken copy.
+- `merge <file>` opens the other database read-only and, in one
+  `BEGIN IMMEDIATE` transaction, inserts every event whose id is absent
+  (`ATTACH`, then `INSERT OR IGNORE ... SELECT`). SQLite's own lock, with the
+  busy timeout, serialises it against other writers.
+- `merge ssh:<host>` pipes `agents-stream export` from the host into a local
+  import, then the local export into `agents-stream import` on the host. No
+  database file crosses the network.
+- Merging is idempotent and order-free, because events are immutable and ids
+  are global. Running it twice, or in either direction first, gives the same
+  store.
+- Imported events raise no notifications unless `--notify` is given.
+- Views show all hosts. An item from another host carries its host name, and
+  every view accepts `--host`.
+- Delivery across hosts: an answer is typed into a session only by the host
+  that asked the question. `agents-stream deliver` sends every answer whose
+  question is local and which has no `delivered` event, then appends one.
+  `merge` runs it at the end. So answering on one machine a question asked on
+  another works after the next merge.
+
+## Dashboard
+
+One information design, two renderings (terminal now, HTML in phase 7).
+Four views, in this order:
+
+1. **Needs you**: open questions. `blocked` first, then `default`; oldest
+   first within each. This view is never empty-by-hiding: an open question
+   cannot be marked read away, only answered.
+2. **New**: unread notices, done reports and changed slots, grouped by
+   project then run.
+3. **Runs**: the tree. Read slots are hidden unless "show all" is on.
+   A run with nothing unread, no open question and a `done` from its root
+   coordinator is hidden entirely.
+4. **History**: search over the ledger.
+
+Run state, computed: `waiting on you` (open blocked question), `finished`
+(`done` from the root coordinator), otherwise `active` with the age of its
+last event; older than 3 days shows as `quiet`.
+
+### Using the hierarchy
+
+- **Roll-up.** Every node shows the number of open questions and of unread
+  items beneath it, and takes the most urgent state beneath it: a project is
+  `waiting on you` if any agent in any of its runs is.
+- **Folding.** A node is expanded only along the way to something that needs
+  attention. Everything else is one line, which for an agent node is its
+  `status` text. A quiet project costs one line however many agents it has.
+- **Scoping.** Every view takes a path prefix:
+  `agents-stream inbox example-proj/rerun-nov` shows all four views for that
+  subtree only. In HTML each node has its own URL, selecting a node scopes to
+  it, and a breadcrumb scopes back out.
+- **Grouping.** "Needs you" and "New" group by project, then run, and label
+  each item with the rest of its path, so one run's questions sit together.
+- **Sibling order.** Waiting on you, then unread, then active by recency,
+  then quiet. A coordinator's own slots come before its nested coordinators.
+- **Node actions.** Mark the subtree read; copy the path.
+- **Notifications** name the path and open the dashboard scoped to it.
+
+Wide layout (HTML desktop; the terminal shows the left column as the list and
+the right as the preview):
+
+    +------------------------------+-------------------------------------+
+    | NEEDS YOU (2)                | q-7f3a  BLOCKED  2h                 |
+    | > BLOCKED 2h  example-proj   | example-proj / rerun-nov / coord    |
+    |   Which split for the rerun? |                                     |
+    |   DEFAULT 5h  site           | Which split for the rerun?          |
+    |   Drop the legacy feed?      | The rerun needs a train/test split. |
+    |                              | A. Reuse the cached split: ...      |
+    | NEW (3)                      | B. Regenerate: ...                  |
+    |   done   paper-figs  1h      | I recommend B.                      |
+    |   slot   rerun-nov/findings  |                                     |
+    |   tell   site: deploy ok     | [ answer...                       ] |
+    |                              | (Send) (Take recommendation)        |
+    | RUNS                         | (Open session) (Copy id)            |
+    | v example-proj    1 ask 2 new|                                     |
+    |   v rerun-nov  waiting 1 ask |                                     |
+    |       status: Seeds 3/5 ...  |                                     |
+    |     > eval-lead  active 10m  |                                     |
+    |   > paper-figs  finished     |                                     |
+    | > site       active 5h 1 ask |                                     |
+    | [show all] [search]          |                                     |
+    +------------------------------+-------------------------------------+
+
+Narrow layout (phone): the left column alone; tapping a row opens the right
+pane as its own page. Design for the phone first.
+
+Actions per item:
+
+- Question: answer (free text), "take recommendation" or "take default"
+  (answers with a fixed sentence), open session, copy id.
+- Notice, done report, slot: mark read; open the linked report or file.
+- Node (project, run, agent): mark everything under it read; expand.
+- Global: show all, search, refresh.
+
+Terminal rendering (`agents-stream inbox`): `fzf` over the list with the
+preview pane. Keys: Enter answers a
+question or opens an item in `$EDITOR`; `ctrl-r` marks read; `ctrl-t` takes
+the recommendation or default; `ctrl-o` opens the session; `alt-a` toggles
+show all. The list reloads after each action.
+
+"Open session" uses the reply address: a Paseo agent opens in Paseo, a tmux
+pane is selected, otherwise the resume command from the done-report logic is
+copied to the clipboard.
+
+## Chat and ledger together
+
+The user wants each question both in chat and filed, and decided against
+hooks that file on the agent's behalf (2026-11-15). So:
+
+- The agent files with `agents-stream ask`, `tell` and `set`, whenever it wants
+  during its work. Filing is always an explicit command.
+- The agent is free to raise the same matter in chat in whatever form suits:
+  prose, a restatement, or an interactive question tool such as Claude Code's
+  `AskUserQuestion`. The tool neither inspects nor constrains the chat.
+- The chat mention carries the display id (`q-7f3a`), so the two can be
+  matched by eye and by search.
+- When the user answers in chat or through a question tool, the agent records
+  it: `agents-stream answer q-7f3a --from-chat 'B, keep the old cache'`. This
+  costs one short command and is the only thing keeping the ledger's open list
+  honest, so the skill must state it plainly. An answer the agent forgot to
+  record leaves the question visibly open in the inbox, where the user can
+  close it.
+
+No hook files questions, notices or slots; do not add one. The single
+approved hook, deferred to phase 8, copies the user's own messages.
+
+## Answer delivery
+
+`agents-stream answer <id> 'text'` appends the `answer` event, then calls
+`deliver`, which sends this prompt to the reply address and appends a
+`delivered` event:
+
+    Answer to q-7f3a "Which split for the rerun?": B, and keep the old cache.
+
+- Paseo agent: `paseo send <uuid> ...` (it revives an archived agent).
+- tmux pane: `tmux send-keys`, text then Enter, after checking that the pane
+  still runs the recorded session.
+- Anything else: `deliver_command`. In the author's setup that is the typing
+  path behind `h-agent-usage-continue-send` in
+  `zshlang/auto-load/others/agent-usage.zsh`.
+- Unreachable session: the answer stays recorded and undelivered; print how
+  to resume the session. A later `deliver` retries.
+
+A blocked agent ends its turn after asking and never polls. For a question
+with a default, the agent may be mid-turn when the answer arrives; verify
+what `paseo send` does then, and if it cannot queue, leave the answer
+undelivered until the session is idle.
+
+## Notifications
+
+Core: on every `ask`, every `tell --notify` and every `done`, run
+`notify_command`; on an answer or a `read`, run `dismiss_command`.
+
+The author's integration, in `~/scripts`:
+
+- A new app "Agent Inbox" via `macos/notification-apps/build.py` and
+  `notif-app-install inbox`, like Agent Done.
+- One notification group per event id, so one question never replaces
+  another. Dismissal uses `notif-os-remove`.
+- Card: title is the item title; body is the path and level, such as
+  "example-proj/rerun-nov · blocked". Click runs `open_command`.
+- A `blocked` question while the machine is idle also goes to Telegram via
+  `tnotif`, title only. Reuse the idle check in `agent-usage.zsh`.
+- `agent-done` appends a `done` event with the summary and report path, sets
+  the node's `status` slot to "Finished; see report.", and mentions open
+  `blocked` questions in the report. It refuses nothing and removes nothing.
+
+## Phases
+
+One atomic commit group each. Stop after each phase and run its check.
+
+1. **Store and write commands.** Module, schema, triggers, views, identity,
+   `join`, `ask`, `tell`, `answer` (record only), `set`, `clear`, `link`,
+   `read`, `show`, `search`, `export`, `import`, `snapshot`, `merge <file>`,
+   `render`. Hermetic Go tests against a temporary store and a faked identity.
+   Check: two processes writing in a loop lose nothing; `UPDATE` is rejected;
+   an over-cap `set` writes nothing; a worker session is refused; merging two
+   diverged stores in either order gives identical views. Doc: `README.md`
+   and `docs/usage.md`.
+2. **Terminal dashboard.** `inbox` with the four views, the hierarchy
+   behaviour and every action except delivery. Check by hand against
+   fabricated events, including a project with nested coordinators.
+3. **Notifications.** The two commands in core; the app in `~/scripts`.
+4. **Answer delivery**, with `deliver` and `merge ssh:`. Test against a
+   disposable Paseo agent and a tmux pane running `cat`.
+5. **`agent-done` integration**, in `~/scripts`.
+6. **Skill.** `skills/agents-stream/SKILL.md`, covering: join, when to file,
+   the id in chat, recording chat answers, slot discipline (state what is
+   true now; no history; no progress narration), and the worker rule. Then
+   one line in the author's global agent instructions saying the skill must
+   be used when writing anything meant for the user. That file is
+   `PE/Agents/AGENTS.md` in `~/scripts`; ask the user before editing it,
+   commit it alone, and run `agents-md-sync`.
+7. **HTML app.** `agents-stream serve` on loopback: a JSON API and one page
+   with no build step, assets embedded in the binary and referenced with a
+   content hash in the URL. Phone layout first. Each machine serves its own
+   store; exposing the port on a private network is deployment and belongs
+   to the machine's own configuration, not to this repository. Write actions
+   (answer, mark read) need protection against cross-site requests even on a
+   private network.
+8. **Later, each needing the user's go-ahead:**
+   - Emacs commands on rendered headings.
+   - An `instruction` event kind, written by a prompt hook that copies each
+     message the user sends to a coordinator, verbatim, replacing the
+     hand-kept verbatim file. The user approved this hook (it records the
+     user's text, not the agent's). It must skip automated prompts: resume
+     pings, cache-warming pings, compaction commands and prompts sent by
+     other agents.
+   - Run state as slots with an agent-only audience.
+   - Tasks as events.
+   - A Paseo plugin.
+
+## To verify early
+
+- `modernc.org/sqlite` builds and passes the concurrency check on macOS and
+  Linux.
+- Session identity for Claude Code, Codex and Antigravity, and parent
+  detection for Paseo agents and tmux subagents. An in-process subagent
+  shares its parent's session and so writes as the parent; the skill tells it
+  not to.
+- What `paseo send` does to an agent that is mid-turn.
+- Whether the author's `build.py` takes a fourth app without restructuring.
+- Refuse to open a store on a network filesystem, where WAL mode does not
+  work, and say why.
