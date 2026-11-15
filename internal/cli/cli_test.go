@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -31,8 +32,11 @@ type harness struct {
 	host  string
 	now   time.Time
 	env   map[string]string
-	tmux  map[string]string // pane -> "session\trole"
+	tmux  map[string]string // pane -> "session\trole\tpid"
 	paseo string            // PASEO_HOME
+	// calls records the external programs delivery ran; respond answers them.
+	calls   *[]string
+	respond func(name string, args []string) (string, error)
 }
 
 func newHarness(t *testing.T) *harness {
@@ -46,7 +50,8 @@ func newHarness(t *testing.T) *harness {
 		host: "host-a",
 		now:  time.Date(2026, 3, 4, 10, 0, 0, 0, time.FixedZone("", 3600)),
 		env:  map[string]string{},
-		tmux: map[string]string{},
+		tmux:  map[string]string{},
+		calls: &[]string{},
 	}
 	h.paseo = filepath.Join(h.home, ".paseo")
 	must(t, os.MkdirAll(filepath.Join(h.cwd, ".git"), 0o755))
@@ -87,6 +92,17 @@ func (h *harness) app(env map[string]string, stdin string) (*App, *bytes.Buffer,
 		Host:      h.host,
 		Home:      h.desk,
 		WaitHooks: true,
+		Exec: func(_ context.Context, stdin []byte, name string, args ...string) (string, error) {
+			call := name + " " + strings.Join(args, " ")
+			if stdin != nil {
+				call += " <<< " + string(stdin)
+			}
+			*h.calls = append(*h.calls, call)
+			if h.respond != nil {
+				return h.respond(name, args)
+			}
+			return "", fmt.Errorf("no %s in tests", name)
+		},
 	}
 	return a, &out, &errb
 }

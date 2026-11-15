@@ -21,6 +21,7 @@ type From struct {
 	Cwd        string `json:"cwd,omitempty"`        // working directory
 	Transcript string `json:"transcript,omitempty"` // the session's transcript file
 	TmuxPane   string `json:"tmux_pane,omitempty"`  // reply address outside Paseo
+	TmuxPID    string `json:"tmux_pid,omitempty"`   // the pane's process, to tell a reused pane
 	Title      string `json:"-"`                    // Paseo title, for adhoc slugs
 }
 
@@ -180,13 +181,16 @@ func Resolve(env Env) From {
 	// wins; then TMUX_SUBAGENT_NODE; then an ag--* session name. A Paseo
 	// agent's TMUX_PANE, if any, is the daemon's, so it says nothing here.
 	if pane := get("TMUX_PANE"); pane != "" && env.Tmux != nil && f.Paseo == "" {
-		out, err := env.Tmux("display-message", "-p", "-t", pane, "#{session_name}\t#{@agent_role}")
+		out, err := env.Tmux("display-message", "-p", "-t", pane, "#{session_name}\t#{@agent_role}\t#{pane_pid}")
 		name, role := "", ""
 		if err == nil {
-			parts := strings.SplitN(strings.TrimRight(out, "\n"), "\t", 2)
+			parts := strings.SplitN(strings.TrimRight(out, "\n"), "\t", 3)
 			name = parts[0]
-			if len(parts) == 2 {
+			if len(parts) > 1 {
 				role = parts[1]
+			}
+			if len(parts) > 2 {
+				f.TmuxPID = parts[2]
 			}
 		}
 		f.TmuxPane = pane

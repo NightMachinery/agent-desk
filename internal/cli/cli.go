@@ -32,6 +32,8 @@ type App struct {
 	Home   string // store directory
 	// WaitHooks makes detached hook commands synchronous, for tests.
 	WaitHooks bool
+	// Exec, when set, replaces running paseo and tmux for delivery, for tests.
+	Exec Runner
 
 	st  *store.Store
 	cfg *config.Config
@@ -82,12 +84,14 @@ Agent side (only coordinators write; workers report to their parent):
 User side:
   agent-desk inbox [<path-prefix>] [--all]    interactive (needs fzf)
   agent-desk show [<path-prefix>] [--all] [--host H] [--format org|md|json]
-  agent-desk answer <id> 'text'
+  agent-desk answer <id> 'text'       record, then type it into the asking session
+  agent-desk deliver                  retry answers not yet delivered
   agent-desk read <id|path-prefix> [--host H]
   agent-desk unread <id>
   agent-desk search <text> [--host H]
   agent-desk open <id|path>       what a notification click runs (open_command)
-  agent-desk export | import [--notify] | snapshot <file> | merge <file> [--notify] | render
+  agent-desk export | import [--notify] | snapshot <file> | render
+  agent-desk merge <file>|ssh:<host> [--notify]
 
 Store: ${AGENT_DESK_HOME:-~/.agents/desk}. See docs/usage.md.
 `
@@ -175,6 +179,8 @@ func (a *App) run(args []string) error {
 		return a.cmdInboxHelper(cmd, rest)
 	case "open":
 		return a.cmdOpen(rest)
+	case "deliver":
+		return a.cmdDeliver(rest)
 	case "render":
 		if _, err := parse(rest, nil, nil, 0, 0); err != nil {
 			return err
@@ -653,7 +659,20 @@ func (a *App) recordAnswer(d *desk.Desk, q store.Event, text, source string) err
 	}
 	e := a.event("answer", q.Path, ident.Resolve(a.Env), source, nil)
 	e.Ref, e.Body = q.ID, text
-	return a.commit1(e)
+	if err := a.commit1(e); err != nil {
+		return err
+	}
+	if source == "chat" {
+		return nil
+	}
+	if q.Host != a.Host {
+		fmt.Fprintf(a.Stderr, "agent-desk: asked on %s; delivered there after the next merge\n", q.Host)
+		return nil
+	}
+	if _, err := a.deliver(q.ID); err != nil {
+		return err
+	}
+	return a.renderWarn()
 }
 
 func (a *App) cmdRead(args []string) error {
@@ -890,7 +909,7 @@ func (a *App) cmdMerge(args []string) error {
 	}
 	src := o.pos[0]
 	if strings.HasPrefix(src, "ssh:") {
-		return errors.New("merge ssh:<host> is not built yet; snapshot the other store, copy the file, and merge that")
+		return a.mergeSSH(strings.TrimPrefix(src, "ssh:"), o.bools["notify"])
 	}
 	st, err := a.store()
 	if err != nil {
@@ -900,7 +919,11 @@ func (a *App) cmdMerge(args []string) error {
 	if err != nil {
 		return err
 	}
-	return a.imported(added, o.bools["notify"])
+	if err := a.imported(added, o.bools["notify"]); err != nil {
+		return err
+	}
+	_, err = a.deliver("")
+	return err
 }
 
 // cmdOpen opens an item or node for the user: what a notification click
