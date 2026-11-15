@@ -621,3 +621,19 @@ func TestDone(t *testing.T) {
 	}
 	h.fails(h.as(sessB), "", "has not joined", "show", "--mine")
 }
+
+func TestCodexSandboxHint(t *testing.T) {
+	h := newHarness(t)
+	// A store that cannot be opened, as under Codex's workspace sandbox.
+	must(t, os.WriteFile(h.desk, []byte("not a directory"), 0o644))
+	env := map[string]string{"AI_AGENT": "codex", "CODEX_THREAD_ID": "t-1"}
+	_, errOut, code := h.run(env, "", "show")
+	if code == 0 || strings.Contains(errOut, "sandbox") {
+		t.Fatalf("outside the sandbox: exit %d, %q", code, errOut)
+	}
+	env["CODEX_SANDBOX"] = "seatbelt"
+	_, errOut, code = h.run(env, "", "show")
+	if code == 0 || !strings.Contains(errOut, "Codex's sandbox blocks "+h.desk) || !strings.Contains(errOut, "writable_roots") {
+		t.Fatalf("inside the sandbox: exit %d, %q", code, errOut)
+	}
+}

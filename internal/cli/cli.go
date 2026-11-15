@@ -120,6 +120,12 @@ func (a *App) store() (*store.Store, error) {
 	}
 	st, err := store.Open(a.Home)
 	if err != nil {
+		if a.Env.Getenv != nil && a.Env.Getenv("CODEX_SANDBOX") != "" {
+			// Codex's sandbox lets a command write only its workspace, and
+			// SQLite in WAL mode must write even to read.
+			return nil, fmt.Errorf("%w\nCodex's sandbox blocks %s: rerun this command with escalated permissions, "+
+				"or add that directory to sandbox_workspace_write.writable_roots in Codex's config.toml", err, a.Home)
+		}
 		return nil, err
 	}
 	a.st = st
