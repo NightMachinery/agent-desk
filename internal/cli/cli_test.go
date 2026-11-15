@@ -43,13 +43,13 @@ func newHarness(t *testing.T) *harness {
 	t.Helper()
 	root := t.TempDir()
 	h := &harness{
-		t:    t,
-		home: filepath.Join(root, "home"),
-		desk: filepath.Join(root, "desk"),
-		cwd:  filepath.Join(root, "home", "code", "example-proj"),
-		host: "host-a",
-		now:  time.Date(2026, 3, 4, 10, 0, 0, 0, time.FixedZone("", 3600)),
-		env:  map[string]string{},
+		t:     t,
+		home:  filepath.Join(root, "home"),
+		desk:  filepath.Join(root, "desk"),
+		cwd:   filepath.Join(root, "home", "code", "example-proj"),
+		host:  "host-a",
+		now:   time.Date(2026, 3, 4, 10, 0, 0, 0, time.FixedZone("", 3600)),
+		env:   map[string]string{},
 		tmux:  map[string]string{},
 		calls: &[]string{},
 	}
