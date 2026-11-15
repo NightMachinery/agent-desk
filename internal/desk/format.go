@@ -68,8 +68,8 @@ func (w *Writer) props(kv ...string) {
 	fmt.Fprintln(w.W, ":END:")
 }
 
-// text prints a body indented, so that no line can start a heading.
-func (w *Writer) text(s string) {
+// Text prints a body indented, so that no line can start a heading.
+func (w *Writer) Text(s string) {
 	s = strings.TrimRight(s, "\n")
 	if s == "" {
 		return
@@ -121,13 +121,13 @@ func (w *Writer) Question(level int, it Item) {
 	w.h(level, fmt.Sprintf("%s%s %s  (%s · %s · %s%s)", kwd(w.Org, k), it.ID, it.Event.Title,
 		label, it.Event.Level, it.Age, w.hostTag(it.Event.Host)))
 	w.props("DESK_ID", it.ID, "DESK_PATH", it.Event.Path, "DESK_TS", it.Event.TS, "DESK_HOST", it.Event.Host)
-	w.text(it.Event.Body)
+	w.Text(it.Event.Body)
 	if def := MetaString(it.Event, "default"); def != "" {
-		w.text("Default: " + def)
+		w.Text("Default: " + def)
 	}
 	if q != nil && !q.Open() {
 		ans := w.Desk.ByID[q.AnswerID]
-		w.text(fmt.Sprintf("Answer (%s, %s): %s", w.Desk.Display(q.AnswerID), MetaString(ans, "source"), q.AnswerBody))
+		w.Text(fmt.Sprintf("Answer (%s, %s): %s", w.Desk.Display(q.AnswerID), MetaString(ans, "source"), q.AnswerBody))
 	}
 }
 
@@ -152,9 +152,9 @@ func (w *Writer) Notice(level int, it Item) {
 	w.h(level, fmt.Sprintf("%s%s %s: %s  (%s · %s%s)", kwd(w.Org, k), it.ID, what, title, label, it.Age,
 		w.hostTag(it.Event.Host)))
 	w.props("DESK_ID", it.ID, "DESK_PATH", it.Event.Path, "DESK_TS", it.Event.TS, "DESK_HOST", it.Event.Host)
-	w.text(it.Event.Body)
+	w.Text(it.Event.Body)
 	if r := MetaString(it.Event, "report"); r != "" {
-		w.text("Report: " + r)
+		w.Text("Report: " + r)
 	}
 }
 
@@ -200,14 +200,14 @@ func (w *Writer) Node(level int, n *Node) {
 		w.h(level+1, fmt.Sprintf("%s%s %s  (%s)", kwd(w.Org, k), s.ID, s.Name, Age(w.Desk.Now.Sub(Time(s.Event)))))
 		w.props("DESK_ID", s.ID, "DESK_PATH", s.Event.Path, "DESK_TS", s.Event.TS)
 		if s.File != "" {
-			w.text("File: " + s.File)
+			w.Text("File: " + s.File)
 			if b, err := os.ReadFile(s.File); err == nil {
-				w.text(string(b))
+				w.Text(string(b))
 			} else {
-				w.text("(cannot read: " + err.Error() + ")")
+				w.Text("(cannot read: " + err.Error() + ")")
 			}
 		} else {
-			w.text(s.Event.Body)
+			w.Text(s.Event.Body)
 		}
 	}
 	for _, c := range n.Children {

@@ -76,6 +76,7 @@ Agent side (only coordinators write; workers report to their parent):
   agent-desk answer <id> --from-chat 'text'   record an answer given in chat
 
 User side:
+  agent-desk inbox [<path-prefix>] [--all]    interactive (needs fzf)
   agent-desk show [<path-prefix>] [--all] [--host H] [--format org|md|json]
   agent-desk answer <id> 'text'
   agent-desk read <id|path-prefix> [--host H]
@@ -163,6 +164,10 @@ func (a *App) run(args []string) error {
 		return a.cmdSnapshot(rest)
 	case "merge":
 		return a.cmdMerge(rest)
+	case "inbox":
+		return a.cmdInbox(rest)
+	case "inbox-list", "inbox-preview", "inbox-act":
+		return a.cmdInboxHelper(cmd, rest)
 	case "render":
 		if _, err := parse(rest, nil, nil, 0, 0); err != nil {
 			return err
@@ -624,6 +629,11 @@ func (a *App) cmdAnswer(args []string) error {
 			return err
 		}
 	}
+	return a.recordAnswer(d, q, text, source)
+}
+
+// recordAnswer appends an answer to question q and prints its display id.
+func (a *App) recordAnswer(d *desk.Desk, q store.Event, text, source string) error {
 	if strings.TrimSpace(text) == "" {
 		return usagef("answer needs the answer's text")
 	}
@@ -666,15 +676,7 @@ func (a *App) cmdRead(args []string) error {
 			return err
 		}
 	}
-	var evs []store.Event
-	f := desk.Filter{Prefix: arg, Host: o.vals["host"]}
-	for _, e := range d.Events {
-		if d.Unread(e.ID) && desk.Under(e.Path, f.Prefix) && (f.Host == "" || e.Host == f.Host) {
-			r := a.event("read", e.Path, from, "cli", nil)
-			r.Ref = e.ID
-			evs = append(evs, r)
-		}
-	}
+	evs := a.readMarks(d, from, desk.Filter{Prefix: arg, Host: o.vals["host"]})
 	if len(evs) == 0 {
 		known := false
 		for _, e := range d.Events {
@@ -692,6 +694,19 @@ func (a *App) cmdRead(args []string) error {
 	}
 	fmt.Fprintf(a.Stderr, "agent-desk: marked %d item(s) read\n", len(evs))
 	return a.commit(evs, "")
+}
+
+// readMarks builds one read marker per unread item in scope.
+func (a *App) readMarks(d *desk.Desk, from ident.From, f desk.Filter) []store.Event {
+	var evs []store.Event
+	for _, e := range d.Events {
+		if d.Unread(e.ID) && desk.Under(e.Path, f.Prefix) && (f.Host == "" || e.Host == f.Host) {
+			r := a.event("read", e.Path, from, "cli", nil)
+			r.Ref = e.ID
+			evs = append(evs, r)
+		}
+	}
+	return evs
 }
 
 func (a *App) renderWarn() error {

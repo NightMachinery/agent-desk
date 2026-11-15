@@ -451,12 +451,16 @@ func (d *Desk) settle(n *Node, f Filter) {
 	case n.Depth >= 3 && n.finished:
 		n.State = Finished
 	case n.Depth == 1 && len(n.Children) > 0:
-		n.State = Finished
+		// The most urgent state of its runs, with that run's age; among
+		// runs in the same state, the most recent.
+		var pick *Node
 		for _, c := range n.Children {
-			if stateRank(c.State) < stateRank(n.State) {
-				n.State = c.State
+			if pick == nil || stateRank(c.State) < stateRank(pick.State) ||
+				(stateRank(c.State) == stateRank(pick.State) && c.last.After(pick.last)) {
+				pick = c
 			}
 		}
+		n.State, n.Age = pick.State, pick.Age
 	default:
 		n.State = live
 	}
@@ -535,3 +539,19 @@ func Visible(ns []*Node) []*Node {
 	}
 	return out
 }
+
+// Find returns the node at path in a tree, or nil.
+func Find(ns []*Node, path string) *Node {
+	for _, n := range ns {
+		if n.Path == path {
+			return n
+		}
+		if Under(path, n.Path) {
+			return Find(n.Children, path)
+		}
+	}
+	return nil
+}
+
+// Attention reports whether anything beneath the node needs the user.
+func (n *Node) Attention() bool { return n.Open > 0 || n.UnreadN > 0 }
