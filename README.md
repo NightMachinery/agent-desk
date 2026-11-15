@@ -1,10 +1,10 @@
-# agents-stream
+# agent-desk
 
 A channel from coding agents to the person running them.
 
 When several agents work at once, their questions and reports end up buried in
 transcripts, between tool calls, or in a subagent's output that nobody opens.
-`agents-stream` gives agents one place to write what is meant for the user,
+`agent-desk` gives agents one place to write what is meant for the user,
 and gives the user one place to read it and answer.
 
 - **Questions** are filed with their context, options and recommendation.
@@ -21,11 +21,11 @@ and gives the user one place to read it and answer.
 
 Design stage. Nothing is implemented yet; the commands below are the plan.
 
-    agents-stream ask --blocked --title 'Which split for the rerun?' <<'Q'
+    agent-desk ask --blocked --title 'Which split for the rerun?' <<'Q'
     ...context, options, recommendation...
     Q
-    agents-stream set status 'Seeds 3/5 done. ETA 14:00.'
-    agents-stream inbox
+    agent-desk set status 'Seeds 3/5 done. ETA 14:00.'
+    agent-desk inbox
 
 The full design and the build order are in [docs/spec.md](docs/spec.md).
 

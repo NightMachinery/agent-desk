@@ -1,4 +1,4 @@
-# agents-stream: implementation spec
+# agent-desk: implementation spec
 
 @Fable5.2 [2026-11-15 Sun]
 
@@ -54,7 +54,7 @@ All settled with the user on 2026-11-15.
 This repository holds the generic tool and its skill:
 
     go.mod, main.go, internal/...   the Go module; `go install` gives the binary
-    skills/agents-stream/SKILL.md   how agents use it (phase 6, not before)
+    skills/agent-desk/SKILL.md   how agents use it (phase 6, not before)
     docs/spec.md                    this file
     docs/                           user documentation, written as phases land
 
@@ -63,7 +63,7 @@ skill linkers pick up every `skills/*/SKILL.md` at agent launch, and a skill
 for a missing tool would mislead every session.
 
 Everything specific to one person's machine stays out of this repository and
-is reached through commands named in `~/.config/agents-stream/config.toml`,
+is reached through commands named in `~/.config/agent-desk/config.toml`,
 each run with the event as JSON on stdin:
 
     notify_command   raise a notification for an event
@@ -78,7 +78,7 @@ scripts repository, cloned at `~/scripts`. Paths below such as `zshlang/...`
 and `docs/agent-done.md` refer to that repository; read its `AGENTS.md`
 before changing anything there, and commit there separately.
 
-The store location is `${AGENTS_STREAM_HOME:-~/.agents/stream}`.
+The store location is `${AGENT_DESK_HOME:-~/.agents/desk}`.
 
 ## Paths
 
@@ -108,9 +108,9 @@ A session gets its path by registering, never from an inherited environment
 variable (children inherit the parent's environment, which is how
 `PASEO_AGENT_ID` misleads; see "Which agent" in `docs/agent-done.md`).
 
-    agents-stream join rerun-nov/coord              #: first coordinator of a run
-    agents-stream join rerun-nov/coord/eval-lead    #: nested coordinator
-    agents-stream join rerun-nov/coord --takeover   #: replacement coordinator
+    agent-desk join rerun-nov/coord              #: first coordinator of a run
+    agent-desk join rerun-nov/coord/eval-lead    #: nested coordinator
+    agent-desk join rerun-nov/coord --takeover   #: replacement coordinator
 
 - `join` appends a `join` event binding this session id to the node.
 - A node bound to another session refuses `join` without `--takeover`.
@@ -128,7 +128,7 @@ variable (children inherit the parent's environment, which is how
 
 ## Store
 
-`~/.agents/stream/stream.db`, per machine, never inside a repository.
+`~/.agents/desk/desk.db`, per machine, never inside a repository.
 
     CREATE TABLE events (
       id    TEXT PRIMARY KEY,  -- ULID: globally unique, sortable by time
@@ -154,7 +154,7 @@ variable (children inherit the parent's environment, which is how
   Other keys: `default` (ask), `file` (link), `supersedes`.
 - Driver: `modernc.org/sqlite` (pure Go, no cgo). Verify it builds through
   the repository's Go path (below) before writing anything else.
-- `agents-stream export` prints the events as JSONL, and `import` inserts
+- `agent-desk export` prints the events as JSONL, and `import` inserts
   events whose ids are new.
 - Display ids: kind letter plus the shortest unique suffix of the ULID's
   random part, at least 4 characters (`q-7f3a`, `t-k2m9`). Commands accept any
@@ -184,33 +184,33 @@ their run is live.
 
 ## Commands
 
-One binary, `agents-stream`, built from the module at the root of this
+One binary, `agent-desk`, built from the module at the root of this
 repository. Bodies come on stdin. Every write
 prints one line: the display id or `ok`.
 
 Agent side:
 
-    agents-stream join <run>/<role-path> [--takeover]
-    agents-stream ask --blocked --title T                 <<'Q' ... Q
-    agents-stream ask --default 'A: reuse the cache' --title T <<'Q' ... Q
-    agents-stream tell [--notify] --title T               <<'R' ... R
-    agents-stream set <slot> [text]        #: or text on stdin; cap enforced
-    agents-stream clear <slot>
-    agents-stream link <slot> <file>
-    agents-stream answer <id> --from-chat 'text'   #: record only, no delivery
+    agent-desk join <run>/<role-path> [--takeover]
+    agent-desk ask --blocked --title T                 <<'Q' ... Q
+    agent-desk ask --default 'A: reuse the cache' --title T <<'Q' ... Q
+    agent-desk tell [--notify] --title T               <<'R' ... R
+    agent-desk set <slot> [text]        #: or text on stdin; cap enforced
+    agent-desk clear <slot>
+    agent-desk link <slot> <file>
+    agent-desk answer <id> --from-chat 'text'   #: record only, no delivery
 
 `set` over the cap fails with the count and the cap, and writes nothing.
 
 User side:
 
-    agents-stream inbox                 #: interactive dashboard (below)
-    agents-stream show [<path-prefix>] [--all] [--format org|md|json]
-    agents-stream answer <id> 'text'    #: record, then deliver
-    agents-stream read <id|path-prefix> #: mark read
-    agents-stream unread <id>           #: append a superseding marker; see note
-    agents-stream search <text>
-    agents-stream export | import | snapshot <file> | merge <source>
-    agents-stream deliver | render | serve
+    agent-desk inbox                 #: interactive dashboard (below)
+    agent-desk show [<path-prefix>] [--all] [--format org|md|json]
+    agent-desk answer <id> 'text'    #: record, then deliver
+    agent-desk read <id|path-prefix> #: mark read
+    agent-desk unread <id>           #: append a superseding marker; see note
+    agent-desk search <text>
+    agent-desk export | import | snapshot <file> | merge <source>
+    agent-desk deliver | render | serve
 
 Note on `unread`: there is no deleting a `read` event. Model it as a later
 event that cancels it (`kind=read`, `meta.cancel=true`); the view takes the
@@ -219,18 +219,18 @@ latest.
 After every write the tool re-renders plain files, atomically (temp file plus
 rename), so a human or a recovering agent needs only `cat`:
 
-    ~/.agents/stream/render/inbox.org
-    ~/.agents/stream/render/board/<project>.org
-    ~/.agents/stream/render/ledger/<yyyy-mm>.org
+    ~/.agents/desk/render/inbox.org
+    ~/.agents/desk/render/board/<project>.org
+    ~/.agents/desk/render/ledger/<yyyy-mm>.org
 
-In the rendered org, each item is a heading with a `:STREAM_ID:` property and
+In the rendered org, each item is a heading with a `:DESK_ID:` property and
 a keyword: `ASK` or `ANSWERED` for questions, `NEW` or none for the rest.
 
 ## Merging stores
 
-    agents-stream snapshot /tmp/copy.db    #: consistent copy of a live store
-    agents-stream merge /tmp/copy.db       #: take what that file has
-    agents-stream merge ssh:otherhost      #: both directions
+    agent-desk snapshot /tmp/copy.db    #: consistent copy of a live store
+    agent-desk merge /tmp/copy.db       #: take what that file has
+    agent-desk merge ssh:otherhost      #: both directions
 
 - `snapshot` uses `VACUUM INTO`. It is the only supported way to copy a store;
   copying the file of a live WAL database can produce a broken copy.
@@ -238,8 +238,8 @@ a keyword: `ASK` or `ANSWERED` for questions, `NEW` or none for the rest.
   `BEGIN IMMEDIATE` transaction, inserts every event whose id is absent
   (`ATTACH`, then `INSERT OR IGNORE ... SELECT`). SQLite's own lock, with the
   busy timeout, serialises it against other writers.
-- `merge ssh:<host>` pipes `agents-stream export` from the host into a local
-  import, then the local export into `agents-stream import` on the host. No
+- `merge ssh:<host>` pipes `agent-desk export` from the host into a local
+  import, then the local export into `agent-desk import` on the host. No
   database file crosses the network.
 - Merging is idempotent and order-free, because events are immutable and ids
   are global. Running it twice, or in either direction first, gives the same
@@ -248,7 +248,7 @@ a keyword: `ASK` or `ANSWERED` for questions, `NEW` or none for the rest.
 - Views show all hosts. An item from another host carries its host name, and
   every view accepts `--host`.
 - Delivery across hosts: an answer is typed into a session only by the host
-  that asked the question. `agents-stream deliver` sends every answer whose
+  that asked the question. `agent-desk deliver` sends every answer whose
   question is local and which has no `delivered` event, then appends one.
   `merge` runs it at the end. So answering on one machine a question asked on
   another works after the next merge.
@@ -281,7 +281,7 @@ last event; older than 3 days shows as `quiet`.
   attention. Everything else is one line, which for an agent node is its
   `status` text. A quiet project costs one line however many agents it has.
 - **Scoping.** Every view takes a path prefix:
-  `agents-stream inbox example-proj/rerun-nov` shows all four views for that
+  `agent-desk inbox example-proj/rerun-nov` shows all four views for that
   subtree only. In HTML each node has its own URL, selecting a node scopes to
   it, and a breadcrumb scopes back out.
 - **Grouping.** "Needs you" and "New" group by project, then run, and label
@@ -327,7 +327,7 @@ Actions per item:
 - Node (project, run, agent): mark everything under it read; expand.
 - Global: show all, search, refresh.
 
-Terminal rendering (`agents-stream inbox`): `fzf` over the list with the
+Terminal rendering (`agent-desk inbox`): `fzf` over the list with the
 preview pane. Keys: Enter answers a
 question or opens an item in `$EDITOR`; `ctrl-r` marks read; `ctrl-t` takes
 the recommendation or default; `ctrl-o` opens the session; `alt-a` toggles
@@ -342,7 +342,7 @@ copied to the clipboard.
 The user wants each question both in chat and filed, and decided against
 hooks that file on the agent's behalf (2026-11-15). So:
 
-- The agent files with `agents-stream ask`, `tell` and `set`, whenever it wants
+- The agent files with `agent-desk ask`, `tell` and `set`, whenever it wants
   during its work. Filing is always an explicit command.
 - The agent is free to raise the same matter in chat in whatever form suits:
   prose, a restatement, or an interactive question tool such as Claude Code's
@@ -350,7 +350,7 @@ hooks that file on the agent's behalf (2026-11-15). So:
 - The chat mention carries the display id (`q-7f3a`), so the two can be
   matched by eye and by search.
 - When the user answers in chat or through a question tool, the agent records
-  it: `agents-stream answer q-7f3a --from-chat 'B, keep the old cache'`. This
+  it: `agent-desk answer q-7f3a --from-chat 'B, keep the old cache'`. This
   costs one short command and is the only thing keeping the ledger's open list
   honest, so the skill must state it plainly. An answer the agent forgot to
   record leaves the question visibly open in the inbox, where the user can
@@ -361,7 +361,7 @@ approved hook, deferred to phase 8, copies the user's own messages.
 
 ## Answer delivery
 
-`agents-stream answer <id> 'text'` appends the `answer` event, then calls
+`agent-desk answer <id> 'text'` appends the `answer` event, then calls
 `deliver`, which sends this prompt to the reply address and appends a
 `delivered` event:
 
@@ -388,8 +388,8 @@ Core: on every `ask`, every `tell --notify` and every `done`, run
 
 The author's integration, in `~/scripts`:
 
-- A new app "Agent Inbox" via `macos/notification-apps/build.py` and
-  `notif-app-install inbox`, like Agent Done.
+- A new app "Agent Desk" via `macos/notification-apps/build.py` and
+  `notif-app-install desk`, like Agent Done.
 - One notification group per event id, so one question never replaces
   another. Dismissal uses `notif-os-remove`.
 - Card: title is the item title; body is the path and level, such as
@@ -419,14 +419,14 @@ One atomic commit group each. Stop after each phase and run its check.
 4. **Answer delivery**, with `deliver` and `merge ssh:`. Test against a
    disposable Paseo agent and a tmux pane running `cat`.
 5. **`agent-done` integration**, in `~/scripts`.
-6. **Skill.** `skills/agents-stream/SKILL.md`, covering: join, when to file,
+6. **Skill.** `skills/agent-desk/SKILL.md`, covering: join, when to file,
    the id in chat, recording chat answers, slot discipline (state what is
    true now; no history; no progress narration), and the worker rule. Then
    one line in the author's global agent instructions saying the skill must
    be used when writing anything meant for the user. That file is
    `PE/Agents/AGENTS.md` in `~/scripts`; ask the user before editing it,
    commit it alone, and run `agents-md-sync`.
-7. **HTML app.** `agents-stream serve` on loopback: a JSON API and one page
+7. **HTML app.** `agent-desk serve` on loopback: a JSON API and one page
    with no build step, assets embedded in the binary and referenced with a
    content hash in the URL. Phone layout first. Each machine serves its own
    store; exposing the port on a private network is deployment and belongs
