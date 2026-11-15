@@ -86,6 +86,8 @@ fails, says by how much, and writes nothing. `tasks`, `user-verbatim` and
 
 ## User side
 
+    agent-desk inbox                         # interactive dashboard (needs fzf)
+    agent-desk inbox example-proj/rerun-nov  # scoped to one subtree
     agent-desk show                          # needs you, new, runs
     agent-desk show example-proj/rerun-nov   # one subtree
     agent-desk show --all --format md        # include read items and finished runs
@@ -95,6 +97,33 @@ fails, says by how much, and writes nothing. `tasks`, `user-verbatim` and
     agent-desk read example-proj/rerun-nov   # mark everything under a node read
     agent-desk unread t-k2m9                 # undo a read mark
     agent-desk search cache
+
+### The inbox
+
+`agent-desk inbox` lists three sections, with a preview of the selected row:
+
+- **NEEDS YOU**: open questions, blocked ones first, oldest first, grouped
+  by project and run.
+- **NEW**: unread notices, done reports and changed slots.
+- **RUNS**: the tree of projects, runs and agents. Each node shows its state
+  (`waiting on you`, `active 10m`, `quiet 4d`, `finished`) and how many open
+  questions and unread items lie beneath it. Only the way to something that
+  needs you is unfolded; everything else is one line, an agent's line carrying
+  its status.
+
+Typing filters the list, as in any fzf. Keys:
+
+- `enter`: answer a question (type a line, or leave it empty to write the
+  answer in `$EDITOR`), open an item in `$EDITOR` (its linked file or report
+  when it has one), or fold and unfold a node.
+- `ctrl-r`: mark read; on a node, everything under it.
+- `ctrl-t`: answer a question with "Take your recommendation." or, for a
+  question with a default, "Go ahead with your default: ...".
+- `ctrl-o`: open the session that wrote the item: in Paseo for a Paseo agent,
+  by selecting its tmux pane, or else by copying its resume command to the
+  clipboard.
+- `alt-a`: show all, including read items and finished runs.
+- `ctrl-l`: refresh. `esc`: quit.
 
 What counts as unread: notices, done reports, and the current text of each
 slot, until marked read. A slot that changes is unread again. `status` slots

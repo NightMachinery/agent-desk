@@ -341,19 +341,25 @@ pane as its own page. Design for the phone first.
 Actions per item:
 
 - Question: answer (free text), "take recommendation" or "take default"
-  (answers with a fixed sentence), open session, copy id.
+  (answers with a fixed sentence: "Take your recommendation." or "Go ahead
+  with your default: <default>"), open session, copy id.
 - Notice, done report, slot: mark read; open the linked report or file.
 - Node (project, run, agent): mark everything under it read; expand.
 - Global: show all, search, refresh.
 
 Terminal rendering (`agent-desk inbox`): `fzf` over the list with the
-preview pane. Keys: Enter answers a
-question or opens an item in `$EDITOR`; `ctrl-r` marks read; `ctrl-t` takes
-the recommendation or default; `ctrl-o` opens the session; `alt-a` toggles
-show all. The list reloads after each action.
+preview pane, fed and called back through hidden subcommands (`inbox-list`,
+`inbox-preview`, `inbox-act`) that share a state file for "show all" and
+folding. Keys: Enter answers a question (one line, or `$EDITOR` when left
+empty), opens an item in `$EDITOR`, or folds a node; `ctrl-r` marks read;
+`ctrl-t` takes the recommendation or default; `ctrl-o` opens the session;
+`alt-a` toggles show all; `ctrl-l` refreshes. The list reloads after each
+action. It refuses to start without a terminal and points to `show`.
 
-"Open session" uses the reply address: a Paseo agent opens in Paseo, a tmux
-pane is selected, otherwise the resume command from the done-report logic is
+"Open session" uses the reply address: a Paseo agent opens in Paseo
+(`paseo agent open <uuid>`), a live tmux pane on this host is selected,
+otherwise the resume command (`cd <dir> && claude --resume <id>`, `codex
+resume <id>` or `agy --conversation <id>`, with the seat's config variable) is
 copied to the clipboard.
 
 ## Chat and ledger together
