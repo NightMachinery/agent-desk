@@ -1,0 +1,878 @@
+// Package cli implements the agent-desk commands.
+package cli
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"regexp"
+	"sort"
+	"strings"
+	"time"
+
+	"github.com/NightMachinery/agent-desk/internal/desk"
+	"github.com/NightMachinery/agent-desk/internal/ident"
+	"github.com/NightMachinery/agent-desk/internal/ids"
+	"github.com/NightMachinery/agent-desk/internal/render"
+	"github.com/NightMachinery/agent-desk/internal/store"
+)
+
+// App is one invocation's world; tests replace its parts.
+type App struct {
+	Stdin  io.Reader
+	Stdout io.Writer
+	Stderr io.Writer
+	Env    ident.Env
+	Now    func() time.Time
+	Host   string
+	Home   string // store directory
+
+	st *store.Store
+}
+
+// New returns an App for the real environment.
+func New() (*App, error) {
+	home, err := store.DefaultHome()
+	if err != nil {
+		return nil, err
+	}
+	return &App{
+		Stdin: os.Stdin, Stdout: os.Stdout, Stderr: os.Stderr,
+		Env: ident.System(), Now: time.Now, Host: HostName(), Home: home,
+	}, nil
+}
+
+// HostName is ${AGENT_DESK_HOST}, else the short host name.
+func HostName() string {
+	if h := os.Getenv("AGENT_DESK_HOST"); h != "" {
+		return h
+	}
+	h, err := os.Hostname()
+	if err != nil || h == "" {
+		return "unknown"
+	}
+	return strings.ToLower(strings.SplitN(h, ".", 2)[0])
+}
+
+type usageError struct{ msg string }
+
+func (e usageError) Error() string { return e.msg }
+
+func usagef(format string, a ...any) error { return usageError{fmt.Sprintf(format, a...)} }
+
+const usage = `agent-desk: a desk where agents file questions and state for the user.
+
+Agent side (only coordinators write; workers report to their parent):
+  agent-desk join <run>/<role>[/<role>...] [--takeover] [--project P]
+  agent-desk ask --blocked --title T                  <<'Q' ... Q
+  agent-desk ask --default 'what you will do' --title T <<'Q' ... Q
+  agent-desk tell [--notify] --title T                <<'R' ... R
+  agent-desk set <slot> [text]          text or stdin; status 2 lines, next 5, others 15
+  agent-desk clear <slot>
+  agent-desk link <slot> <file>
+  agent-desk answer <id> --from-chat 'text'   record an answer given in chat
+
+User side:
+  agent-desk show [<path-prefix>] [--all] [--host H] [--format org|md|json]
+  agent-desk answer <id> 'text'
+  agent-desk read <id|path-prefix> [--host H]
+  agent-desk unread <id>
+  agent-desk search <text> [--host H]
+  agent-desk export | import | snapshot <file> | merge <file> | render
+
+Store: ${AGENT_DESK_HOME:-~/.agents/desk}. See docs/usage.md.
+`
+
+// Run executes one command and returns the exit status.
+func (a *App) Run(args []string) int {
+	err := a.run(args)
+	if a.st != nil {
+		a.st.Close()
+	}
+	if err == nil {
+		return 0
+	}
+	fmt.Fprintf(a.Stderr, "agent-desk: %v\n", err)
+	var u usageError
+	if errors.As(err, &u) {
+		return 2
+	}
+	return 1
+}
+
+func (a *App) store() (*store.Store, error) {
+	if a.st != nil {
+		return a.st, nil
+	}
+	st, err := store.Open(a.Home)
+	if err != nil {
+		return nil, err
+	}
+	a.st = st
+	return st, nil
+}
+
+func (a *App) load() (*desk.Desk, error) {
+	st, err := a.store()
+	if err != nil {
+		return nil, err
+	}
+	return desk.Load(st, a.Host, a.Now())
+}
+
+func (a *App) run(args []string) error {
+	if len(args) == 0 {
+		fmt.Fprint(a.Stdout, usage)
+		return nil
+	}
+	cmd, rest := args[0], args[1:]
+	switch cmd {
+	case "help", "-h", "--help":
+		fmt.Fprint(a.Stdout, usage)
+		return nil
+	case "join":
+		return a.cmdJoin(rest)
+	case "ask":
+		return a.cmdAsk(rest)
+	case "tell":
+		return a.cmdTell(rest)
+	case "set":
+		return a.cmdSet(rest)
+	case "clear":
+		return a.cmdClear(rest)
+	case "link":
+		return a.cmdLink(rest)
+	case "answer":
+		return a.cmdAnswer(rest)
+	case "read":
+		return a.cmdRead(rest)
+	case "unread":
+		return a.cmdUnread(rest)
+	case "show":
+		return a.cmdShow(rest)
+	case "search":
+		return a.cmdSearch(rest)
+	case "export":
+		return a.cmdExport(rest)
+	case "import":
+		return a.cmdImport(rest)
+	case "snapshot":
+		return a.cmdSnapshot(rest)
+	case "merge":
+		return a.cmdMerge(rest)
+	case "render":
+		if _, err := parse(rest, nil, nil, 0, 0); err != nil {
+			return err
+		}
+		return a.render()
+	}
+	return usagef("unknown command %q; run agent-desk help", cmd)
+}
+
+// --- argument parsing -------------------------------------------------------
+
+type opts struct {
+	bools map[string]bool
+	vals  map[string]string
+	set   map[string]bool
+	pos   []string
+}
+
+// parse accepts --name, --name=value and --name value anywhere, and "--" to
+// end options. minPos and maxPos bound the positional arguments (-1: any).
+func parse(args []string, boolNames, valNames []string, minPos, maxPos int) (opts, error) {
+	o := opts{bools: map[string]bool{}, vals: map[string]string{}, set: map[string]bool{}}
+	isBool := map[string]bool{}
+	for _, n := range boolNames {
+		isBool[n] = true
+	}
+	isVal := map[string]bool{}
+	for _, n := range valNames {
+		isVal[n] = true
+	}
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if arg == "--" {
+			o.pos = append(o.pos, args[i+1:]...)
+			break
+		}
+		if !strings.HasPrefix(arg, "--") || arg == "-" {
+			o.pos = append(o.pos, arg)
+			continue
+		}
+		name, val, hasVal := strings.Cut(arg[2:], "=")
+		switch {
+		case isBool[name] && !hasVal:
+			o.bools[name] = true
+		case isVal[name]:
+			if !hasVal {
+				if i+1 >= len(args) {
+					return o, usagef("--%s needs a value", name)
+				}
+				i++
+				val = args[i]
+			}
+			o.vals[name] = val
+		default:
+			return o, usagef("unknown option --%s", name)
+		}
+		o.set[name] = true
+	}
+	if len(o.pos) < minPos || (maxPos >= 0 && len(o.pos) > maxPos) {
+		return o, usagef("wrong number of arguments; run agent-desk help")
+	}
+	return o, nil
+}
+
+func (a *App) stdinText() (string, error) {
+	if f, ok := a.Stdin.(*os.File); ok {
+		if st, err := f.Stat(); err == nil && st.Mode()&os.ModeCharDevice != 0 {
+			return "", nil
+		}
+	}
+	if a.Stdin == nil {
+		return "", nil
+	}
+	b, err := io.ReadAll(a.Stdin)
+	return strings.TrimRight(string(b), "\n"), err
+}
+
+// --- writing -----------------------------------------------------------------
+
+var slugRE = regexp.MustCompile(`^[a-z0-9-]{1,24}$`)
+
+func (a *App) ts() (time.Time, string) {
+	t := a.Now()
+	return t, t.Format("2006-01-02T15:04:05.000Z07:00")
+}
+
+func meta(m map[string]any) json.RawMessage {
+	b, _ := json.Marshal(m)
+	return b
+}
+
+func (a *App) event(kind, path string, from ident.From, source string, extra map[string]any) store.Event {
+	t, ts := a.ts()
+	m := map[string]any{"from": from, "source": source}
+	for k, v := range extra {
+		m[k] = v
+	}
+	return store.Event{ID: ids.New(t), TS: ts, Host: a.Host, Kind: kind, Path: path, Meta: meta(m)}
+}
+
+func sessionOf(e store.Event) string {
+	var m struct {
+		From ident.From `json:"from"`
+	}
+	_ = json.Unmarshal(e.Meta, &m)
+	return m.From.Session
+}
+
+func agentOfEvent(e store.Event) string {
+	var m struct {
+		From ident.From `json:"from"`
+	}
+	_ = json.Unmarshal(e.Meta, &m)
+	return m.From.Agent
+}
+
+// nodeOwner returns the latest join at a node, if any.
+func nodeOwner(d *desk.Desk, node string) (store.Event, bool) {
+	var last store.Event
+	found := false
+	for _, e := range d.Events {
+		if e.Kind == "join" && e.Path == node {
+			last, found = e, true
+		}
+	}
+	return last, found
+}
+
+// commit appends events in one transaction, prints the display id of the
+// event `show` (or "ok" when show is empty), and re-renders.
+func (a *App) commit(evs []store.Event, show string) error {
+	st, err := a.store()
+	if err != nil {
+		return err
+	}
+	if err := st.Append(evs...); err != nil {
+		return err
+	}
+	if show == "" {
+		fmt.Fprintln(a.Stdout, "ok")
+	} else {
+		d, err := a.load()
+		if err != nil {
+			return err
+		}
+		fmt.Fprintln(a.Stdout, d.Display(show))
+	}
+	if err := a.render(); err != nil {
+		fmt.Fprintf(a.Stderr, "agent-desk: warning: rendering failed: %v\n", err)
+	}
+	return nil
+}
+
+// commit1 commits one event and prints its display id.
+func (a *App) commit1(e store.Event) error { return a.commit([]store.Event{e}, e.ID) }
+
+func (a *App) render() error {
+	if _, err := a.store(); err != nil {
+		return err
+	}
+	return render.All(a.Home, a.load)
+}
+
+// writer resolves the node this session writes to, auto-joining
+// <project>/adhoc/<slug> when a session with no parent never joined. The
+// returned join event, if any, must be committed with the write.
+func (a *App) writer(d *desk.Desk, project string) (ident.From, string, *store.Event, error) {
+	from := ident.Resolve(a.Env)
+	if from.Session == "" {
+		return from, "", nil, errors.New("cannot tell which agent session this is: none of " +
+			"CLAUDE_CODE_SESSION_ID, CODEX_THREAD_ID, CODEX_SESSION_ID or ANTIGRAVITY_CONVERSATION_ID is set. " +
+			"Only agent sessions write to the desk")
+	}
+	var bound store.Event
+	found := false
+	for _, e := range d.Events {
+		if e.Kind == "join" && e.Host == a.Host && sessionOf(e) == from.Session {
+			bound, found = e, true
+		}
+	}
+	if found {
+		owner, _ := nodeOwner(d, bound.Path)
+		if sessionOf(owner) != from.Session {
+			return from, "", nil, fmt.Errorf("node %s was taken over by another session (%s %s, %s); "+
+				"this session no longer writes there. Join another node, or report to whoever took it over",
+				bound.Path, agentOfEvent(owner), shortID(sessionOf(owner)), owner.TS)
+		}
+		return from, bound.Path, nil, nil
+	}
+	if from.Parent != "" {
+		return from, "", nil, fmt.Errorf("this session has a parent agent (%s): workers report to their parent; "+
+			"ask it to give you a node. If you are a coordinator, join one: agent-desk join <run>/<role>",
+			from.Parent)
+	}
+	if project == "" {
+		project = ident.ProjectName(from.Cwd, a.Env.Home)
+	}
+	slug := ident.Slug(from.Title, 24)
+	if slug == "" {
+		slug = shortID(from.Session)
+	}
+	node := project + "/adhoc/" + slug
+	if owner, ok := nodeOwner(d, node); ok && sessionOf(owner) != from.Session {
+		node = project + "/adhoc/" + shortID(from.Session)
+	}
+	j := a.event("join", node, from, "cli", map[string]any{"auto": true})
+	return from, node, &j, nil
+}
+
+func shortID(s string) string {
+	s = ident.Slug(s, 64)
+	s = strings.ReplaceAll(s, "-", "")
+	if len(s) > 8 {
+		s = s[:8]
+	}
+	return s
+}
+
+// agentWrite writes events built for this session's node.
+func (a *App) agentWrite(project string, build func(from ident.From, node string, d *desk.Desk) ([]store.Event, error)) error {
+	d, err := a.load()
+	if err != nil {
+		return err
+	}
+	from, node, join, err := a.writer(d, project)
+	if err != nil {
+		return err
+	}
+	evs, err := build(from, node, d)
+	if err != nil {
+		return err
+	}
+	show := evs[0].ID
+	if join != nil {
+		fmt.Fprintf(a.Stderr, "agent-desk: joined %s (this session had no node)\n", node)
+		evs = append([]store.Event{*join}, evs...)
+	}
+	return a.commit(evs, show)
+}
+
+func (a *App) cmdJoin(args []string) error {
+	o, err := parse(args, []string{"takeover"}, []string{"project"}, 1, 1)
+	if err != nil {
+		return err
+	}
+	segs := strings.Split(strings.Trim(o.pos[0], "/"), "/")
+	if len(segs) < 2 {
+		return usagef("join takes <run>/<role>[/<role>...], such as rerun-nov/coord")
+	}
+	for _, s := range segs {
+		if !slugRE.MatchString(s) {
+			return usagef("%q is not a slug: use 1 to 24 of a-z, 0-9 and -", s)
+		}
+	}
+	from := ident.Resolve(a.Env)
+	if from.Session == "" {
+		return errors.New("cannot tell which agent session this is; only agent sessions join")
+	}
+	project := o.vals["project"]
+	if project == "" {
+		project = ident.ProjectName(from.Cwd, a.Env.Home)
+	} else if ident.Slug(project, 40) != project {
+		return usagef("project %q is not a slug", project)
+	}
+	node := project + "/" + strings.Join(segs, "/")
+	d, err := a.load()
+	if err != nil {
+		return err
+	}
+	if len(segs) > 2 {
+		parent := project + "/" + strings.Join(segs[:len(segs)-1], "/")
+		if _, ok := nodeOwner(d, parent); !ok {
+			return fmt.Errorf("no coordinator has joined %s; a nested coordinator sits under its parent's node", parent)
+		}
+	}
+	if owner, ok := nodeOwner(d, node); ok && sessionOf(owner) != from.Session && !o.bools["takeover"] {
+		return fmt.Errorf("%s is bound to another session (%s %s, joined %s); if you are replacing that "+
+			"coordinator, add --takeover", node, agentOfEvent(owner), shortID(sessionOf(owner)), owner.TS)
+	}
+	extra := map[string]any{}
+	if o.bools["takeover"] {
+		extra["takeover"] = true
+	}
+	return a.commit1(a.event("join", node, from, "cli", extra))
+}
+
+func (a *App) cmdAsk(args []string) error {
+	o, err := parse(args, []string{"blocked"}, []string{"default", "title", "project"}, 0, 0)
+	if err != nil {
+		return err
+	}
+	if o.bools["blocked"] == o.set["default"] {
+		return usagef("ask takes exactly one of --blocked or --default 'what you will do'")
+	}
+	title := strings.TrimSpace(o.vals["title"])
+	if title == "" {
+		return usagef("ask needs --title")
+	}
+	body, err := a.stdinText()
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(body) == "" {
+		return usagef("ask needs the question's context, options and recommendation on stdin")
+	}
+	level, extra := "blocked", map[string]any{}
+	if o.set["default"] {
+		if strings.TrimSpace(o.vals["default"]) == "" {
+			return usagef("--default needs the choice you will act on")
+		}
+		level, extra["default"] = "default", o.vals["default"]
+	}
+	return a.agentWrite(o.vals["project"], func(from ident.From, node string, _ *desk.Desk) ([]store.Event, error) {
+		e := a.event("ask", node, from, "cli", extra)
+		e.Level, e.Title, e.Body = level, title, body
+		return []store.Event{e}, nil
+	})
+}
+
+func (a *App) cmdTell(args []string) error {
+	o, err := parse(args, []string{"notify"}, []string{"title", "project"}, 0, 0)
+	if err != nil {
+		return err
+	}
+	title := strings.TrimSpace(o.vals["title"])
+	if title == "" {
+		return usagef("tell needs --title")
+	}
+	body, err := a.stdinText()
+	if err != nil {
+		return err
+	}
+	level := "fyi"
+	if o.bools["notify"] {
+		level = "notify"
+	}
+	return a.agentWrite(o.vals["project"], func(from ident.From, node string, _ *desk.Desk) ([]store.Event, error) {
+		e := a.event("tell", node, from, "cli", nil)
+		e.Level, e.Title, e.Body = level, title, body
+		return []store.Event{e}, nil
+	})
+}
+
+// SlotCaps are the line caps of the conventional slots.
+var SlotCaps = map[string]int{"status": 2, "findings": 15, "artifacts": 15, "next": 5}
+
+// DefaultCap is the cap of any other slot.
+const DefaultCap = 15
+
+// Reserved slots only ever link a file.
+var Reserved = map[string]bool{"tasks": true, "user-verbatim": true, "state": true}
+
+func slotArg(name string) error {
+	if !slugRE.MatchString(name) {
+		return usagef("slot %q is not a slug: use 1 to 24 of a-z, 0-9 and -", name)
+	}
+	return nil
+}
+
+func (a *App) cmdSet(args []string) error {
+	o, err := parse(args, nil, []string{"project"}, 1, -1)
+	if err != nil {
+		return err
+	}
+	name := o.pos[0]
+	if err := slotArg(name); err != nil {
+		return err
+	}
+	if Reserved[name] {
+		return usagef("slot %q is reserved for a linked file: agent-desk link %s <file>", name, name)
+	}
+	text := strings.Join(o.pos[1:], " ")
+	if len(o.pos) == 1 {
+		if text, err = a.stdinText(); err != nil {
+			return err
+		}
+	}
+	text = strings.TrimRight(text, "\n")
+	if strings.TrimSpace(text) == "" {
+		return usagef("set needs text; to empty a slot use agent-desk clear %s", name)
+	}
+	limit, ok := SlotCaps[name]
+	if !ok {
+		limit = DefaultCap
+	}
+	if n := strings.Count(text, "\n") + 1; n > limit {
+		return fmt.Errorf("slot %s takes at most %d lines; this text has %d. Nothing was written. "+
+			"State only what is true now", name, limit, n)
+	}
+	return a.agentWrite(o.vals["project"], func(from ident.From, node string, _ *desk.Desk) ([]store.Event, error) {
+		e := a.event("set", node+"/"+name, from, "cli", nil)
+		e.Body = text
+		return []store.Event{e}, nil
+	})
+}
+
+func (a *App) cmdClear(args []string) error {
+	o, err := parse(args, nil, []string{"project"}, 1, 1)
+	if err != nil {
+		return err
+	}
+	if err := slotArg(o.pos[0]); err != nil {
+		return err
+	}
+	return a.agentWrite(o.vals["project"], func(from ident.From, node string, _ *desk.Desk) ([]store.Event, error) {
+		return []store.Event{a.event("clear", node+"/"+o.pos[0], from, "cli", nil)}, nil
+	})
+}
+
+func (a *App) cmdLink(args []string) error {
+	o, err := parse(args, nil, []string{"project"}, 2, 2)
+	if err != nil {
+		return err
+	}
+	name := o.pos[0]
+	if err := slotArg(name); err != nil {
+		return err
+	}
+	file := o.pos[1]
+	if !filepath.IsAbs(file) {
+		file = filepath.Join(a.Env.Cwd, file)
+	}
+	if st, err := os.Stat(file); err != nil {
+		return err
+	} else if st.IsDir() {
+		return fmt.Errorf("%s is a directory; link a file", file)
+	}
+	return a.agentWrite(o.vals["project"], func(from ident.From, node string, _ *desk.Desk) ([]store.Event, error) {
+		return []store.Event{a.event("link", node+"/"+name, from, "cli", map[string]any{"file": file})}, nil
+	})
+}
+
+func (a *App) cmdAnswer(args []string) error {
+	o, err := parse(args, nil, []string{"from-chat"}, 1, -1)
+	if err != nil {
+		return err
+	}
+	d, err := a.load()
+	if err != nil {
+		return err
+	}
+	q, err := d.Resolve(o.pos[0])
+	if err != nil {
+		return err
+	}
+	if q.Kind != "ask" {
+		return fmt.Errorf("%s is a %s, not a question", d.Display(q.ID), q.Kind)
+	}
+	source := "cli"
+	text := strings.Join(o.pos[1:], " ")
+	if o.set["from-chat"] {
+		source = "chat"
+		if text != "" {
+			return usagef("give the answer once: agent-desk answer <id> --from-chat 'text'")
+		}
+		text = o.vals["from-chat"]
+	} else if len(o.pos) == 1 {
+		if text, err = a.stdinText(); err != nil {
+			return err
+		}
+	}
+	if strings.TrimSpace(text) == "" {
+		return usagef("answer needs the answer's text")
+	}
+	for _, x := range d.Questions {
+		if x.ID == q.ID && !x.Open() {
+			fmt.Fprintf(a.Stderr, "agent-desk: %s was already answered (%s); this answer replaces it\n",
+				d.Display(q.ID), d.Display(x.AnswerID))
+		}
+	}
+	e := a.event("answer", q.Path, ident.Resolve(a.Env), source, nil)
+	e.Ref, e.Body = q.ID, text
+	return a.commit1(e)
+}
+
+func (a *App) cmdRead(args []string) error {
+	o, err := parse(args, nil, []string{"host"}, 1, 1)
+	if err != nil {
+		return err
+	}
+	d, err := a.load()
+	if err != nil {
+		return err
+	}
+	from := ident.Resolve(a.Env)
+	arg := o.pos[0]
+	if !strings.Contains(arg, "/") {
+		if e, err := d.Resolve(arg); err == nil {
+			switch {
+			case e.Kind == "ask":
+				return fmt.Errorf("%s is a question; it leaves the list when answered, not when read", d.Display(e.ID))
+			case !d.Unread(e.ID):
+				fmt.Fprintln(a.Stdout, "ok")
+				fmt.Fprintf(a.Stderr, "agent-desk: %s is not unread\n", d.Display(e.ID))
+				return nil
+			}
+			r := a.event("read", e.Path, from, "cli", nil)
+			r.Ref = e.ID
+			return a.commit1(r)
+		} else if !strings.HasPrefix(err.Error(), "no event") {
+			return err
+		}
+	}
+	var evs []store.Event
+	f := desk.Filter{Prefix: arg, Host: o.vals["host"]}
+	for _, e := range d.Events {
+		if d.Unread(e.ID) && desk.Under(e.Path, f.Prefix) && (f.Host == "" || e.Host == f.Host) {
+			r := a.event("read", e.Path, from, "cli", nil)
+			r.Ref = e.ID
+			evs = append(evs, r)
+		}
+	}
+	if len(evs) == 0 {
+		known := false
+		for _, e := range d.Events {
+			if desk.Under(e.Path, arg) {
+				known = true
+				break
+			}
+		}
+		if !known {
+			return fmt.Errorf("%q is neither an id nor a path in the store", arg)
+		}
+		fmt.Fprintln(a.Stdout, "ok")
+		fmt.Fprintf(a.Stderr, "agent-desk: nothing unread under %s\n", arg)
+		return nil
+	}
+	fmt.Fprintf(a.Stderr, "agent-desk: marked %d item(s) read\n", len(evs))
+	return a.commit(evs, "")
+}
+
+func (a *App) renderWarn() error {
+	if err := a.render(); err != nil {
+		fmt.Fprintf(a.Stderr, "agent-desk: warning: rendering failed: %v\n", err)
+	}
+	return nil
+}
+
+func (a *App) cmdUnread(args []string) error {
+	o, err := parse(args, nil, nil, 1, 1)
+	if err != nil {
+		return err
+	}
+	d, err := a.load()
+	if err != nil {
+		return err
+	}
+	e, err := d.Resolve(o.pos[0])
+	if err != nil {
+		return err
+	}
+	var last store.Event
+	for _, r := range d.Events {
+		if r.Kind == "read" && r.Ref == e.ID {
+			last = r
+		}
+	}
+	if last.ID == "" || desk.Meta(last)["cancel"] == true {
+		fmt.Fprintln(a.Stdout, "ok")
+		fmt.Fprintf(a.Stderr, "agent-desk: %s is not marked read\n", d.Display(e.ID))
+		return nil
+	}
+	r := a.event("read", e.Path, ident.Resolve(a.Env), "cli", map[string]any{"cancel": true, "supersedes": last.ID})
+	r.Ref = e.ID
+	return a.commit1(r)
+}
+
+// --- reading -----------------------------------------------------------------
+
+func (a *App) cmdShow(args []string) error {
+	o, err := parse(args, []string{"all"}, []string{"format", "host"}, 0, 1)
+	if err != nil {
+		return err
+	}
+	d, err := a.load()
+	if err != nil {
+		return err
+	}
+	f := desk.Filter{All: o.bools["all"], Host: o.vals["host"]}
+	if len(o.pos) == 1 {
+		f.Prefix = strings.Trim(o.pos[0], "/")
+	}
+	v := d.Build(f)
+	switch o.vals["format"] {
+	case "", "org":
+		(&desk.Writer{W: a.Stdout, Desk: d, Org: true}).View(v)
+	case "md":
+		(&desk.Writer{W: a.Stdout, Desk: d}).View(v)
+	case "json":
+		return desk.JSON(a.Stdout, v)
+	default:
+		return usagef("--format is org, md or json")
+	}
+	return nil
+}
+
+func (a *App) cmdSearch(args []string) error {
+	o, err := parse(args, nil, []string{"host"}, 1, -1)
+	if err != nil {
+		return err
+	}
+	d, err := a.load()
+	if err != nil {
+		return err
+	}
+	needle := strings.ToLower(strings.Join(o.pos, " "))
+	var hits []store.Event
+	for _, e := range d.Events {
+		if e.Kind == "read" || e.Kind == "join" || e.Kind == "delivered" {
+			continue
+		}
+		if o.vals["host"] != "" && e.Host != o.vals["host"] {
+			continue
+		}
+		hay := strings.ToLower(e.Title + "\n" + e.Body + "\n" + e.Path + "\n" + desk.MetaString(e, "default"))
+		if strings.Contains(hay, needle) {
+			hits = append(hits, e)
+		}
+	}
+	sort.SliceStable(hits, func(i, j int) bool { return hits[i].ID > hits[j].ID })
+	for _, e := range hits {
+		line := e.Title
+		if line == "" {
+			line = strings.SplitN(e.Body, "\n", 2)[0]
+		}
+		host := ""
+		if e.Host != a.Host {
+			host = " @" + e.Host
+		}
+		ts := e.TS
+		if len(ts) >= 16 {
+			ts = strings.Replace(ts[:16], "T", " ", 1)
+		}
+		fmt.Fprintf(a.Stdout, "%-8s %-6s %s  %s%s  %s\n", d.Display(e.ID), e.Kind, ts, e.Path, host, line)
+	}
+	if len(hits) == 0 {
+		return errors.New("no matches")
+	}
+	return nil
+}
+
+// --- moving events ---------------------------------------------------------
+
+func (a *App) cmdExport(args []string) error {
+	if _, err := parse(args, nil, nil, 0, 0); err != nil {
+		return err
+	}
+	st, err := a.store()
+	if err != nil {
+		return err
+	}
+	return st.Export(a.Stdout)
+}
+
+func (a *App) imported(added []store.Event) error {
+	fmt.Fprintln(a.Stdout, "ok")
+	fmt.Fprintf(a.Stderr, "agent-desk: %d new event(s)\n", len(added))
+	if len(added) > 0 {
+		return a.renderWarn()
+	}
+	return nil
+}
+
+func (a *App) cmdImport(args []string) error {
+	if _, err := parse(args, nil, nil, 0, 0); err != nil {
+		return err
+	}
+	st, err := a.store()
+	if err != nil {
+		return err
+	}
+	added, err := st.Import(a.Stdin)
+	if err != nil {
+		return err
+	}
+	return a.imported(added)
+}
+
+func (a *App) cmdSnapshot(args []string) error {
+	o, err := parse(args, nil, nil, 1, 1)
+	if err != nil {
+		return err
+	}
+	st, err := a.store()
+	if err != nil {
+		return err
+	}
+	if err := st.Snapshot(o.pos[0]); err != nil {
+		return err
+	}
+	fmt.Fprintln(a.Stdout, "ok")
+	return nil
+}
+
+func (a *App) cmdMerge(args []string) error {
+	o, err := parse(args, nil, nil, 1, 1)
+	if err != nil {
+		return err
+	}
+	src := o.pos[0]
+	if strings.HasPrefix(src, "ssh:") {
+		return errors.New("merge ssh:<host> is not built yet; snapshot the other store, copy the file, and merge that")
+	}
+	st, err := a.store()
+	if err != nil {
+		return err
+	}
+	added, err := st.Merge(src)
+	if err != nil {
+		return err
+	}
+	return a.imported(added)
+}
