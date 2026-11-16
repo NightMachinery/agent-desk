@@ -3,6 +3,7 @@
   import { get, watch } from './lib/api.js';
   import { toasts } from './lib/toast.svelte.js';
   import { desk } from './lib/desk.svelte.js';
+  import { sel, toggle, clear } from './lib/select.svelte.js';
   import Sidebar from './components/Sidebar.svelte';
   import ListPane from './components/ListPane.svelte';
   import Detail from './components/Detail.svelte';
@@ -95,8 +96,12 @@
     if (e.key === '/') {
       e.preventDefault();
       document.getElementById('search')?.focus();
+    } else if (e.key === 'Escape' && sel.ids.size) {
+      clear();
     } else if (e.key === 'Escape' && route.item) {
       go({ item: '' });
+    } else if ((e.key === 'x' || e.key === 'X') && route.item && document.querySelector(`[data-item="${CSS.escape(route.item)}"]`)) {
+      toggle(route.item, e.shiftKey);
     } else if (e.key === 'j' || e.key === 'k') {
       const rows = /** @type {HTMLElement[]} */ ([...document.querySelectorAll('[data-item]')]);
       if (!rows.length) return;
@@ -145,7 +150,7 @@
           /></svg
         >
         <p>Pick a question or a notice to read it, answer it, or message its agent.</p>
-        <p class="faint keys"><kbd>j</kbd> <kbd>k</kbd> move · <kbd>/</kbd> search · <kbd>a</kbd> answer · <kbd>r</kbd> reply · <kbd>esc</kbd> close</p>
+        <p class="faint keys"><kbd>j</kbd> <kbd>k</kbd> move · <kbd>/</kbd> search · <kbd>a</kbd> answer · <kbd>r</kbd> reply · <kbd>x</kbd> select · <kbd>esc</kbd> close</p>
       </div>
     {/if}
   </aside>

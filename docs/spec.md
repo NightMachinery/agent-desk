@@ -359,7 +359,9 @@ Actions per item:
   copy id.
 - Notice, done report, slot: mark read; open the linked report or file.
 - Node (project, run, agent): mark everything under it read; expand.
-- Global: show all, search, refresh.
+- Global: show all, search, refresh. In the web dashboard, rows can also be
+  selected (checkbox, shift-click for a range, "Select all" per section or
+  group, or all in the view) and marked read or unread together.
 
 Terminal rendering (`agent-desk inbox`): `fzf` over the list with the
 preview pane, fed and called back through hidden subcommands (`inbox-list`,

@@ -5,6 +5,7 @@
   import ItemRow from './ItemRow.svelte';
   import TreeNode from './TreeNode.svelte';
   import NodePanel from './NodePanel.svelte';
+  import { sel, toggleAll, clear, prune, markSelected } from '../lib/select.svelte.js';
 
   let { view, error, onmenu, onchange } = $props();
 
@@ -12,6 +13,14 @@
   const fresh = $derived(view?.view?.new ?? []);
   const runs = $derived(view?.view?.runs ?? []);
   const count = (gs) => gs.reduce((n, g) => n + g.items.length, 0);
+  const idsOf = (gs) => gs.flatMap((g) => g.items.map((it) => it.display_id));
+  const needIds = $derived(idsOf(needs));
+  const freshIds = $derived(idsOf(fresh));
+  const allIds = $derived([...needIds, ...freshIds]);
+  const allOn = (ids) => ids.length > 0 && ids.every((x) => sel.ids.has(x));
+  $effect(() => prune(allIds));
+  const picked = $derived(sel.ids.size);
+  const pickedQuestions = $derived(needs.flatMap((g) => g.items).filter((it) => !it.dismissed && sel.ids.has(it.display_id)).length);
   const crumbs = $derived(route.path ? route.path.split('/').map((name, i, all) => ({ name, path: all.slice(0, i + 1).join('/') })) : []);
   // Under a run or deeper, group headers repeat the scope; drop them.
   const deep = $derived(crumbs.length >= 2);
@@ -79,9 +88,12 @@
       <div class="phone-node"><NodePanel node={view.node} target={view.target} {onchange} compact /></div>
     {/if}
 
-    <h2 class="section-title">Needs you {#if count(needs)}<span class="count hot">{count(needs)}</span>{/if}</h2>
+    <h2 class="section-title">
+      Needs you {#if count(needs)}<span class="count hot">{count(needs)}</span>{/if}
+      {#if needIds.length > 1}<button class="pick" onclick={() => toggleAll(needIds)}>{allOn(needIds) ? 'Deselect' : 'Select all'}</button>{/if}
+    </h2>
     {#each needs as g (g.project + '/' + g.run)}
-      {#if !deep}<a class="group" href={href({ path: `${g.project}/${g.run}`, item: '' })}>{g.project} <span class="faint">/</span> {g.run}</a>{/if}
+      {@render groupHead(g)}
       <div class="rows">
         {#each g.items as it (it.event.id)}<ItemRow item={it} />{/each}
       </div>
@@ -89,9 +101,12 @@
       <div class="empty">Nothing is waiting on you{route.q ? ' that matches' : ''}.</div>
     {/each}
 
-    <h2 class="section-title">{route.all ? 'Notices and slots' : 'New'} {#if count(fresh)}<span class="count">{count(fresh)}</span>{/if}</h2>
+    <h2 class="section-title">
+      {route.all ? 'Notices and slots' : 'New'} {#if count(fresh)}<span class="count">{count(fresh)}</span>{/if}
+      {#if freshIds.length > 1}<button class="pick" onclick={() => toggleAll(freshIds)}>{allOn(freshIds) ? 'Deselect' : 'Select all'}</button>{/if}
+    </h2>
     {#each fresh as g (g.project + '/' + g.run)}
-      {#if !deep}<a class="group" href={href({ path: `${g.project}/${g.run}`, item: '' })}>{g.project} <span class="faint">/</span> {g.run}</a>{/if}
+      {@render groupHead(g)}
       <div class="rows">
         {#each g.items as it (it.event.id)}<ItemRow item={it} />{/each}
       </div>
@@ -111,6 +126,28 @@
     {/if}
   {/if}
 </div>
+
+{#if picked}
+  <div class="bulk" role="toolbar" aria-label="Selected items">
+    <button class="btn small ghost x" aria-label="Clear the selection" title="Clear (Esc)" onclick={clear}>✕</button>
+    <span class="n"><strong>{picked}</strong> selected{pickedQuestions ? ` · ${pickedQuestions} ${pickedQuestions === 1 ? 'question' : 'questions'} to dismiss` : ''}</span>
+    {#if !allOn(allIds)}<button class="btn small ghost" onclick={() => toggleAll(allIds)}>All {allIds.length}</button>{/if}
+    <button class="btn small" onclick={() => markSelected(false, onchange)}>Mark unread</button>
+    <button
+      class="btn small primary"
+      title={pickedQuestions ? 'Questions leave Needs you but stay open, so you can still answer them from Show all' : ''}
+      onclick={() => markSelected(true, onchange, pickedQuestions)}>Mark read</button
+    >
+  </div>
+{/if}
+
+{#snippet groupHead(g)}
+  {@const ids = g.items.map((it) => it.display_id)}
+  <div class="group-line">
+    {#if !deep}<a class="group" href={href({ path: `${g.project}/${g.run}`, item: '' })}>{g.project} <span class="faint">/</span> {g.run}</a>{:else}<span></span>{/if}
+    {#if ids.length > 1 && (!deep || picked)}<button class="pick" onclick={() => toggleAll(ids)}>{allOn(ids) ? 'Deselect' : 'Select'} {ids.length}</button>{/if}
+  </div>
+{/snippet}
 
 <style>
   header {
@@ -213,6 +250,76 @@
   }
   .body {
     padding: 4px 18px 60px;
+  }
+  .group-line {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .group-line .pick {
+    opacity: 0;
+  }
+  .group-line:hover .pick,
+  .group-line .pick:focus-visible {
+    opacity: 1;
+  }
+  .pick {
+    margin-left: auto;
+    padding: 2px 6px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: 0;
+    text-transform: none;
+    transition: opacity 0.12s, background 0.12s;
+  }
+  .pick:hover {
+    background: var(--sunken);
+    color: var(--text);
+  }
+  .bulk {
+    position: sticky;
+    bottom: max(12px, env(safe-area-inset-bottom));
+    z-index: 6;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0 14px;
+    padding: 8px;
+    border-radius: 12px;
+    background: var(--panel);
+    border: 1px solid var(--line-strong);
+    box-shadow: var(--shadow);
+    animation: rise 0.16s ease-out;
+  }
+  .bulk .x {
+    padding: 0 8px;
+  }
+  .bulk .n {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .bulk .n strong {
+    color: var(--text);
+  }
+  @keyframes rise {
+    from {
+      transform: translateY(8px);
+    }
+  }
+  @media (hover: none) {
+    .group-line .pick {
+      opacity: 1;
+    }
   }
   .group {
     display: block;

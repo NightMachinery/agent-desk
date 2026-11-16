@@ -210,7 +210,10 @@ agent (`#/p/example-proj/rerun-nov`), one session's writing (`?session=`),
 one machine (`?host=`), read items too (`?all=1`), a search (`?q=`) and an
 open item (`?item=q-7f3a`). From it you answer questions (with one-click
 "take your recommendation" or "go with the default"), message the agent
-behind any item or any coordinator, and mark things read. It updates live.
+behind any item or any coordinator, dismiss a question without answering it,
+and mark things read. Tick rows (shift-click for a range, `x` for the open
+item, "Select all" per section or group) to mark many read or unread at once.
+It updates live.
 
 It serves this machine's store only. To reach it from a phone, put it behind
 something that authenticates you, such as a reverse proxy on a private

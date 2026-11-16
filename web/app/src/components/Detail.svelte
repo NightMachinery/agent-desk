@@ -49,6 +49,14 @@
   async function mark(read) {
     try {
       await post(read ? 'read' : 'unread', read ? { target: it.display_id } : { id: it.display_id });
+      if (isQuestion)
+        toast(
+          read
+            ? `Dismissed: out of Needs you, still open. ${e.level === 'blocked' ? 'The agent stays blocked until you answer.' : 'The agent goes ahead with its default unless you answer.'}`
+            : 'Back in Needs you.',
+          'ok',
+          5000,
+        );
       onchange();
     } catch (err) {
       toast(err.message, 'error');
@@ -75,6 +83,7 @@
       </button>
       <span class="chip {kind}">{kind === 'slot' ? `Slot · ${item.slot}` : kindLabel[kind]}</span>
       {#if isQuestion && item.answered}<span class="chip ok">Answered</span>{/if}
+      {#if it.dismissed}<span class="chip">Dismissed</span>{/if}
       {#if it.unread}<span class="chip default">Unread</span>{/if}
       <span class="spacer"></span>
       <button class="btn ghost small mono" title="Copy a link to this item" onclick={() => copyText(location.href, 'Link')}>{it.display_id}</button>
@@ -171,6 +180,13 @@
     {/if}
 
     <div class="foot">
+      {#if isQuestion && !item.answered}
+        {#if it.dismissed}
+          <button class="btn small" onclick={() => mark(false)}>Back to Needs you</button>
+        {:else}
+          <button class="btn small" title="Hide it from Needs you without answering. It stays open, and Show all still lists it." onclick={() => mark(true)}>Dismiss without answering</button>
+        {/if}
+      {/if}
       {#if !isQuestion}
         {#if it.unread}
           <button class="btn small" onclick={() => mark(true)}>Mark read</button>
