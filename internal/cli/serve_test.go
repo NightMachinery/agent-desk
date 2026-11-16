@@ -153,8 +153,11 @@ func TestServe(t *testing.T) {
 	if len(v.View.New) != 0 {
 		t.Fatalf("read item still new: %+v", v.View.New)
 	}
-	if code, body, _ := do(t, hd, "POST", "/api/read", `{"target":"`+q+`"}`, dashboard); code != 422 || !strings.Contains(body, "question") {
-		t.Fatalf("reading a question: %d %s", code, body)
+	if code, body, _ := do(t, hd, "POST", "/api/read", `{"target":"`+q+`"}`, dashboard); code != 200 || !strings.Contains(body, "already answered") {
+		t.Fatalf("reading an answered question: %d %s", code, body)
+	}
+	if code, body, _ := do(t, hd, "POST", "/api/read", `{"targets":["zzzz"]}`, dashboard); code != 422 {
+		t.Fatalf("reading an unknown target: %d %s", code, body)
 	}
 	if code, _, _ := do(t, hd, "GET", "/api/item?id=zzzz", "", nil); code != 404 {
 		t.Fatalf("unknown item: %d", code)

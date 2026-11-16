@@ -126,7 +126,9 @@ not write anyway.
     agent-desk reply example-proj/rerun-nov/coord 'Pause after seed 4'   # or a node's coordinator
     agent-desk read t-k2m9                   # mark one item read
     agent-desk read example-proj/rerun-nov   # mark everything under a node read
-    agent-desk unread t-k2m9                 # undo a read mark
+    agent-desk read q-7f3a                   # dismiss a question without answering it
+    agent-desk read t-k2m9 s-p4d1            # several at once
+    agent-desk unread t-k2m9                 # undo a read mark or a dismissal
     agent-desk search cache
 
 ### Answers reach the agent
@@ -164,7 +166,7 @@ Typing filters the list, as in any fzf. Keys:
 - `enter`: answer a question (type a line, or leave it empty to write the
   answer in `$EDITOR`), open an item in `$EDITOR` (its linked file or report
   when it has one), or fold and unfold a node.
-- `ctrl-r`: mark read; on a node, everything under it.
+- `ctrl-r`: mark read; on a node, everything under it; on a question, dismiss it.
 - `ctrl-t`: answer a question with "Take your recommendation." or, for a
   question with a default, "Go ahead with your default: ...".
 - `ctrl-o`: open the session that wrote the item: in Paseo for a Paseo agent,
@@ -175,8 +177,12 @@ Typing filters the list, as in any fzf. Keys:
 
 What counts as unread: notices, done reports, and the current text of each
 slot, until marked read. A slot that changes is unread again. `status` slots
-are never unread; they are shown while their node is live. An open question is
-never hidden by reading: it leaves "Needs you" only when answered.
+are never unread; they are shown while their node is live.
+
+A **dismissed** question is an open question you marked read by its id. It
+leaves "Needs you" but stays open: its agent is still blocked (or goes ahead
+with its default), you can still answer it from `--all` or "Show all", and
+`unread` puts it back. Marking a node read never dismisses questions.
 
 A run that is finished (its root coordinator filed a done report), has no open
 question and nothing unread is hidden unless `--all` is given. Every view

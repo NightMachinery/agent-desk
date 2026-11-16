@@ -35,5 +35,6 @@ The API, all JSON:
   delivered, and where a reply goes.
 - `GET api/stream`: server-sent events; `change` whenever the store changes.
 - `POST api/answer {id, text}`, `api/reply {to, text}` (an id or a node
-  path), `api/read {target}` (an id or a path), `api/unread {id}`.
+  path), `api/read {target}` or `{targets: [...]}` (ids or paths; an open
+  question named by id is dismissed), `api/unread {id}` or `{targets: [...]}`.
 - `GET api/health`: `ok`.

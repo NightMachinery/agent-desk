@@ -168,7 +168,16 @@ func (s *server) sameOrigin(r *http.Request) error {
 	return nil
 }
 
-type writeFunc func(app *App, body map[string]string) (any, error)
+// request is the JSON body of a write.
+type request struct {
+	ID      string   `json:"id"`      // answer, unread: the item
+	Text    string   `json:"text"`    // answer, reply
+	To      string   `json:"to"`      // reply: an item or a node path
+	Target  string   `json:"target"`  // read: an item or a node path
+	Targets []string `json:"targets"` // read, unread: several at once
+}
+
+type writeFunc func(app *App, body request) (any, error)
 
 func (s *server) write(f writeFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -176,7 +185,7 @@ func (s *server) write(f writeFunc) http.HandlerFunc {
 			jsonError(w, http.StatusForbidden, err.Error())
 			return
 		}
-		var body map[string]string
+		var body request
 		if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&body); err != nil {
 			jsonError(w, http.StatusBadRequest, "bad JSON: "+err.Error())
 			return
@@ -198,7 +207,7 @@ func (s *server) write(f writeFunc) http.HandlerFunc {
 			res = map[string]string{}
 		}
 		if m, ok := res.(map[string]string); ok {
-			if o := strings.TrimSpace(out.String()); o != "" && m["id"] == "" {
+			if o := strings.TrimSpace(out.String()); o != "" && o != "ok" && m["id"] == "" {
 				m["id"] = o
 			}
 			if n := strings.TrimSpace(strings.ReplaceAll(errb.String(), "agent-desk: ", "")); n != "" {
@@ -225,23 +234,23 @@ func (s *server) userApp() (*App, *bytes.Buffer, *bytes.Buffer) {
 	return &app, &out, &errb
 }
 
-func (s *server) apiAnswer(app *App, body map[string]string) (any, error) {
+func (s *server) apiAnswer(app *App, body request) (any, error) {
 	d, err := app.load()
 	if err != nil {
 		return nil, err
 	}
-	q, err := d.Resolve(body["id"])
+	q, err := d.Resolve(body.ID)
 	if err != nil {
 		return nil, err
 	}
 	if q.Kind != "ask" {
 		return nil, fmt.Errorf("%s is a %s, not a question", d.Display(q.ID), q.Kind)
 	}
-	return map[string]string{}, app.recordAnswer(d, q, body["text"], "web")
+	return map[string]string{}, app.recordAnswer(d, q, body.Text, "web")
 }
 
-func (s *server) apiReply(app *App, body map[string]string) (any, error) {
-	e, err := app.recordReply(body["to"], body["text"], "web")
+func (s *server) apiReply(app *App, body request) (any, error) {
+	e, err := app.recordReply(body.To, body.Text, "web")
 	if err != nil {
 		return nil, err
 	}
@@ -252,12 +261,21 @@ func (s *server) apiReply(app *App, body map[string]string) (any, error) {
 	return map[string]string{"id": d.Display(e.ID)}, nil
 }
 
-func (s *server) apiRead(app *App, body map[string]string) (any, error) {
-	return map[string]string{}, app.run([]string{"read", body["target"]})
+func (s *server) apiRead(app *App, body request) (any, error) {
+	return map[string]string{}, app.run(append([]string{"read", "--"}, body.list(body.Target)...))
 }
 
-func (s *server) apiUnread(app *App, body map[string]string) (any, error) {
-	return map[string]string{}, app.run([]string{"unread", body["id"]})
+func (s *server) apiUnread(app *App, body request) (any, error) {
+	return map[string]string{}, app.run(append([]string{"unread", "--"}, body.list(body.ID)...))
+}
+
+// list is the targets of a bulk write: one, or several.
+func (r request) list(one string) []string {
+	var out []string
+	if one != "" {
+		out = append(out, one)
+	}
+	return append(out, r.Targets...)
 }
 
 func writeJSON(w http.ResponseWriter, v any) {
@@ -501,7 +519,8 @@ func (s *server) apiItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_, _, rest := desk.Split(e.Path)
-	it := desk.Item{Event: e, ID: d.Display(e.ID), Label: rest, Age: desk.Age(d.Now.Sub(desk.Time(e))), Unread: d.Unread(e.ID)}
+	it := desk.Item{Event: e, ID: d.Display(e.ID), Label: rest, Age: desk.Age(d.Now.Sub(desk.Time(e))), Unread: d.Unread(e.ID),
+		Dismissed: d.Dismissed(e.ID) && isOpen(d, e.ID)}
 	for i := range d.Questions {
 		if d.Questions[i].ID == e.ID {
 			q := d.Questions[i]

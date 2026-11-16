@@ -91,8 +91,8 @@ User side:
   agent-desk serve [--listen ADDR|unix:PATH] [--allow-host H,...] [--allow-origin URL,...]
                    [--pid-file F] [--config F.json]
                                       the web dashboard (default 127.0.0.1:7740)
-  agent-desk read <id|path-prefix> [--host H]
-  agent-desk unread <id>
+  agent-desk read <id|path-prefix>... [--host H]
+  agent-desk unread <id>...
   agent-desk search <text> [--host H]
   agent-desk open <id|path>       what a notification click runs (open_command)
   agent-desk export | import [--notify] | snapshot <file> | render
@@ -705,7 +705,7 @@ func (a *App) recordAnswer(d *desk.Desk, q store.Event, text, source string) err
 }
 
 func (a *App) cmdRead(args []string) error {
-	o, err := parse(args, nil, []string{"host"}, 1, 1)
+	o, err := parse(args, nil, []string{"host"}, 1, -1)
 	if err != nil {
 		return err
 	}
@@ -714,42 +714,84 @@ func (a *App) cmdRead(args []string) error {
 		return err
 	}
 	from := ident.Resolve(a.Env)
-	arg := o.pos[0]
-	if !strings.Contains(arg, "/") {
-		if e, err := d.Resolve(arg); err == nil {
-			switch {
-			case e.Kind == "ask":
-				return fmt.Errorf("%s is a question; it leaves the list when answered, not when read", d.Display(e.ID))
-			case !d.Unread(e.ID):
-				fmt.Fprintln(a.Stdout, "ok")
-				fmt.Fprintf(a.Stderr, "agent-desk: %s is not unread\n", d.Display(e.ID))
-				return nil
-			}
-			r := a.event("read", e.Path, from, "cli", nil)
-			r.Ref = e.ID
-			return a.commit1(r)
-		} else if !strings.HasPrefix(err.Error(), "no event") {
-			return err
+	var evs []store.Event
+	seen := map[string]bool{}
+	add := func(e store.Event) {
+		if !seen[e.Ref] {
+			seen[e.Ref] = true
+			evs = append(evs, e)
 		}
 	}
-	evs := a.readMarks(d, from, desk.Filter{Prefix: arg, Host: o.vals["host"]})
-	if len(evs) == 0 {
-		known := false
-		for _, e := range d.Events {
-			if desk.Under(e.Path, arg) {
-				known = true
-				break
+	for _, arg := range o.pos {
+		if !strings.Contains(arg, "/") {
+			e, err := d.Resolve(arg)
+			if err == nil {
+				switch {
+				case e.Kind == "ask" && !isOpen(d, e.ID):
+					fmt.Fprintf(a.Stderr, "agent-desk: %s is already answered\n", d.Display(e.ID))
+				case e.Kind == "ask" && d.Dismissed(e.ID):
+					fmt.Fprintf(a.Stderr, "agent-desk: %s is already dismissed\n", d.Display(e.ID))
+				case e.Kind == "ask":
+					add(a.readMark(e, from, "cli"))
+					then := "its agent stays blocked until you answer"
+					if e.Level == "default" {
+						then = "its agent goes ahead with its default unless you answer"
+					}
+					fmt.Fprintf(a.Stderr, "agent-desk: %s leaves Needs you but stays open: %s\n", d.Display(e.ID), then)
+				case !d.Unread(e.ID):
+					fmt.Fprintf(a.Stderr, "agent-desk: %s is not unread\n", d.Display(e.ID))
+				default:
+					add(a.readMark(e, from, "cli"))
+				}
+				continue
+			} else if !strings.HasPrefix(err.Error(), "no event") {
+				return err
 			}
 		}
-		if !known {
-			return fmt.Errorf("%q is neither an id nor a path in the store", arg)
+		marks := a.readMarks(d, from, desk.Filter{Prefix: arg, Host: o.vals["host"]})
+		if len(marks) == 0 {
+			known := false
+			for _, e := range d.Events {
+				if desk.Under(e.Path, arg) {
+					known = true
+					break
+				}
+			}
+			if !known {
+				return fmt.Errorf("%q is neither an id nor a path in the store", arg)
+			}
+			fmt.Fprintf(a.Stderr, "agent-desk: nothing unread under %s\n", arg)
 		}
+		for _, m := range marks {
+			add(m)
+		}
+	}
+	if len(evs) == 0 {
 		fmt.Fprintln(a.Stdout, "ok")
-		fmt.Fprintf(a.Stderr, "agent-desk: nothing unread under %s\n", arg)
 		return nil
 	}
-	fmt.Fprintf(a.Stderr, "agent-desk: marked %d item(s) read\n", len(evs))
+	if len(evs) > 1 {
+		fmt.Fprintf(a.Stderr, "agent-desk: marked %d item(s) read\n", len(evs))
+	}
 	return a.commit(evs, "")
+}
+
+// readMark is a read marker for one event. On an open question it is a
+// dismissal.
+func (a *App) readMark(e store.Event, from ident.From, source string) store.Event {
+	r := a.event("read", e.Path, from, source, nil)
+	r.Ref = e.ID
+	return r
+}
+
+// isOpen reports whether question id has no answer yet.
+func isOpen(d *desk.Desk, id string) bool {
+	for _, q := range d.Questions {
+		if q.ID == id {
+			return q.Open()
+		}
+	}
+	return false
 }
 
 // readMarks builds one read marker per unread item in scope.
@@ -757,9 +799,7 @@ func (a *App) readMarks(d *desk.Desk, from ident.From, f desk.Filter) []store.Ev
 	var evs []store.Event
 	for _, e := range d.Events {
 		if d.Unread(e.ID) && f.Keep(e) {
-			r := a.event("read", e.Path, from, "cli", nil)
-			r.Ref = e.ID
-			evs = append(evs, r)
+			evs = append(evs, a.readMark(e, from, "cli"))
 		}
 	}
 	return evs
@@ -773,7 +813,7 @@ func (a *App) renderWarn() error {
 }
 
 func (a *App) cmdUnread(args []string) error {
-	o, err := parse(args, nil, nil, 1, 1)
+	o, err := parse(args, nil, nil, 1, -1)
 	if err != nil {
 		return err
 	}
@@ -781,24 +821,37 @@ func (a *App) cmdUnread(args []string) error {
 	if err != nil {
 		return err
 	}
-	e, err := d.Resolve(o.pos[0])
-	if err != nil {
-		return err
-	}
-	var last store.Event
-	for _, r := range d.Events {
-		if r.Kind == "read" && r.Ref == e.ID {
-			last = r
+	from := ident.Resolve(a.Env)
+	var evs []store.Event
+	seen := map[string]bool{}
+	for _, tok := range o.pos {
+		e, err := d.Resolve(tok)
+		if err != nil {
+			return err
 		}
+		if seen[e.ID] {
+			continue
+		}
+		seen[e.ID] = true
+		var last store.Event
+		for _, r := range d.Events {
+			if r.Kind == "read" && r.Ref == e.ID {
+				last = r
+			}
+		}
+		if last.ID == "" || desk.Meta(last)["cancel"] == true {
+			fmt.Fprintf(a.Stderr, "agent-desk: %s is not marked read\n", d.Display(e.ID))
+			continue
+		}
+		r := a.event("read", e.Path, from, "cli", map[string]any{"cancel": true, "supersedes": last.ID})
+		r.Ref = e.ID
+		evs = append(evs, r)
 	}
-	if last.ID == "" || desk.Meta(last)["cancel"] == true {
+	if len(evs) == 0 {
 		fmt.Fprintln(a.Stdout, "ok")
-		fmt.Fprintf(a.Stderr, "agent-desk: %s is not marked read\n", d.Display(e.ID))
 		return nil
 	}
-	r := a.event("read", e.Path, ident.Resolve(a.Env), "cli", map[string]any{"cancel": true, "supersedes": last.ID})
-	r.Ref = e.ID
-	return a.commit1(r)
+	return a.commit(evs, "")
 }
 
 // --- reading -----------------------------------------------------------------
@@ -824,7 +877,7 @@ func (a *App) cmdShow(args []string) error {
 		if !ok {
 			return errors.New("this session has not joined a node")
 		}
-		f.Prefix = bound.Path
+		f.Prefix, f.Dismissed = bound.Path, true
 	}
 	v := d.Build(f)
 	switch o.vals["format"] {

@@ -45,7 +45,8 @@ type Desk struct {
 	Table     *ids.Table
 	Questions []store.Question
 	unread    map[string]bool
-	slots     []store.Event // slot_current minus clears
+	dismissed map[string]bool // questions marked read: open, but out of Needs you
+	slots     []store.Event   // slot_current minus clears
 }
 
 // Load reads the store.
@@ -75,6 +76,20 @@ func Load(s *store.Store, host string, now time.Time) (*Desk, error) {
 	if d.slots, err = s.Query("slot_current", "kind != 'clear'"); err != nil {
 		return nil, err
 	}
+	// The read marker that counts is the latest naming the event, as in the
+	// read_current view; events arrive in id order.
+	last := map[string]bool{}
+	for _, e := range evs {
+		if e.Kind == "read" && d.ByID[e.Ref].Kind == "ask" {
+			last[e.Ref] = Meta(e)["cancel"] != true
+		}
+	}
+	d.dismissed = map[string]bool{}
+	for id, on := range last {
+		if on {
+			d.dismissed[id] = true
+		}
+	}
 	return d, nil
 }
 
@@ -95,6 +110,10 @@ func (d *Desk) Resolve(token string) (store.Event, error) {
 
 // Unread reports whether an event is unread.
 func (d *Desk) Unread(id string) bool { return d.unread[id] }
+
+// Dismissed reports whether a question has been marked read. It stays open,
+// and its agent stays blocked, but it leaves Needs you until marked unread.
+func (d *Desk) Dismissed(id string) bool { return d.dismissed[id] }
 
 // IsSlotKind reports whether events of kind k carry a slot name in their path.
 func IsSlotKind(k string) bool { return k == "set" || k == "clear" || k == "link" }
@@ -127,6 +146,9 @@ type Filter struct {
 	Host    string
 	Session string // a native session id or a Paseo agent id
 	All     bool   // show read items and hidden runs
+	// Dismissed keeps dismissed questions in Needs you: an agent's own view
+	// of what it is still waiting for.
+	Dismissed bool
 }
 
 func (f Filter) Keep(e store.Event) bool {
@@ -202,6 +224,8 @@ type Item struct {
 	Age      string          `json:"age"`
 	Question *store.Question `json:"question,omitempty"`
 	Unread   bool            `json:"unread"`
+	// Dismissed: an open question marked read, shown only with Filter.All.
+	Dismissed bool `json:"dismissed,omitempty"`
 }
 
 // Group is the items of one project and run.
@@ -244,16 +268,18 @@ func group(items []Item) []Group {
 }
 
 // OpenQuestions are the unanswered questions in scope: blocked first, then
-// default, oldest first within each.
+// default, oldest first within each. Dismissed ones come only with f.All or
+// f.Dismissed.
 func (d *Desk) OpenQuestions(f Filter) []Item {
 	var out []Item
 	for i := range d.Questions {
 		q := d.Questions[i]
-		if !q.Open() || !f.Keep(q.Event) {
+		if !q.Open() || !f.Keep(q.Event) || (d.dismissed[q.ID] && !f.All && !f.Dismissed) {
 			continue
 		}
 		it := d.item(q.Event)
 		it.Question = &q
+		it.Dismissed = d.dismissed[q.ID]
 		out = append(out, it)
 	}
 	sort.SliceStable(out, func(a, b int) bool {
@@ -393,9 +419,16 @@ func (d *Desk) Tree(f Filter) []*Node {
 		}
 		n.Slots = append(n.Slots, sl)
 	}
-	for _, q := range d.OpenQuestions(scope) {
+	// A dismissed question no longer asks for attention, but its agent is
+	// still blocked on it.
+	for _, q := range d.Questions {
+		if !q.Open() || !scope.Keep(q.Event) {
+			continue
+		}
 		for m := get(q.Event.Path); m != nil && m != root; m = nodes[parentOf(m.Path)] {
-			m.Open++
+			if !d.dismissed[q.ID] {
+				m.Open++
+			}
 			if q.Event.Level == "blocked" {
 				m.Blocked++
 			}

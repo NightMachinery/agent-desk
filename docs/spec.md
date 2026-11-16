@@ -190,6 +190,7 @@ Event semantics:
   time; never unread).
 - `read`: `ref` is the exact event the user has seen. Marking a node read
   expands, at command time, into one `read` per current unread item under it.
+  A `read` naming an open question **dismisses** it (see Commands).
 
 Unread rules: a `tell`, a `done`, and the latest `set` of a slot are
 unread until a `read` names that event. A new `set` is a new event, so an
@@ -224,14 +225,20 @@ User side:
     agent-desk inbox                 #: interactive dashboard (below)
     agent-desk show [<path-prefix>] [--all] [--format org|md|json]
     agent-desk answer <id> 'text'    #: record, then deliver
-    agent-desk read <id|path-prefix> #: mark read
-    agent-desk unread <id>           #: append a superseding marker; see note
+    agent-desk read <id|path-prefix>...  #: mark read; on a question, dismiss
+    agent-desk unread <id>...            #: append a superseding marker; see note
     agent-desk search <text>
     agent-desk export | import | snapshot <file> | merge <source>
     agent-desk deliver | render | serve
 
-`read` refuses a question: it leaves "Needs you" only when answered. Agent-side
-writes come only from agent sessions; a shell with no agent session id is refused.
+`read` on an open question named by its id **dismisses** it: the question
+leaves "Needs you" and the counts of open questions, and its notification is
+removed, but it stays open. Its agent is still blocked (or goes ahead with its
+default), its node still shows "waiting on you", `show --all` lists it marked
+dismissed, `show --mine` keeps it in the agent's own view, and an answer still
+closes it. `unread` undoes a dismissal. Marking a node read never dismisses the
+questions under it; only naming one does. Agent-side writes come only from
+agent sessions; a shell with no agent session id is refused.
 
 Note on `unread`: there is no deleting a `read` event. Model it as a later
 event that cancels it (`kind=read`, `meta.cancel=true`); the view takes the
@@ -284,8 +291,8 @@ One information design, two renderings (terminal now, HTML in phase 7).
 Four views, in this order:
 
 1. **Needs you**: open questions. `blocked` first, then `default`; oldest
-   first within each. This view is never empty-by-hiding: an open question
-   cannot be marked read away, only answered.
+   first within each. An open question leaves it when answered, or when the
+   user dismisses it by name (it is then listed only with "show all").
 2. **New**: unread notices, done reports and changed slots, grouped by
    project then run.
 3. **Runs**: the tree. Read slots are hidden unless "show all" is on.
@@ -348,7 +355,8 @@ Actions per item:
 
 - Question: answer (free text), "take recommendation" or "take default"
   (answers with a fixed sentence: "Take your recommendation." or "Go ahead
-  with your default: <default>"), open session, copy id.
+  with your default: <default>"), dismiss without answering, open session,
+  copy id.
 - Notice, done report, slot: mark read; open the linked report or file.
 - Node (project, run, agent): mark everything under it read; expand.
 - Global: show all, search, refresh.
@@ -357,7 +365,8 @@ Terminal rendering (`agent-desk inbox`): `fzf` over the list with the
 preview pane, fed and called back through hidden subcommands (`inbox-list`,
 `inbox-preview`, `inbox-act`) that share a state file for "show all" and
 folding. Keys: Enter answers a question (one line, or `$EDITOR` when left
-empty), opens an item in `$EDITOR`, or folds a node; `ctrl-r` marks read;
+empty), opens an item in `$EDITOR`, or folds a node; `ctrl-r` marks read
+(on a question: dismisses it);
 `ctrl-t` takes the recommendation or default; `ctrl-o` opens the session;
 `alt-a` toggles show all; `ctrl-l` refreshes. The list reloads after each
 action. It refuses to start without a terminal and points to `show`.

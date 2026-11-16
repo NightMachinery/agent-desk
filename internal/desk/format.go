@@ -118,8 +118,12 @@ func (w *Writer) Question(level int, it Item) {
 	if label == "" {
 		label = it.Event.Path
 	}
+	lvl := it.Event.Level
+	if it.Dismissed {
+		lvl += ", dismissed"
+	}
 	w.h(level, fmt.Sprintf("%s%s %s  (%s · %s · %s%s)", kwd(w.Org, k), it.ID, it.Event.Title,
-		label, it.Event.Level, it.Age, w.hostTag(it.Event.Host)))
+		label, lvl, it.Age, w.hostTag(it.Event.Host)))
 	w.props("DESK_ID", it.ID, "DESK_PATH", it.Event.Path, "DESK_TS", it.Event.TS, "DESK_HOST", it.Event.Host)
 	w.Text(it.Event.Body)
 	if def := MetaString(it.Event, "default"); def != "" {

@@ -368,12 +368,46 @@ func TestUnreadRules(t *testing.T) {
 	if n := newCount(); n != 0 {
 		t.Fatalf("new = %d after reading the run", n)
 	}
-	// An open question cannot be read away.
+	// Reading a node leaves its open questions alone.
 	q := h.ok(a, "ctx", "ask", "--blocked", "--title", "Which?")
-	h.fails(nil, "", "leaves the list when answered", "read", q)
 	h.ok(nil, "", "read", "example-proj")
 	if len(h.showJSON("", false)["needs_you"].([]any)) != 1 {
 		t.Fatal("reading the project hid the open question")
+	}
+	// Naming a question dismisses it: out of Needs you, still open, and its
+	// agent still counts as waiting on you.
+	_, errOut, code := h.run(nil, "", "read", q)
+	if code != 0 || !strings.Contains(errOut, "stays open") {
+		t.Fatalf("dismiss: %d %q", code, errOut)
+	}
+	if len(h.showJSON("", false)["needs_you"].([]any)) != 0 {
+		t.Fatal("a dismissed question is still in Needs you")
+	}
+	all := h.showJSON("", true)["needs_you"].([]any)
+	if len(all) != 1 || all[0].(map[string]any)["items"].([]any)[0].(map[string]any)["dismissed"] != true {
+		t.Fatalf("--all does not show the dismissed question: %v", all)
+	}
+	run := h.showJSON("", false)["runs"].([]any)[0].(map[string]any)
+	if run["state"] != "waiting on you" || run["open_questions"] != float64(0) {
+		t.Fatalf("run of a dismissed question: state %v, open %v", run["state"], run["open_questions"])
+	}
+	if out := h.ok(a, "", "show", "--mine", "--format", "md"); !strings.Contains(out, "Which?") {
+		t.Fatalf("the agent lost sight of its dismissed question:\n%s", out)
+	}
+	// unread brings it back; several targets at once.
+	h.ok(nil, "", "unread", q)
+	if len(h.showJSON("", false)["needs_you"].([]any)) != 1 {
+		t.Fatal("unread did not restore the question")
+	}
+	h.ok(a, "", "tell", "--title", "one")
+	h.ok(nil, "", "read", q, "example-proj")
+	if newCount() != 0 || len(h.showJSON("", false)["needs_you"].([]any)) != 0 {
+		t.Fatal("bulk read missed something")
+	}
+	// An answered question has nothing to dismiss.
+	h.ok(nil, "", "answer", q, "B")
+	if _, errOut, _ := h.run(nil, "", "read", q); !strings.Contains(errOut, "already answered") {
+		t.Fatalf("read of an answered question: %q", errOut)
 	}
 }
 

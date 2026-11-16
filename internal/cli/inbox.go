@@ -108,6 +108,9 @@ func (a *App) inboxLines(d *desk.Desk, st inboxState) []line {
 			if it.Event.Level == "default" {
 				lvl = yellow("DEFAULT")
 			}
+			if it.Dismissed {
+				lvl = dim("DISMISS")
+			}
 			add(it.Event.ID, fmt.Sprintf("    %s %-4s %s  %s%s", lvl, it.Age, dim(it.Label), it.Event.Title,
 				hostTag(d, it.Event.Host)))
 		}
@@ -425,7 +428,13 @@ func (a *App) inboxAct(d *desk.Desk, st inboxState, action, key string) error {
 		}
 		return a.openItem(d, e)
 	case "read":
-		if e.Kind == "ask" || !d.Unread(e.ID) {
+		if e.Kind == "ask" {
+			if !d.Dismissed(e.ID) && isOpen(d, e.ID) {
+				return a.commit([]store.Event{a.readMark(e, from, "cli")}, "")
+			}
+			return nil
+		}
+		if !d.Unread(e.ID) {
 			return nil
 		}
 		r := a.event("read", e.Path, from, "cli", nil)
