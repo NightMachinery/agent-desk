@@ -593,6 +593,10 @@ func (a *App) cmdSet(args []string) error {
 	if strings.TrimSpace(text) == "" {
 		return usagef("set needs text; to empty a slot use agent-desk clear %s", name)
 	}
+	if t := desk.SlotText(text); t != text {
+		text = t
+		fmt.Fprintf(a.Stderr, "agent-desk: took each \\n as a line break; pass real ones with $'...' or stdin\n")
+	}
 	limit, ok := SlotCaps[name]
 	if !ok {
 		limit = DefaultCap

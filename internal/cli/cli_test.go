@@ -705,3 +705,22 @@ func TestStandardSlotOrder(t *testing.T) {
 		t.Fatalf("slot order %q, want %q", strings.Join(got, " "), want)
 	}
 }
+
+// A slot written with literal \n in one shell argument gets line breaks, both
+// when it is written and, for text already stored that way, when it is read.
+func TestSlotLiteralNewlines(t *testing.T) {
+	h := newHarness(t)
+	a := h.as(sessA)
+	h.ok(a, "", "join", "r1/coord")
+	_, errOut, code := h.run(a, "", "set", "next", `one\ntwo`)
+	if code != 0 || !strings.Contains(errOut, "line break") {
+		t.Fatalf("set: %d %q", code, errOut)
+	}
+	h.fails(a, "", "at most 5 lines", "set", "next", `1\n2\n3\n4\n5\n6`)
+	// Real line breaks win: such text is kept as written.
+	h.ok(a, "", "set", "findings", "a\\nb\nc")
+	out := h.ok(nil, "", "show", "--format", "md")
+	if !strings.Contains(out, "  one\n  two\n") || !strings.Contains(out, `a\nb`) {
+		t.Fatalf("board:\n%s", out)
+	}
+}

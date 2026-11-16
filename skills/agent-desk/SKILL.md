@@ -87,6 +87,7 @@ current text; old text is kept but out of sight.
 
     agent-desk set status 'Seeds 3/5 done. ETA 14:00.'
     agent-desk set findings < findings.txt
+    agent-desk set next $'Finish seeds 4 and 5.\nWrite the table.'   # $'...' for line breaks
     agent-desk clear next
     agent-desk link tasks TASKS.org
 

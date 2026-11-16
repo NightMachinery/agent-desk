@@ -57,6 +57,11 @@ func Load(s *store.Store, host string, now time.Time) (*Desk, error) {
 	}
 	d := &Desk{Now: now, Host: host, Events: evs, ByID: make(map[string]store.Event, len(evs))}
 	all := make([]string, len(evs))
+	for i := range evs {
+		if evs[i].Kind == "set" {
+			evs[i].Body = SlotText(evs[i].Body)
+		}
+	}
 	for i, e := range evs {
 		d.ByID[e.ID] = e
 		all[i] = e.ID
@@ -75,6 +80,11 @@ func Load(s *store.Store, host string, now time.Time) (*Desk, error) {
 	}
 	if d.slots, err = s.Query("slot_current", "kind != 'clear'"); err != nil {
 		return nil, err
+	}
+	for i := range d.slots {
+		if d.slots[i].Kind == "set" {
+			d.slots[i].Body = SlotText(d.slots[i].Body)
+		}
 	}
 	// The read marker that counts is the latest naming the event, as in the
 	// read_current view; events arrive in id order.
@@ -106,6 +116,16 @@ func (d *Desk) Resolve(token string) (store.Event, error) {
 		return store.Event{}, err
 	}
 	return d.ByID[id], nil
+}
+
+// SlotText turns the two characters \n into line breaks in a slot text that
+// has no real line break: an agent that wrote set next 'a\nb' in a shell
+// meant two lines. Text with real line breaks is left as it is.
+func SlotText(s string) string {
+	if strings.Contains(s, "\n") || !strings.Contains(s, `\n`) {
+		return s
+	}
+	return strings.ReplaceAll(s, `\n`, "\n")
 }
 
 // Unread reports whether an event is unread.
