@@ -14,6 +14,29 @@ Commit `web/dist` with the sources. `go test ./web` fails when `web/dist` is
 older than the sources: the build stamps a hash of everything it read
 (`scripts/stamp.mjs`), and the test recomputes it.
 
+## Looking at a change
+
+Check a change in a real browser, on a desk of fabricated data, before
+committing it. `scripts/fixture.sh` builds the desk; `scripts/shot.mjs`
+screenshots a URL in headless Chrome, optionally after running JavaScript in
+the page, and prints what that code returns. It needs Node 22 or later and
+Chrome (`CHROME` names another binary), and installs nothing.
+
+    d=$(mktemp -d)
+    go build -o $d/agent-desk .
+    AGENT_DESK_BIN=$d/agent-desk web/app/scripts/fixture.sh $d
+    AGENT_DESK_HOME=$d/desk AGENT_DESK_HOST=host-a $d/agent-desk serve --listen 127.0.0.1:7792 &
+    node web/app/scripts/shot.mjs 'http://127.0.0.1:7792/#/p/' $d/desk.png
+    node web/app/scripts/shot.mjs 'http://127.0.0.1:7792/#/p/' $d/phone.png --width 520 --height 900 \
+      --js 'document.querySelectorAll("button.check")[0].click(); return document.querySelector(".bulk")?.innerText'
+
+A width under 600 emulates a phone. `--wait` (default 1500 ms) is the time
+given to the page to load first. An exception in the page script exits 1.
+The page's live stream never goes idle, so tools that wait for the network to
+settle (such as Chrome's `--virtual-time-budget`) hang on it; this script
+waits a fixed time instead. Rebuild the binary after `npm run build`: the page
+is embedded in it.
+
 Rules the page keeps:
 
 - Every view is in the hash URL (`src/lib/route.svelte.js`), so any view can
