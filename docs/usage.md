@@ -120,7 +120,10 @@ not write anyway.
     agent-desk show example-proj/rerun-nov   # one subtree
     agent-desk show --all --format md        # include read items and finished runs
     agent-desk show --format json
+    agent-desk show --session 1f0c...       # what one session wrote (native or Paseo id)
     agent-desk answer q-7f3a 'B'             # record it and type it into the asking session
+    agent-desk reply t-k2m9 'Check the old feed too'      # message the session behind an item
+    agent-desk reply example-proj/rerun-nov/coord 'Pause after seed 4'   # or a node's coordinator
     agent-desk read t-k2m9                   # mark one item read
     agent-desk read example-proj/rerun-nov   # mark everything under a node read
     agent-desk unread t-k2m9                 # undo a read mark
@@ -136,7 +139,9 @@ the session that asked:
 A Paseo agent gets it through `paseo send`, which queues it if the agent is
 busy. An agent in a tmux pane gets it pasted into that pane, but only while the
 pane still runs the same process and session. Anything else goes to
-`deliver_command` if you configured one. When the session cannot be reached,
+`deliver_command` if you configured one. A reply travels the same way, as
+`Message from the user via agent-desk, about t-k2m9 "Deploy finished": ...`.
+When the session cannot be reached,
 the answer stays recorded and undelivered, the command prints how to resume
 the session, and `agent-desk deliver` tries again later. A question asked on
 another machine is answered there after the next merge.
@@ -186,6 +191,25 @@ After every write the tool re-renders plain org files, so `cat` is enough:
 Each item is a heading with a `:DESK_ID:` property and a keyword: `ASK` or
 `ANSWERED` for questions, `NEW` for unread items. `agent-desk render`
 re-renders by hand.
+
+### The web dashboard
+
+    agent-desk serve                          # http://127.0.0.1:7740/
+    agent-desk serve --listen unix:/path/to/desk.sock   # behind a proxy
+
+The same three sections as the inbox, on a desktop in three panes and on a
+phone in one column. Every view is a URL you can bookmark: a project, run or
+agent (`#/p/example-proj/rerun-nov`), one session's writing (`?session=`),
+one machine (`?host=`), read items too (`?all=1`), a search (`?q=`) and an
+open item (`?item=q-7f3a`). From it you answer questions (with one-click
+"take your recommendation" or "go with the default"), message the agent
+behind any item or any coordinator, and mark things read. It updates live.
+
+It serves this machine's store only. To reach it from a phone, put it behind
+something that authenticates you, such as a reverse proxy on a private
+network; the server refuses cross-site writes and, on a TCP port, any `Host`
+it was not told about (`--allow-host desk.example.net`). See
+[dashboard.md](dashboard.md) to change the page.
 
 ## Notifications and other machine-specific commands
 

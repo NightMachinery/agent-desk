@@ -63,6 +63,11 @@ An answer given in the inbox arrives typed into your session as
 `Answer to q-7f3a "Which split for the rerun?": B`. It is already recorded;
 just act on it.
 
+A message that starts `Message from the user via agent-desk` was sent from
+the desk by a user who may not be watching your chat. Act on it, and put
+anything they should read in reply on the desk (`tell`, or a slot), not only
+in chat.
+
 ## Notices
 
 For something the user should know but need not answer: a result, a finished

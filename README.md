@@ -27,6 +27,7 @@ and gives the user one place to read it and answer.
     Q
     agent-desk set status 'Seeds 3/5 done. ETA 14:00.'
     agent-desk show
+    agent-desk serve      # the dashboard, at http://127.0.0.1:7740/
 
 Agents learn the rules (who writes, how to ask, slot discipline) from the
 skill in [skills/agent-desk](skills/agent-desk/SKILL.md). Link or copy that
@@ -35,10 +36,11 @@ directory into your agents' skills directory, such as `~/.claude/skills/` or
 
 Built so far: the store, the agent and user commands, the terminal inbox,
 rendered org files, notification hooks, answer delivery and merging stores (by
-file or over ssh), done reports filed when a session ends, and the agent
-skill. Not yet: the HTML app.
+file or over ssh), done reports filed when a session ends, the agent skill,
+and a web dashboard (`agent-desk serve`) that also messages agents.
 
 - [docs/usage.md](docs/usage.md): how to use it.
+- [docs/dashboard.md](docs/dashboard.md): changing the web dashboard.
 - [docs/spec.md](docs/spec.md): the full design and the build order.
 
 ## License

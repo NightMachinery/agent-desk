@@ -146,7 +146,7 @@ variable (children inherit the parent's environment, which is how
       ts    TEXT NOT NULL,     -- RFC 3339 with offset
       host  TEXT NOT NULL,
       kind  TEXT NOT NULL,     -- join ask answer delivered tell done set clear
-                               -- link read
+                               -- link read reply
       path  TEXT NOT NULL,
       ref   TEXT,              -- event this one refers to
       level TEXT,              -- ask: blocked | default.  tell: fyi | notify
@@ -173,7 +173,7 @@ variable (children inherit the parent's environment, which is how
 - Display ids: kind letter plus the shortest unique suffix of the ULID's
   random part, at least 4 characters (`q-7f3a`, `t-k2m9`). Letters: `q` ask,
   `a` answer, `t` tell, `d` done, `s` set, `c` clear, `l` link, `j` join,
-  `r` read, `v` delivered. Commands accept the display id, the part after the
+  `r` read, `v` delivered, `m` reply. Commands accept the display id, the part after the
   dash, any unique prefix of that part, or a full ULID.
 
 Event semantics:
@@ -416,6 +416,20 @@ approved hook, deferred to phase 8, copies the user's own messages.
 - Deliveries take a lock in the store directory, so two runs never type one
   answer twice.
 
+**Replies** (added 2026-11-16 at the user's request, so they can steer agents
+from the dashboard): `agent-desk reply <id|path> 'text'` appends a `reply`
+event about an item, or to a node's coordinator, recording where it goes
+(`meta.to`, `meta.to_host`), and delivers it the same way:
+
+    Message from the user via agent-desk, about t-k2m9 "Deploy finished": check the old feed too
+
+A reply about an item goes to the session that wrote it, unless the node has
+been taken over since, in which case it goes to the new coordinator. Replies
+are delivered on the session's own machine, after a merge if need be. The
+skill tells agents that a message arriving "via agent-desk" comes from a user
+reading the desk, who may not see the chat, so the answer goes back with
+`tell`.
+
 A blocked agent ends its turn after asking and never polls. For a question
 with a default, the agent may be mid-turn when the answer arrives. `paseo
 send` with its default behaviour (`steer`) queues the message and hands it to
@@ -498,10 +512,18 @@ One atomic commit group each. Stop after each phase and run its check.
    Every view is a URL, so any view or filter can be bookmarked (asked by the
    user, 2026-11-16): a project or any subtree by path, one item by display
    id, and filters such as one session, one host, show all and a search as
-   query parameters. The server renders each URL itself; filter controls are
-   plain links and GET forms, so changing a filter changes the URL. Script
-   only adds actions and live refresh. No front-end framework: one would need
-   a build step, and these pages need none.
+   query parameters.
+   Built (2026-11-16) as a Svelte 5 page compiled by Vite. The user left the
+   framework to the builder and asked for a polished dashboard that can also
+   message the agent behind an item ("reply"); agents run a Node build
+   without trouble, so a framework's cost is small. The site this is
+   deployed on strips its mount path before proxying, so the page uses hash
+   routes (`#/p/<path>?session=&host=&all=1&q=&item=`) and relative,
+   content-hashed asset URLs. `web/dist` is committed so `go install` needs
+   no Node, and a Go test fails when it is older than `web/app`. Writes need
+   an `X-Agent-Desk` header and a same-origin JSON request; a TCP listener
+   also checks the `Host` header against DNS rebinding. `serve --listen`
+   takes `HOST:PORT` or `unix:PATH`; `GET /api/health` answers `ok`.
 8. **Later, each needing the user's go-ahead:**
    - Emacs commands on rendered headings.
    - An `instruction` event kind, written by a prompt hook that copies each
