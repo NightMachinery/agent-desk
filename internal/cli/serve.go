@@ -341,6 +341,11 @@ func (s *server) apiView(w http.ResponseWriter, r *http.Request) {
 		resp.Node = desk.Find(d.Tree(all), f.Prefix)
 		if t, err := targetOf(d, f.Prefix); err == nil {
 			resp.Target = &t
+		} else if resp.Node != nil && len(resp.Node.Children) == 1 {
+			// A run's one coordinator speaks for the run.
+			if t, err := targetOf(d, resp.Node.Children[0].Path); err == nil {
+				resp.Target = &t
+			}
 		}
 	}
 	if f.Session != "" {
