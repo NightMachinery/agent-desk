@@ -10,7 +10,7 @@ and gives the user one place to read it and answer.
 - **Questions** are filed with their context, options and recommendation.
   They stay on an open list until answered, and the answer is typed back into
   the session that asked.
-- **Slots** hold what is true now (status, findings, artifacts) as short named
+- **Slots** hold what is true now (status, next, done, velocity, findings) as short named
   boxes in a tree of project, run and agent. Writing a slot replaces it, so
   the board never accumulates history.
 - **Read marks** hide what you have seen. A slot that changes comes back.

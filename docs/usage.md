@@ -93,6 +93,12 @@ Slots hold what is true now, not history:
     agent-desk clear next
     agent-desk link tasks TASKS.org
 
+Every agent on a task of more than a few turns keeps three **standard** slots:
+`status` (now), `next` (the next steps) and `done` (results so far, with where
+they live). A coordinator also keeps `velocity`: its recent pace, where its
+tokens went, and one to three suggestions to improve either. The board shows
+these first, in that order, so every node reads the same.
+
 Caps: `status` 2 lines, `next` 5, everything else 15. A `set` over its cap
 fails, says by how much, and writes nothing. `tasks`, `user-verbatim` and
 `state` only take `link`: the board shows the linked file's current content.

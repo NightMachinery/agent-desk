@@ -7,7 +7,7 @@
 
   let { node, target, onchange, compact = false } = $props();
 
-  const order = { status: 0, next: 1 };
+  const order = { status: 0, next: 1, done: 2, velocity: 3, findings: 4, artifacts: 5 };
   const slots = $derived(
     [...(node.slots ?? [])].sort((a, b) => (order[a.name] ?? 9) - (order[b.name] ?? 9) || a.name.localeCompare(b.name)),
   );

@@ -90,8 +90,26 @@ current text; old text is kept but out of sight.
     agent-desk clear next
     agent-desk link tasks TASKS.org
 
+On any task longer than a few turns, keep these standard slots, so every node
+reads the same:
+
+- `status`: what you are doing now (2 lines).
+- `next`: your next steps, in order (5 lines).
+- `done`: what is finished so far, one line per result, with where it lives (a
+  commit, a path); newest first, older lines merged as it fills (15 lines).
+- `velocity`, if you coordinate (you launch workers, or the run spans more than
+  a session): recent pace (what got done per hour or per phase), token and
+  quota efficiency (where tokens went: rework, polling, idle waits, oversized
+  contexts, review fan-outs) and one to three concrete suggestions to improve
+  either (15 lines). Base it on what you observed, such as commits, quota
+  readings and context sizes; say "unknown" rather than guess. Update it at
+  milestones, not every turn.
+
+Then add others as they help: `findings`, `artifacts`, or any slug.
+
 - Write what is true now, as if for someone arriving fresh. No history ("then
-  I tried..."), no diary, no progress narration step by step.
+  I tried..."), no diary, no progress narration step by step. `done` is a
+  summary of results, not a log.
 - Update a slot when its truth changes, not on a timer.
 - `status` holds 2 lines, `next` 5, other slots 15. A longer text is refused;
   shorten it rather than splitting it across slots.

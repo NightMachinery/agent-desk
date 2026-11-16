@@ -93,8 +93,12 @@ The store location is `${AGENT_DESK_HOME:-~/.agents/desk}`.
 - `run`: named at join time. `adhoc` when a session never joined.
 - `role` segments: the chain of coordinators from the run's root down, each a
   slug `[a-z0-9-]{1,24}`. A nested coordinator sits under its parent's path.
-- Slot names: free slugs. Conventional ones: `status` (2 lines), `findings`
-  (15), `artifacts` (15), `next` (5). Default cap for others: 15 lines.
+- Slot names: free slugs. **Standard** ones, which every agent keeps:
+  `status` (2 lines), `next` (5) and `done` (15: what is finished so far);
+  a coordinator also keeps `velocity` (15: recent pace, token efficiency and
+  suggestions to improve them). Conventional ones: `findings` (15) and
+  `artifacts` (15). Default cap for others: 15 lines. Boards list slots in
+  that order, then the rest by name.
   Reserved for linked files: `tasks`, `user-verbatim`, `state`.
 
 Why slugs and not agent ids: an id changes when a coordinator is

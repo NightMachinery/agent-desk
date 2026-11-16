@@ -539,7 +539,7 @@ func (d *Desk) settle(n *Node, f Filter) {
 }
 
 func sortSlots(s []Slot) {
-	order := map[string]int{"status": 0, "next": 1, "findings": 2, "artifacts": 3}
+	order := map[string]int{"status": 0, "next": 1, "done": 2, "velocity": 3, "findings": 4, "artifacts": 5}
 	sort.SliceStable(s, func(a, b int) bool {
 		oa, ok := order[s[a].Name]
 		if !ok {

@@ -676,3 +676,32 @@ func TestCodexSandboxHint(t *testing.T) {
 		t.Fatalf("under Antigravity: exit %d, %q", code, errOut)
 	}
 }
+
+// The standard slots come first on the board, in a fixed order.
+func TestStandardSlotOrder(t *testing.T) {
+	h := newHarness(t)
+	a := h.as(sessA)
+	h.ok(a, "", "join", "r1/coord")
+	for _, s := range []string{"artifacts", "velocity", "findings", "done", "next", "status", "zeta"} {
+		h.ok(a, "", "set", s, "x")
+	}
+	h.fails(a, "", "at most 5 lines", "set", "next", "1\n2\n3\n4\n5\n6")
+	var got []string
+	var walk func(ns []any)
+	walk = func(ns []any) {
+		for _, n := range ns {
+			m := n.(map[string]any)
+			ss, _ := m["slots"].([]any)
+			for _, s := range ss {
+				got = append(got, s.(map[string]any)["name"].(string))
+			}
+			if c, ok := m["children"].([]any); ok {
+				walk(c)
+			}
+		}
+	}
+	walk(h.showJSON("", true)["runs"].([]any))
+	if want := "status next done velocity findings artifacts zeta"; strings.Join(got, " ") != want {
+		t.Fatalf("slot order %q, want %q", strings.Join(got, " "), want)
+	}
+}

@@ -554,8 +554,9 @@ func (a *App) cmdTell(args []string) error {
 	})
 }
 
-// SlotCaps are the line caps of the conventional slots.
-var SlotCaps = map[string]int{"status": 2, "findings": 15, "artifacts": 15, "next": 5}
+// SlotCaps are the line caps of the conventional slots. Every agent keeps
+// status, next and done; a coordinator also keeps velocity.
+var SlotCaps = map[string]int{"status": 2, "next": 5, "done": 15, "velocity": 15, "findings": 15, "artifacts": 15}
 
 // DefaultCap is the cap of any other slot.
 const DefaultCap = 15
