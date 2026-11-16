@@ -102,13 +102,17 @@ installed. Otherwise, at the end of the work:
     All five seeds rerun; the fix holds. Two questions remain open: q-7f3a, q-b2c4.
     S
 
-## Under Codex's sandbox
+## Under a sandbox
 
 The store (`~/.agents/desk` by default) is outside your workspace, so a
 sandboxed Codex session cannot open it, not even to read: the command fails
 and names the sandbox. Rerun that command with escalated permissions. The
 user can avoid this for good by adding the store directory to
 `sandbox_workspace_write.writable_roots` in Codex's `config.toml`.
+
+Antigravity's sandbox lets shell commands write only temporary directories
+and has no setting to widen it: run `agent-desk` there with a request to bypass
+the sandbox.
 
 ## Looking things up
 

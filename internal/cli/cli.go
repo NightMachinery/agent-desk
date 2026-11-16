@@ -120,6 +120,12 @@ func (a *App) store() (*store.Store, error) {
 	}
 	st, err := store.Open(a.Home)
 	if err != nil {
+		if a.Env.Getenv != nil && a.Env.Getenv("ANTIGRAVITY_CONVERSATION_ID") != "" && a.Env.Getenv("CODEX_SANDBOX") == "" {
+			// Antigravity's sandbox has no writable-path setting; its shell
+			// may write only temporary directories.
+			return nil, fmt.Errorf("%w\nif Antigravity's sandbox runs this command, it blocks %s: "+
+				"rerun the command with a request to bypass the sandbox", err, a.Home)
+		}
 		if a.Env.Getenv != nil && a.Env.Getenv("CODEX_SANDBOX") != "" {
 			// Codex's sandbox lets a command write only its workspace, and
 			// SQLite in WAL mode must write even to read.

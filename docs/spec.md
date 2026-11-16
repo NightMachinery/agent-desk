@@ -524,5 +524,8 @@ One atomic commit group each. Stop after each phase and run its check.
   `sandbox_workspace_write.writable_roots` fixes it, as does running the
   command with escalated permissions. Under `CODEX_SANDBOX` the open error
   says both; the skill and `docs/usage.md` say both.
+  Antigravity (checked 2026-11-16, `agy acp` with its OS sandbox): the same
+  failure, and its sandbox has no writable-path setting, so the route is a
+  sandbox bypass per command; the open error says so under agy.
 - An in-process subagent shares its parent's session and so writes as the
   parent; the skill tells it not to. Done.

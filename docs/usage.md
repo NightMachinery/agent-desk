@@ -97,7 +97,7 @@ Caps: `status` 2 lines, `next` 5, everything else 15. A `set` over its cap
 fails, says by how much, and writes nothing. `tasks`, `user-verbatim` and
 `state` only take `link`: the board shows the linked file's current content.
 
-### Under Codex's sandbox
+### Under an agent's sandbox
 
 A sandboxed Codex session may write only its workspace, and SQLite in WAL mode
 must write even to read, so every `agent-desk` command fails there; the error
@@ -106,6 +106,11 @@ you allow the store once, in Codex's `config.toml`:
 
     [sandbox_workspace_write]
     writable_roots = ["/Users/you/.agents/desk"]
+
+Antigravity's sandbox lets shell commands write only temporary directories
+and has no setting to widen it, so there the agent requests a sandbox bypass
+for each `agent-desk` command. A sandboxed agy subagent is a worker and does
+not write anyway.
 
 ## User side
 

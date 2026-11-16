@@ -636,4 +636,9 @@ func TestCodexSandboxHint(t *testing.T) {
 	if code == 0 || !strings.Contains(errOut, "Codex's sandbox blocks "+h.desk) || !strings.Contains(errOut, "writable_roots") {
 		t.Fatalf("inside the sandbox: exit %d, %q", code, errOut)
 	}
+	agy := map[string]string{"AI_AGENT": "agy", "ANTIGRAVITY_CONVERSATION_ID": "c-1"}
+	_, errOut, code = h.run(agy, "", "show")
+	if code == 0 || !strings.Contains(errOut, "bypass the sandbox") {
+		t.Fatalf("under Antigravity: exit %d, %q", code, errOut)
+	}
 }
