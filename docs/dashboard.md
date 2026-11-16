@@ -45,6 +45,14 @@ Rules the page keeps:
   the host. Asset URLs are relative and carry a content hash.
 - It talks only to `./api/...` (`src/lib/api.js`). Writes send
   `X-Agent-Desk: 1` and a JSON body; the server refuses anything else.
+- It is an installable app: `public/manifest.json`, the icons, and
+  `public/sw.js`, a service worker that caches nothing but
+  `public/offline.html`, shown when the server cannot be reached. These keep
+  stable names, as browsers and home screens find them by URL, and the server
+  sends everything outside `assets/` as `no-cache`. Never let the worker cache
+  the page or its data: an installed app must not show a stale desk.
+  `scripts/icons.sh` renders the PNG icons from the drawing in
+  `public/favicon.svg`.
 - The server sends a Content-Security-Policy that allows only the page's own
   files and the inline scripts in `index.html`, by hash, so no other origin
   can be loaded.

@@ -5,11 +5,13 @@
 // directly: no puppeteer, nothing to install beyond Node 22+ and Chrome.
 //
 //   node scripts/shot.mjs URL OUT.png [--width 1360] [--height 860] [--wait 1500]
-//                         [--js 'code'] [--js-file F]
+//                         [--scale 2] [--transparent] [--js 'code'] [--js-file F]
 //
 // The code runs as the body of an async function; its return value is printed
 // as JSON, so a check can both show and assert. --width under 600 emulates a
-// phone (touch, mobile viewport). CHROME names the browser binary.
+// phone (touch, mobile viewport). --scale is the device pixel ratio (default
+// 2), so --width 512 --scale 1 makes a 512-pixel image; --transparent keeps
+// what the page does not paint transparent. CHROME names the browser binary.
 //
 // Example: select two rows and show the bulk bar on a phone.
 //   node scripts/shot.mjs 'http://127.0.0.1:7792/#/p/' /tmp/bar.png --width 520 --height 900 \
@@ -23,24 +25,28 @@ import { join } from 'node:path';
 
 function usage(msg) {
   if (msg) console.error(`shot: ${msg}`);
-  console.error('usage: shot.mjs URL OUT.png [--width N] [--height N] [--wait MS] [--js CODE] [--js-file F]');
+  console.error('usage: shot.mjs URL OUT.png [--width N] [--height N] [--wait MS] [--scale N] [--transparent] [--js CODE] [--js-file F]');
   process.exit(2);
 }
 
 const args = process.argv.slice(2);
 const pos = [];
-const opt = { width: 1360, height: 860, wait: 1500, js: '' };
+const opt = { width: 1360, height: 860, wait: 1500, scale: 2, js: '', transparent: false };
 for (let i = 0; i < args.length; i++) {
   const a = args[i];
   if (!a.startsWith('--')) {
     pos.push(a);
     continue;
   }
+  if (a === '--transparent') {
+    opt.transparent = true;
+    continue;
+  }
   const v = args[++i];
   if (v === undefined) usage(`${a} needs a value`);
   if (a === '--js') opt.js = v;
   else if (a === '--js-file') opt.js = readFileSync(v, 'utf8');
-  else if (['--width', '--height', '--wait'].includes(a)) {
+  else if (['--width', '--height', '--wait', '--scale'].includes(a)) {
     opt[a.slice(2)] = Number(v);
     if (!Number.isFinite(opt[a.slice(2)]) || opt[a.slice(2)] < 0) usage(`${a} takes a number`);
   } else usage(`unknown option ${a}`);
@@ -121,8 +127,9 @@ try {
     });
 
   const mobile = opt.width < 600;
-  await call('Emulation.setDeviceMetricsOverride', { width: opt.width, height: opt.height, deviceScaleFactor: 2, mobile });
+  await call('Emulation.setDeviceMetricsOverride', { width: opt.width, height: opt.height, deviceScaleFactor: opt.scale, mobile });
   if (mobile) await call('Emulation.setTouchEmulationEnabled', { enabled: true });
+  if (opt.transparent) await call('Emulation.setDefaultBackgroundColorOverride', { color: { r: 0, g: 0, b: 0, a: 0 } });
   await call('Page.enable');
   await call('Page.navigate', { url });
   await sleep(opt.wait);

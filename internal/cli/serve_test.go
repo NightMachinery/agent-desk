@@ -276,3 +276,24 @@ func TestServeBehindProxy(t *testing.T) {
 		t.Fatalf("foreign origin behind the proxy: %d", c)
 	}
 }
+
+// The files that make the page an installable app are served under stable
+// names and revalidated, never cached for good.
+func TestServeAppFiles(t *testing.T) {
+	h := newHarness(t)
+	a, _, _ := h.app(nil, "")
+	ui := fstest.MapFS{
+		"index.html":    {Data: []byte(`<!doctype html><link rel="manifest" href="./manifest.json">`)},
+		"manifest.json": {Data: []byte(`{"name":"agent-desk"}`)},
+		"sw.js":         {Data: []byte("self.addEventListener('fetch', () => {})")},
+	}
+	s, err := newServer(a, ui)
+	must(t, err)
+	hd := s.routes()
+	for file, ctype := range map[string]string{"/manifest.json": "application/json", "/sw.js": "javascript"} {
+		code, _, hdr := do(t, hd, "GET", file, "", nil)
+		if code != 200 || !strings.Contains(hdr.Get("Content-Type"), ctype) || hdr.Get("Cache-Control") != "no-cache" {
+			t.Fatalf("%s: %d %v", file, code, hdr)
+		}
+	}
+}

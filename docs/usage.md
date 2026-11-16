@@ -221,7 +221,8 @@ or any coordinator, dismiss a question without answering it, and mark things
 read. To act on many items at once, press Select (or long-press a row on a
 phone, or cmd-click one on a desktop), then tap rows, shift-click a range or
 use "Select all" per section or group, and mark them read or unread. It
-updates live.
+updates live. Served over HTTPS (or on localhost), it can be installed as an
+app: "Install" or "Add to Home screen" in the browser's menu.
 
 It serves this machine's store only. To reach it from a phone, put it behind
 something that authenticates you, such as a reverse proxy on a private
