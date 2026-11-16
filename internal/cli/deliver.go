@@ -87,13 +87,22 @@ func (a *App) typeIntoPane(ctx context.Context, pane, text string) error {
 
 var errUnreachable = errors.New("unreachable")
 
-// deliverOne types an answer into the session that asked, and says how.
-func (a *App) deliverOne(d *desk.Desk, q, ans store.Event) (string, error) {
-	if q.Host != a.Host {
-		return "", fmt.Errorf("asked on %s; it is delivered there after the next merge", q.Host)
+// job is one message to type into a session: an answer to the question it
+// asked, or a reply from the user.
+type job struct {
+	msg   store.Event // the answer or reply
+	about store.Event // the question, or what the reply is about (may be empty)
+	to    ident.From
+	host  string
+	text  string
+}
+
+// deliverOne types a message into its session, and says how.
+func (a *App) deliverOne(d *desk.Desk, j job) (string, error) {
+	if j.host != a.Host {
+		return "", fmt.Errorf("its session is on %s; it is delivered there after the next merge", j.host)
 	}
-	f := fromOf(q)
-	text := DeliveryText(d, q, ans)
+	f, text := j.to, j.text
 	ctx, cancel := context.WithTimeout(context.Background(), DeliverTimeout)
 	defer cancel()
 	var reasons []string
@@ -121,10 +130,14 @@ func (a *App) deliverOne(d *desk.Desk, q, ans store.Event) (string, error) {
 		return "", err
 	}
 	if c.DeliverCommand != "" {
-		p := a.payload(d, "deliver", q)
+		subject := j.about
+		if subject.ID == "" {
+			subject = j.msg
+		}
+		p := a.payload(d, "deliver", subject)
 		p.Text = text
-		ansCopy := ans
-		p.Cause = &ansCopy
+		msgCopy := j.msg
+		p.Cause = &msgCopy
 		var out bytes.Buffer
 		saved := a.Stdout
 		a.Stdout = &out
@@ -158,10 +171,12 @@ func (a *App) deliverLock() (func(), error) {
 	return func() { syscall.Flock(int(f.Fd()), syscall.LOCK_UN); f.Close() }, nil
 }
 
-// pending lists the answers that count, to local questions, not yet
-// delivered. An answer recorded from chat already reached its session.
-func pending(d *desk.Desk, host string, only string) [][2]store.Event {
-	var out [][2]store.Event
+// pending lists what is due for a session on this host and not yet
+// delivered: the answers that count, to local questions, and replies. An
+// answer recorded from chat already reached its session. only, when set, is
+// a question or reply id.
+func pending(d *desk.Desk, host string, only string) []job {
+	var out []job
 	for _, q := range d.Questions {
 		if q.AnswerID == "" || q.Delivered || q.Host != host || (only != "" && q.ID != only) {
 			continue
@@ -170,7 +185,23 @@ func pending(d *desk.Desk, host string, only string) [][2]store.Event {
 		if desk.MetaString(ans, "source") == "chat" {
 			continue
 		}
-		out = append(out, [2]store.Event{q.Event, ans})
+		out = append(out, job{msg: ans, about: q.Event, to: fromOf(q.Event), host: q.Host, text: DeliveryText(d, q.Event, ans)})
+	}
+	delivered := map[string]bool{}
+	for _, e := range d.Events {
+		if e.Kind == "delivered" {
+			delivered[e.Ref] = true
+		}
+	}
+	for _, e := range d.Events {
+		if e.Kind != "reply" || delivered[e.ID] || (only != "" && e.ID != only) {
+			continue
+		}
+		to, toHost := toOf(e)
+		if toHost != host {
+			continue
+		}
+		out = append(out, job{msg: e, about: d.ByID[e.Ref], to: to, host: toHost, text: ReplyText(d, e)})
 	}
 	return out
 }
@@ -189,17 +220,16 @@ func (a *App) deliver(only string) (int, error) {
 		return 0, err
 	}
 	failed := 0
-	for _, pa := range pending(d, a.Host, only) {
-		q, ans := pa[0], pa[1]
-		via, err := a.deliverOne(d, q, ans)
+	for _, j := range pending(d, a.Host, only) {
+		via, err := a.deliverOne(d, j)
 		if err != nil {
 			failed++
 			fmt.Fprintf(a.Stderr, "agent-desk: %s not delivered: %v. `agent-desk deliver` retries.\n",
-				d.Display(ans.ID), err)
+				d.Display(j.msg.ID), err)
 			continue
 		}
-		e := a.event("delivered", q.Path, ident.Resolve(a.Env), "cli", map[string]any{"via": via})
-		e.Ref = ans.ID
+		e := a.event("delivered", j.msg.Path, ident.Resolve(a.Env), "cli", map[string]any{"via": via})
+		e.Ref = j.msg.ID
 		st, err := a.store()
 		if err != nil {
 			return failed, err
@@ -207,7 +237,11 @@ func (a *App) deliver(only string) (int, error) {
 		if err := st.Append(e); err != nil {
 			return failed, err
 		}
-		fmt.Fprintf(a.Stderr, "agent-desk: %s delivered to %s via %s\n", d.Display(ans.ID), d.Display(q.ID), via)
+		dest := j.msg.Path
+		if j.about.ID != "" {
+			dest = d.Display(j.about.ID)
+		}
+		fmt.Fprintf(a.Stderr, "agent-desk: %s delivered to %s via %s\n", d.Display(j.msg.ID), dest, via)
 	}
 	return failed, nil
 }

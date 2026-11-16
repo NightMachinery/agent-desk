@@ -33,7 +33,7 @@ type Event struct {
 }
 
 // Kinds lists every event kind the store accepts.
-var Kinds = []string{"join", "ask", "answer", "delivered", "tell", "done", "set", "clear", "link", "read"}
+var Kinds = []string{"join", "ask", "answer", "delivered", "tell", "done", "set", "clear", "link", "read", "reply"}
 
 func validKind(k string) bool {
 	for _, x := range Kinds {
@@ -284,10 +284,10 @@ func (s *Store) IDs() ([]string, error) {
 // Question is a row of question_state.
 type Question struct {
 	Event
-	AnswerID   string
-	AnswerBody string
-	AnswerTS   string
-	Delivered  bool
+	AnswerID   string `json:"answer_id,omitempty"`
+	AnswerBody string `json:"answer_body,omitempty"`
+	AnswerTS   string `json:"answer_ts,omitempty"`
+	Delivered  bool   `json:"delivered"`
 }
 
 // Open reports whether the question has no answer.

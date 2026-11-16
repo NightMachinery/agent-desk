@@ -123,13 +123,30 @@ func Under(path, prefix string) bool {
 
 // Filter scopes a view.
 type Filter struct {
-	Prefix string
-	Host   string
-	All    bool // show read items and hidden runs
+	Prefix  string
+	Host    string
+	Session string // a native session id or a Paseo agent id
+	All     bool   // show read items and hidden runs
 }
 
-func (f Filter) keep(e store.Event) bool {
-	return Under(e.Path, f.Prefix) && (f.Host == "" || e.Host == f.Host)
+func (f Filter) Keep(e store.Event) bool {
+	return Under(e.Path, f.Prefix) && (f.Host == "" || e.Host == f.Host) &&
+		(f.Session == "" || IsSession(e, f.Session))
+}
+
+// IsSession reports whether event e was written by session id, given as its
+// native session id or its Paseo agent id.
+func IsSession(e store.Event, id string) bool {
+	var m struct {
+		From struct {
+			Session string `json:"session"`
+			Paseo   string `json:"paseo"`
+		} `json:"from"`
+	}
+	if json.Unmarshal(e.Meta, &m) != nil {
+		return false
+	}
+	return id != "" && (m.From.Session == id || m.From.Paseo == id)
 }
 
 // Meta decodes an event's meta into a map.
@@ -232,7 +249,7 @@ func (d *Desk) OpenQuestions(f Filter) []Item {
 	var out []Item
 	for i := range d.Questions {
 		q := d.Questions[i]
-		if !q.Open() || !f.keep(q.Event) {
+		if !q.Open() || !f.Keep(q.Event) {
 			continue
 		}
 		it := d.item(q.Event)
@@ -261,7 +278,7 @@ func (d *Desk) New(f Filter) []Group {
 		cur[s.ID] = true
 	}
 	for _, e := range d.Events {
-		if !f.keep(e) {
+		if !f.Keep(e) {
 			continue
 		}
 		switch {
@@ -342,7 +359,7 @@ func (d *Desk) Tree(f Filter) []*Node {
 	lastJoin := map[string]string{}
 	hosts := map[string]string{}
 	for _, e := range d.Events {
-		if !scope.keep(e) || e.Kind == "read" {
+		if !scope.Keep(e) || e.Kind == "read" {
 			continue
 		}
 		node := NodeOf(e)
@@ -366,7 +383,7 @@ func (d *Desk) Tree(f Filter) []*Node {
 		}
 	}
 	for _, s := range d.slots {
-		if !scope.keep(s) {
+		if !scope.Keep(s) {
 			continue
 		}
 		n := get(NodeOf(s))
@@ -386,7 +403,7 @@ func (d *Desk) Tree(f Filter) []*Node {
 	}
 	for id := range d.unread {
 		e := d.ByID[id]
-		if !scope.keep(e) {
+		if !scope.Keep(e) {
 			continue
 		}
 		for m := get(NodeOf(e)); m != nil && m != root; m = nodes[parentOf(m.Path)] {

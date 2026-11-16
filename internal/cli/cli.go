@@ -84,9 +84,10 @@ Agent side (only coordinators write; workers report to their parent):
 
 User side:
   agent-desk inbox [<path-prefix>] [--all]    interactive (needs fzf)
-  agent-desk show [<path-prefix>|--mine] [--all] [--host H] [--format org|md|json]
+  agent-desk show [<path-prefix>|--mine] [--all] [--host H] [--session S] [--format org|md|json]
   agent-desk answer <id> 'text'       record, then type it into the asking session
-  agent-desk deliver                  retry answers not yet delivered
+  agent-desk reply <id|path> 'text'   send a message to the session behind an item or node
+  agent-desk deliver                  retry answers and replies not yet delivered
   agent-desk read <id|path-prefix> [--host H]
   agent-desk unread <id>
   agent-desk search <text> [--host H]
@@ -164,6 +165,8 @@ func (a *App) run(args []string) error {
 		return a.cmdTell(rest)
 	case "set":
 		return a.cmdSet(rest)
+	case "reply":
+		return a.cmdReply(rest)
 	case "done":
 		return a.cmdDone(rest)
 	case "clear":
@@ -748,7 +751,7 @@ func (a *App) cmdRead(args []string) error {
 func (a *App) readMarks(d *desk.Desk, from ident.From, f desk.Filter) []store.Event {
 	var evs []store.Event
 	for _, e := range d.Events {
-		if d.Unread(e.ID) && desk.Under(e.Path, f.Prefix) && (f.Host == "" || e.Host == f.Host) {
+		if d.Unread(e.ID) && f.Keep(e) {
 			r := a.event("read", e.Path, from, "cli", nil)
 			r.Ref = e.ID
 			evs = append(evs, r)
@@ -796,7 +799,7 @@ func (a *App) cmdUnread(args []string) error {
 // --- reading -----------------------------------------------------------------
 
 func (a *App) cmdShow(args []string) error {
-	o, err := parse(args, []string{"all", "mine"}, []string{"format", "host"}, 0, 1)
+	o, err := parse(args, []string{"all", "mine"}, []string{"format", "host", "session"}, 0, 1)
 	if err != nil {
 		return err
 	}
@@ -804,7 +807,7 @@ func (a *App) cmdShow(args []string) error {
 	if err != nil {
 		return err
 	}
-	f := desk.Filter{All: o.bools["all"], Host: o.vals["host"]}
+	f := desk.Filter{All: o.bools["all"], Host: o.vals["host"], Session: o.vals["session"]}
 	if len(o.pos) == 1 {
 		f.Prefix = strings.Trim(o.pos[0], "/")
 	}

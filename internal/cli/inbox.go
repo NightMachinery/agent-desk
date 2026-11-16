@@ -311,6 +311,12 @@ func (a *App) preview(d *desk.Desk, st inboxState, key string) string {
 			}
 			b.WriteString("\n" + dim("enter open in $EDITOR · ctrl-r mark read · ctrl-o open session") + "\n")
 		}
+		for _, x := range d.Events {
+			if x.Kind == "reply" && x.Ref == e.ID {
+				fmt.Fprintf(&b, "\n%s %s (%s): %s\n", green("You replied"), d.Display(x.ID),
+					desk.Age(d.Now.Sub(desk.Time(x))), x.Body)
+			}
+		}
 	}
 	return b.String()
 }
