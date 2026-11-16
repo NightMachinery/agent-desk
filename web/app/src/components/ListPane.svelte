@@ -5,12 +5,24 @@
   import ItemRow from './ItemRow.svelte';
   import TreeNode from './TreeNode.svelte';
   import NodePanel from './NodePanel.svelte';
-  import { sel, toggleAll, clear, prune, markSelected } from '../lib/select.svelte.js';
+  import { sel, toggleAll, clear, prune, markSelected, selecting } from '../lib/select.svelte.js';
 
   let { view, error, onmenu, onchange } = $props();
 
-  const needs = $derived(view?.view?.needs_you ?? []);
-  const fresh = $derived(view?.view?.new ?? []);
+  // The server lists oldest first. Recent first (the default) puts each
+  // group's newest item on top, and the groups of the project with the newest
+  // item first; in Needs you, blocked questions still come before defaults.
+  function recent(groups, blockedFirst) {
+    const newest = (g) => g.items.reduce((m, it) => (it.event.id > m ? it.event.id : m), '');
+    const byProject = {};
+    for (const g of groups) if (newest(g) > (byProject[g.project] ?? '')) byProject[g.project] = newest(g);
+    const rank = (it) => (blockedFirst && it.event.level === 'blocked' ? 0 : 1);
+    return groups
+      .map((g) => ({ ...g, items: [...g.items].sort((a, b) => rank(a) - rank(b) || (a.event.id < b.event.id ? 1 : -1)) }))
+      .sort((a, b) => byProject[b.project].localeCompare(byProject[a.project]) || newest(b).localeCompare(newest(a)));
+  }
+  const needs = $derived(route.old ? (view?.view?.needs_you ?? []) : recent(view?.view?.needs_you ?? [], true));
+  const fresh = $derived(route.old ? (view?.view?.new ?? []) : recent(view?.view?.new ?? [], false));
   const runs = $derived(view?.view?.runs ?? []);
   const count = (gs) => gs.reduce((n, g) => n + g.items.length, 0);
   const idsOf = (gs) => gs.flatMap((g) => g.items.map((it) => it.display_id));
@@ -57,6 +69,23 @@
     <a class="btn small toggle" class:on={route.all} href={href({ all: !route.all, item: '' })} title="Include read items and finished runs">
       {route.all ? 'Showing all' : 'Show all'}
     </a>
+    <a
+      class="btn small icon"
+      href={href({ old: !route.old })}
+      title={route.old ? 'Oldest first; switch to recent first' : 'Recent first; switch to oldest first'}
+      aria-label={route.old ? 'Sorted oldest first' : 'Sorted recent first'}
+    >
+      <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true"
+        ><path d={route.old ? 'M5 13V3M2.5 5.5 5 3l2.5 2.5' : 'M5 3v10M2.5 10.5 5 13l2.5-2.5'} fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /><path
+          d="M9.5 4.5h4M9.5 8h3M9.5 11.5h2"
+          stroke="currentColor"
+          stroke-width="1.6"
+          stroke-linecap="round"
+        /></svg
+      >
+      <span class="label">{route.old ? 'Oldest' : 'Recent'}</span>
+    </a>
+    <button class="btn small" class:on={selecting()} onclick={() => (selecting() ? clear() : (sel.mode = true))}>{selecting() ? 'Done' : 'Select'}</button>
   </div>
   {#if route.session}
     {@const s = view?.session}
@@ -77,7 +106,7 @@
   {/if}
 </header>
 
-<div class="body">
+<div class="body" class:selecting={selecting()}>
   {#if error}
     <div class="empty error">Cannot reach the desk: {error}</div>
   {:else if !view}
@@ -127,13 +156,14 @@
   {/if}
 </div>
 
-{#if picked}
+{#if selecting()}
   <div class="bulk" role="toolbar" aria-label="Selected items">
     <button class="btn small ghost x" aria-label="Clear the selection" title="Clear (Esc)" onclick={clear}>✕</button>
-    <span class="n"><strong>{picked}</strong> selected{pickedQuestions ? ` · ${pickedQuestions} ${pickedQuestions === 1 ? 'question' : 'questions'} to dismiss` : ''}</span>
+    <span class="n">{#if !picked}Tap items to select them{:else}<strong>{picked}</strong> selected{/if}{pickedQuestions ? ` · ${pickedQuestions} ${pickedQuestions === 1 ? 'question' : 'questions'} to dismiss` : ''}</span>
     {#if !allOn(allIds)}<button class="btn small ghost" onclick={() => toggleAll(allIds)}>All {allIds.length}</button>{/if}
-    <button class="btn small" onclick={() => markSelected(false, onchange)}>Mark unread</button>
+    <button class="btn small" disabled={!picked} onclick={() => markSelected(false, onchange)}>Mark unread</button>
     <button
+      disabled={!picked}
       class="btn small primary"
       title={pickedQuestions ? 'Questions leave Needs you but stay open, so you can still answer them from Show all' : ''}
       onclick={() => markSelected(true, onchange, pickedQuestions)}>Mark read</button
@@ -145,7 +175,7 @@
   {@const ids = g.items.map((it) => it.display_id)}
   <div class="group-line">
     {#if !deep}<a class="group" href={href({ path: `${g.project}/${g.run}`, item: '' })}>{g.project} <span class="faint">/</span> {g.run}</a>{:else}<span></span>{/if}
-    {#if ids.length > 1 && (!deep || picked)}<button class="pick" onclick={() => toggleAll(ids)}>{allOn(ids) ? 'Deselect' : 'Select'} {ids.length}</button>{/if}
+    {#if ids.length > 1 && (!deep || selecting())}<button class="pick" onclick={() => toggleAll(ids)}>{allOn(ids) ? 'Deselect' : 'Select'} {ids.length}</button>{/if}
   </div>
 {/snippet}
 
@@ -316,9 +346,28 @@
       transform: translateY(8px);
     }
   }
-  @media (hover: none) {
-    .group-line .pick {
-      opacity: 1;
+  .selecting .group-line .pick {
+    opacity: 1;
+  }
+  .btn.on {
+    background: var(--text);
+    border-color: var(--text);
+    color: var(--panel);
+  }
+  .icon {
+    padding: 0 9px;
+    height: 32px;
+  }
+  .filters > .btn {
+    height: 32px;
+  }
+  @media (max-width: 600px) {
+    .filters {
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    .search {
+      flex-basis: 100%;
     }
   }
   .group {

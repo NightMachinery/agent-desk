@@ -4,7 +4,12 @@ import { SvelteSet } from 'svelte/reactivity';
 import { post } from './api.js';
 import { toast } from './toast.svelte.js';
 
-export const sel = $state({ ids: new SvelteSet(), anchor: '', order: /** @type {string[]} */ ([]) });
+// `mode` is selection mode, from the Select button or a long press: rows show
+// checkboxes and a tap selects instead of opening.
+export const sel = $state({ ids: new SvelteSet(), anchor: '', mode: false, order: /** @type {string[]} */ ([]) });
+
+/** Whether rows show their checkboxes. */
+export const selecting = () => sel.mode || sel.ids.size > 0;
 
 /** Toggles one row; with shift, sets every row from the last one clicked. */
 export function toggle(id, shift = false) {
@@ -31,6 +36,7 @@ export function toggleAll(ids) {
 export function clear() {
   sel.ids.clear();
   sel.anchor = '';
+  sel.mode = false;
 }
 
 /** Drops selected rows that are no longer in the list. */

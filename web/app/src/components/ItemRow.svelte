@@ -2,7 +2,7 @@
   import { route, href } from '../lib/route.svelte.js';
   import { kindOf, kindLabel, titleOf } from '../lib/format.js';
   import { desk } from '../lib/desk.svelte.js';
-  import { sel, toggle } from '../lib/select.svelte.js';
+  import { sel, toggle, selecting } from '../lib/select.svelte.js';
 
   let { item } = $props();
   const kind = $derived(kindOf(item));
@@ -10,9 +10,16 @@
   const preview = $derived((item.event.body || '').split('\n').find((l) => l.trim()) || '');
   const picked = $derived(sel.ids.has(item.display_id));
 
-  // Shift- or cmd-click on a row selects instead of opening it.
+  // Cmd-, ctrl- or shift-click selects instead of opening; so does any tap
+  // while selecting.
+  let pressed = false;
   function onclick(e) {
-    if (e.shiftKey || e.metaKey || e.ctrlKey || sel.ids.size) {
+    if (pressed) {
+      pressed = false;
+      e.preventDefault();
+      return;
+    }
+    if (e.shiftKey || e.metaKey || e.ctrlKey || selecting()) {
       e.preventDefault();
       toggle(item.display_id, e.shiftKey);
     }
@@ -21,9 +28,30 @@
     e.preventDefault();
     toggle(item.display_id, e.shiftKey);
   }
+
+  // A long press on a touch screen selects the row and starts selecting.
+  let timer = 0;
+  let start = { x: 0, y: 0 };
+  function onpointerdown(e) {
+    if (e.pointerType === 'mouse') return;
+    start = { x: e.clientX, y: e.clientY };
+    timer = window.setTimeout(() => {
+      timer = 0;
+      pressed = true;
+      sel.mode = true;
+      if (!sel.ids.has(item.display_id)) toggle(item.display_id);
+      navigator.vibrate?.(12);
+    }, 450);
+  }
+  function cancelPress(e) {
+    if (!timer) return;
+    if (e.type === 'pointermove' && Math.hypot(e.clientX - start.x, e.clientY - start.y) < 8) return;
+    clearTimeout(timer);
+    timer = 0;
+  }
 </script>
 
-<div class="wrap" class:picking={sel.ids.size > 0}>
+<div class="wrap" class:picking={selecting()}>
 <button
   class="check"
   class:on={picked}
@@ -42,6 +70,11 @@
   data-item={item.display_id}
   href={href({ item: item.display_id })}
   {onclick}
+  {onpointerdown}
+  onpointermove={cancelPress}
+  onpointerup={cancelPress}
+  onpointercancel={cancelPress}
+  oncontextmenu={(e) => pressed && e.preventDefault()}
 >
   <div class="line1">
     <span class="chip {kind}">{kind === 'slot' ? 'Slot' : kindLabel[kind]}</span>
@@ -82,13 +115,15 @@
     border: 1.5px solid var(--line-strong);
     background: var(--panel);
     color: transparent;
-    opacity: 0.55;
-    transition: opacity 0.12s, background 0.12s, border-color 0.12s, color 0.12s;
+    opacity: 0;
+    transform: scale(0.6);
+    pointer-events: none;
+    transition: opacity 0.14s, transform 0.14s, background 0.12s, border-color 0.12s, color 0.12s;
   }
-  .wrap:hover .check,
-  .picking .check,
-  .check:focus-visible {
+  .picking .check {
     opacity: 1;
+    transform: none;
+    pointer-events: auto;
   }
   .check:hover {
     border-color: var(--default);
@@ -101,12 +136,18 @@
   }
   .row {
     display: block;
-    padding: 11px 13px 10px 39px;
+    padding: 11px 13px 10px;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
     background: var(--panel);
     border: 1px solid var(--line);
     border-radius: var(--radius);
-    transition: border-color 0.12s, box-shadow 0.12s, transform 0.12s;
+    transition: border-color 0.12s, box-shadow 0.12s, transform 0.12s, padding 0.14s;
     position: relative;
+  }
+  .picking .row {
+    padding-left: 39px;
   }
   .row:hover {
     border-color: var(--line-strong);

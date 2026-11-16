@@ -96,7 +96,7 @@
     if (e.key === '/') {
       e.preventDefault();
       document.getElementById('search')?.focus();
-    } else if (e.key === 'Escape' && sel.ids.size) {
+    } else if (e.key === 'Escape' && (sel.ids.size || sel.mode)) {
       clear();
     } else if (e.key === 'Escape' && route.item) {
       go({ item: '' });

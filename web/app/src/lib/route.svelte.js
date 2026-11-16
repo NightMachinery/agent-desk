@@ -1,7 +1,7 @@
-// The view is the URL: #/p/<path>?session=&host=&all=1&q=&item=. Hash
+// The view is the URL: #/p/<path>?session=&host=&all=1&q=&sort=old&item=. Hash
 // routing keeps the page at the root of wherever it is mounted.
 
-export const route = $state({ path: '', item: '', q: '', session: '', host: '', all: false });
+export const route = $state({ path: '', item: '', q: '', session: '', host: '', all: false, old: false });
 
 function parse() {
   const raw = location.hash.replace(/^#/, '') || '/';
@@ -17,6 +17,7 @@ function parse() {
   route.session = params.get('session') || '';
   route.host = params.get('host') || '';
   route.all = params.get('all') === '1';
+  route.old = params.get('sort') === 'old';
 }
 
 parse();
@@ -30,6 +31,7 @@ export function href(over = {}) {
   if (r.host) params.set('host', r.host);
   if (r.all) params.set('all', '1');
   if (r.q) params.set('q', r.q);
+  if (r.old) params.set('sort', 'old');
   if (r.item) params.set('item', r.item);
   const base = r.path ? '#/p/' + r.path.split('/').map(encodeURIComponent).join('/') : '#/';
   const qs = params.toString();

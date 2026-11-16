@@ -213,13 +213,15 @@ re-renders by hand.
 The same three sections as the inbox, on a desktop in three panes and on a
 phone in one column. Every view is a URL you can bookmark: a project, run or
 agent (`#/p/example-proj/rerun-nov`), one session's writing (`?session=`),
-one machine (`?host=`), read items too (`?all=1`), a search (`?q=`) and an
-open item (`?item=q-7f3a`). From it you answer questions (with one-click
-"take your recommendation" or "go with the default"), message the agent
-behind any item or any coordinator, dismiss a question without answering it,
-and mark things read. Tick rows (shift-click for a range, `x` for the open
-item, "Select all" per section or group) to mark many read or unread at once.
-It updates live.
+one machine (`?host=`), read items too (`?all=1`), a search (`?q=`), oldest
+first (`?sort=old`; recent first is the default) and an open item
+(`?item=q-7f3a`). From it you answer questions (with one-click "take your
+recommendation" or "go with the default"), message the agent behind any item
+or any coordinator, dismiss a question without answering it, and mark things
+read. To act on many items at once, press Select (or long-press a row on a
+phone, or cmd-click one on a desktop), then tap rows, shift-click a range or
+use "Select all" per section or group, and mark them read or unread. It
+updates live.
 
 It serves this machine's store only. To reach it from a phone, put it behind
 something that authenticates you, such as a reverse proxy on a private
