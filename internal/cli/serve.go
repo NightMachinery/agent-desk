@@ -1,0 +1,658 @@
+package cli
+
+import (
+	"bytes"
+	"context"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"io/fs"
+	"net"
+	"net/http"
+	"net/url"
+	"os"
+	"os/signal"
+	"path"
+	"regexp"
+	"sort"
+	"strings"
+	"sync"
+	"syscall"
+	"time"
+
+	"github.com/NightMachinery/agent-desk/internal/desk"
+	"github.com/NightMachinery/agent-desk/internal/ident"
+	"github.com/NightMachinery/agent-desk/internal/store"
+	"github.com/NightMachinery/agent-desk/web"
+)
+
+// DefaultListen is where `serve` listens without --listen.
+const DefaultListen = "127.0.0.1:7740"
+
+// server is the web dashboard: a JSON API over the store and the built page.
+type server struct {
+	a      *App
+	mu     sync.Mutex // one action at a time, as from one terminal
+	ui     fs.FS
+	index  []byte
+	csp    string
+	hosts  map[string]bool // Host header names accepted; nil accepts any
+	poll   time.Duration   // how often the live stream looks for new events
+	stamp  func() (string, error)
+	logger io.Writer
+}
+
+// agentVars are hidden from actions taken in the browser: they are the
+// user's, even when the server was started from an agent's shell.
+var agentVars = map[string]bool{
+	"AI_AGENT": true, "CLAUDE_CODE_SESSION_ID": true, "CODEX_THREAD_ID": true, "CODEX_SESSION_ID": true,
+	"ANTIGRAVITY_CONVERSATION_ID": true, "PASEO_AGENT_ID": true, "TMUX_PANE": true, "TMUX_SUBAGENT_NODE": true,
+	"CODEX_SANDBOX": true,
+}
+
+func newServer(a *App, ui fs.FS) (*server, error) {
+	s := &server{a: a, ui: ui, poll: time.Second, logger: a.Stderr}
+	index, err := fs.ReadFile(ui, "index.html")
+	if err != nil {
+		return nil, fmt.Errorf("the dashboard is not built: %w", err)
+	}
+	s.index = index
+	s.csp = contentSecurityPolicy(index)
+	s.stamp = func() (string, error) {
+		st, err := a.store()
+		if err != nil {
+			return "", err
+		}
+		var n, max int64
+		err = st.DB.QueryRow("SELECT count(*), coalesce(max(rowid), 0) FROM events").Scan(&n, &max)
+		return fmt.Sprintf("%d.%d", n, max), err
+	}
+	return s, nil
+}
+
+var inlineScript = regexp.MustCompile(`(?s)<script(?:\s[^>]*)?>(.+?)</script>`)
+
+// contentSecurityPolicy allows the page's own files and, by hash, any
+// script inlined in index.html, and nothing from anywhere else.
+func contentSecurityPolicy(index []byte) string {
+	scripts := "'self'"
+	for _, m := range inlineScript.FindAllSubmatch(index, -1) {
+		sum := sha256.Sum256(m[1])
+		scripts += " 'sha256-" + base64.StdEncoding.EncodeToString(sum[:]) + "'"
+	}
+	return "default-src 'self'; script-src " + scripts + "; style-src 'self' 'unsafe-inline'; " +
+		"img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+}
+
+func (s *server) routes() http.Handler {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		io.WriteString(w, "ok\n")
+	})
+	mux.HandleFunc("GET /api/view", s.apiView)
+	mux.HandleFunc("GET /api/item", s.apiItem)
+	mux.HandleFunc("GET /api/target", s.apiTarget)
+	mux.HandleFunc("GET /api/stream", s.apiStream)
+	mux.HandleFunc("POST /api/answer", s.write(s.apiAnswer))
+	mux.HandleFunc("POST /api/reply", s.write(s.apiReply))
+	mux.HandleFunc("POST /api/read", s.write(s.apiRead))
+	mux.HandleFunc("POST /api/unread", s.write(s.apiUnread))
+	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
+		jsonError(w, http.StatusNotFound, "no such API")
+	})
+	mux.HandleFunc("/", s.static)
+	return s.guard(mux)
+}
+
+// guard applies to every request: the Host check that defeats DNS
+// rebinding on a TCP listener, and headers that keep the page to itself.
+func (s *server) guard(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if s.hosts != nil {
+			host := r.Host
+			if h, _, err := net.SplitHostPort(host); err == nil {
+				host = h
+			}
+			if !s.hosts[strings.ToLower(strings.Trim(host, "[]"))] {
+				http.Error(w, "agent-desk: unknown host "+r.Host+"; start serve with --allow-host", http.StatusMisdirectedRequest)
+				return
+			}
+		}
+		h := w.Header()
+		h.Set("X-Content-Type-Options", "nosniff")
+		h.Set("Referrer-Policy", "no-referrer")
+		h.Set("X-Frame-Options", "DENY")
+		h.Set("Cross-Origin-Resource-Policy", "same-origin")
+		next.ServeHTTP(w, r)
+	})
+}
+
+// sameOrigin reports whether a write comes from the dashboard itself. A
+// write must carry the X-Agent-Desk header and a JSON body, which a page on
+// another origin cannot send without a CORS preflight this server never
+// grants; a browser's Sec-Fetch-Site and Origin must agree as well.
+func sameOrigin(r *http.Request) error {
+	if r.Header.Get("X-Agent-Desk") != "1" {
+		return errors.New("missing X-Agent-Desk header")
+	}
+	if ct := r.Header.Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
+		return errors.New("the body must be JSON")
+	}
+	if site := r.Header.Get("Sec-Fetch-Site"); site != "" && site != "same-origin" && site != "none" {
+		return fmt.Errorf("cross-site request (%s)", site)
+	}
+	if o := r.Header.Get("Origin"); o != "" && o != "null" {
+		u, err := url.Parse(o)
+		if err != nil || !strings.EqualFold(u.Host, r.Host) {
+			return fmt.Errorf("origin %s is not this dashboard", o)
+		}
+	}
+	return nil
+}
+
+type writeFunc func(app *App, body map[string]string) (any, error)
+
+func (s *server) write(f writeFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if err := sameOrigin(r); err != nil {
+			jsonError(w, http.StatusForbidden, err.Error())
+			return
+		}
+		var body map[string]string
+		if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&body); err != nil {
+			jsonError(w, http.StatusBadRequest, "bad JSON: "+err.Error())
+			return
+		}
+		s.mu.Lock()
+		app, out, errb := s.userApp()
+		res, err := f(app, body)
+		s.mu.Unlock()
+		if err != nil {
+			code := http.StatusUnprocessableEntity
+			var u usageError
+			if errors.As(err, &u) {
+				code = http.StatusBadRequest
+			}
+			jsonError(w, code, err.Error())
+			return
+		}
+		if res == nil {
+			res = map[string]string{}
+		}
+		if m, ok := res.(map[string]string); ok {
+			if o := strings.TrimSpace(out.String()); o != "" && m["id"] == "" {
+				m["id"] = o
+			}
+			if n := strings.TrimSpace(strings.ReplaceAll(errb.String(), "agent-desk: ", "")); n != "" {
+				m["note"] = n
+			}
+		}
+		writeJSON(w, res)
+	}
+}
+
+// userApp is the App an action in the browser runs as.
+func (s *server) userApp() (*App, *bytes.Buffer, *bytes.Buffer) {
+	var out, errb bytes.Buffer
+	app := *s.a
+	get := s.a.Env.Getenv
+	app.Env.Getenv = func(k string) string {
+		if agentVars[k] || get == nil {
+			return ""
+		}
+		return get(k)
+	}
+	app.Env.Tmux = nil
+	app.Stdin, app.Stdout, app.Stderr = strings.NewReader(""), &out, &errb
+	return &app, &out, &errb
+}
+
+func (s *server) apiAnswer(app *App, body map[string]string) (any, error) {
+	d, err := app.load()
+	if err != nil {
+		return nil, err
+	}
+	q, err := d.Resolve(body["id"])
+	if err != nil {
+		return nil, err
+	}
+	if q.Kind != "ask" {
+		return nil, fmt.Errorf("%s is a %s, not a question", d.Display(q.ID), q.Kind)
+	}
+	return map[string]string{}, app.recordAnswer(d, q, body["text"], "web")
+}
+
+func (s *server) apiReply(app *App, body map[string]string) (any, error) {
+	e, err := app.recordReply(body["to"], body["text"], "web")
+	if err != nil {
+		return nil, err
+	}
+	d, err := app.load()
+	if err != nil {
+		return nil, err
+	}
+	return map[string]string{"id": d.Display(e.ID)}, nil
+}
+
+func (s *server) apiRead(app *App, body map[string]string) (any, error) {
+	return map[string]string{}, app.run([]string{"read", body["target"]})
+}
+
+func (s *server) apiUnread(app *App, body map[string]string) (any, error) {
+	return map[string]string{}, app.run([]string{"unread", body["id"]})
+}
+
+func writeJSON(w http.ResponseWriter, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	enc := json.NewEncoder(w)
+	enc.SetEscapeHTML(false)
+	enc.Encode(v)
+}
+
+func jsonError(w http.ResponseWriter, code int, msg string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(code)
+	json.NewEncoder(w).Encode(map[string]string{"error": msg})
+}
+
+// load reads the desk for a GET.
+func (s *server) load(w http.ResponseWriter) (*desk.Desk, bool) {
+	s.mu.Lock()
+	d, err := s.a.load()
+	s.mu.Unlock()
+	if err != nil {
+		jsonError(w, http.StatusInternalServerError, err.Error())
+		return nil, false
+	}
+	return d, true
+}
+
+// Session describes one agent session, for the session filter's header.
+type Session struct {
+	ID      string `json:"id"`
+	Agent   string `json:"agent,omitempty"`
+	Paseo   string `json:"paseo,omitempty"`
+	Cwd     string `json:"cwd,omitempty"`
+	Node    string `json:"node,omitempty"`
+	Host    string `json:"host,omitempty"`
+	Resume  string `json:"resume,omitempty"`
+	LastAge string `json:"last_age,omitempty"`
+}
+
+type viewResponse struct {
+	Host     string     `json:"host"`
+	Stamp    string     `json:"stamp"`
+	Path     string     `json:"path"`
+	Filter   viewFilter `json:"filter"`
+	View     desk.View  `json:"view"`
+	Node     *desk.Node `json:"node,omitempty"`
+	Target   *Target    `json:"target,omitempty"`
+	Session  *Session   `json:"session,omitempty"`
+	Projects []string   `json:"projects"`
+	Hosts    []string   `json:"hosts"`
+}
+
+type viewFilter struct {
+	Host    string `json:"host,omitempty"`
+	Session string `json:"session,omitempty"`
+	All     bool   `json:"all"`
+	Query   string `json:"q,omitempty"`
+}
+
+func (s *server) apiView(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	d, ok := s.load(w)
+	if !ok {
+		return
+	}
+	stamp, _ := s.stamp()
+	f := desk.Filter{
+		Prefix:  strings.Trim(q.Get("path"), "/"),
+		Host:    q.Get("host"),
+		Session: q.Get("session"),
+		All:     q.Get("all") == "1" || q.Get("all") == "true",
+	}
+	v := d.Build(f)
+	query := strings.TrimSpace(q.Get("q"))
+	if query != "" {
+		v.NeedsYou = searchGroups(d, v.NeedsYou, query)
+		v.New = searchGroups(d, v.New, query)
+	}
+	resp := viewResponse{
+		Host: d.Host, Stamp: stamp, Path: f.Prefix, View: v,
+		Filter: viewFilter{Host: f.Host, Session: f.Session, All: f.All, Query: query},
+	}
+	projects, hosts := map[string]bool{}, map[string]bool{}
+	for _, e := range d.Events {
+		p, _, _ := desk.Split(e.Path)
+		projects[p] = true
+		hosts[e.Host] = true
+	}
+	resp.Projects, resp.Hosts = sortedKeys(projects), sortedKeys(hosts)
+	if f.Prefix != "" {
+		all := f
+		all.All = true
+		resp.Node = desk.Find(d.Tree(all), f.Prefix)
+		if t, err := targetOf(d, f.Prefix); err == nil {
+			resp.Target = &t
+		}
+	}
+	if f.Session != "" {
+		resp.Session = sessionInfo(d, f.Session)
+	}
+	writeJSON(w, resp)
+}
+
+func sortedKeys(m map[string]bool) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		if k != "" {
+			out = append(out, k)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+func searchGroups(d *desk.Desk, gs []desk.Group, query string) []desk.Group {
+	query = strings.ToLower(query)
+	out := []desk.Group{}
+	for _, g := range gs {
+		var items []desk.Item
+		for _, it := range g.Items {
+			e := it.Event
+			hay := strings.ToLower(it.ID + "\n" + e.Path + "\n" + e.Title + "\n" + e.Body)
+			if strings.Contains(hay, query) {
+				items = append(items, it)
+			}
+		}
+		if len(items) > 0 {
+			g.Items = items
+			out = append(out, g)
+		}
+	}
+	return out
+}
+
+// sessionInfo describes the session behind a session filter, from the
+// latest event it wrote.
+func sessionInfo(d *desk.Desk, id string) *Session {
+	for i := len(d.Events) - 1; i >= 0; i-- {
+		e := d.Events[i]
+		if !desk.IsSession(e, id) {
+			continue
+		}
+		f := fromOf(e)
+		return &Session{ID: id, Agent: f.Agent, Paseo: f.Paseo, Cwd: f.Cwd, Node: desk.NodeOf(e), Host: e.Host,
+			Resume: ResumeCommand(f), LastAge: desk.Age(d.Now.Sub(desk.Time(e)))}
+	}
+	return &Session{ID: id}
+}
+
+// Target says where a reply would go.
+type Target struct {
+	Agent   string `json:"agent,omitempty"`
+	Session string `json:"session,omitempty"`
+	Paseo   string `json:"paseo,omitempty"`
+	Host    string `json:"host"`
+	Node    string `json:"node"`
+	Via     string `json:"via"` // paseo, tmux, command, merge (another machine) or none
+	Resume  string `json:"resume,omitempty"`
+}
+
+func targetOf(d *desk.Desk, token string) (Target, error) {
+	to, host, node, _, err := replyTarget(d, token)
+	if err != nil {
+		return Target{}, err
+	}
+	t := Target{Agent: to.Agent, Session: to.Session, Paseo: to.Paseo, Host: host, Node: node, Resume: ResumeCommand(to)}
+	switch {
+	case host != d.Host:
+		t.Via = "merge"
+	case to.Paseo != "":
+		t.Via = "paseo"
+	case to.TmuxPane != "":
+		t.Via = "tmux"
+	default:
+		t.Via = "none"
+	}
+	return t, nil
+}
+
+func (s *server) apiTarget(w http.ResponseWriter, r *http.Request) {
+	d, ok := s.load(w)
+	if !ok {
+		return
+	}
+	t, err := targetOf(d, r.URL.Query().Get("to"))
+	if err != nil {
+		jsonError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	if t.Via == "none" {
+		s.mu.Lock()
+		c, err := s.a.config()
+		s.mu.Unlock()
+		if err == nil && c.DeliverCommand != "" {
+			t.Via = "command"
+		}
+	}
+	writeJSON(w, t)
+}
+
+// Entry is one event in an item's thread.
+type Entry struct {
+	ID        string      `json:"display_id"`
+	Event     store.Event `json:"event"`
+	Age       string      `json:"age"`
+	Source    string      `json:"source,omitempty"`
+	Delivered string      `json:"delivered,omitempty"` // how, once delivered
+}
+
+type itemResponse struct {
+	Item       desk.Item  `json:"item"`
+	Node       string     `json:"node"`
+	Slot       string     `json:"slot,omitempty"`
+	From       ident.From `json:"from"`
+	Resume     string     `json:"resume,omitempty"`
+	Thread     []Entry    `json:"thread"`
+	Target     *Target    `json:"target,omitempty"`
+	File       string     `json:"file,omitempty"`
+	FileText   string     `json:"file_text,omitempty"`
+	Report     string     `json:"report,omitempty"`
+	Default    string     `json:"default,omitempty"`
+	Answered   bool       `json:"answered"`
+	Superseded string     `json:"superseded,omitempty"` // a newer text of this slot
+}
+
+func (s *server) apiItem(w http.ResponseWriter, r *http.Request) {
+	d, ok := s.load(w)
+	if !ok {
+		return
+	}
+	e, err := d.Resolve(r.URL.Query().Get("id"))
+	if err != nil {
+		jsonError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	_, _, rest := desk.Split(e.Path)
+	it := desk.Item{Event: e, ID: d.Display(e.ID), Label: rest, Age: desk.Age(d.Now.Sub(desk.Time(e))), Unread: d.Unread(e.ID)}
+	for i := range d.Questions {
+		if d.Questions[i].ID == e.ID {
+			q := d.Questions[i]
+			it.Question = &q
+		}
+	}
+	f := fromOf(e)
+	resp := itemResponse{Item: it, Node: desk.NodeOf(e), From: f, Resume: ResumeCommand(f), Thread: []Entry{},
+		Report: desk.MetaString(e, "report"), Default: desk.MetaString(e, "default"),
+		Answered: it.Question != nil && !it.Question.Open()}
+	if desk.IsSlotKind(e.Kind) {
+		resp.Slot = desk.SlotName(e)
+		for _, x := range d.Events {
+			if x.Path == e.Path && x.ID > e.ID && desk.IsSlotKind(x.Kind) {
+				resp.Superseded = d.Display(x.ID)
+			}
+		}
+	}
+	if file := desk.MetaString(e, "file"); file != "" {
+		resp.File = file
+		resp.FileText = fileText(file)
+	}
+	how := map[string]string{}
+	for _, x := range d.Events {
+		if x.Kind == "delivered" {
+			how[x.Ref] = desk.MetaString(x, "via")
+		}
+	}
+	for _, x := range d.Events {
+		if (x.Kind == "answer" || x.Kind == "reply") && x.Ref == e.ID {
+			resp.Thread = append(resp.Thread, Entry{ID: d.Display(x.ID), Event: x, Age: desk.Age(d.Now.Sub(desk.Time(x))),
+				Source: desk.MetaString(x, "source"), Delivered: how[x.ID]})
+		}
+	}
+	if t, err := targetOf(d, e.ID); err == nil {
+		resp.Target = &t
+	}
+	writeJSON(w, resp)
+}
+
+// apiStream tells the page when the store changes, as server-sent events.
+func (s *server) apiStream(w http.ResponseWriter, r *http.Request) {
+	fl, ok := w.(http.Flusher)
+	if !ok {
+		jsonError(w, http.StatusInternalServerError, "streaming unsupported")
+		return
+	}
+	h := w.Header()
+	h.Set("Content-Type", "text/event-stream")
+	h.Set("Cache-Control", "no-store")
+	h.Set("X-Accel-Buffering", "no")
+	last, _ := s.stamp()
+	fmt.Fprintf(w, "retry: 3000\nevent: hello\ndata: %s\n\n", last)
+	fl.Flush()
+	tick := time.NewTicker(s.poll)
+	defer tick.Stop()
+	beat := time.NewTicker(25 * time.Second)
+	defer beat.Stop()
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-beat.C:
+			io.WriteString(w, ": keepalive\n\n")
+			fl.Flush()
+		case <-tick.C:
+			cur, err := s.stamp()
+			if err != nil || cur == last {
+				continue
+			}
+			last = cur
+			fmt.Fprintf(w, "event: change\ndata: %s\n\n", cur)
+			fl.Flush()
+		}
+	}
+}
+
+// static serves the page and its assets. Vite names every asset by its
+// content hash, so they are cached for good; index.html never is.
+func (s *server) static(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	p := strings.TrimPrefix(path.Clean(r.URL.Path), "/")
+	if p == "" || p == "index.html" {
+		h := w.Header()
+		h.Set("Content-Type", "text/html; charset=utf-8")
+		h.Set("Cache-Control", "no-cache")
+		h.Set("Content-Security-Policy", s.csp)
+		w.Write(s.index)
+		return
+	}
+	b, err := fs.ReadFile(s.ui, p)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if strings.HasPrefix(p, "assets/") {
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	} else {
+		w.Header().Set("Cache-Control", "no-cache")
+	}
+	http.ServeContent(w, r, p, time.Time{}, bytes.NewReader(b))
+}
+
+func (a *App) cmdServe(args []string) error {
+	o, err := parse(args, nil, []string{"listen", "allow-host", "pid-file"}, 0, 0)
+	if err != nil {
+		return err
+	}
+	if _, err := a.store(); err != nil {
+		return err
+	}
+	s, err := newServer(a, web.Dist())
+	if err != nil {
+		return err
+	}
+	listen := o.vals["listen"]
+	if listen == "" {
+		listen = DefaultListen
+	}
+	var ln net.Listener
+	shown := ""
+	if sock, ok := strings.CutPrefix(listen, "unix:"); ok {
+		// A browser cannot reach a unix socket, so no Host check: the proxy
+		// in front of it sends its own public name.
+		if fi, err := os.Lstat(sock); err == nil && fi.Mode()&os.ModeSocket != 0 {
+			os.Remove(sock)
+		}
+		if ln, err = net.Listen("unix", sock); err != nil {
+			return err
+		}
+		os.Chmod(sock, 0o600)
+		defer os.Remove(sock)
+		shown = "unix:" + sock
+	} else {
+		listen = strings.TrimPrefix(listen, "tcp:")
+		if ln, err = net.Listen("tcp", listen); err != nil {
+			return err
+		}
+		s.hosts = map[string]bool{"localhost": true, "127.0.0.1": true, "::1": true}
+		if h, _, err := net.SplitHostPort(listen); err == nil && h != "" {
+			s.hosts[strings.ToLower(h)] = true
+		}
+		for _, h := range strings.Split(o.vals["allow-host"], ",") {
+			if h = strings.ToLower(strings.TrimSpace(h)); h != "" {
+				s.hosts[h] = true
+			}
+		}
+		shown = "http://" + ln.Addr().String() + "/"
+	}
+	if pf := o.vals["pid-file"]; pf != "" {
+		if err := os.WriteFile(pf, []byte(fmt.Sprintf("%d\n", os.Getpid())), 0o644); err != nil {
+			return err
+		}
+		defer os.Remove(pf)
+	}
+	srv := &http.Server{Handler: s.routes(), ReadHeaderTimeout: 10 * time.Second}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	go func() {
+		<-ctx.Done()
+		sctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		srv.Shutdown(sctx)
+	}()
+	fmt.Fprintf(a.Stderr, "agent-desk: serving %s on %s\n", a.Home, shown)
+	if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		return err
+	}
+	return nil
+}

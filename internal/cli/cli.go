@@ -88,6 +88,8 @@ User side:
   agent-desk answer <id> 'text'       record, then type it into the asking session
   agent-desk reply <id|path> 'text'   send a message to the session behind an item or node
   agent-desk deliver                  retry answers and replies not yet delivered
+  agent-desk serve [--listen ADDR|unix:PATH] [--allow-host H,...] [--pid-file F]
+                                      the web dashboard (default 127.0.0.1:7740)
   agent-desk read <id|path-prefix> [--host H]
   agent-desk unread <id>
   agent-desk search <text> [--host H]
@@ -167,6 +169,8 @@ func (a *App) run(args []string) error {
 		return a.cmdSet(rest)
 	case "reply":
 		return a.cmdReply(rest)
+	case "serve":
+		return a.cmdServe(rest)
 	case "done":
 		return a.cmdDone(rest)
 	case "clear":
