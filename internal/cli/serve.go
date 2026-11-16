@@ -34,15 +34,21 @@ const DefaultListen = "127.0.0.1:7740"
 
 // server is the web dashboard: a JSON API over the store and the built page.
 type server struct {
-	a      *App
-	mu     sync.Mutex // one action at a time, as from one terminal
-	ui     fs.FS
-	index  []byte
-	csp    string
-	hosts  map[string]bool // Host header names accepted; nil accepts any
-	poll   time.Duration   // how often the live stream looks for new events
-	stamp  func() (string, error)
-	logger io.Writer
+	a     *App
+	mu    sync.Mutex // one action at a time, as from one terminal
+	ui    fs.FS
+	index []byte
+	csp   string
+	hosts map[string]bool // Host header names accepted; nil accepts any
+	// origins are the dashboard's public origins (scheme://host[:port]),
+	// where a proxy that rewrites Host serves it.
+	origins map[string]bool
+	// forwarded trusts X-Forwarded-Host: set on a unix socket, which only
+	// its owner, the proxy in front, can reach.
+	forwarded bool
+	poll      time.Duration // how often the live stream looks for new events
+	stamp     func() (string, error)
+	logger    io.Writer
 }
 
 // agentVars are hidden from actions taken in the browser: they are the
@@ -135,7 +141,7 @@ func (s *server) guard(next http.Handler) http.Handler {
 // write must carry the X-Agent-Desk header and a JSON body, which a page on
 // another origin cannot send without a CORS preflight this server never
 // grants; a browser's Sec-Fetch-Site and Origin must agree as well.
-func sameOrigin(r *http.Request) error {
+func (s *server) sameOrigin(r *http.Request) error {
 	if r.Header.Get("X-Agent-Desk") != "1" {
 		return errors.New("missing X-Agent-Desk header")
 	}
@@ -147,7 +153,15 @@ func sameOrigin(r *http.Request) error {
 	}
 	if o := r.Header.Get("Origin"); o != "" && o != "null" {
 		u, err := url.Parse(o)
-		if err != nil || !strings.EqualFold(u.Host, r.Host) {
+		ok := err == nil && (strings.EqualFold(u.Host, r.Host) || s.origins[strings.ToLower(u.Scheme+"://"+u.Host)])
+		if !ok && err == nil && s.forwarded {
+			for _, fh := range strings.Split(r.Header.Get("X-Forwarded-Host"), ",") {
+				if fh = strings.TrimSpace(fh); fh != "" && strings.EqualFold(u.Host, fh) {
+					ok = true
+				}
+			}
+		}
+		if !ok {
 			return fmt.Errorf("origin %s is not this dashboard", o)
 		}
 	}
@@ -158,7 +172,7 @@ type writeFunc func(app *App, body map[string]string) (any, error)
 
 func (s *server) write(f writeFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if err := sameOrigin(r); err != nil {
+		if err := s.sameOrigin(r); err != nil {
 			jsonError(w, http.StatusForbidden, err.Error())
 			return
 		}
@@ -595,7 +609,7 @@ func (s *server) static(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) cmdServe(args []string) error {
-	o, err := parse(args, nil, []string{"listen", "allow-host", "pid-file", "config"}, 0, 0)
+	o, err := parse(args, nil, []string{"listen", "allow-host", "pid-file", "config", "allow-origin"}, 0, 0)
 	if err != nil {
 		return err
 	}
@@ -611,11 +625,13 @@ func (a *App) cmdServe(args []string) error {
 			Listen     string   `json:"listen"`
 			PidFile    string   `json:"pid_file"`
 			AllowHosts []string `json:"allow_hosts"`
+			Origin     string   `json:"origin"`
 		}
 		if err := json.Unmarshal(b, &c); err != nil {
 			return fmt.Errorf("%s: %w", file, err)
 		}
-		for k, v := range map[string]string{"listen": c.Listen, "pid-file": c.PidFile, "allow-host": strings.Join(c.AllowHosts, ",")} {
+		for k, v := range map[string]string{"listen": c.Listen, "pid-file": c.PidFile,
+			"allow-host": strings.Join(c.AllowHosts, ","), "allow-origin": c.Origin} {
 			if _, set := o.vals[k]; !set && v != "" {
 				o.vals[k] = v
 			}
@@ -627,6 +643,14 @@ func (a *App) cmdServe(args []string) error {
 	s, err := newServer(a, web.Dist())
 	if err != nil {
 		return err
+	}
+	s.origins = map[string]bool{}
+	for _, or := range strings.Split(o.vals["allow-origin"], ",") {
+		if or = strings.ToLower(strings.TrimRight(strings.TrimSpace(or), "/")); or != "" {
+			if u, err := url.Parse(or); err == nil && u.Host != "" {
+				s.origins[u.Scheme+"://"+u.Host] = true
+			}
+		}
 	}
 	listen := o.vals["listen"]
 	if listen == "" {
@@ -644,6 +668,7 @@ func (a *App) cmdServe(args []string) error {
 			return err
 		}
 		os.Chmod(sock, 0o600)
+		s.forwarded = true
 		defer os.Remove(sock)
 		shown = "unix:" + sock
 	} else {

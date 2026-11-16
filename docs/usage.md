@@ -209,7 +209,10 @@ behind any item or any coordinator, and mark things read. It updates live.
 It serves this machine's store only. To reach it from a phone, put it behind
 something that authenticates you, such as a reverse proxy on a private
 network; the server refuses cross-site writes and, on a TCP port, any `Host`
-it was not told about (`--allow-host desk.example.net`). See
+it was not told about (`--allow-host desk.example.net`). A proxy that rewrites
+`Host` needs the page's public origin (`--allow-origin https://desk.example.net`,
+or `origin` in `--config`); on a unix socket the proxy's `X-Forwarded-Host`
+also counts. See
 [dashboard.md](dashboard.md) to change the page.
 
 ## Notifications and other machine-specific commands

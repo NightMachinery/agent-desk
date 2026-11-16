@@ -88,7 +88,8 @@ User side:
   agent-desk answer <id> 'text'       record, then type it into the asking session
   agent-desk reply <id|path> 'text'   send a message to the session behind an item or node
   agent-desk deliver                  retry answers and replies not yet delivered
-  agent-desk serve [--listen ADDR|unix:PATH] [--allow-host H,...] [--pid-file F] [--config F.json]
+  agent-desk serve [--listen ADDR|unix:PATH] [--allow-host H,...] [--allow-origin URL,...]
+                   [--pid-file F] [--config F.json]
                                       the web dashboard (default 127.0.0.1:7740)
   agent-desk read <id|path-prefix> [--host H]
   agent-desk unread <id>

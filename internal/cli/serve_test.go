@@ -230,3 +230,46 @@ func TestServeStream(t *testing.T) {
 	h.ok(env, "", "set", "status", "Seeds 3/5 done.")
 	wait("event: change")
 }
+
+// Behind a proxy that rewrites Host, a write from the dashboard's public
+// origin is accepted when that origin is configured, or when the server is on
+// a unix socket and the proxy names it in X-Forwarded-Host.
+func TestServeBehindProxy(t *testing.T) {
+	h := newHarness(t)
+	h.ok(h.as(sessA), "", "join", "r1/coord")
+	s, hd := testServer(t, h)
+	post := func(hdr map[string]string) int {
+		req := httptest.NewRequest("POST", "/api/read", strings.NewReader(`{"target":"example-proj/r1"}`))
+		req.Host = "localhost"
+		for k, v := range hdr {
+			req.Header.Set(k, v)
+		}
+		w := httptest.NewRecorder()
+		hd.ServeHTTP(w, req)
+		return w.Code
+	}
+	base := map[string]string{"X-Agent-Desk": "1", "Content-Type": "application/json", "Origin": "https://desk.example.net"}
+	if c := post(base); c != 403 {
+		t.Fatalf("unconfigured origin: %d", c)
+	}
+	s.origins = map[string]bool{"https://desk.example.net": true}
+	if c := post(base); c != 200 {
+		t.Fatalf("configured origin: %d", c)
+	}
+	s.origins = nil
+	fwd := map[string]string{"X-Forwarded-Host": "desk.example.net"}
+	for k, v := range base {
+		fwd[k] = v
+	}
+	if c := post(fwd); c != 403 {
+		t.Fatalf("X-Forwarded-Host trusted on TCP: %d", c)
+	}
+	s.forwarded = true
+	if c := post(fwd); c != 200 {
+		t.Fatalf("X-Forwarded-Host on a socket: %d", c)
+	}
+	fwd["Origin"] = "https://evil.example"
+	if c := post(fwd); c != 403 {
+		t.Fatalf("foreign origin behind the proxy: %d", c)
+	}
+}
