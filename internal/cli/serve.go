@@ -595,9 +595,31 @@ func (s *server) static(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) cmdServe(args []string) error {
-	o, err := parse(args, nil, []string{"listen", "allow-host", "pid-file"}, 0, 0)
+	o, err := parse(args, nil, []string{"listen", "allow-host", "pid-file", "config"}, 0, 0)
 	if err != nil {
 		return err
+	}
+	// --config names a JSON file a process supervisor writes; its listen,
+	// pid_file and allow_hosts apply unless the flag is given too. Other keys
+	// are the supervisor's and are ignored.
+	if file := o.vals["config"]; file != "" {
+		b, err := os.ReadFile(file)
+		if err != nil {
+			return err
+		}
+		var c struct {
+			Listen     string   `json:"listen"`
+			PidFile    string   `json:"pid_file"`
+			AllowHosts []string `json:"allow_hosts"`
+		}
+		if err := json.Unmarshal(b, &c); err != nil {
+			return fmt.Errorf("%s: %w", file, err)
+		}
+		for k, v := range map[string]string{"listen": c.Listen, "pid-file": c.PidFile, "allow-host": strings.Join(c.AllowHosts, ",")} {
+			if _, set := o.vals[k]; !set && v != "" {
+				o.vals[k] = v
+			}
+		}
 	}
 	if _, err := a.store(); err != nil {
 		return err

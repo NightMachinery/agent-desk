@@ -196,6 +196,7 @@ re-renders by hand.
 
     agent-desk serve                          # http://127.0.0.1:7740/
     agent-desk serve --listen unix:/path/to/desk.sock   # behind a proxy
+    agent-desk serve --config config.json     # listen, pid_file, allow_hosts from a supervisor's JSON
 
 The same three sections as the inbox, on a desktop in three panes and on a
 phone in one column. Every view is a URL you can bookmark: a project, run or
