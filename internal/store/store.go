@@ -33,7 +33,7 @@ type Event struct {
 }
 
 // Kinds lists every event kind the store accepts.
-var Kinds = []string{"join", "ask", "answer", "delivered", "tell", "done", "set", "clear", "link", "read", "reply", "pin", "pref"}
+var Kinds = []string{"join", "ask", "answer", "delivered", "tell", "done", "set", "clear", "link", "read", "reply", "pin", "pref", "notified", "retracted"}
 
 func validKind(k string) bool {
 	for _, x := range Kinds {

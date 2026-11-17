@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -24,8 +25,18 @@ type Payload struct {
 	Text      string       `json:"text,omitempty"`     // deliver: the prompt to type
 	Behavior  string       `json:"behavior,omitempty"` // deliver: steer, queue or interrupt
 	Local     bool         `json:"local"`              // the event was written on this host
-	AgentDesk string       `json:"agent_desk"`         // this binary, for click actions
-	DeskHome  string       `json:"desk_home"`
+	// Routing (notify, dismiss and open): the channel (desktop or remote),
+	// its destination, and for dismiss the handle notify printed.
+	Channel string `json:"channel,omitempty"`
+	Dest    string `json:"dest,omitempty"`
+	Handle  string `json:"handle,omitempty"`
+	// URL is the item's page in the web dashboard (needs base_url).
+	URL        string `json:"url,omitempty"`
+	Project    string `json:"project,omitempty"`
+	Class      string `json:"class,omitempty"`
+	AgentTitle string `json:"agent_title,omitempty"`
+	AgentDesk  string `json:"agent_desk"` // this binary, for click actions
+	DeskHome   string `json:"desk_home"`
 }
 
 func (a *App) config() (config.Config, error) {
@@ -43,9 +54,13 @@ func (a *App) config() (config.Config, error) {
 func (a *App) payload(d *desk.Desk, action string, e store.Event) Payload {
 	self, _ := os.Executable()
 	ev := e
+	c, _ := a.config()
+	node := desk.NodeOf(e)
 	return Payload{
-		Action: action, DisplayID: d.Display(e.ID), Path: desk.NodeOf(e), Event: &ev,
+		Action: action, DisplayID: d.Display(e.ID), Path: node, Event: &ev,
 		Local: e.Host == a.Host, AgentDesk: self, DeskHome: a.Home,
+		URL: itemURL(c, d, e), Project: strings.SplitN(node, "/", 2)[0], Class: desk.ClassOf(e),
+		AgentTitle: agentTitle(e),
 	}
 }
 
@@ -97,47 +112,4 @@ func (a *App) runHook(command string, p Payload, wait bool) error {
 		return cmd.Wait()
 	}
 	return cmd.Process.Release()
-}
-
-// announce runs the notify and dismiss commands that new events call for:
-// notify on every ask, tell --notify and done; dismiss the question an
-// answer closes and the item a read marks. Imported events notify only
-// when notify is true.
-func (a *App) announce(evs []store.Event, notify bool) {
-	c, err := a.config()
-	if err != nil {
-		fmt.Fprintf(a.Stderr, "agent-desk: warning: %v\n", err)
-		return
-	}
-	if c.NotifyCommand == "" && c.DismissCommand == "" {
-		return
-	}
-	d, err := a.load()
-	if err != nil {
-		fmt.Fprintf(a.Stderr, "agent-desk: warning: %v\n", err)
-		return
-	}
-	for _, e := range evs {
-		var cmd string
-		var p Payload
-		switch {
-		case !notify:
-		case e.Kind == "ask", e.Kind == "done", e.Kind == "tell" && e.Level == "notify",
-			desk.IsResponse(e) && desk.Meta(e)["quiet"] != true:
-			cmd, p = c.NotifyCommand, a.payload(d, "notify", e)
-		}
-		switch {
-		case e.Kind == "answer", e.Kind == "read" && desk.Meta(e)["cancel"] != true:
-			target, ok := d.ByID[e.Ref]
-			if !ok {
-				continue
-			}
-			cause := e
-			cmd, p = c.DismissCommand, a.payload(d, "dismiss", target)
-			p.Cause = &cause
-		}
-		if err := a.runHook(cmd, p, false); err != nil {
-			fmt.Fprintf(a.Stderr, "agent-desk: warning: %s command: %v\n", p.Action, err)
-		}
-	}
 }

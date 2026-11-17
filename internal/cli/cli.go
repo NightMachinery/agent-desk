@@ -2,6 +2,7 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -91,7 +93,9 @@ User side:
   agent-desk inbox [<path-prefix>] [--all]    interactive (needs fzf)
   agent-desk show [<path-prefix>|--mine] [--all] [--host H] [--session S] [--format org|md|json]
   agent-desk answer <id> [--behavior B] 'text'   record, then type it into the asking session
-  agent-desk reply <id|path> [--behavior B] 'text'   message the session behind an item or node
+  agent-desk reply <id|path> [--behavior B] [--notify-desktop V] [--notify-remote V] 'text'
+                                      message the session behind an item or node; the
+                                      --notify-* values route the notification of its response
                                       B: steer (joins the running turn), queue (waits for
                                       the turn to end) or interrupt (cancels it); the
                                       default is the deliver.behavior setting, else steer
@@ -226,6 +230,8 @@ func (a *App) run(args []string) error {
 		return a.cmdOpen(rest)
 	case "deliver":
 		return a.cmdDeliver(rest)
+	case "notify-run":
+		return a.cmdNotifyRun(rest)
 	case "render":
 		if _, err := parse(rest, nil, nil, 0, 0); err != nil {
 			return err
@@ -376,7 +382,7 @@ func (a *App) commit(evs []store.Event, show string) error {
 	if err := a.render(); err != nil {
 		fmt.Fprintf(a.Stderr, "agent-desk: warning: rendering failed: %v\n", err)
 	}
-	a.announce(evs, true)
+	a.announce(evs, false, false)
 	return nil
 }
 
@@ -638,7 +644,7 @@ func (a *App) cmdPin(args []string, unpin bool) error {
 			return err
 		}
 		switch e.Kind {
-		case "read", "delivered", "pin", "pref", "join":
+		case "read", "delivered", "pin", "pref", "notified", "retracted", "join":
 			return fmt.Errorf("%s is a %s mark; pin the item itself", d.Display(e.ID), e.Kind)
 		}
 		k := d.PinKey(e)
@@ -868,7 +874,7 @@ func (a *App) recordAnswer(d *desk.Desk, q store.Event, text, source, behavior s
 		return nil
 	}
 	if q.Host != a.Host {
-		fmt.Fprintf(a.Stderr, "agent-desk: asked on %s; delivered there after the next merge\n", q.Host)
+		a.pushTo(q.Host, "asked on "+q.Host)
 		return nil
 	}
 	if _, err := a.deliver(q.ID); err != nil {
@@ -1102,7 +1108,7 @@ func (a *App) cmdSearch(args []string) error {
 	needle := strings.ToLower(strings.Join(o.pos, " "))
 	var hits []store.Event
 	for _, e := range d.Events {
-		if e.Kind == "read" || e.Kind == "pin" || e.Kind == "pref" || e.Kind == "join" || e.Kind == "delivered" {
+		if desk.IsMark(e.Kind) || e.Kind == "join" || e.Kind == "delivered" {
 			continue
 		}
 		if o.vals["host"] != "" && e.Host != o.vals["host"] {
@@ -1155,7 +1161,7 @@ func (a *App) imported(added []store.Event, notify bool) error {
 		return nil
 	}
 	err := a.renderWarn()
-	a.announce(added, notify)
+	a.announce(added, true, notify)
 	return err
 }
 
@@ -1216,8 +1222,9 @@ func (a *App) cmdMerge(args []string) error {
 }
 
 // cmdOpen opens an item or node for the user: what a notification click
-// runs. With open_command configured it hands over the item; otherwise, in
-// a terminal, it opens the inbox scoped to the item's node.
+// runs. With open_command configured it hands over the item; otherwise,
+// with base_url, it opens the item's page in the browser; otherwise, in a
+// terminal, it opens the inbox scoped to the item's node.
 func (a *App) cmdOpen(args []string) error {
 	o, err := parse(args, nil, nil, 1, 1)
 	if err != nil {
@@ -1244,6 +1251,20 @@ func (a *App) cmdOpen(args []string) error {
 	}
 	if c.OpenCommand != "" {
 		return a.runHook(c.OpenCommand, p, true)
+	}
+	if p.URL == "" && c.BaseURL != "" {
+		// A node: its view in the dashboard.
+		p.URL = strings.TrimRight(c.BaseURL, "/") + "/#/p/" + p.Path
+	}
+	if p.URL != "" {
+		opener := "xdg-open"
+		if runtime.GOOS == "darwin" {
+			opener = "open"
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		_, err := a.runExt(ctx, nil, opener, p.URL)
+		return err
 	}
 	if isTerminal(a.Stdout) {
 		return a.cmdInbox([]string{p.Path})

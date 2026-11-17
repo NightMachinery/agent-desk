@@ -280,7 +280,7 @@ func (s *server) apiAnswer(app *App, body request) (any, error) {
 }
 
 func (s *server) apiReply(app *App, body request) (any, error) {
-	e, err := app.recordReply(body.To, body.Text, "web", body.Behavior)
+	e, err := app.recordReply(body.To, body.Text, "web", body.Behavior, nil)
 	if err != nil {
 		return nil, err
 	}

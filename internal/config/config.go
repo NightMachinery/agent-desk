@@ -22,6 +22,17 @@ type Config struct {
 	DismissCommand string `toml:"dismiss_command"`
 	OpenCommand    string `toml:"open_command"`
 	DeliverCommand string `toml:"deliver_command"`
+	// BaseURL is the web dashboard's address; a notification's url is an
+	// item page under it.
+	BaseURL string `toml:"base_url"`
+	// AwayCommand exits 0 when the user is away from this machine, for
+	// notify.remote = "away".
+	AwayCommand string `toml:"away_command"`
+	// RemoteLabel names the remote channel in the dashboard ("Phone").
+	RemoteLabel string `toml:"remote_label"`
+	// SSHHosts maps a desk host name to an ssh destination, for pushing
+	// events there at once (merge ssh:).
+	SSHHosts map[string]string `toml:"ssh_hosts"`
 	// RawDefaults is the [defaults] table as written; Defaults is it checked.
 	RawDefaults map[string]any    `toml:"defaults"`
 	Defaults    settings.Defaults `toml:"-"`

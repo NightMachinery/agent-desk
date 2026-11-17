@@ -160,6 +160,8 @@ not write anyway.
     agent-desk answer q-7f3a 'B'             # record it and type it into the asking session
     agent-desk reply t-k2m9 'Check the old feed too'      # message the session behind an item
     agent-desk reply example-proj/rerun-nov/coord 'Pause after seed 4'   # or a node's coordinator
+    agent-desk reply t-k2m9 --notify-remote always 'Tell me on the phone when done'
+                                             # route the notification of the response
     agent-desk read t-k2m9                   # mark one item read, with the responses in its thread
     agent-desk read example-proj/rerun-nov   # mark everything under a node read
     agent-desk read q-7f3a                   # dismiss a question without answering it
@@ -295,18 +297,55 @@ The core knows nothing about your desktop. It runs commands you name in
 `~/.config/agent-desk/config.toml` (or `$AGENT_DESK_CONFIG`), each under
 `sh -c` with the event as JSON on stdin:
 
-    notify_command  = "my-notifier"        # a question, a tell --notify, a done report
-    dismiss_command = "my-notifier --remove"   # its question was answered or it was read
+    notify_command  = "my-notifier"        # raise a notification; print its handle
+    dismiss_command = "my-notifier --remove"   # take one back
     open_command    = "my-opener"          # what `agent-desk open <id>` does
+    base_url        = "https://desk.example.net/"   # the web dashboard, for links
+    away_command    = "my-away-check"      # exits 0 while you are away from this machine
+    remote_label    = "Phone"              # what the dashboard calls the remote channel
+    [ssh_hosts]                            # desk host name = ssh destination
+    otherhost = "otherhost.example.net"
 
-The JSON carries `action`, `display_id`, `path`, `event` (the full event),
-`cause` (for a dismissal, the answer or read), `local` (written on this
+**Channels.** A notification goes out on up to two channels, chosen by the
+settings below (see Settings):
+
+- `desktop`: a card on a machine. `notify.desktop` says which machines:
+  `origin` (where the event was written), `all`, or host names.
+- `remote`: something that reaches you away from the desk, such as a chat
+  message to your phone. `notify.remote` says when: `off`, `away` (only
+  while `away_command` exits 0) or `always`. Only the machine the event was
+  written on raises it.
+
+`notify_command` runs once per channel. Whatever it prints on its first line
+is the notification's **handle** (a card group, a message id), which the
+desk records as a `notified` event.
+
+**Taking back.** When the item stops needing you (you read it, answer or
+dismiss it, or a slot gets newer text), each of its notifications is taken
+back: `dismiss_command` runs with the handle, and the desk records a
+`retracted` event. A desktop notification is taken back by the machine that
+raised it; a remote one by whichever machine sees the cause first. Since
+handles are events, this works across a merge, and two machines may both
+take back the same remote notification before they merge, so the command
+must not mind being run twice. Items notified before this version have no
+handle; for them `dismiss_command` runs once, without one.
+
+**The JSON** carries `action` (`notify`, `dismiss`, `open` or `deliver`),
+`channel`, `dest` (`notify.remote.dest`, for the remote channel), `handle`
+(for dismiss), `display_id`, `path`, `project`, `class`, `agent_title` (the
+Paseo agent's title, else the agent and a short session id), `url` (the
+item's dashboard page, with `base_url`), `event` (the full event), `cause`
+(for a dismissal, the answer, read or newer slot), `local` (written on this
 machine), and `agent_desk`, this binary's path, for building a click action
-such as `agent-desk open q-7f3a`. Notify and dismiss run detached; their
-output goes to `~/.agents/desk/hooks.log`. With no config, nothing is run.
+such as `agent-desk open q-7f3a`.
 
-`agent-desk open <id|path>` hands the item to `open_command`, or without one
-opens the inbox scoped to the item's node.
+The commands run in a detached `agent-desk notify-run`, so a slow notifier
+never holds up an agent's write; output goes to `~/.agents/desk/hooks.log`.
+With no config, nothing is run.
+
+`agent-desk open <id|path>` hands the item to `open_command`; without one it
+opens `url` in the browser when `base_url` is set, and otherwise opens the
+inbox scoped to the item's node.
 
 ## Settings
 
@@ -330,9 +369,6 @@ The settings:
 - `notify.remote`: `off`, `away` or `always`, for a channel that reaches you
   away from your desk, such as your phone.
 - `notify.remote.dest`: free text handed to that channel.
-
-(The notification settings are stored and shown now; routing notifications
-by them comes with the next release.)
 
 For one event, the first match wins:
 
@@ -368,7 +404,18 @@ non-interactive ssh (for example `~/go/bin/agent-desk`). Each side then
 delivers the answers whose questions it asked.
 
 Copy a store only with `snapshot`: copying the file of a live database can
-give a broken copy. Merged and imported events raise notifications only with
-`--notify`, but a question answered elsewhere still has its notification
-dismissed here. Merging is idempotent and order-free, since events never
+give a broken copy.
+
+A merged or imported event raises this machine's desktop notification when
+its `notify.desktop` setting names this machine (`all`, or its host name)
+and the event is less than a day old, so a first merge does not raise one
+for every old item. `--notify` raises one for every imported event instead.
+A notification raised here is taken back here when the merge brings in its
+item's read or answer.
+
+With `[ssh_hosts]` in the config, the desk pushes at once instead of
+waiting for the next merge: an event whose desktop notification belongs on
+another listed machine, and a message or answer for a session there, start
+a `merge ssh:` to it in the background. An unreachable machine catches up at
+its next merge. Merging is idempotent and order-free, since events never
 change and ids are globally unique. Items from another machine show its name.

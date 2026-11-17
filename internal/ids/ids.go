@@ -54,6 +54,10 @@ func Letter(kind string) string {
 		return "k"
 	case "pref":
 		return "p"
+	case "notified":
+		return "n"
+	case "retracted":
+		return "x"
 	}
 	return "e"
 }

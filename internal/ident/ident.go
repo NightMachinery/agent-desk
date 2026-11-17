@@ -22,7 +22,7 @@ type From struct {
 	Transcript string `json:"transcript,omitempty"` // the session's transcript file
 	TmuxPane   string `json:"tmux_pane,omitempty"`  // reply address outside Paseo
 	TmuxPID    string `json:"tmux_pid,omitempty"`   // the pane's process, to tell a reused pane
-	Title      string `json:"-"`                    // Paseo title, for adhoc slugs
+	Title      string `json:"title,omitempty"`      // Paseo title, for adhoc slugs and notifications
 }
 
 // Env is what Resolve reads; tests fake it.
