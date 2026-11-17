@@ -91,8 +91,13 @@ from the desk by a user who may not be watching your chat. Act on it, then
     R
 
 Respond even when you also answered in chat ("Will do after the current
-seed." is enough). Add `--quiet` only for a bare acknowledgement.
-`agent-desk show --mine` lists messages still awaiting your response.
+seed." is enough). Add `--quiet` only for a bare acknowledgement. Without
+`--title` the response is titled "Re: " and the title of the item the
+message was about. Several messages before you respond are each their own
+id: respond to each, or to the last one saying it covers the others.
+`agent-desk show --mine` lists messages still awaiting your response. Only
+the session at the message's node can respond to it; a coordinator that took
+the node over may respond to its predecessor's messages.
 
 When the user asks you something **in chat** and your answer has substance
 (a finding, an explanation, a decision, where something stands), file the
@@ -177,8 +182,17 @@ Antigravity's sandbox lets shell commands write only temporary directories
 and has no setting to widen it: run `agent-desk` there with a request to bypass
 the sandbox.
 
+## Settings are the user's
+
+Where notifications go and how messages reach a busy agent are the user's
+settings. `agent-desk pref` refuses an agent session, so if the user asks you
+to change one, give them the command to run, such as
+`agent-desk pref set notify.remote always --scope example-proj`, or point
+them to the dashboard's Notify chip.
+
 ## Looking things up
 
-    agent-desk show --mine            # your node: your open questions, slots
+    agent-desk whoami                 # your node, or exit 1 if you have not joined
+    agent-desk show --mine            # your node: open questions, slots, messages awaiting you
     agent-desk show rerun-nov         # one run
     agent-desk search 'leakage'

@@ -35,9 +35,15 @@ directory into your agents' skills directory, such as `~/.claude/skills/` or
 `~/.agents/skills/`.
 
 Built so far: the store, the agent and user commands, the terminal inbox,
-rendered org files, notification hooks, answer delivery and merging stores (by
-file or over ssh), done reports filed when a session ends, the agent skill,
-and a web dashboard (`agent-desk serve`) that also messages agents.
+rendered org files, notifications on the desktop and the phone (taken back
+once you have read the item), answer delivery and merging stores (by file or
+over ssh), done reports filed when a session ends, the agent skill, and a web
+dashboard (`agent-desk serve`) that is also usable entirely from the
+keyboard. From the desk you can message any agent; the message reaches its
+session (steered into the running turn, or queued until it ends), and the
+agent's response comes back to the desk as part of the conversation.
+Settings (`agent-desk pref`, or the dashboard) choose how messages are
+delivered and where you are notified, per project, run or agent.
 
 - [docs/usage.md](docs/usage.md): how to use it.
 - [docs/keyboard.md](docs/keyboard.md): driving the dashboard from the
