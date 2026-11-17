@@ -235,36 +235,12 @@ export function onkeydown(e) {
   reset();
 }
 
-/** Insert mode: the field keeps its keys, except leaving it and the C-c
- * pair (C-c C-c sends, C-c C-k discards). */
+/** Insert mode: the field keeps its keys, except those that leave it.
+ * Sending is the composer's own ⌘/Ctrl+Enter. */
 function insertKey(e, tok, el) {
-  if (keys.pending[0] === 'C-c') {
-    reset();
-    e.preventDefault();
-    const box = el.closest('.composer');
-    if (tok === 'C-c') {
-      const send = box?.querySelector('[data-cmd="send"]');
-      if (send instanceof HTMLButtonElement && !send.disabled) send.click();
-      else say(box ? 'Nothing to send' : 'C-c C-c sends from a message box');
-    } else if (tok === 'C-k') {
-      if (el instanceof HTMLTextAreaElement || el instanceof HTMLInputElement) {
-        el.value = '';
-        el.dispatchEvent(new Event('input', { bubbles: true }));
-      }
-      el.blur();
-      say('Discarded');
-    } else say(`C-c ${tok} is undefined`);
-    return;
-  }
   if (tok === 'ESC' || tok === 'C-g' || tok === 'C-[') {
     e.preventDefault();
     el.blur();
-    return;
-  }
-  if (tok === 'C-c' && el.closest('.composer') && !(el instanceof HTMLTextAreaElement && el.selectionStart !== el.selectionEnd)) {
-    e.preventDefault();
-    keys.pending = ['C-c'];
-    whichTimer = setTimeout(() => (keys.which = true), 300);
   }
 }
 

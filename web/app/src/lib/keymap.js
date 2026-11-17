@@ -233,7 +233,6 @@ group('SPC x', '+select');
 group('g', '+go');
 group('y', '+yank');
 group('C-w', '+window');
-group('C-c', '+send');
 
 // --- everywhere ------------------------------------------------------------------
 

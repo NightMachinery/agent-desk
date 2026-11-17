@@ -323,7 +323,7 @@ app: "Install" or "Add to Home screen" in the browser's menu.
 
 The dashboard works without a mouse, in the style of Doom Emacs's evil
 mode: `j`/`k` through the list, a `SPC` leader with a which-key popup,
-`M-x`, `f` to click anything by its label, and `C-c C-c` to send. Press `?`
+`M-x`, `f` to click anything by its label, and ⌘/Ctrl+Enter to send. Press `?`
 on the page for every key, or read [keyboard.md](keyboard.md).
 
 It serves this machine's store only. To reach it from a phone, put it behind

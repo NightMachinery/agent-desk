@@ -83,8 +83,8 @@
         <span class="faint">for the {paneName[paneNow]} and everywhere · <kbd>j</kbd>/<kbd>k</kbd> scroll · <kbd>q</kbd> close</span>
       </div>
       <p class="faint kh-note">
-        Normal mode: keys are commands. A text box puts you in insert mode; <kbd>Esc</kbd> or <kbd>C-g</kbd> leaves it,
-        <kbd>C-c C-c</kbd> sends and <kbd>C-c C-k</kbd> discards. A number before a motion repeats it (<kbd>5j</kbd>).
+        Normal mode: keys are commands. A text box puts you in insert mode; <kbd>Esc</kbd> or <kbd>C-g</kbd> leaves it, and
+        <kbd>⌘ RET</kbd> (<kbd>C-RET</kbd>) sends. A number before a motion repeats it (<kbd>5j</kbd>).
       </p>
       {#each helpGroups as g (g.where)}
         <h4>{g.where}</h4>

@@ -9,8 +9,8 @@ you are; this page explains the model.
 
 - **Normal** (the default): keys are commands.
 - **Insert**: a text box or a dropdown has focus, and keys type. `Esc`,
-  `C-g` or `C-[` leaves it. In a message box, `C-c C-c` sends (as does
-  ⌘/Ctrl+Enter) and `C-c C-k` discards the text.
+  `C-g` or `C-[` leaves it, keeping the text. In a message box,
+  ⌘/Ctrl+Enter sends.
 - **Visual**: `V` starts it on the open item; moving with `j`/`k` selects
   every row from there. `d`, `U` and `p` then act on the selection; `Esc`
   ends it and clears the selection.
