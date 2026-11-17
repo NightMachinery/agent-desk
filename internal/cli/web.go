@@ -182,14 +182,14 @@ type PrefKey struct {
 
 // PrefsView is GET api/prefs.
 type PrefsView struct {
-	Path      string          `json:"path"`
-	Class     string          `json:"class"`
-	Classes   []string        `json:"classes"`
-	Hosts     []string        `json:"hosts"`
-	Keys      []PrefKey       `json:"keys"`
+	Path    string    `json:"path"`
+	Class   string    `json:"class"`
+	Classes []string  `json:"classes"`
+	Hosts   []string  `json:"hosts"`
+	Keys    []PrefKey `json:"keys"`
 	// RemoteLabel is the config's name for the remote channel.
-	RemoteLabel string `json:"remote_label,omitempty"`
-	Overrides []settings.Pref `json:"overrides"`
+	RemoteLabel string          `json:"remote_label,omitempty"`
+	Overrides   []settings.Pref `json:"overrides"`
 }
 
 func prefsView(d *desk.Desk, r *settings.Resolver, path, class string) PrefsView {

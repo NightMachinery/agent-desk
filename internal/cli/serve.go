@@ -377,19 +377,19 @@ type Session struct {
 }
 
 type viewResponse struct {
-	Host     string     `json:"host"`
-	Stamp    string     `json:"stamp"`
-	Path     string     `json:"path"`
-	Filter   viewFilter `json:"filter"`
-	View     desk.View  `json:"view"`
-	Node     *desk.Node `json:"node,omitempty"`
-	Target   *Target    `json:"target,omitempty"`
+	Host   string     `json:"host"`
+	Stamp  string     `json:"stamp"`
+	Path   string     `json:"path"`
+	Filter viewFilter `json:"filter"`
+	View   desk.View  `json:"view"`
+	Node   *desk.Node `json:"node,omitempty"`
+	Target *Target    `json:"target,omitempty"`
 	// Conversation is the target node's own thread: messages to the node
 	// and the responses to them, oldest first.
-	Conversation []Entry `json:"conversation,omitempty"`
-	Session  *Session   `json:"session,omitempty"`
-	Projects []string   `json:"projects"`
-	Hosts    []string   `json:"hosts"`
+	Conversation []Entry  `json:"conversation,omitempty"`
+	Session      *Session `json:"session,omitempty"`
+	Projects     []string `json:"projects"`
+	Hosts        []string `json:"hosts"`
 }
 
 type viewFilter struct {
@@ -561,7 +561,7 @@ type Target struct {
 	Pushed bool `json:"pushed,omitempty"`
 	// RemoteLabel is the config's name for the remote channel.
 	RemoteLabel string `json:"remote_label,omitempty"`
-	to     ident.From
+	to          ident.From
 }
 
 // sshHosts is the config's ssh_hosts, under the server's lock.
@@ -637,23 +637,23 @@ func (s *server) apiTarget(w http.ResponseWriter, r *http.Request) {
 }
 
 type itemResponse struct {
-	Item       desk.Item  `json:"item"`
-	Node       string     `json:"node"`
-	Slot       string     `json:"slot,omitempty"`
-	From       ident.From `json:"from"`
-	Resume     string     `json:"resume,omitempty"`
-	Thread     []Entry    `json:"thread"`
+	Item   desk.Item  `json:"item"`
+	Node   string     `json:"node"`
+	Slot   string     `json:"slot,omitempty"`
+	From   ident.From `json:"from"`
+	Resume string     `json:"resume,omitempty"`
+	Thread []Entry    `json:"thread"`
 	// ThreadOf: the thread shown is not this item's own but that of the
 	// item (display id) or node (path) it belongs to; ThreadTitle names it.
-	ThreadOf    string `json:"thread_of,omitempty"`
-	ThreadTitle string `json:"thread_title,omitempty"`
-	Target     *Target    `json:"target,omitempty"`
-	File       string     `json:"file,omitempty"`
-	FileText   string     `json:"file_text,omitempty"`
-	Report     string     `json:"report,omitempty"`
-	Default    string     `json:"default,omitempty"`
-	Answered   bool       `json:"answered"`
-	Superseded string     `json:"superseded,omitempty"` // a newer text of this slot
+	ThreadOf    string  `json:"thread_of,omitempty"`
+	ThreadTitle string  `json:"thread_title,omitempty"`
+	Target      *Target `json:"target,omitempty"`
+	File        string  `json:"file,omitempty"`
+	FileText    string  `json:"file_text,omitempty"`
+	Report      string  `json:"report,omitempty"`
+	Default     string  `json:"default,omitempty"`
+	Answered    bool    `json:"answered"`
+	Superseded  string  `json:"superseded,omitempty"` // a newer text of this slot
 }
 
 func (s *server) apiItem(w http.ResponseWriter, r *http.Request) {
