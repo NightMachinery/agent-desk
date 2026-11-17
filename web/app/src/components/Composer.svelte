@@ -77,21 +77,21 @@
   <textarea {id} class="input" rows="3" {placeholder} bind:value={text} {onkeydown} disabled={busy}></textarea>
   <div class="bar">
     {#each quick as q (q.label)}
-      <button class="btn small" disabled={busy} onclick={() => submit(q.text)} title={q.text}>{q.label}</button>
+      <button data-cmd="quick" class="btn small" disabled={busy} onclick={() => submit(q.text)} title={q.text}>{q.label}</button>
     {/each}
     {#if resolved}
-      <button class="btn ghost small notify" class:set={overridden} onclick={() => (notifySheet = true)} title="Where the response to this notifies you">
+      <button data-cmd="notify-menu" class="btn ghost small notify" class:set={overridden} onclick={() => (notifySheet = true)} title="Where the response to this notifies you">
         <span class="bell" aria-hidden="true">◔</span>
         <span class="notify-text">{remoteNow === 'off' ? 'Desktop only' : remoteNow === 'always' ? `${remoteName} too` : `${remoteName} when away`}{overridden ? ' · changed' : ''}</span>
       </button>
     {/if}
     <span class="hint faint">{hint}</span>
     <div class="split">
-      <button class="btn primary small main" disabled={busy || !text.trim()} onclick={() => submit()} title={behaviorHelp[def]}>
+      <button data-cmd="send" class="btn primary small main" disabled={busy || !text.trim()} onclick={() => submit()} title={behaviorHelp[def]}>
         {busy ? 'Sending…' : mainLabel}
       </button>
       {#if others.length}
-        <button class="btn primary small more" disabled={busy || !text.trim()} aria-label="Other ways to send" title="Other ways to send" onclick={() => { confirming = false; menu = true; }}>
+        <button data-cmd="send-menu" class="btn primary small more" disabled={busy || !text.trim()} aria-label="Other ways to send" title="Other ways to send" onclick={() => { confirming = false; menu = true; }}>
           <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="m2 3.5 3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
         </button>
       {/if}

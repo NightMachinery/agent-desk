@@ -93,7 +93,7 @@
       >
       <span class="label">{route.old ? 'Oldest' : 'Recent'}</span>
     </a>
-    <button class="btn small" class:on={selecting()} onclick={() => (selecting() ? clear() : (sel.mode = true))}>{selecting() ? 'Done' : 'Select'}</button>
+    <button data-cmd="select-mode" class="btn small" class:on={selecting()} onclick={() => (selecting() ? clear() : (sel.mode = true))}>{selecting() ? 'Done' : 'Select'}</button>
   </div>
   {#if route.session}
     {@const s = view?.session}
@@ -189,11 +189,12 @@
     <button class="btn small ghost x" aria-label="Clear the selection" title="Clear (Esc)" onclick={clear}>✕</button>
     <span class="n">{#if !picked}Tap items to select them{:else}<strong>{picked}</strong> selected{/if}{pickedQuestions ? ` · ${pickedQuestions} ${pickedQuestions === 1 ? 'question' : 'questions'} to dismiss` : ''}</span>
     {#if !allOn(allIds)}<button class="btn small ghost" onclick={() => toggleAll(allIds)}>All {allIds.length}</button>{/if}
-    <button class="btn small" disabled={!picked} onclick={() => pinSelected(pickedPinned < picked, onchange)}
+    <button data-cmd="bulk-pin" class="btn small" disabled={!picked} onclick={() => pinSelected(pickedPinned < picked, onchange)}
       >{picked && pickedPinned === picked ? 'Unpin' : 'Pin'}</button
     >
-    <button class="btn small" disabled={!picked} onclick={() => markSelected(false, onchange)}>Mark unread</button>
+    <button data-cmd="bulk-unread" class="btn small" disabled={!picked} onclick={() => markSelected(false, onchange)}>Mark unread</button>
     <button
+      data-cmd="bulk-read"
       disabled={!picked}
       class="btn small primary"
       title={pickedQuestions ? 'Questions leave Needs you but stay open, so you can still answer them from Show all' : ''}

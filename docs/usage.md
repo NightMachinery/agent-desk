@@ -321,6 +321,11 @@ break inside a sentence flows as a soft wrap, so hard-wrapped text reads
 well on a phone; any other line break is kept. Served over HTTPS (or on localhost), it can be installed as an
 app: "Install" or "Add to Home screen" in the browser's menu.
 
+The dashboard works without a mouse, in the style of Doom Emacs's evil
+mode: `j`/`k` through the list, a `SPC` leader with a which-key popup,
+`M-x`, `f` to click anything by its label, and `C-c C-c` to send. Press `?`
+on the page for every key, or read [keyboard.md](keyboard.md).
+
 It serves this machine's store only. To reach it from a phone, put it behind
 something that authenticates you, such as a reverse proxy on a private
 network; the server refuses cross-site writes and, on a TCP port, any `Host`

@@ -52,7 +52,7 @@
       <span class="chip {stateClass(node.state)}">{label}</span>
       {#if node.open_questions}<span class="chip waiting">{node.open_questions} open</span>{/if}
       {#if node.unread}<span class="chip default">{node.unread} unread</span>{/if}
-      <button class="chip chip-btn" title="Settings for {node.path}: delivery and notifications" onclick={() => (settingsOpen = true)}>
+      <button data-cmd="node-settings" class="chip chip-btn" title="Settings for {node.path}: delivery and notifications" onclick={() => (settingsOpen = true)}>
         <svg width="11" height="11" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5a3.5 3.5 0 0 0-3.5 3.5v2.5L3 11h10l-1.5-2.5V6A3.5 3.5 0 0 0 8 2.5zM6.5 13a1.5 1.5 0 0 0 3 0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
         Notify
       </button>
@@ -92,8 +92,8 @@
   {#if target}
     {#if compact && !writing}
       <div class="row-actions">
-        <button class="btn small" onclick={() => (writing = true)}>Message coordinator</button>
-        {#if node.unread}<button class="btn small" onclick={readAll}>Mark all read</button>{/if}
+        <button data-cmd="message-node" class="btn small" onclick={() => (writing = true)}>Message coordinator</button>
+        {#if node.unread}<button data-cmd="read-all" class="btn small" onclick={readAll}>Mark all read</button>{/if}
       </div>
     {:else}
       <div class="act">
@@ -112,7 +112,7 @@
 
   {#if !compact}
     {#if node.unread}
-      <div class="row-actions"><button class="btn small" onclick={readAll}>Mark all read under {node.name}</button></div>
+      <div class="row-actions"><button data-cmd="read-all" class="btn small" onclick={readAll}>Mark all read under {node.name}</button></div>
     {/if}
     {#if node.children?.length}
       <div class="section-title">Inside</div>

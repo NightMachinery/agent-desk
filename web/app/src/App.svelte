@@ -3,8 +3,9 @@
   import { get, watch } from './lib/api.js';
   import { toasts } from './lib/toast.svelte.js';
   import { desk } from './lib/desk.svelte.js';
-  import { sel, toggle, clear } from './lib/select.svelte.js';
-  import { step } from './lib/nav.svelte.js';
+  import { keys, ctx, pane, onkeydown } from './lib/keys.svelte.js';
+  import './lib/keymap.js';
+  import Keys from './components/Keys.svelte';
   import Sidebar from './components/Sidebar.svelte';
   import ListPane from './components/ListPane.svelte';
   import Detail from './components/Detail.svelte';
@@ -93,49 +94,36 @@
     drawer = false;
   });
 
-  function onkey(e) {
-    if (e.target.closest('input, textarea, select') || e.metaKey || e.ctrlKey || e.altKey) return;
-    if (e.key === '/') {
-      e.preventDefault();
-      document.getElementById('search')?.focus();
-    } else if (e.key === 'Escape' && (sel.ids.size || sel.mode)) {
-      clear();
-    } else if (e.key === 'Escape' && route.item) {
-      go({ item: '' });
-    } else if (e.key === 'Escape' && route.settings) {
-      go({ settings: false });
-    } else if ((e.key === 'x' || e.key === 'X') && route.item && document.querySelector(`[data-item="${CSS.escape(route.item)}"]`)) {
-      toggle(route.item, e.shiftKey);
-    } else if (e.key === 'j' || e.key === 'k') {
-      const id = step(e.key === 'j' ? 1 : -1, route.item);
-      if (!id) return;
-      go({ item: id }, { replace: true });
-      document.querySelector(`[data-item="${CSS.escape(id)}"]`)?.scrollIntoView({ block: 'nearest' });
-    } else if (e.key === 'r' || e.key === 'a') {
-      const el = document.getElementById(e.key === 'a' ? 'answer-box' : 'reply-box');
-      if (el) {
-        e.preventDefault();
-        el.focus();
-      }
-    }
-  }
+  ctx.refresh = refresh;
+  ctx.item = () => item;
+  ctx.view = () => view;
+  ctx.runs = () => globalView?.view?.runs ?? [];
+  // Pane focus shows once the keyboard has driven the page.
+  const focused = $derived.by(() => {
+    route.item;
+    route.settings;
+    keys.pane;
+    keys.mode;
+    keys.tick;
+    return keys.used ? pane() : '';
+  });
 </script>
 
-<svelte:window onkeydown={onkey} />
+<svelte:window {onkeydown} />
 
 <div class="shell" class:has-item={!!route.item || route.settings}>
-  <div class="side" class:open={drawer}>
+  <div class="side" class:open={drawer} data-pane="side" class:focused={focused === 'side'}>
     <Sidebar view={globalView} {live} />
   </div>
   {#if drawer}
     <button class="scrim" aria-label="Close menu" onclick={() => (drawer = false)}></button>
   {/if}
 
-  <main class="list">
+  <main class="list" data-pane="list" class:focused={focused === 'list'}>
     <ListPane {view} {error} onmenu={() => (drawer = true)} onchange={refresh} />
   </main>
 
-  <aside class="detail">
+  <aside class="detail" data-pane="detail" class:focused={focused === 'detail'}>
     {#if route.item}
       <Detail {item} error={itemError} onchange={refresh} />
     {:else if route.settings}
@@ -161,11 +149,13 @@
           /></svg
         >
         <p>Pick a question or a notice to read it, answer it, or message its agent.</p>
-        <p class="faint keys"><kbd>j</kbd> <kbd>k</kbd> move · <kbd>/</kbd> search · <kbd>a</kbd> answer · <kbd>r</kbd> reply · <kbd>x</kbd> select · <kbd>esc</kbd> close</p>
+        <p class="faint keys"><kbd>j</kbd> <kbd>k</kbd> move · <kbd>/</kbd> search · <kbd>a</kbd> answer · <kbd>r</kbd> message · <kbd>f</kbd> click anything · <kbd>SPC</kbd> leader · <kbd>?</kbd> every key</p>
       </div>
     {/if}
   </aside>
 </div>
+
+<Keys />
 
 <div class="toasts" aria-live="polite">
   {#each toasts as t (t.id)}
@@ -177,7 +167,11 @@
   .shell {
     display: grid;
     grid-template-columns: 248px minmax(380px, 1fr) minmax(420px, 1.15fr);
-    height: 100dvh;
+    height: calc(100dvh - var(--modeline-h));
+  }
+  /* The pane keys act on, once the keyboard is in use. */
+  .focused {
+    box-shadow: inset 0 2px 0 var(--accent);
   }
   .side {
     border-right: 1px solid var(--line);
@@ -238,7 +232,7 @@
   }
   .toasts {
     position: fixed;
-    bottom: max(16px, env(safe-area-inset-bottom));
+    bottom: calc(max(16px, env(safe-area-inset-bottom)) + var(--modeline-h));
     left: 50%;
     transform: translateX(-50%);
     display: flex;

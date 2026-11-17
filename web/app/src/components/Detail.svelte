@@ -114,15 +114,15 @@
       {#if it.dismissed}<span class="chip">Dismissed</span>{/if}
       {#if it.unread}<span class="chip default">Unread</span>{/if}
       <span class="spacer"></span>
-      <button class="btn ghost small iconbtn" class:on={it.pinned} aria-pressed={it.pinned} title={it.pinned ? 'Unpin' : 'Pin to the top'} onclick={() => pin(!it.pinned)}
+      <button data-cmd="pin" class="btn ghost small iconbtn" class:on={it.pinned} aria-pressed={it.pinned} title={it.pinned ? 'Unpin' : 'Pin to the top'} onclick={() => pin(!it.pinned)}
         ><Icon name="pin" /></button
       >
       {#if !isQuestion}
-        <button class="btn ghost small iconbtn" title={it.unread ? 'Mark read' : 'Mark unread'} aria-label={it.unread ? 'Mark read' : 'Mark unread'} onclick={() => mark(!!it.unread)}
+        <button data-cmd="read-toggle" class="btn ghost small iconbtn" title={it.unread ? 'Mark read' : 'Mark unread'} aria-label={it.unread ? 'Mark read' : 'Mark unread'} onclick={() => mark(!!it.unread)}
           ><Icon name={it.unread ? 'read' : 'unread'} /></button
         >
       {/if}
-      <button class="btn ghost small mono" title="Copy a link to this item" onclick={() => copyText(location.href, 'Link')}>{it.display_id}</button>
+      <button data-cmd="copy-link" class="btn ghost small mono" title="Copy a link to this item" onclick={() => copyText(location.href, 'Link')}>{it.display_id}</button>
     </div>
 
     <h1>{titleOf(it)}</h1>
@@ -140,12 +140,12 @@
     </div>
     <div class="meta">
       {#if sess}
-        <a class="who" href={href({ session: sess, item: route.item })} title="Show everything this session wrote">
+        <a data-cmd="session" class="who" href={href({ session: sess, item: route.item })} title="Show everything this session wrote">
           {agentName(item.from.agent)} · <span class="mono">{short(sess)}</span>
         </a>
       {/if}
       {#if item.resume}
-        <button class="btn ghost small" onclick={() => copyText(item.resume, 'Resume command')}>Copy resume command</button>
+        <button data-cmd="copy-resume" class="btn ghost small" onclick={() => copyText(item.resume, 'Resume command')}>Copy resume command</button>
       {/if}
     </div>
 
@@ -183,7 +183,7 @@
         {#if item.thread_of}
           <div class="thread-of faint">
             In the conversation
-            {#if item.thread_title}about <a href={href({ item: item.thread_of })}>{item.thread_title}</a>{:else}with <a href={href({ path: item.thread_of, item: '', session: '', q: '' })}>{item.thread_of}</a>{/if}
+            {#if item.thread_title}about <a data-cmd="thread-root" href={href({ item: item.thread_of })}>{item.thread_title}</a>{:else}with <a href={href({ path: item.thread_of, item: '', session: '', q: '' })}>{item.thread_of}</a>{/if}
           </div>
         {:else}
           <div class="section-title">Conversation</div>
@@ -223,12 +223,12 @@
     <div class="foot">
       {#if isQuestion && !item.answered}
         {#if it.dismissed}
-          <button class="btn small" onclick={() => mark(false)}>Back to Needs you</button>
+          <button data-cmd="undismiss" class="btn small" onclick={() => mark(false)}>Back to Needs you</button>
         {:else}
-          <button class="btn small" title="Hide it from Needs you without answering. It stays open, and Show all still lists it." onclick={() => mark(true)}>Dismiss without answering</button>
+          <button data-cmd="dismiss" class="btn small" title="Hide it from Needs you without answering. It stays open, and Show all still lists it." onclick={() => mark(true)}>Dismiss without answering</button>
         {/if}
       {/if}
-      <a class="btn small" href={href({ path: item.node, item: '', session: '', q: '' })}>Open {item.node.split('/').slice(-1)[0]}</a>
+      <a data-cmd="open-node" class="btn small" href={href({ path: item.node, item: '', session: '', q: '' })}>Open {item.node.split('/').slice(-1)[0]}</a>
     </div>
 
     <nav class="stepper" aria-label="Previous and next">

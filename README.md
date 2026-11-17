@@ -40,6 +40,8 @@ file or over ssh), done reports filed when a session ends, the agent skill,
 and a web dashboard (`agent-desk serve`) that also messages agents.
 
 - [docs/usage.md](docs/usage.md): how to use it.
+- [docs/keyboard.md](docs/keyboard.md): driving the dashboard from the
+  keyboard, evil-style (`SPC` leader, which-key, `M-x`, link hints).
 - [docs/dashboard.md](docs/dashboard.md): changing the web dashboard.
 - [docs/spec.md](docs/spec.md): the full design and the build order.
 
