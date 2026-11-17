@@ -55,7 +55,7 @@ Rules the page keeps:
   `public/favicon.svg`. The manifest has no `id`: one resolves against the
   origin, so `"./"` would make it the same app as every other on the host.
   When `serve --config` names `title`, `device` and `color`, the server sends
-  the manifest with the device in its name (`Agent desk · mb2`) and the
+  the manifest with the device in its name (`Agent desk · laptop`) and the
   device's colour as its theme, so copies installed from two devices tell
   apart.
 - The server sends a Content-Security-Policy that allows only the page's own
