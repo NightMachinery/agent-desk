@@ -555,8 +555,11 @@ func (d *Desk) Tree(f Filter) []*Node {
 	}
 	// A dismissed question no longer asks for attention, but its agent is
 	// still blocked on it.
+	// The counts follow the session filter too; the shape of the tree does
+	// not, so the session's place in it stays visible.
+	counted := Filter{Prefix: f.Prefix, Host: f.Host, Session: f.Session}
 	for _, q := range d.Questions {
-		if !q.Open() || !scope.Keep(q.Event) {
+		if !q.Open() || !counted.Keep(q.Event) {
 			continue
 		}
 		for m := get(q.Event.Path); m != nil && m != root; m = nodes[parentOf(m.Path)] {
@@ -570,7 +573,7 @@ func (d *Desk) Tree(f Filter) []*Node {
 	}
 	for id := range d.unread {
 		e := d.ByID[id]
-		if !scope.Keep(e) {
+		if !counted.Keep(e) {
 			continue
 		}
 		for m := get(NodeOf(e)); m != nil && m != root; m = nodes[parentOf(m.Path)] {

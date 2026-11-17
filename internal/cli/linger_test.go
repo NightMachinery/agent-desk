@@ -54,3 +54,32 @@ func TestViewLinger(t *testing.T) {
 		t.Fatalf("lingering notice not listed: %q", got)
 	}
 }
+
+// Under a session filter, the run tree counts only that session's items.
+func TestTreeCountsFollowSession(t *testing.T) {
+	h := newHarness(t)
+	h.ok(h.as(sessA), "", "join", "r1/coord")
+	h.ok(h.as(sessA), "x", "ask", "--blocked", "--title", "A asks")
+	h.ok(h.as(sessB), "", "join", "r2/coord")
+	_, hd := testServer(t, h)
+	open := func(q string) float64 {
+		_, body, _ := do(t, hd, "GET", "/api/view"+q, "", nil)
+		var v struct {
+			View struct {
+				Runs []map[string]any `json:"runs"`
+			} `json:"view"`
+		}
+		must(t, json.Unmarshal([]byte(body), &v))
+		n := 0.0
+		for _, r := range v.View.Runs {
+			n += r["open_questions"].(float64)
+		}
+		return n
+	}
+	if got := open(""); got != 1 {
+		t.Fatalf("unfiltered open: %v", got)
+	}
+	if got := open("?session=" + sessB); got != 0 {
+		t.Fatalf("B's view counts A's question: %v", got)
+	}
+}
