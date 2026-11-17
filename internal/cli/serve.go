@@ -49,7 +49,33 @@ type server struct {
 	poll      time.Duration // how often the live stream looks for new events
 	stamp     func() (string, error)
 	logger    io.Writer
+	// manifest replaces the built manifest.json when the supervisor names
+	// the device: its name and colour tell copies on two devices apart.
+	manifest []byte
 }
+
+// brandManifest is the built web app manifest with the device in its name
+// and the device's colour as its theme.
+func brandManifest(base []byte, title, device, color string) ([]byte, error) {
+	var m map[string]any
+	if err := json.Unmarshal(base, &m); err != nil {
+		return nil, err
+	}
+	if title == "" {
+		title, _ = m["name"].(string)
+	}
+	if device != "" {
+		m["name"] = title + " · " + device
+	} else {
+		m["name"] = title
+	}
+	if hexColor.MatchString(color) {
+		m["theme_color"] = color
+	}
+	return json.MarshalIndent(m, "", "  ")
+}
+
+var hexColor = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
 
 // agentVars are hidden from actions taken in the browser: they are the
 // user's, even when the server was started from an agent's shell.
@@ -614,6 +640,12 @@ func (s *server) static(w http.ResponseWriter, r *http.Request) {
 		w.Write(s.index)
 		return
 	}
+	if p == "manifest.json" && s.manifest != nil {
+		w.Header().Set("Content-Type", "application/manifest+json")
+		w.Header().Set("Cache-Control", "no-cache")
+		http.ServeContent(w, r, p, time.Time{}, bytes.NewReader(s.manifest))
+		return
+	}
 	b, err := fs.ReadFile(s.ui, p)
 	if err != nil {
 		http.NotFound(w, r)
@@ -633,8 +665,10 @@ func (a *App) cmdServe(args []string) error {
 		return err
 	}
 	// --config names a JSON file a process supervisor writes; its listen,
-	// pid_file and allow_hosts apply unless the flag is given too. Other keys
-	// are the supervisor's and are ignored.
+	// pid_file and allow_hosts apply unless the flag is given too; title,
+	// device and color brand the web app manifest. Other keys are the
+	// supervisor's and are ignored.
+	var brand struct{ Title, Device, Color string }
 	if file := o.vals["config"]; file != "" {
 		b, err := os.ReadFile(file)
 		if err != nil {
@@ -645,10 +679,14 @@ func (a *App) cmdServe(args []string) error {
 			PidFile    string   `json:"pid_file"`
 			AllowHosts []string `json:"allow_hosts"`
 			Origin     string   `json:"origin"`
+			Title      string   `json:"title"`
+			Device     string   `json:"device"`
+			Color      string   `json:"color"`
 		}
 		if err := json.Unmarshal(b, &c); err != nil {
 			return fmt.Errorf("%s: %w", file, err)
 		}
+		brand.Title, brand.Device, brand.Color = c.Title, c.Device, c.Color
 		for k, v := range map[string]string{"listen": c.Listen, "pid-file": c.PidFile,
 			"allow-host": strings.Join(c.AllowHosts, ","), "allow-origin": c.Origin} {
 			if _, set := o.vals[k]; !set && v != "" {
@@ -662,6 +700,15 @@ func (a *App) cmdServe(args []string) error {
 	s, err := newServer(a, web.Dist())
 	if err != nil {
 		return err
+	}
+	if brand.Title != "" || brand.Device != "" || brand.Color != "" {
+		base, err := fs.ReadFile(s.ui, "manifest.json")
+		if err != nil {
+			return err
+		}
+		if s.manifest, err = brandManifest(base, brand.Title, brand.Device, brand.Color); err != nil {
+			return fmt.Errorf("manifest.json: %w", err)
+		}
 	}
 	s.origins = map[string]bool{}
 	for _, or := range strings.Split(o.vals["allow-origin"], ",") {

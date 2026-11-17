@@ -297,3 +297,30 @@ func TestServeAppFiles(t *testing.T) {
 		}
 	}
 }
+
+// Behind a supervisor that names the device, the manifest says which device
+// the app is on and takes its colour; a bad colour is ignored.
+func TestServeBrandedManifest(t *testing.T) {
+	base := []byte(`{"name":"agent-desk","theme_color":"#c2410c","start_url":"./"}`)
+	b, err := brandManifest(base, "Agent desk", "host-a", "#2f6fd6")
+	must(t, err)
+	var m map[string]any
+	must(t, json.Unmarshal(b, &m))
+	if m["name"] != "Agent desk · host-a" || m["theme_color"] != "#2f6fd6" || m["start_url"] != "./" || m["id"] != nil {
+		t.Fatalf("branded: %s", b)
+	}
+	b, err = brandManifest(base, "", "", "red; x")
+	must(t, err)
+	must(t, json.Unmarshal(b, &m))
+	if m["name"] != "agent-desk" || m["theme_color"] != "#c2410c" {
+		t.Fatalf("unbranded: %s", b)
+	}
+	h := newHarness(t)
+	s, hd := testServer(t, h)
+	s.manifest = []byte(`{"name":"Agent desk · host-a"}`)
+	code, body, hdr := do(t, hd, "GET", "/manifest.json", "", nil)
+	if code != 200 || !strings.Contains(body, "host-a") || hdr.Get("Cache-Control") != "no-cache" ||
+		hdr.Get("Content-Type") != "application/manifest+json" {
+		t.Fatalf("served: %d %v %s", code, hdr, body)
+	}
+}
