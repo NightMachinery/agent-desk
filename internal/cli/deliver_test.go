@@ -51,15 +51,20 @@ func TestDeliverToPaseo(t *testing.T) {
 	}
 	// --behavior steer, explicitly: without a sending agent, paseo send
 	// would interrupt a busy agent's turn.
-	want := fmt.Sprintf(`paseo send --no-wait --behavior steer %s Answer to %s "Which split?": B, keep the cache`, uuid, q)
+	want := fmt.Sprintf(`paseo send --no-wait --json --behavior steer %s Answer to %s "Which split?": B, keep the cache`, uuid, q)
 	if c := *h.calls; len(c) != 1 || c[0] != want {
 		t.Fatalf("calls: %q", c)
 	}
 
 	// deliver retries, now that paseo answers.
-	h.respond = func(name string, args []string) (string, error) { return "queued", nil }
+	// A Paseo release that reports what happened: the disposition is kept.
+	h.respond = func(name string, args []string) (string, error) {
+		return "warning: something\n" + `{"agentId":"x","status":"sent","disposition":"steered","revived":true}`, nil
+	}
 	h.ok(nil, "", "deliver")
-	if d := h.delivered(t); len(d) != 1 || !strings.Contains(string(d[0].Meta), `"via":"paseo"`) {
+	if d := h.delivered(t); len(d) != 1 || !strings.Contains(string(d[0].Meta), `"via":"paseo"`) ||
+		!strings.Contains(string(d[0].Meta), `"disposition":"steered"`) || !strings.Contains(string(d[0].Meta), `"revived":true`) ||
+		!strings.Contains(string(d[0].Meta), `"behavior":"steer"`) {
 		t.Fatalf("delivered: %+v", d)
 	}
 	// Nothing left to deliver; nothing is typed twice.
@@ -195,5 +200,21 @@ func TestPaseoEnvScrubbed(t *testing.T) {
 	}
 	if len(envFor("tmux", env)) != 3 {
 		t.Fatal("tmux lost its environment")
+	}
+}
+
+func TestPaseoReceipt(t *testing.T) {
+	for out, want := range map[string]receipt{
+		`{"agentId":"x","status":"sent"}`:                      {},
+		`{"agentId":"x","status":"queued"}`:                    {Disposition: "queued"},
+		`{"disposition":"queued","queuePosition":2}`:           {Disposition: "queued", QueuePosition: 2},
+		"not json at all":                                      {},
+		`{"disposition":"interrupted","revived":false}` + "\n": {Disposition: "interrupted"},
+	} {
+		var r receipt
+		paseoReceipt(out, &r)
+		if r != want {
+			t.Errorf("%q: %+v, want %+v", out, r, want)
+		}
 	}
 }

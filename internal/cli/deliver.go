@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -121,12 +122,74 @@ type job struct {
 	to    ident.From
 	host  string
 	text  string
+	// behavior is what the message should do to a busy agent: steer, queue
+	// or interrupt.
+	behavior string
+}
+
+// receipt is how a message reached its session.
+type receipt struct {
+	Via      string // paseo, tmux or command
+	Behavior string // the behaviour used
+	// Disposition is what the transport reports happened: Paseo's
+	// turn_started, steered, interrupted, queued or out_of_band; typed for
+	// tmux; command, or the command's own word, for deliver_command. Empty
+	// when the transport does not say.
+	Disposition   string
+	QueuePosition int
+	Revived       bool
+	Fallback      string // why Behavior differs from the one requested
+}
+
+// meta is the receipt as a delivered event's meta.
+func (r receipt) meta() map[string]any {
+	m := map[string]any{"via": r.Via, "behavior": r.Behavior}
+	if r.Disposition != "" {
+		m["disposition"] = r.Disposition
+	}
+	if r.QueuePosition > 0 {
+		m["queue_position"] = r.QueuePosition
+	}
+	if r.Revived {
+		m["revived"] = true
+	}
+	if r.Fallback != "" {
+		m["fallback"] = r.Fallback
+	}
+	return m
+}
+
+// paseoReceipt reads what paseo send --json printed. Paseo releases differ
+// in what they report; fields they leave out stay empty.
+func paseoReceipt(out string, r *receipt) {
+	var v struct {
+		Disposition    string `json:"disposition"`
+		QueuePosition  int    `json:"queuePosition"`
+		Revived        bool   `json:"revived"`
+		DeliveryStatus string `json:"deliveryStatus"`
+		Status         string `json:"status"`
+	}
+	// The JSON is the last line that parses; a warning may come first.
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		if json.Unmarshal([]byte(lines[i]), &v) == nil {
+			break
+		}
+	}
+	if v.Disposition == "" && (v.DeliveryStatus == "queued" || v.Status == "queued") {
+		v.Disposition = "queued"
+	}
+	r.Disposition, r.QueuePosition, r.Revived = v.Disposition, v.QueuePosition, v.Revived
 }
 
 // deliverOne types a message into its session, and says how.
-func (a *App) deliverOne(d *desk.Desk, j job) (string, error) {
+func (a *App) deliverOne(d *desk.Desk, j job) (receipt, error) {
 	if j.host != a.Host {
-		return "", fmt.Errorf("its session is on %s; it is delivered there after the next merge", j.host)
+		return receipt{}, fmt.Errorf("its session is on %s; it is delivered there after the next merge", j.host)
+	}
+	beh := j.behavior
+	if beh == "" {
+		beh = "steer"
 	}
 	f, text := j.to, j.text
 	ctx, cancel := context.WithTimeout(context.Background(), DeliverTimeout)
@@ -137,9 +200,11 @@ func (a *App) deliverOne(d *desk.Desk, j job) (string, error) {
 		// carries on. It must be explicit: paseo send interrupts the turn by
 		// default unless it is sent by an agent (PASEO_AGENT_ID set), and
 		// that variable is removed from its environment (see scrubbed).
-		out, err := a.runExt(ctx, nil, "paseo", "send", "--no-wait", "--behavior", "steer", f.Paseo, text)
+		out, err := a.runExt(ctx, nil, "paseo", "send", "--no-wait", "--json", "--behavior", beh, f.Paseo, text)
 		if err == nil {
-			return "paseo", nil
+			r := receipt{Via: "paseo", Behavior: beh}
+			paseoReceipt(out, &r)
+			return r, nil
 		}
 		reasons = append(reasons, fmt.Sprintf("paseo send: %v: %s", err, out))
 	}
@@ -149,13 +214,13 @@ func (a *App) deliverOne(d *desk.Desk, j job) (string, error) {
 			err = a.typeIntoPane(ctx, f.TmuxPane, text)
 		}
 		if err == nil {
-			return "tmux", nil
+			return receipt{Via: "tmux", Behavior: "steer", Disposition: "typed"}, nil
 		}
 		reasons = append(reasons, err.Error())
 	}
 	c, err := a.config()
 	if err != nil {
-		return "", err
+		return receipt{}, err
 	}
 	if c.DeliverCommand != "" {
 		subject := j.about
@@ -164,6 +229,7 @@ func (a *App) deliverOne(d *desk.Desk, j job) (string, error) {
 		}
 		p := a.payload(d, "deliver", subject)
 		p.Text = text
+		p.Behavior = beh
 		msgCopy := j.msg
 		p.Cause = &msgCopy
 		var out bytes.Buffer
@@ -172,7 +238,14 @@ func (a *App) deliverOne(d *desk.Desk, j job) (string, error) {
 		err := a.runHook(c.DeliverCommand, p, true)
 		a.Stdout = saved
 		if err == nil {
-			return "command", nil
+			r := receipt{Via: "command", Behavior: beh, Disposition: "command"}
+			var v struct {
+				Disposition string `json:"disposition"`
+			}
+			if line := strings.TrimSpace(out.String()); line != "" && json.Unmarshal([]byte(line), &v) == nil && v.Disposition != "" {
+				r.Disposition = v.Disposition
+			}
+			return r, nil
 		}
 		reasons = append(reasons, fmt.Sprintf("deliver_command: %v", err))
 	}
@@ -183,7 +256,7 @@ func (a *App) deliverOne(d *desk.Desk, j job) (string, error) {
 	if r := ResumeCommand(f); r != "" {
 		msg += ". Resume it with: " + r
 	}
-	return "", fmt.Errorf("%w: %s", errUnreachable, msg)
+	return receipt{}, fmt.Errorf("%w: %s", errUnreachable, msg)
 }
 
 // deliverLock serialises deliveries, so two runs never type one answer twice.
@@ -249,14 +322,14 @@ func (a *App) deliver(only string) (int, error) {
 	}
 	failed := 0
 	for _, j := range pending(d, a.Host, only) {
-		via, err := a.deliverOne(d, j)
+		r, err := a.deliverOne(d, j)
 		if err != nil {
 			failed++
 			fmt.Fprintf(a.Stderr, "agent-desk: %s not delivered: %v. `agent-desk deliver` retries.\n",
 				d.Display(j.msg.ID), err)
 			continue
 		}
-		e := a.event("delivered", j.msg.Path, ident.Resolve(a.Env), "cli", map[string]any{"via": via})
+		e := a.event("delivered", j.msg.Path, ident.Resolve(a.Env), "cli", r.meta())
 		e.Ref = j.msg.ID
 		st, err := a.store()
 		if err != nil {
@@ -269,7 +342,7 @@ func (a *App) deliver(only string) (int, error) {
 		if j.about.ID != "" {
 			dest = d.Display(j.about.ID)
 		}
-		fmt.Fprintf(a.Stderr, "agent-desk: %s delivered to %s via %s\n", d.Display(j.msg.ID), dest, via)
+		fmt.Fprintf(a.Stderr, "agent-desk: %s delivered to %s via %s\n", d.Display(j.msg.ID), dest, r.Via)
 	}
 	return failed, nil
 }

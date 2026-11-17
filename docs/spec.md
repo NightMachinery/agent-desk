@@ -2,9 +2,11 @@
 
 @Fable5.2 [2026-11-15 Sun]
 
-For the implementing agent. Nothing here is built yet. Values in examples are
-fabricated; keep it that way in code, tests and docs, because this repository
-is public.
+For the implementing agent. Values in examples are fabricated; keep it that
+way in code, tests and docs, because this repository is public.
+
+Conversations, delivery behaviour and notification routing are specified in
+[spec-conversation.md](spec-conversation.md), which wins where the two differ.
 
 ## Goal
 

@@ -20,10 +20,11 @@ type Payload struct {
 	DisplayID string       `json:"display_id,omitempty"`
 	Path      string       `json:"path"`
 	Event     *store.Event `json:"event,omitempty"`
-	Cause     *store.Event `json:"cause,omitempty"` // the answer or read that dismisses
-	Text      string       `json:"text,omitempty"`  // deliver: the prompt to type
-	Local     bool         `json:"local"`           // the event was written on this host
-	AgentDesk string       `json:"agent_desk"`      // this binary, for click actions
+	Cause     *store.Event `json:"cause,omitempty"`    // the answer or read that dismisses
+	Text      string       `json:"text,omitempty"`     // deliver: the prompt to type
+	Behavior  string       `json:"behavior,omitempty"` // deliver: steer, queue or interrupt
+	Local     bool         `json:"local"`              // the event was written on this host
+	AgentDesk string       `json:"agent_desk"`         // this binary, for click actions
 	DeskHome  string       `json:"desk_home"`
 }
 
