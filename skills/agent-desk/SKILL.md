@@ -34,16 +34,35 @@ subagent, such as one from Claude Code's Agent tool, shares its parent's
 session, so the desk cannot tell it apart and would file as the parent: never
 run `agent-desk` from one.
 
+## How to write
+
+The desk is for the user's executive reading: often on a phone, often cold,
+between other things. Bodies, slots and reports render as Markdown.
+
+- **Lead with the point:** the decision needed, the result, the state. Detail
+  comes after, and only as much as the reader needs to act.
+- Write the way a sharp colleague would say it: plain sentences, no filler,
+  no hedging, no unexplained jargon. Name a term the first time you use it.
+- Short paragraphs, separated by a blank line. Bullet lists for options,
+  results and steps. **Bold** the recommendation or the number that matters;
+  `code` for paths, commands and ids. Headings only in long reports.
+- No tables: they do not fit a phone. Use a list.
+- Concise beats complete. Cut what the user would not miss, and link to a
+  file for the long version.
+
 ## Questions
 
 When you need a decision, file it, and raise it in chat as you normally would,
 with the id in the chat text:
 
     agent-desk ask --blocked --title 'Which split for the rerun?' <<'Q'
-    The rerun needs a train/test split.
-    A. Reuse the cached split: fast, but it predates the leakage fix.
-    B. Regenerate: an hour longer, consistent with the fix.
-    I recommend B.
+    The rerun needs a train/test split, and the cached one predates the
+    leakage fix.
+
+    - **A. Reuse the cached split.** Fast, but not comparable with runs after the fix.
+    - **B. Regenerate it.** An hour longer; consistent with the fix.
+
+    **I recommend B**: the rerun exists to compare against post-fix runs.
     Q
 
 - The title is the question itself, readable on a phone notification.
@@ -63,10 +82,17 @@ An answer given in the inbox arrives typed into your session as
 `Answer to q-7f3a "Which split for the rerun?": B`. It is already recorded;
 just act on it.
 
-A message that starts `Message from the user via agent-desk` was sent from
-the desk by a user who may not be watching your chat. Act on it, and put
-anything they should read in reply on the desk (`tell`, or a slot), not only
-in chat.
+A message that starts `Message m-4c2d from the user via agent-desk` was sent
+from the desk by a user who may not be watching your chat. Act on it, then
+**always respond on the desk**, even with one line:
+
+    agent-desk tell --re m-4c2d <<'R'
+    Done; the old feed is fine.
+    R
+
+Respond even when you also answered in chat ("Will do after the current
+seed." is enough). Add `--quiet` only for a bare acknowledgement.
+`agent-desk show --mine` lists messages still awaiting your response.
 
 ## Notices
 
@@ -74,8 +100,9 @@ For something the user should know but need not answer: a result, a finished
 milestone, a problem you worked around, a report written to a file.
 
     agent-desk tell --title 'Seeds 1-5 rerun: the fix holds' <<'R'
-    Accuracy is within 0.3 points of the old run on all five seeds.
-    Table: results/rerun-nov.org
+    Accuracy is **within 0.3 points** of the old run on all five seeds.
+
+    Table: `results/rerun-nov.org`
     R
 
 Add `--notify` only when it is worth interrupting the user for.
