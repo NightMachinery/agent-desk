@@ -170,6 +170,11 @@ Every agent on a task of more than a few turns keeps three **standard** slots:
 they live). A coordinator also keeps `velocity`: its recent pace, where its
 tokens went, and one to three suggestions to improve either. The board shows
 these first, in that order, so every node reads the same.
+On the dashboard a `velocity` slot has an **Ask for a velocity report**
+button (`SPC n v`): it messages the agent with a prepared prompt asking for a
+short executive report on its pace and whether the work is progressing well
+(`reply --prompt velocity-report`; edit it by copying
+`internal/prompts/velocity-report.md` into `~/.config/agent-desk/prompts/`).
 
 Caps: `status` 2 lines, `next` 5, everything else 15. A `set` over its cap
 fails, says by how much, and writes nothing. `tasks`, `user-verbatim` and
@@ -204,6 +209,7 @@ not write anyway.
     agent-desk reply example-proj/rerun-nov/coord 'Pause after seed 4'   # or a node's coordinator
     agent-desk reply t-k2m9 --notify-remote always 'Tell me on the phone when done'
                                              # route the notification of the response
+    agent-desk reply s-v4lc --prompt velocity-report   # ask for an executive report on velocity
     agent-desk answer q-7f3a --notify-desktop none --notify-remote always 'B'   # answers take them too
     agent-desk read t-k2m9                   # mark one item read, with the responses in its thread
     agent-desk read example-proj/rerun-nov   # mark everything under a node read

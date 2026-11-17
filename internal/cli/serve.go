@@ -204,6 +204,7 @@ type request struct {
 	ID      string   `json:"id"`      // answer, unread: the item
 	Text    string   `json:"text"`    // answer, reply
 	To      string   `json:"to"`      // reply: an item or a node path
+	Prompt  string   `json:"prompt"`  // reply: a prepared message instead of text (velocity-report)
 	Target  string   `json:"target"`  // read: an item or a node path
 	Targets []string `json:"targets"` // read, unread: several at once
 	// Behavior: answer, reply: steer, queue or interrupt (empty: default).
@@ -305,7 +306,16 @@ func (s *server) apiReply(app *App, body request) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	e, err := app.recordReply(body.To, body.Text, "web", body.Behavior, notify)
+	text := body.Text
+	if body.Prompt != "" {
+		if text != "" {
+			return nil, usagef("give a text or a prompt, not both")
+		}
+		if text, err = app.replyPrompt(body.To, body.Prompt); err != nil {
+			return nil, err
+		}
+	}
+	e, err := app.recordReply(body.To, text, "web", body.Behavior, notify)
 	if err != nil {
 		return nil, err
 	}

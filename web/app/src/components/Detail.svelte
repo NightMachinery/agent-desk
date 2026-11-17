@@ -6,7 +6,7 @@
   import { post } from '../lib/api.js';
   import { toast } from '../lib/toast.svelte.js';
   import { desk } from '../lib/desk.svelte.js';
-  import { agentName, copy, kindLabel, kindOf, sessionOf, short, titleOf, viaText } from '../lib/format.js';
+  import { agentName, copy, kindLabel, kindOf, sessionOf, short, slotName, titleOf, viaText } from '../lib/format.js';
   import Composer from './Composer.svelte';
   import Markdown from './Markdown.svelte';
   import Attachments from './Attachments.svelte';
@@ -284,6 +284,9 @@
         {:else}
           <button data-cmd="dismiss" class="btn small" title="Hide it from Needs you without answering. It stays open, and Show all still lists it." onclick={() => mark(true)}>Dismiss without answering</button>
         {/if}
+      {/if}
+      {#if kindOf(it) === 'slot' && slotName(e) === 'velocity'}
+        <button data-cmd="velocity-report" class="btn small" title={tip('Ask the agent for an executive report on its velocity, and whether the work is progressing well', 'velocity-report')} onclick={() => reply('', { prompt: 'velocity-report' })}>Ask for a velocity report</button>
       {/if}
       <a data-cmd="open-node" class="btn small" href={href({ path: item.node, item: '', session: '', q: '' })}>Open {item.node.split('/').slice(-1)[0]}</a>
     </div>

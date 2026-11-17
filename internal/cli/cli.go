@@ -116,6 +116,10 @@ User side:
                                       B: steer (joins the running turn), queue (waits for
                                       the turn to end) or interrupt (cancels it); the
                                       default is the deliver.behavior setting, else steer
+  agent-desk reply <id|path> --prompt velocity-report
+                                      send a prepared message: an executive report on the
+                                      node's velocity (internal/prompts; yours in
+                                      ~/.config/agent-desk/prompts/ replaces it)
   agent-desk deliver                  retry answers and replies not yet delivered
   agent-desk serve [--listen ADDR|unix:PATH] [--allow-host H,...] [--allow-origin URL,...]
                    [--pid-file F] [--config F.json]

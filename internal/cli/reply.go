@@ -8,6 +8,7 @@ import (
 
 	"github.com/NightMachinery/agent-desk/internal/desk"
 	"github.com/NightMachinery/agent-desk/internal/ident"
+	"github.com/NightMachinery/agent-desk/internal/prompts"
 	"github.com/NightMachinery/agent-desk/internal/settings"
 	"github.com/NightMachinery/agent-desk/internal/store"
 )
@@ -98,7 +99,7 @@ func respondsTo(d *desk.Desk, e store.Event, node string) (string, error) {
 }
 
 func (a *App) cmdReply(args []string) error {
-	o, err := parse(args, nil, []string{"behavior", "notify-desktop", "notify-remote"}, 1, -1)
+	o, err := parse(args, nil, []string{"behavior", "notify-desktop", "notify-remote", "prompt"}, 1, -1)
 	if err != nil {
 		return err
 	}
@@ -111,7 +112,15 @@ func (a *App) cmdReply(args []string) error {
 		return err
 	}
 	text := strings.Join(o.pos[1:], " ")
-	if len(o.pos) == 1 {
+	switch {
+	case o.vals["prompt"] != "":
+		if len(o.pos) > 1 {
+			return usagef("give a text or --prompt, not both")
+		}
+		if text, err = a.replyPrompt(o.pos[0], o.vals["prompt"]); err != nil {
+			return err
+		}
+	case len(o.pos) == 1:
 		if text, err = a.stdinText(); err != nil {
 			return err
 		}
@@ -188,4 +197,33 @@ func toOf(e store.Event) (ident.From, string) {
 	}
 	_ = json.Unmarshal(e.Meta, &m)
 	return m.To, m.ToHost
+}
+
+// ReplyPrompts are the prepared messages `reply --prompt` sends, each a
+// template in internal/prompts that the user may override.
+var ReplyPrompts = map[string]string{
+	"velocity-report": "velocity-report.md", // an executive report on velocity
+}
+
+// replyPrompt renders the prepared message name for the node behind target.
+func (a *App) replyPrompt(target, name string) (string, error) {
+	file, ok := ReplyPrompts[name]
+	if !ok {
+		return "", usagef("no prepared message %q; there is: velocity-report", name)
+	}
+	d, err := a.load()
+	if err != nil {
+		return "", err
+	}
+	_, _, node, _, err := replyTarget(d, target)
+	if err != nil {
+		return "", err
+	}
+	data := struct{ Node, Velocity string }{Node: node}
+	for _, sl := range d.Slots() {
+		if sl.Path == node+"/velocity" && sl.Kind == "set" {
+			data.Velocity = sl.Body
+		}
+	}
+	return prompts.Render(a.promptsDir(), file, data)
 }

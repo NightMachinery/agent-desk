@@ -318,6 +318,7 @@ bind('y p', 'Copy the path shown', () => yank(ctx.item()?.node ?? route.path, 'P
 
 // The node page (nothing open).
 bind('SPC n m', 'Message the coordinator', message, { when: () => !!ctx.view()?.target });
+bind('SPC n v', 'Ask for a velocity report', () => click('velocity-report', 'No velocity slot here'), { when: has('velocity-report') });
 bind('SPC n r', 'Mark everything under the node read', () => click('read-all'), { when: has('read-all') });
 bind('SPC n s', "The node's notify settings", () => click('node-settings'), { when: has('node-settings') });
 

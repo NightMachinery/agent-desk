@@ -33,6 +33,21 @@
       toast(err.message, 'error');
     }
   }
+  // A prepared message (internal/prompts/velocity-report.md, which the user
+  // may override): an executive report on velocity.
+  let asking = $state(false);
+  async function askVelocity() {
+    asking = true;
+    try {
+      const res = await post('reply', { to: node.path, prompt: 'velocity-report' });
+      toast(res.note ? `Asked for a velocity report. ${res.note}` : 'Asked for a velocity report.', 'ok', res.note ? 7000 : 3000);
+      onchange();
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      asking = false;
+    }
+  }
   async function readAll() {
     try {
       const res = await post('read', { target: node.path });
@@ -76,6 +91,11 @@
           <div class="slot-name">{s.name}{#if s.unread}<span class="new"></span>{/if}</div>
           {#if s.file}<div class="text slot-text">{s.file}</div>{:else}<Markdown class="slot-text" text={s.event.body} links={false} />{/if}
         </a>
+        {#if s.name === 'velocity' && target}
+          <div class="slot-act">
+            <button data-cmd="velocity-report" class="btn small" disabled={asking} title={tip('Ask the agent for an executive report on its velocity, and whether the work is progressing well', 'velocity-report')} onclick={askVelocity}>Ask for a velocity report</button>
+          </div>
+        {/if}
       {/each}
     </div>
   {/if}
@@ -250,6 +270,9 @@
     margin-top: 16px;
     display: grid;
     gap: 8px;
+  }
+  .slot-act {
+    margin: -2px 0 4px;
   }
   .slot {
     display: block;

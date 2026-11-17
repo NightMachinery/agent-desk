@@ -22,6 +22,7 @@ export const cmdKeys = {
   'node-settings': 'SPC n s',
   'message-node': 'SPC n m',
   'read-all': 'SPC n r',
+  'velocity-report': 'SPC n v',
   'select-mode': 'SPC t s',
   'show-all': 'SPC t a',
   sort: 'SPC t o',
