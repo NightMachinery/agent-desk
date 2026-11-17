@@ -314,6 +314,10 @@ func (a *App) preview(d *desk.Desk, st inboxState, key string) string {
 			}
 			fmt.Fprintf(&b, "%s  %s  %s%s\n%s\n\n%s\n\n", head, lvl, age, hostTag(d, e.Host), dim(where), bold(e.Title))
 			w.Text(e.Body)
+			if c, ok := desk.ChoicesOf(e); ok {
+				fmt.Fprintln(&b)
+				w.Text(c.Text())
+			}
 			w.Media(e)
 			if def := desk.MetaString(e, "default"); def != "" {
 				fmt.Fprintf(&b, "\n%s %s\n", yellow("Default:"), def)
@@ -492,6 +496,11 @@ func takeWhat(q store.Event) string {
 
 // TakeText is the fixed answer for "take the recommendation or default".
 func TakeText(q store.Event) string {
+	if c, ok := desk.ChoicesOf(q); ok {
+		if text, all := c.Recommendations(); all {
+			return text
+		}
+	}
 	if def := desk.MetaString(q, "default"); def != "" && q.Level == "default" {
 		return "Go ahead with your default: " + def
 	}
@@ -639,7 +648,11 @@ func runEditor(path string) error {
 
 func (a *App) answerPrompt(d *desk.Desk, q store.Event) error {
 	comment := fmt.Sprintf("Answer to %s %q.", d.Display(q.ID), q.Title)
-	text, err := a.prompt(d, q.ID, "Answer "+d.Display(q.ID), comment, q.Body)
+	context := q.Body
+	if c, ok := desk.ChoicesOf(q); ok {
+		context += "\n\n" + c.Text() + "\n\nAnswer each by number and key, such as \"1. B  2. Other: ...\", with a note after any pick."
+	}
+	text, err := a.prompt(d, q.ID, "Answer "+d.Display(q.ID), comment, context)
 	if err != nil || text == "" {
 		return err
 	}

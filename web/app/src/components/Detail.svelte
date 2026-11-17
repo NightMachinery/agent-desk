@@ -1,5 +1,6 @@
 <script>
   import CopyIds from './CopyIds.svelte';
+  import Choices from './Choices.svelte';
   import { tip } from '../lib/shortcuts.js';
   import { route, href, go } from '../lib/route.svelte.js';
   import { post } from '../lib/api.js';
@@ -210,12 +211,15 @@
 
     {#if isQuestion && !item.answered}
       <section class="act">
+        {#if e.meta?.choices}
+          <Choices choices={e.meta.choices} send={(text) => answer(text)} />
+        {/if}
         <Composer
           id="answer-box"
-          label="Answer"
+          label={e.meta?.choices ? 'Or answer in your own words' : 'Answer'}
           placeholder="Type your answer…"
           sendLabel="Answer"
-          {quick}
+          quick={e.meta?.choices ? [] : quick}
           hint={item.target ? viaText(item.target) : ''}
           target={item.target}
           send={answer}

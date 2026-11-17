@@ -77,6 +77,8 @@ Agent side (only coordinators write; workers report to their parent):
   agent-desk join <run>/<role>[/<role>...] [--takeover] [--project P]
   agent-desk ask --blocked --title T                  <<'Q' ... Q
   agent-desk ask --default 'what you will do' --title T <<'Q' ... Q
+      ask also takes --choices FILE: multiple-choice questions as JSON,
+      {"questions": [{"text": "...", "options": ["...", "..."], "recommended": "B"}]}
   agent-desk tell [--notify] --title T                <<'R' ... R
   agent-desk tell --re <m-id|a-id> [--quiet] [--title T] <<'R' ... R
                                       respond to the user's message or answer
@@ -540,7 +542,7 @@ func (a *App) cmdJoin(args []string) error {
 }
 
 func (a *App) cmdAsk(args []string) error {
-	o, err := parse(args, []string{"blocked"}, append([]string{"default", "title", "project"}, attachOpts...), 0, 0)
+	o, err := parse(args, []string{"blocked"}, append([]string{"default", "title", "project", "choices"}, attachOpts...), 0, 0)
 	if err != nil {
 		return err
 	}
@@ -564,6 +566,20 @@ func (a *App) cmdAsk(args []string) error {
 			return usagef("--default needs the choice you will act on")
 		}
 		level, extra["default"] = "default", o.vals["default"]
+	}
+	if f := o.vals["choices"]; o.set["choices"] {
+		if !filepath.IsAbs(f) && a.Env.Cwd != "" {
+			f = filepath.Join(a.Env.Cwd, f)
+		}
+		b, err := os.ReadFile(f)
+		if err != nil {
+			return err
+		}
+		c, err := desk.ParseChoices(b)
+		if err != nil {
+			return usagef("%s: %v", o.vals["choices"], err)
+		}
+		extra["choices"] = c
 	}
 	if err := a.attach(o, extra); err != nil {
 		return err

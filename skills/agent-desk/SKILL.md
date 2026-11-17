@@ -72,6 +72,26 @@ with the id in the chat text:
   ahead with that choice unless told otherwise; say so in chat too.
 - One question per `ask`. Do not refile a question that is still open; check
   with `agent-desk show --mine`.
+- When several decisions are needed at once, file one `ask` with
+  `--choices FILE` instead of several asks (see below).
+
+**Choices.** `--choices FILE` adds multiple-choice
+questions, as many as needed (up to 30), each with 2 to 12 options:
+
+    {"questions": [
+      {"text": "Which split?", "options": ["Reuse the cached split",
+        {"key": "B", "label": "Regenerate", "detail": "an hour longer"}],
+       "recommended": "B"},
+      {"text": "Which seeds rerun?", "options": ["1-3", "4-5", "all"], "multi": true}]}
+
+An option is a label or `{key, label, detail}`; keys default to A, B, C.
+`multi` lets the user pick several. For each question the dashboard shows the
+options and one text field: a note on the pick, or the user's own answer when
+nothing is picked. The answer arrives as text, one line per question; act on each:
+
+    1. B: Regenerate. Note: keep the old cache
+    2. Other: only seed 7
+
 
 **Record every answer you receive in chat** (typed reply or a question tool),
 or the question stays open in the user's inbox:

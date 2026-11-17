@@ -62,6 +62,23 @@ Questions, with the context, options and recommendation on stdin:
 `--blocked` means the agent stops until answered. `--default 'A: reuse the
 cache'` means it continues on that choice unless told otherwise.
 
+**Several decisions at once.** `--choices FILE` adds multiple-choice
+questions, as many as needed (up to 30), each with 2 to 12 options:
+
+    {"questions": [
+      {"text": "Which split?", "options": ["Reuse the cached split",
+        {"key": "B", "label": "Regenerate", "detail": "an hour longer"}],
+       "recommended": "B"},
+      {"text": "Which seeds rerun?", "options": ["1-3", "4-5", "all"], "multi": true}]}
+
+An option is a label or `{key, label, detail}`; keys default to A, B, C.
+`multi` lets the user pick several. For each question the dashboard shows the
+options and one text field: a note on the pick, or the user's own answer when
+nothing is picked. The answer arrives as text, one line per question:
+
+    1. B: Regenerate. Note: keep the old cache
+    2. Other: only seed 7
+
 Mention the printed id (`q-7f3a`) when raising the question in chat. When the
 user answers in chat, record it, or the question stays open in the inbox:
 

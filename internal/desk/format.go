@@ -175,6 +175,9 @@ func (w *Writer) Question(level int, it Item) {
 		label, lvl, it.Age, w.hostTag(it.Event.Host)))
 	w.props("DESK_ID", it.ID, "DESK_PATH", it.Event.Path, "DESK_TS", it.Event.TS, "DESK_HOST", it.Event.Host)
 	w.Text(it.Event.Body)
+	if c, ok := ChoicesOf(it.Event); ok {
+		w.Text("Choices:\n" + c.Text())
+	}
 	w.Media(it.Event)
 	if def := MetaString(it.Event, "default"); def != "" {
 		w.Text("Default: " + def)
