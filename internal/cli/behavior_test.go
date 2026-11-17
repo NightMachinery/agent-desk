@@ -138,9 +138,6 @@ func TestBehaviors(t *testing.T) {
 
 func TestTmuxBehaviors(t *testing.T) {
 	h := newHarness(t)
-	saved := interruptSettle
-	interruptSettle = 0
-	t.Cleanup(func() { interruptSettle = saved })
 	h.tmux["%7"] = "work\tmain\t77"
 	envClaude := map[string]string{"AI_AGENT": "claude-code", "CLAUDE_CODE_SESSION_ID": sessB, "TMUX_PANE": "%7"}
 	h.ok(envClaude, "", "join", "r1/coord")
@@ -151,14 +148,14 @@ func TestTmuxBehaviors(t *testing.T) {
 		}
 		return "", nil
 	}
+	// Interrupting a pane is disabled: it is pasted as a steer, no Escape.
 	*h.calls = nil
 	h.ok(nil, "", "reply", tl, "--behavior", "interrupt", "stop")
 	all := strings.Join(*h.calls, "\n")
-	esc, paste := strings.Index(all, "send-keys -t %7 Escape"), strings.Index(all, "paste-buffer")
-	if esc < 0 || paste < esc {
+	if strings.Contains(all, "Escape") || !strings.Contains(all, "paste-buffer") {
 		t.Fatalf("interrupt in tmux: %q", *h.calls)
 	}
-	if m := lastDelivered(t, h); m["behavior"] != "interrupt" || m["disposition"] != "interrupted" {
+	if m := lastDelivered(t, h); m["behavior"] != "steer" || m["fallback"] != "interrupt unsupported in tmux" || m["disposition"] != "typed" {
 		t.Fatalf("tmux interrupt meta: %v", m)
 	}
 	*h.calls = nil
@@ -168,8 +165,5 @@ func TestTmuxBehaviors(t *testing.T) {
 	}
 	if m := lastDelivered(t, h); m["behavior"] != "steer" || m["fallback"] != "queue unsupported" || m["disposition"] != "typed" {
 		t.Fatalf("tmux queue meta: %v", m)
-	}
-	if !tmuxInterruptible("claude") || !tmuxInterruptible("codex") || tmuxInterruptible("agy") {
-		t.Fatal("tmuxInterruptible")
 	}
 }

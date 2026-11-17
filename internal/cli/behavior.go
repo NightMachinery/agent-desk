@@ -36,12 +36,6 @@ type Support struct {
 	Why       string `json:"why,omitempty"`
 }
 
-// tmuxInterrupts are the agents whose turn Escape cancels, leaving the
-// prompt ready for a paste.
-var tmuxInterrupts = map[string]bool{"claude": true, "codex": true}
-
-func tmuxInterruptible(agent string) bool { return tmuxInterrupts[agent] }
-
 // supports lists the three behaviours for a target reached via via.
 func (a *App) supports(via string, to ident.From) []Support {
 	out := make([]Support, 0, len(Behaviors))
@@ -52,8 +46,9 @@ func (a *App) supports(via string, to ident.From) []Support {
 			s.Supported, s.Why = false, "this Paseo cannot queue a message yet; it is sent as steer"
 		case b == "queue" && via == "tmux":
 			s.Supported, s.Why = false, "a tmux pane cannot hold a message until the turn ends; it is sent as steer"
-		case b == "interrupt" && via == "tmux" && !tmuxInterruptible(to.Agent):
-			s.Supported, s.Why = false, "interrupting is only known to work for Claude Code and Codex in tmux"
+		case b == "interrupt" && via == "tmux":
+			// Disabled by choice; the code is in disabled/tmux_interrupt.go.
+			s.Supported, s.Why = false, "a tmux pane is not interrupted; it is sent as steer"
 		case via == "none":
 			s.Supported, s.Why = false, "this session cannot be reached now"
 		}

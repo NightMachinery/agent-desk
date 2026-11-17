@@ -112,19 +112,6 @@ func (a *App) typeIntoPane(ctx context.Context, pane, text string) error {
 	return nil
 }
 
-// interruptPane cancels the running turn of Claude Code or Codex with
-// Escape, then waits for the prompt to come back before the paste.
-func (a *App) interruptPane(ctx context.Context, pane string) error {
-	if out, err := a.runExt(ctx, nil, "tmux", "send-keys", "-t", pane, "Escape"); err != nil {
-		return fmt.Errorf("tmux send-keys Escape: %v: %s", err, out)
-	}
-	time.Sleep(interruptSettle)
-	return nil
-}
-
-// interruptSettle is how long a cancelled turn takes to give the prompt back.
-var interruptSettle = 1500 * time.Millisecond
-
 var errUnreachable = errors.New("unreachable")
 
 // job is one message to type into a session: an answer to the question it
@@ -249,22 +236,16 @@ func (a *App) deliverOne(d *desk.Desk, j job) (receipt, error) {
 		switch {
 		case use == "queue":
 			use, fallback = "steer", "queue unsupported"
-		case use == "interrupt" && !tmuxInterruptible(f.Agent):
-			use, fallback = "steer", "interrupt unsupported for this agent in tmux"
+		case use == "interrupt":
+			// Disabled by choice; the code is in disabled/tmux_interrupt.go.
+			use, fallback = "steer", "interrupt unsupported in tmux"
 		}
 		err := a.sameTmuxSession(ctx, f)
-		if err == nil && use == "interrupt" {
-			err = a.interruptPane(ctx, f.TmuxPane)
-		}
 		if err == nil {
 			err = a.typeIntoPane(ctx, f.TmuxPane, text)
 		}
 		if err == nil {
-			disp := "typed"
-			if use == "interrupt" {
-				disp = "interrupted"
-			}
-			return receipt{Via: "tmux", Behavior: use, Disposition: disp, Fallback: fallback}, nil
+			return receipt{Via: "tmux", Behavior: use, Disposition: "typed", Fallback: fallback}, nil
 		}
 		reasons = append(reasons, err.Error())
 	}

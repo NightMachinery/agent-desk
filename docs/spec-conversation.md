@@ -151,9 +151,10 @@ Paseo:
   and sends nothing; treat that failure as unsupported and resend as steer.
 
 tmux: `steer` is the existing paste plus Enter (`typed`). `queue` is
-unsupported and falls back to steer. `interrupt` sends Escape, waits for the
-prompt, then pastes; the builder verifies this against Claude Code and Codex
-and marks it unsupported for any agent where it does not hold.
+unsupported and falls back to steer. `interrupt` is unsupported too and
+falls back to steer: the user decided on 2026-11-17 not to interrupt tmux
+panes. The Escape-then-paste code that did it is kept, out of the build, in
+`disabled/tmux_interrupt.go`.
 
 `deliver_command`: the payload gains `behavior`; the command may print one
 line of JSON with `disposition`.
@@ -395,4 +396,4 @@ still awaiting a response.
   from interrupts, not steers. A steer during a running tool lets the tool
   finish; a steer during an open permission prompt denies that prompt and
   the agent asks again.
-- tmux interrupt for each agent, to be verified by hand.
+- Settled 2026-11-17: no tmux interrupt (see Delivery above).

@@ -190,8 +190,8 @@ How it lands on a busy agent is its **behaviour**, chosen per message with
   help once per Paseo binary); elsewhere it is sent as steer, and the
   delivery records why.
 - `interrupt`: the running turn is cancelled first. Use it only to stop
-  work that is going wrong. In tmux this sends Escape before the paste, and
-  is offered only for Claude Code and Codex.
+  work that is going wrong. Only Paseo agents can be interrupted; a tmux
+  pane gets the message as a steer, and the delivery records why.
 
 A Paseo agent gets it through `paseo send` with the behaviour named. An agent in a tmux pane gets it pasted into that pane, but only while the
 pane still runs the same process and session. Anything else goes to
