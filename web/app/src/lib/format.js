@@ -18,6 +18,7 @@ export function agentName(a) {
 
 export function kindOf(item) {
   const e = item.event;
+  if (item.response) return 'response';
   if (e.kind === 'ask') return e.level === 'blocked' ? 'blocked' : 'default';
   if (e.kind === 'tell') return 'notice';
   if (e.kind === 'done') return 'done';
@@ -29,6 +30,7 @@ export const kindLabel = {
   blocked: 'Blocked',
   default: 'Has default',
   notice: 'Notice',
+  response: 'Response',
   done: 'Done',
   slot: 'Slot',
   answer: 'Answer',

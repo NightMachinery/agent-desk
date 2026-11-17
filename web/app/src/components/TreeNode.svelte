@@ -6,9 +6,10 @@
   let { node } = $props();
   const status = $derived(node.slots?.find((s) => s.name === 'status')?.event?.body || '');
   const kids = $derived(node.children ?? []);
-  // Unfold only the way to something that needs you.
+  // Unfold only the way to something that needs you, or, in a search, to
+  // every match (the server keeps only matches and their ancestors).
   let open = $state(null);
-  const shown = $derived(open ?? (node.state === 'waiting on you' || node.depth === 1));
+  const shown = $derived(open ?? (!!route.q || node.state === 'waiting on you' || node.depth === 1));
   const label = $derived(
     node.state === 'active' || node.state === 'quiet' ? `${node.state} ${node.age}` : node.state,
   );

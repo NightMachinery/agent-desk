@@ -61,3 +61,17 @@ export async function markSelected(read, onchange, qs = 0) {
     toast(err.message, 'error');
   }
 }
+
+/** Pins (or unpins) the selected items. */
+export async function pinSelected(pin, onchange) {
+  const targets = [...sel.ids];
+  if (!targets.length) return;
+  try {
+    await post(pin ? 'pin' : 'unpin', { targets });
+    toast(`${targets.length} ${targets.length === 1 ? 'item' : 'items'} ${pin ? 'pinned' : 'unpinned'}.`, 'ok');
+    clear();
+    onchange();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}

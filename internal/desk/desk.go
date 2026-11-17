@@ -328,6 +328,9 @@ type Group struct {
 	Items   []Item `json:"items"`
 }
 
+// Item is e as a list item, with everything the views show about it.
+func (d *Desk) Item(e store.Event) Item { return d.item(e) }
+
 func (d *Desk) item(e store.Event) Item {
 	_, _, rest := Split(e.Path)
 	it := Item{Event: e, ID: d.Display(e.ID), Label: rest, Age: Age(d.Now.Sub(Time(e))), Unread: d.unread[e.ID],

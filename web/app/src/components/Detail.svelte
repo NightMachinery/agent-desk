@@ -6,6 +6,8 @@
   import { agentName, copy, kindLabel, kindOf, sessionOf, short, titleOf, viaText } from '../lib/format.js';
   import Composer from './Composer.svelte';
   import Markdown from './Markdown.svelte';
+  import Icon from './Icon.svelte';
+  import { autoRead, position, step } from '../lib/nav.svelte.js';
 
   let { item, error, onchange } = $props();
 
@@ -24,6 +26,29 @@
         ? [{ label: 'Go with the default', text: `Go ahead with your default: ${item.default}` }]
         : [{ label: 'Take your recommendation', text: 'Take your recommendation.' }],
   );
+
+  // Opening an item reads it. Not a question: reading one dismisses it.
+  $effect(() => {
+    if (!it || isQuestion || !it.unread || autoRead.has(e.id)) return;
+    autoRead.add(e.id);
+    post('read', { target: it.display_id })
+      .then(onchange)
+      .catch(() => autoRead.delete(e.id));
+  });
+
+  const prevId = $derived(step(-1, route.item));
+  const nextId = $derived(step(1, route.item));
+  const pos = $derived(position(route.item));
+
+  async function pin(on) {
+    try {
+      await post(on ? 'pin' : 'unpin', { id: it.display_id });
+      toast(on ? 'Pinned to the top.' : 'Unpinned.', 'ok');
+      onchange();
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  }
 
   function report(res, what) {
     toast(res.note ? `${what}. ${res.note}` : `${what}.`, res.note && /not delivered|merge/.test(res.note) ? 'info' : 'ok', res.note ? 7000 : 3000);
@@ -58,6 +83,7 @@
           'ok',
           5000,
         );
+      else toast(read ? 'Marked read.' : 'Marked unread.', 'ok');
       onchange();
     } catch (err) {
       toast(err.message, 'error');
@@ -87,6 +113,14 @@
       {#if it.dismissed}<span class="chip">Dismissed</span>{/if}
       {#if it.unread}<span class="chip default">Unread</span>{/if}
       <span class="spacer"></span>
+      <button class="btn ghost small iconbtn" class:on={it.pinned} aria-pressed={it.pinned} title={it.pinned ? 'Unpin' : 'Pin to the top'} onclick={() => pin(!it.pinned)}
+        ><Icon name="pin" /></button
+      >
+      {#if !isQuestion}
+        <button class="btn ghost small iconbtn" title={it.unread ? 'Mark read' : 'Mark unread'} aria-label={it.unread ? 'Mark read' : 'Mark unread'} onclick={() => mark(!!it.unread)}
+          ><Icon name={it.unread ? 'read' : 'unread'} /></button
+        >
+      {/if}
       <button class="btn ghost small mono" title="Copy a link to this item" onclick={() => copyText(location.href, 'Link')}>{it.display_id}</button>
     </div>
 
@@ -96,7 +130,7 @@
       <nav class="crumbs">
         {#each crumbs as c, i (c.path)}
           {#if i}<span class="faint">/</span>{/if}
-          <a href={href({ path: c.path, item: route.item })}>{c.name}</a>
+          <a href={href({ path: c.path, item: '', session: '', q: '' })} title={`Show ${c.path}`}>{c.name}</a>
         {/each}
       </nav>
       <span class="faint">·</span>
@@ -114,6 +148,12 @@
       {/if}
     </div>
 
+    {#if it.response && it.asked}
+      <div class="asked">
+        <div class="asked-label">{it.asked_via === 'answer' ? 'Your answer' : 'You asked'}{it.asked_via === 'chat' ? ' in chat' : ''}</div>
+        <Markdown text={it.asked} />
+      </div>
+    {/if}
     {#if e.body}<Markdown class="body" text={e.body} />{/if}
 
     {#if item.default}
@@ -188,22 +228,73 @@
           <button class="btn small" title="Hide it from Needs you without answering. It stays open, and Show all still lists it." onclick={() => mark(true)}>Dismiss without answering</button>
         {/if}
       {/if}
-      {#if !isQuestion}
-        {#if it.unread}
-          <button class="btn small" onclick={() => mark(true)}>Mark read</button>
-        {:else}
-          <button class="btn small" onclick={() => mark(false)}>Mark unread</button>
-        {/if}
-      {/if}
-      <a class="btn small" href={href({ path: item.node, item: '' })}>Open {item.node.split('/').slice(-1)[0]}</a>
+      <a class="btn small" href={href({ path: item.node, item: '', session: '', q: '' })}>Open {item.node.split('/').slice(-1)[0]}</a>
     </div>
+
+    <nav class="stepper" aria-label="Previous and next">
+      <button class="btn small" disabled={!prevId} onclick={() => go({ item: prevId }, { replace: true })}><Icon name="prev" size={14} /> Previous</button>
+      <span class="faint pos">{pos.at ? `${pos.at} of ${pos.of}` : ''}</span>
+      <button class="btn small" disabled={!nextId} onclick={() => go({ item: nextId }, { replace: true })}>Next <Icon name="next" size={14} /></button>
+    </nav>
   </article>
 {/if}
 
 <style>
   .pad {
-    padding: max(12px, env(safe-area-inset-top)) 24px calc(40px + env(safe-area-inset-bottom));
+    padding: max(12px, env(safe-area-inset-top)) 24px 0;
     max-width: 820px;
+  }
+  article.pad {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+    box-sizing: border-box;
+  }
+  .iconbtn {
+    padding: 0 7px;
+    color: var(--muted);
+  }
+  .iconbtn.on {
+    color: var(--accent);
+  }
+  .asked {
+    margin-top: 16px;
+    padding: 8px 12px;
+    border-left: 3px solid var(--response);
+    background: var(--response-soft);
+    border-radius: 0 8px 8px 0;
+    font-size: 13.5px;
+  }
+  .asked-label {
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--response);
+    margin-bottom: 2px;
+  }
+  .stepper {
+    position: sticky;
+    bottom: 0;
+    margin-top: auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 0 max(10px, env(safe-area-inset-bottom));
+    background: color-mix(in srgb, var(--panel) 92%, transparent);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-top: 1px solid var(--line);
+    z-index: 3;
+  }
+  .stepper .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .pos {
+    font-size: 12.5px;
   }
   .toolbar {
     display: flex;
@@ -335,7 +426,7 @@
   .foot {
     display: flex;
     gap: 8px;
-    margin-top: 26px;
+    margin: 26px 0 28px;
   }
   .skeleton {
     height: 160px;

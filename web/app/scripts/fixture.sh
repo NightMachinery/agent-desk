@@ -20,7 +20,6 @@ s() { CLAUDE_CODE_SESSION_ID="00000000-0000-4000-8000-00000000000${1}" "${@:2}" 
 cd ${root}/example-proj
 s 1 ${B} join rerun-nov/coord >/dev/null
 s 1 ${B} set status 'Seeds 3/5 done. ETA 14:00.' >/dev/null
-s 1 ${B} set findings $'Seed 2 diverges at step 400.\nSeeds 1 and 3 match the baseline within 0.2%.' >/dev/null
 s 1 ${B} set next $'Finish seeds 4 and 5.\nWrite the comparison table.' >/dev/null
 s 1 ${B} ask --blocked --title 'Which split for the rerun?' >/dev/null <<'Q'
 The rerun needs a train/test split, and the cached one predates the
@@ -40,6 +39,11 @@ s 3 ${B} set artifacts $'/tmp/example/plots/loss-seed2.png\n/tmp/example/plots/l
 s 2 ${B} tell --title 'Seed 2 diverged: bad shard' >/dev/null <<'R'
 Shard 17 has duplicated rows; seed 2 drew it. Re-running without it.
 R
+s 1 ${B} tell --re-chat 'Is the rerun still on track for 14:00?' >/dev/null <<'R'
+**Yes, about 14:10.** Seed 2 lost twenty minutes to a bad shard; the rest are on pace.
+R
+findings=$(cd ${root}/example-proj && s 1 ${B} set findings $'Seed 2 diverges at step 400.\nSeeds 1 and 3 match the baseline within 0.2%.')
+${B} pin ${findings} >/dev/null
 cd ${root}/site
 s 4 ${B} join adhoc/deploy >/dev/null
 s 4 ${B} set status 'Waiting on DNS.' >/dev/null

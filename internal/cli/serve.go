@@ -392,7 +392,14 @@ func (s *server) apiView(w http.ResponseWriter, r *http.Request) {
 	query := strings.TrimSpace(q.Get("q"))
 	if query != "" {
 		v.NeedsYou = searchGroups(d, v.NeedsYou, query)
+		v.Responses = searchGroups(d, v.Responses, query)
 		v.New = searchGroups(d, v.New, query)
+		pinned := []desk.Item{}
+		for _, g := range searchGroups(d, []desk.Group{{Items: v.Pinned}}, query) {
+			pinned = g.Items
+		}
+		v.Pinned = pinned
+		v.Runs = searchTree(v.Runs, strings.ToLower(query), nodeSessions(d))
 	}
 	resp := viewResponse{
 		Host: d.Host, Stamp: stamp, Path: f.Prefix, View: v,
@@ -445,7 +452,8 @@ func searchGroups(d *desk.Desk, gs []desk.Group, query string) []desk.Group {
 		var items []desk.Item
 		for _, it := range g.Items {
 			e := it.Event
-			hay := strings.ToLower(it.ID + "\n" + e.Path + "\n" + e.Title + "\n" + e.Body)
+			f := fromOf(e)
+			hay := strings.ToLower(it.ID + "\n" + e.Path + "\n" + e.Title + "\n" + e.Body + "\n" + f.Session + "\n" + f.Paseo)
 			if strings.Contains(hay, query) {
 				items = append(items, it)
 			}
@@ -453,6 +461,38 @@ func searchGroups(d *desk.Desk, gs []desk.Group, query string) []desk.Group {
 		if len(items) > 0 {
 			g.Items = items
 			out = append(out, g)
+		}
+	}
+	return out
+}
+
+// nodeSessions maps each node to the ids of the sessions that joined it
+// (native session ids and Paseo agent ids), lowercased, one per line.
+func nodeSessions(d *desk.Desk) map[string]string {
+	m := map[string]string{}
+	for _, e := range d.Events {
+		if e.Kind == "join" {
+			f := fromOf(e)
+			m[e.Path] += strings.ToLower(f.Session + "\n" + f.Paseo + "\n")
+		}
+	}
+	return m
+}
+
+// searchTree keeps the nodes whose path, or the id of a session that joined
+// them, matches, with their ancestors, so a search finds a project, run or
+// agent in the tree, also by its Paseo or session id.
+func searchTree(nodes []*desk.Node, query string, sessions map[string]string) []*desk.Node {
+	out := []*desk.Node{}
+	for _, n := range nodes {
+		if strings.Contains(strings.ToLower(n.Path), query) || strings.Contains(sessions[n.Path], query) {
+			out = append(out, n)
+			continue
+		}
+		if kids := searchTree(n.Children, query, sessions); len(kids) > 0 {
+			c := *n
+			c.Children = kids
+			out = append(out, &c)
 		}
 	}
 	return out
@@ -578,9 +618,8 @@ func (s *server) apiItem(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, http.StatusNotFound, err.Error())
 		return
 	}
-	_, _, rest := desk.Split(e.Path)
-	it := desk.Item{Event: e, ID: d.Display(e.ID), Label: rest, Age: desk.Age(d.Now.Sub(desk.Time(e))), Unread: d.Unread(e.ID),
-		Dismissed: d.Dismissed(e.ID) && isOpen(d, e.ID)}
+	it := d.Item(e)
+	it.Dismissed = d.Dismissed(e.ID) && isOpen(d, e.ID)
 	for i := range d.Questions {
 		if d.Questions[i].ID == e.ID {
 			q := d.Questions[i]

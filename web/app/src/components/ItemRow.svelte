@@ -2,6 +2,7 @@
   import { route, href } from '../lib/route.svelte.js';
   import { kindOf, kindLabel, titleOf } from '../lib/format.js';
   import { previewLine } from '../lib/md.js';
+  import Icon from './Icon.svelte';
   import { desk } from '../lib/desk.svelte.js';
   import { sel, toggle, selecting } from '../lib/select.svelte.js';
 
@@ -80,9 +81,13 @@
   <div class="line1">
     <span class="chip {kind}">{kind === 'slot' ? 'Slot' : kindLabel[kind]}</span>
     <span class="title">{titleOf(item)}</span>
+    {#if item.pinned}<span class="pin" title="Pinned"><Icon name="pin" size={13} /></span>{/if}
     {#if item.dismissed}<span class="chip">Dismissed</span>{/if}
     {#if item.unread}<span class="new" title="Unread"></span>{/if}
   </div>
+  {#if item.response && item.asked}
+    <div class="asked">{item.asked_via === 'answer' ? 'Your answer' : 'You asked'}{item.asked_via === 'chat' ? ' in chat' : ''}: {previewLine(item.asked)}</div>
+  {/if}
   {#if preview && kind !== 'slot'}
     <div class="preview">{preview}</div>
   {:else if kind === 'slot'}
@@ -162,7 +167,8 @@
     background: var(--default-soft);
     border-color: color-mix(in srgb, var(--default) 45%, var(--line));
   }
-  .row.blocked::before {
+  .row.blocked::before,
+  .row.response::before {
     content: '';
     position: absolute;
     left: -1px;
@@ -171,6 +177,22 @@
     width: 3px;
     border-radius: 0 3px 3px 0;
     background: var(--blocked);
+  }
+  .row.response::before {
+    background: var(--response);
+  }
+  .pin {
+    color: var(--muted);
+    display: inline-flex;
+    flex: none;
+  }
+  .asked {
+    margin-top: 4px;
+    font-size: 12.5px;
+    color: var(--response);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .line1 {
     display: flex;

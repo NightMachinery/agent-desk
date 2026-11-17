@@ -5,7 +5,8 @@
   import ItemRow from './ItemRow.svelte';
   import TreeNode from './TreeNode.svelte';
   import NodePanel from './NodePanel.svelte';
-  import { sel, toggleAll, clear, prune, markSelected, selecting } from '../lib/select.svelte.js';
+  import { sel, toggleAll, clear, prune, markSelected, pinSelected, selecting } from '../lib/select.svelte.js';
+  import { snapshot } from '../lib/nav.svelte.js';
 
   let { view, error, onmenu, onchange } = $props();
 
@@ -23,12 +24,19 @@
   }
   const needs = $derived(route.old ? (view?.view?.needs_you ?? []) : recent(view?.view?.needs_you ?? [], true));
   const fresh = $derived(route.old ? (view?.view?.new ?? []) : recent(view?.view?.new ?? [], false));
+  const responses = $derived(route.old ? (view?.view?.responses ?? []) : recent(view?.view?.responses ?? [], false));
+  const pinned = $derived(view?.view?.pinned ?? []);
   const runs = $derived(view?.view?.runs ?? []);
   const count = (gs) => gs.reduce((n, g) => n + g.items.length, 0);
   const idsOf = (gs) => gs.flatMap((g) => g.items.map((it) => it.display_id));
   const needIds = $derived(idsOf(needs));
   const freshIds = $derived(idsOf(fresh));
-  const allIds = $derived([...needIds, ...freshIds]);
+  const responseIds = $derived(idsOf(responses));
+  const pinnedIds = $derived(pinned.map((it) => it.display_id));
+  const allIds = $derived([...new Set([...pinnedIds, ...needIds, ...responseIds, ...freshIds])]);
+  // Previous and next walk the list in the order shown.
+  $effect(() => snapshot(allIds, route.item));
+  const pickedPinned = $derived(pinnedIds.filter((x) => sel.ids.has(x)).length);
   const allOn = (ids) => ids.length > 0 && ids.every((x) => sel.ids.has(x));
   $effect(() => prune(allIds));
   const picked = $derived(sel.ids.size);
@@ -64,7 +72,7 @@
   <div class="filters">
     <label class="search">
       <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" stroke-width="1.6" /><path d="m11 11 3.5 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" /></svg>
-      <input id="search" type="search" placeholder="Search questions and notices" bind:value={q} oninput={onsearch} autocomplete="off" />
+      <input id="search" type="search" placeholder="Search items and runs" bind:value={q} oninput={onsearch} autocomplete="off" />
     </label>
     <a class="btn small toggle" class:on={route.all} href={href({ all: !route.all, item: '' })} title="Include read items and finished runs">
       {route.all ? 'Showing all' : 'Show all'}
@@ -117,6 +125,13 @@
       <div class="phone-node"><NodePanel node={view.node} target={view.target} {onchange} compact /></div>
     {/if}
 
+    {#if pinned.length}
+      <h2 class="section-title">Pinned <span class="count">{pinned.length}</span></h2>
+      <div class="rows">
+        {#each pinned as it (it.event.id)}<ItemRow item={it} />{/each}
+      </div>
+    {/if}
+
     <h2 class="section-title">
       Needs you {#if count(needs)}<span class="count hot">{count(needs)}</span>{/if}
       {#if needIds.length > 1}<button class="pick" onclick={() => toggleAll(needIds)}>{allOn(needIds) ? 'Deselect' : 'Select all'}</button>{/if}
@@ -129,6 +144,19 @@
     {:else}
       <div class="empty">Nothing is waiting on you{route.q ? ' that matches' : ''}.</div>
     {/each}
+
+    {#if responses.length}
+      <h2 class="section-title">
+        Responses to you <span class="count response">{count(responses)}</span>
+        {#if responseIds.length > 1}<button class="pick" onclick={() => toggleAll(responseIds)}>{allOn(responseIds) ? 'Deselect' : 'Select all'}</button>{/if}
+      </h2>
+      {#each responses as g (g.project + '/' + g.run)}
+        {@render groupHead(g)}
+        <div class="rows">
+          {#each g.items as it (it.event.id)}<ItemRow item={it} />{/each}
+        </div>
+      {/each}
+    {/if}
 
     <h2 class="section-title">
       {route.all ? 'Notices and slots' : 'New'} {#if count(fresh)}<span class="count">{count(fresh)}</span>{/if}
@@ -143,15 +171,15 @@
       <div class="empty">{route.all ? 'No notices here.' : 'All read.'}</div>
     {/each}
 
-    {#if !route.q}
-      <h2 class="section-title">Runs</h2>
-      {#if runs.length}
-        <div class="tree">
-          {#each runs as n (n.path)}<TreeNode node={n} />{/each}
-        </div>
-      {:else}
-        <div class="empty">No runs{route.all ? '' : ' with anything to show; Show all includes finished ones'}.</div>
-      {/if}
+    <h2 class="section-title">Runs</h2>
+    {#if runs.length}
+      <div class="tree">
+        {#each runs as n (n.path)}<TreeNode node={n} />{/each}
+      </div>
+    {:else if route.q}
+      <div class="empty">No project, run or agent matches{route.all ? '' : '; Show all includes finished runs'}.</div>
+    {:else}
+      <div class="empty">No runs{route.all ? '' : ' with anything to show; Show all includes finished ones'}.</div>
     {/if}
   {/if}
 </div>
@@ -161,6 +189,9 @@
     <button class="btn small ghost x" aria-label="Clear the selection" title="Clear (Esc)" onclick={clear}>✕</button>
     <span class="n">{#if !picked}Tap items to select them{:else}<strong>{picked}</strong> selected{/if}{pickedQuestions ? ` · ${pickedQuestions} ${pickedQuestions === 1 ? 'question' : 'questions'} to dismiss` : ''}</span>
     {#if !allOn(allIds)}<button class="btn small ghost" onclick={() => toggleAll(allIds)}>All {allIds.length}</button>{/if}
+    <button class="btn small" disabled={!picked} onclick={() => pinSelected(pickedPinned < picked, onchange)}
+      >{picked && pickedPinned === picked ? 'Unpin' : 'Pin'}</button
+    >
     <button class="btn small" disabled={!picked} onclick={() => markSelected(false, onchange)}>Mark unread</button>
     <button
       disabled={!picked}

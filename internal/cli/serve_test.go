@@ -324,3 +324,25 @@ func TestServeBrandedManifest(t *testing.T) {
 		t.Fatalf("served: %d %v %s", code, hdr, body)
 	}
 }
+
+func TestSearchRunsBySession(t *testing.T) {
+	h := newHarness(t)
+	const uuid = "b155c02a-0000-4000-8000-000000000009"
+	writePaseoRecord(t, h.paseo, uuid, sessA, "", "Rerun coordinator")
+	h.ok(map[string]string{"AI_AGENT": "claude-code", "CLAUDE_CODE_SESSION_ID": sessA, "PASEO_AGENT_ID": uuid}, "", "join", "r1/coord")
+	h.ok(h.as(sessB), "", "join", "r2/coord")
+	_, hd := testServer(t, h)
+	for q, want := range map[string]string{uuid: "example-proj/r1/coord", "b155c02a": "example-proj/r1/coord", "r2": "example-proj/r2/coord", sessB[:13]: "example-proj/r2/coord"} {
+		_, body, _ := do(t, hd, "GET", "/api/view?all=1&q="+q, "", nil)
+		if !strings.Contains(body, `"path":"`+want+`"`) {
+			t.Fatalf("q=%s: %s not found in %s", q, want, body)
+		}
+		other := "example-proj/r2/coord"
+		if want == other {
+			other = "example-proj/r1/coord"
+		}
+		if strings.Contains(body, `"path":"`+other+`"`) {
+			t.Fatalf("q=%s also kept %s", q, other)
+		}
+	}
+}

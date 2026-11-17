@@ -4,6 +4,7 @@
   import { toasts } from './lib/toast.svelte.js';
   import { desk } from './lib/desk.svelte.js';
   import { sel, toggle, clear } from './lib/select.svelte.js';
+  import { step } from './lib/nav.svelte.js';
   import Sidebar from './components/Sidebar.svelte';
   import ListPane from './components/ListPane.svelte';
   import Detail from './components/Detail.svelte';
@@ -103,12 +104,10 @@
     } else if ((e.key === 'x' || e.key === 'X') && route.item && document.querySelector(`[data-item="${CSS.escape(route.item)}"]`)) {
       toggle(route.item, e.shiftKey);
     } else if (e.key === 'j' || e.key === 'k') {
-      const rows = /** @type {HTMLElement[]} */ ([...document.querySelectorAll('[data-item]')]);
-      if (!rows.length) return;
-      const i = rows.findIndex((r) => r.dataset.item === route.item);
-      const n = e.key === 'j' ? Math.min(rows.length - 1, i + 1) : Math.max(0, i < 0 ? 0 : i - 1);
-      go({ item: rows[n].dataset.item }, { replace: true });
-      rows[n].scrollIntoView({ block: 'nearest' });
+      const id = step(e.key === 'j' ? 1 : -1, route.item);
+      if (!id) return;
+      go({ item: id }, { replace: true });
+      document.querySelector(`[data-item="${CSS.escape(id)}"]`)?.scrollIntoView({ block: 'nearest' });
     } else if (e.key === 'r' || e.key === 'a') {
       const el = document.getElementById(e.key === 'a' ? 'answer-box' : 'reply-box');
       if (el) {
