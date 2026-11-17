@@ -38,7 +38,7 @@ All settled with the user on 2026-11-15.
 - Store: SQLite, one append-only `events` table as the only source of truth.
 - All commands are one Go program.
 - Surfaces, in order: terminal, then an HTML app served by the tool on each
-  machine. Emacs commands and a Paseo plugin come later.
+  machine. Emacs commands (emacs/agent-desk.el) and a Paseo plugin are phase 8.
 - Only coordinators write. Workers report to their parent.
 - One board per project; paths are hierarchical; agent segments are role
   slugs, not agent ids.
@@ -547,7 +547,11 @@ One atomic commit group each. Stop after each phase and run its check.
    also checks the `Host` header against DNS rebinding. `serve --listen`
    takes `HOST:PORT` or `unix:PATH`; `GET /api/health` answers `ok`.
 8. **Later, each needing the user's go-ahead:**
-   - Emacs commands on rendered headings.
+   - Emacs commands on rendered headings. Built 2026-11-17 as
+     `emacs/agent-desk.el`: a minor mode in the render directory's files
+     (read-only, auto-revert) with the dashboard's keys in evil's normal
+     state and under `C-c C-d`; answers and messages go through a compose
+     buffer and the CLI's stdin (docs/usage.md, "In Emacs").
    - An `instruction` event kind, written by a prompt hook that copies each
      message the user sends to a coordinator, verbatim, replacing the
      hand-kept verbatim file. The user approved this hook (it records the

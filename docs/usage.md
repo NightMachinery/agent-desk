@@ -316,6 +316,35 @@ about a slot) is a top-level `MSG` heading with its responses under it. The
 files are rendered at each write, so a `:no_response:` tag appears at the
 first write after the 15 minutes. `agent-desk render` re-renders by hand.
 
+### In Emacs
+
+[emacs/agent-desk.el](../emacs/agent-desk.el) acts on the item at point in
+these files. Load it (`(load "/path/to/agent-desk/emacs/agent-desk.el")`) and
+every file under the render directory opens read-only, with
+`agent-desk-org-mode` on: it reverts the file when the desk changes and
+binds, in evil's normal state, the dashboard's keys:
+
+- `a` answer the question (`t` takes its default or recommendation, after
+  asking you to confirm);
+- `r` message the item's agent, or on a node heading the node's
+  coordinator;
+- `d` mark read (on a question, dismiss it), `U` mark unread, `p` pin or
+  unpin (an item under Pinned is unpinned; `C-u p` always unpins);
+- `o` open it as a notification click would (`open_command`);
+- `gr` render the desk again.
+
+Without evil the same commands are under `C-c C-d` (`C-c C-d a`, and so on),
+plus `C-c C-d y` to copy the id and `C-c C-d i` for the inbox. An answer or a
+message is written in a compose buffer below the item: `C-c C-c` or `ZZ`
+sends, `C-c C-k` or `ZQ` cancels, and a prefix argument (`C-u a`, or
+`C-u C-c C-c`) asks how to deliver it (steer, queue or interrupt). A
+multiple-choice question opens with one line per question, `N. KEY`, filled
+with the recommendation where there is one: write the key or keys (`2. A, C`),
+words after them as a note (`1. B keep the seed`), or your own words instead
+(`1. neither, ask me later`). Lines without a number go along as a general
+message. The tests are in `emacs/agent-desk-test.el`; `go test ./...` runs
+them when Emacs is installed.
+
 ### The web dashboard
 
     agent-desk serve                          # http://127.0.0.1:7740/

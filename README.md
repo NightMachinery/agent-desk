@@ -41,7 +41,8 @@ rendered org files, notifications on the desktop and the phone (taken back
 once you have read the item), answer delivery and merging stores (by file or
 over ssh), done reports filed when a session ends, the agent skill, and a web
 dashboard (`agent-desk serve`) that is also usable entirely from the
-keyboard. From the desk you can message any agent; the message reaches its
+keyboard. In Emacs, [emacs/agent-desk.el](emacs/agent-desk.el) answers,
+marks and pins items from the rendered org files. From the desk you can message any agent; the message reaches its
 session (steered into the running turn, or queued until it ends), and the
 agent's response comes back to the desk as part of the conversation.
 Settings (`agent-desk pref`, or the dashboard) choose how messages are
