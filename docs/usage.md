@@ -75,6 +75,26 @@ Notices and reports:
 
 `--notify` asks for a notification.
 
+A message from the user arrives in your session as
+
+    Message m-4c2d from the user via agent-desk, about t-k2m9 "Deploy finished": check the old feed too
+    (Respond on the desk: agent-desk tell --re m-4c2d)
+
+The user may not be watching the chat, so act on it and respond on the desk,
+even with one line:
+
+    agent-desk tell --re m-4c2d <<'R'
+    Done; the old feed is fine.
+    R
+
+The response is a notice titled "Re: Deploy finished" (`--title` overrides
+it) that sits in the item's thread. `--quiet` marks a bare acknowledgement.
+You may respond to a message sent to your node, or to an answer to one of
+your questions; anything else is refused. A message with no response 15
+minutes after it was delivered is flagged "no response yet", and
+`show --mine` lists every message still awaiting your response.
+`agent-desk whoami` prints the node this session writes to.
+
 When a session ends, its summary goes on stdin:
 
     agent-desk done --title 'Rerun finished' --report ~/reports/rerun.org <<'S'
@@ -130,10 +150,11 @@ not write anyway.
     agent-desk answer q-7f3a 'B'             # record it and type it into the asking session
     agent-desk reply t-k2m9 'Check the old feed too'      # message the session behind an item
     agent-desk reply example-proj/rerun-nov/coord 'Pause after seed 4'   # or a node's coordinator
-    agent-desk read t-k2m9                   # mark one item read
+    agent-desk read t-k2m9                   # mark one item read, with the responses in its thread
     agent-desk read example-proj/rerun-nov   # mark everything under a node read
     agent-desk read q-7f3a                   # dismiss a question without answering it
     agent-desk read t-k2m9 s-p4d1            # several at once
+    agent-desk read m-4c2d                   # clear a message's "no response yet" flag
     agent-desk unread t-k2m9                 # undo a read mark or a dismissal
     agent-desk search cache
 
@@ -148,7 +169,8 @@ A Paseo agent gets it through `paseo send --behavior steer`: a busy agent
 reads it within its current turn, which carries on uninterrupted. An agent in a tmux pane gets it pasted into that pane, but only while the
 pane still runs the same process and session. Anything else goes to
 `deliver_command` if you configured one. A reply travels the same way, as
-`Message from the user via agent-desk, about t-k2m9 "Deploy finished": ...`.
+`Message m-4c2d from the user via agent-desk, about t-k2m9 "Deploy finished": ...`,
+followed by the command that responds to it (see the agent side above).
 When the session cannot be reached,
 the answer stays recorded and undelivered, the command prints how to resume
 the session, and `agent-desk deliver` tries again later. A question asked on

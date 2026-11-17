@@ -54,14 +54,50 @@ func replyTarget(d *desk.Desk, token string) (to ident.From, host, node string, 
 	return to, host, node, about, nil
 }
 
-// ReplyText is the prompt typed into the session.
+// ReplyText is the prompt typed into the session. It names the message's
+// own id and the command that responds to it, so the response links without
+// the agent having to remember the skill.
 func ReplyText(d *desk.Desk, reply store.Event) string {
+	id := d.Display(reply.ID)
+	about := "to " + reply.Path
 	if reply.Ref != "" {
-		about := d.ByID[reply.Ref]
-		return fmt.Sprintf("Message from the user via agent-desk, about %s \"%s\": %s",
-			d.Display(about.ID), about.Title, reply.Body)
+		r := d.ByID[reply.Ref]
+		about = fmt.Sprintf("about %s \"%s\"", d.Display(r.ID), r.Title)
 	}
-	return fmt.Sprintf("Message from the user via agent-desk, to %s: %s", reply.Path, reply.Body)
+	return fmt.Sprintf("Message %s from the user via agent-desk, %s: %s\n(Respond on the desk: agent-desk tell --re %s)",
+		id, about, reply.Body, id)
+}
+
+// respondsTo checks that a response from node may refer to e: a message to
+// this node, or an answer to one of this node's questions. It returns the
+// default title of the response.
+func respondsTo(d *desk.Desk, e store.Event, node string) (string, error) {
+	shown := d.Display(e.ID)
+	switch e.Kind {
+	case "reply":
+		if e.Path != node {
+			return "", fmt.Errorf("%s is a message to %s, not to this session's node %s", shown, e.Path, node)
+		}
+	case "answer":
+		q := d.ByID[e.Ref]
+		if desk.NodeOf(q) != node {
+			return "", fmt.Errorf("%s answers a question of %s, not of this session's node %s", shown, desk.NodeOf(q), node)
+		}
+	default:
+		return "", fmt.Errorf("%s is a %s; tell --re takes a message (m-...) or an answer (a-...) sent to you", shown, e.Kind)
+	}
+	if root, ok := d.Root(e); ok {
+		title := root.Title
+		if root.Kind == "set" {
+			title = desk.SlotName(root)
+		}
+		return "Re: " + title, nil
+	}
+	line := strings.TrimSpace(strings.SplitN(strings.TrimSpace(e.Body), "\n", 2)[0])
+	if r := []rune(line); len(r) > 60 {
+		line = string(r[:59]) + "…"
+	}
+	return "Re: " + line, nil
 }
 
 func (a *App) cmdReply(args []string) error {

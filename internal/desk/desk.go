@@ -46,6 +46,7 @@ type Desk struct {
 	Questions []store.Question
 	unread    map[string]bool
 	dismissed map[string]bool // questions marked read: open, but out of Needs you
+	marked    map[string]bool // events whose latest read mark stands
 	slots     []store.Event   // slot_current minus clears
 }
 
@@ -90,14 +91,18 @@ func Load(s *store.Store, host string, now time.Time) (*Desk, error) {
 	// read_current view; events arrive in id order.
 	last := map[string]bool{}
 	for _, e := range evs {
-		if e.Kind == "read" && d.ByID[e.Ref].Kind == "ask" {
+		if e.Kind == "read" {
 			last[e.Ref] = Meta(e)["cancel"] != true
 		}
 	}
 	d.dismissed = map[string]bool{}
+	d.marked = map[string]bool{}
 	for id, on := range last {
 		if on {
-			d.dismissed[id] = true
+			d.marked[id] = true
+			if d.ByID[id].Kind == "ask" {
+				d.dismissed[id] = true
+			}
 		}
 	}
 	return d, nil
@@ -246,6 +251,8 @@ type Item struct {
 	Unread   bool            `json:"unread"`
 	// Dismissed: an open question marked read, shown only with Filter.All.
 	Dismissed bool `json:"dismissed,omitempty"`
+	// NoResponse: a message delivered NoResponseAfter ago with no response.
+	NoResponse bool `json:"no_response,omitempty"`
 }
 
 // Group is the items of one project and run.
@@ -257,7 +264,8 @@ type Group struct {
 
 func (d *Desk) item(e store.Event) Item {
 	_, _, rest := Split(e.Path)
-	return Item{Event: e, ID: d.Display(e.ID), Label: rest, Age: Age(d.Now.Sub(Time(e))), Unread: d.unread[e.ID]}
+	return Item{Event: e, ID: d.Display(e.ID), Label: rest, Age: Age(d.Now.Sub(Time(e))), Unread: d.unread[e.ID],
+		NoResponse: e.Kind == "reply" && d.NoResponse(e.ID)}
 }
 
 // group keeps items in order and groups them by project, then run, with

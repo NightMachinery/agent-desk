@@ -13,6 +13,18 @@ type View struct {
 	NeedsYou []Group `json:"needs_you"`
 	New      []Group `json:"new"`
 	Runs     []*Node `json:"runs"`
+	// Awaiting: the user's messages to this node that wait for its response.
+	// Filled only for an agent's own view (show --mine).
+	Awaiting []Group `json:"awaiting,omitempty"`
+}
+
+// AwaitingGroups groups the messages for node path that wait for a response.
+func (d *Desk) AwaitingGroups(path string) []Group {
+	var items []Item
+	for _, e := range d.AwaitingAt(path) {
+		items = append(items, d.item(e))
+	}
+	return group(items)
 }
 
 // Build assembles the three printed views for a filter.
@@ -162,6 +174,25 @@ func (w *Writer) Notice(level int, it Item) {
 	}
 }
 
+// Message prints one message from the user, with the command that
+// responds to it.
+func (w *Writer) Message(level int, it Item) {
+	about := "to " + it.Event.Path
+	if it.Event.Ref != "" {
+		r := w.Desk.ByID[it.Event.Ref]
+		about = fmt.Sprintf("about %s %q", w.Desk.Display(r.ID), r.Title)
+	}
+	flag := ""
+	if it.NoResponse {
+		flag = " · no response yet"
+	}
+	w.h(level, fmt.Sprintf("%s%s message %s  (%s%s%s)", kwd(w.Org, "MSG"), it.ID, about, it.Age, flag,
+		w.hostTag(it.Event.Host)))
+	w.props("DESK_ID", it.ID, "DESK_PATH", it.Event.Path, "DESK_TS", it.Event.TS, "DESK_HOST", it.Event.Host)
+	w.Text(it.Event.Body)
+	w.Text("Respond: agent-desk tell --re " + it.ID)
+}
+
 func (w *Writer) groups(level int, gs []Group, each func(int, Item)) {
 	project := ""
 	for _, g := range gs {
@@ -221,6 +252,10 @@ func (w *Writer) Node(level int, n *Node) {
 
 // View prints the three views.
 func (w *Writer) View(v View) {
+	if len(v.Awaiting) > 0 {
+		w.h(1, fmt.Sprintf("Messages awaiting your response (%d)", count(v.Awaiting)))
+		w.groups(2, v.Awaiting, w.Message)
+	}
 	w.h(1, fmt.Sprintf("Needs you (%d)", count(v.NeedsYou)))
 	w.groups(2, v.NeedsYou, w.Question)
 	w.h(1, fmt.Sprintf("New (%d)", count(v.New)))

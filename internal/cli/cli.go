@@ -76,6 +76,9 @@ Agent side (only coordinators write; workers report to their parent):
   agent-desk ask --blocked --title T                  <<'Q' ... Q
   agent-desk ask --default 'what you will do' --title T <<'Q' ... Q
   agent-desk tell [--notify] --title T                <<'R' ... R
+  agent-desk tell --re <m-id|a-id> [--quiet] [--title T] <<'R' ... R
+                                      respond to the user's message or answer
+  agent-desk whoami                   this session's node, or exit 1
   agent-desk set <slot> [text]          text or stdin; status 2 lines, next 5, others 15
   agent-desk clear <slot>
   agent-desk link <slot> <file>
@@ -168,6 +171,8 @@ func (a *App) run(args []string) error {
 		return a.cmdTell(rest)
 	case "set":
 		return a.cmdSet(rest)
+	case "whoami":
+		return a.cmdWhoami(rest)
 	case "reply":
 		return a.cmdReply(rest)
 	case "serve":
@@ -531,27 +536,80 @@ func (a *App) cmdAsk(args []string) error {
 }
 
 func (a *App) cmdTell(args []string) error {
-	o, err := parse(args, []string{"notify"}, []string{"title", "project"}, 0, 0)
+	o, err := parse(args, []string{"notify", "quiet"}, []string{"title", "project", "re"}, 0, 0)
 	if err != nil {
 		return err
 	}
+	re := strings.TrimSpace(o.vals["re"])
+	if o.set["re"] && re == "" {
+		return usagef("--re needs the id of the message or answer you respond to")
+	}
+	if o.bools["quiet"] && re == "" {
+		return usagef("--quiet goes with --re: it marks a bare acknowledgement")
+	}
 	title := strings.TrimSpace(o.vals["title"])
-	if title == "" {
+	if title == "" && re == "" {
 		return usagef("tell needs --title")
 	}
 	body, err := a.stdinText()
 	if err != nil {
 		return err
 	}
+	if re != "" && strings.TrimSpace(body) == "" {
+		return usagef("tell --re needs the response on stdin, even one line such as \"Done.\"")
+	}
 	level := "fyi"
 	if o.bools["notify"] {
 		level = "notify"
 	}
-	return a.agentWrite(o.vals["project"], func(from ident.From, node string, _ *desk.Desk) ([]store.Event, error) {
-		e := a.event("tell", node, from, "cli", nil)
-		e.Level, e.Title, e.Body = level, title, body
+	return a.agentWrite(o.vals["project"], func(from ident.From, node string, d *desk.Desk) ([]store.Event, error) {
+		var extra map[string]any
+		ref := ""
+		if re != "" {
+			target, err := d.Resolve(re)
+			if err != nil {
+				return nil, err
+			}
+			def, err := respondsTo(d, target, node)
+			if err != nil {
+				return nil, err
+			}
+			if title == "" {
+				title = def
+			}
+			ref = target.ID
+			if o.bools["quiet"] {
+				extra = map[string]any{"quiet": true}
+			}
+		}
+		e := a.event("tell", node, from, "cli", extra)
+		e.Level, e.Title, e.Body, e.Ref = level, title, body, ref
 		return []store.Event{e}, nil
 	})
+}
+
+// cmdWhoami prints the node the calling session writes to.
+func (a *App) cmdWhoami(args []string) error {
+	if _, err := parse(args, nil, nil, 0, 0); err != nil {
+		return err
+	}
+	d, err := a.load()
+	if err != nil {
+		return err
+	}
+	from := ident.Resolve(a.Env)
+	if from.Session == "" {
+		return errors.New("not an agent session")
+	}
+	bound, ok := a.binding(d, from)
+	if !ok {
+		return errors.New("this session has not joined a node")
+	}
+	if owner, _ := nodeOwner(d, bound.Path); sessionOf(owner) != from.Session {
+		return fmt.Errorf("this session joined %s, but another session took it over", bound.Path)
+	}
+	fmt.Fprintln(a.Stdout, bound.Path)
+	return nil
 }
 
 // SlotCaps are the line caps of the conventional slots. Every agent keeps
@@ -743,10 +801,20 @@ func (a *App) cmdRead(args []string) error {
 						then = "its agent goes ahead with its default unless you answer"
 					}
 					fmt.Fprintf(a.Stderr, "agent-desk: %s leaves Needs you but stays open: %s\n", d.Display(e.ID), then)
+				case e.Kind == "reply" && d.Awaiting(e.ID):
+					add(a.readMark(e, from, "cli"))
+				case e.Kind == "reply":
+					fmt.Fprintf(a.Stderr, "agent-desk: %s is not awaiting a response\n", d.Display(e.ID))
 				case !d.Unread(e.ID):
-					fmt.Fprintf(a.Stderr, "agent-desk: %s is not unread\n", d.Display(e.ID))
+					if len(unreadResponses(d, e.ID)) == 0 {
+						fmt.Fprintf(a.Stderr, "agent-desk: %s is not unread\n", d.Display(e.ID))
+					}
 				default:
 					add(a.readMark(e, from, "cli"))
+				}
+				// Reading an item reads the responses in its thread.
+				for _, r := range unreadResponses(d, e.ID) {
+					add(a.readMark(r, from, "cli"))
 				}
 				continue
 			} else if !strings.HasPrefix(err.Error(), "no event") {
@@ -787,6 +855,17 @@ func (a *App) readMark(e store.Event, from ident.From, source string) store.Even
 	r := a.event("read", e.Path, from, source, nil)
 	r.Ref = e.ID
 	return r
+}
+
+// unreadResponses are the unread responses in the thread of item id.
+func unreadResponses(d *desk.Desk, id string) []store.Event {
+	var out []store.Event
+	for _, e := range d.Thread(id, "") {
+		if desk.IsResponse(e) && d.Unread(e.ID) {
+			out = append(out, e)
+		}
+	}
+	return out
 }
 
 // isOpen reports whether question id has no answer yet.
@@ -885,6 +964,9 @@ func (a *App) cmdShow(args []string) error {
 		f.Prefix, f.Dismissed = bound.Path, true
 	}
 	v := d.Build(f)
+	if o.bools["mine"] {
+		v.Awaiting = d.AwaitingGroups(f.Prefix)
+	}
 	switch o.vals["format"] {
 	case "", "org":
 		(&desk.Writer{W: a.Stdout, Desk: d, Org: true}).View(v)

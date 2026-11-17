@@ -20,7 +20,7 @@ func TestReply(t *testing.T) {
 	if !strings.HasPrefix(m, "m-") {
 		t.Fatalf("reply id %q", m)
 	}
-	want := fmt.Sprintf(`paseo send --no-wait --json --behavior steer %s Message from the user via agent-desk, about %s "Deploy finished": Check the old feed too`, uuid, tl)
+	want := fmt.Sprintf("paseo send --no-wait --json --behavior steer %s Message %s from the user via agent-desk, about %s \"Deploy finished\": Check the old feed too\n(Respond on the desk: agent-desk tell --re %s)", uuid, m, tl, m)
 	if c := *h.calls; len(c) != 1 || c[0] != want {
 		t.Fatalf("calls: %q", c)
 	}
