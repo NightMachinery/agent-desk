@@ -47,6 +47,7 @@ type Desk struct {
 	unread    map[string]bool
 	dismissed map[string]bool // questions marked read: open, but out of Needs you
 	marked    map[string]bool // events whose latest read mark stands
+	pins      []string        // pin keys, most recently pinned first
 	slots     []store.Event   // slot_current minus clears
 }
 
@@ -95,6 +96,22 @@ func Load(s *store.Store, host string, now time.Time) (*Desk, error) {
 			last[e.Ref] = Meta(e)["cancel"] != true
 		}
 	}
+	// Pins: the latest pin event per key counts; a cancel unpins.
+	pinAt := map[string]int{}
+	for i, e := range evs {
+		if e.Kind == "pin" {
+			k := d.PinKey(d.ByID[e.Ref])
+			if Meta(e)["cancel"] == true {
+				delete(pinAt, k)
+			} else {
+				pinAt[k] = i
+			}
+		}
+	}
+	for k := range pinAt {
+		d.pins = append(d.pins, k)
+	}
+	sort.Slice(d.pins, func(i, j int) bool { return pinAt[d.pins[i]] > pinAt[d.pins[j]] })
 	d.dismissed = map[string]bool{}
 	d.marked = map[string]bool{}
 	for id, on := range last {
@@ -135,6 +152,49 @@ func SlotText(s string) string {
 
 // Unread reports whether an event is unread.
 func (d *Desk) Unread(id string) bool { return d.unread[id] }
+
+// PinKey is what a pin on e holds on to: a slot, whatever its current text,
+// or else the event itself.
+func (d *Desk) PinKey(e store.Event) string {
+	if IsSlotKind(e.Kind) {
+		return "slot:" + e.Path
+	}
+	return "id:" + e.ID
+}
+
+// Pinned reports whether e (or its slot) is pinned.
+func (d *Desk) Pinned(e store.Event) bool {
+	k := d.PinKey(e)
+	for _, p := range d.pins {
+		if p == k {
+			return true
+		}
+	}
+	return false
+}
+
+// PinnedItems are the pinned items in scope, most recently pinned first. A
+// pinned slot shows its current text, and drops out while cleared.
+func (d *Desk) PinnedItems(f Filter) []Item {
+	cur := map[string]store.Event{}
+	for _, s := range d.slots {
+		cur[s.Path] = s
+	}
+	out := []Item{}
+	for _, k := range d.pins {
+		var e store.Event
+		if path, ok := strings.CutPrefix(k, "slot:"); ok {
+			e = cur[path]
+		} else {
+			e = d.ByID[strings.TrimPrefix(k, "id:")]
+		}
+		if e.ID == "" || !f.Keep(e) {
+			continue
+		}
+		out = append(out, d.item(e))
+	}
+	return out
+}
 
 // Dismissed reports whether a question has been marked read. It stays open,
 // and its agent stays blocked, but it leaves Needs you until marked unread.
@@ -253,6 +313,12 @@ type Item struct {
 	Dismissed bool `json:"dismissed,omitempty"`
 	// NoResponse: a message delivered NoResponseAfter ago with no response.
 	NoResponse bool `json:"no_response,omitempty"`
+	Pinned     bool `json:"pinned,omitempty"`
+	// Response: an agent's response to the user; Asked is what the user
+	// asked (or answered), AskedVia is message, answer or chat.
+	Response bool   `json:"response,omitempty"`
+	Asked    string `json:"asked,omitempty"`
+	AskedVia string `json:"asked_via,omitempty"`
 }
 
 // Group is the items of one project and run.
@@ -264,8 +330,10 @@ type Group struct {
 
 func (d *Desk) item(e store.Event) Item {
 	_, _, rest := Split(e.Path)
-	return Item{Event: e, ID: d.Display(e.ID), Label: rest, Age: Age(d.Now.Sub(Time(e))), Unread: d.unread[e.ID],
-		NoResponse: e.Kind == "reply" && d.NoResponse(e.ID)}
+	it := Item{Event: e, ID: d.Display(e.ID), Label: rest, Age: Age(d.Now.Sub(Time(e))), Unread: d.unread[e.ID],
+		NoResponse: e.Kind == "reply" && d.NoResponse(e.ID), Pinned: d.Pinned(e), Response: IsResponse(e)}
+	it.Asked, it.AskedVia = d.Asked(e)
+	return it
 }
 
 // group keeps items in order and groups them by project, then run, with
@@ -336,6 +404,8 @@ func (d *Desk) New(f Filter) []Group {
 			continue
 		}
 		switch {
+		case IsResponse(e):
+			continue // in Responses
 		case e.Kind == "tell" || e.Kind == "done":
 		case e.Kind == "set" && cur[e.ID] && SlotName(e) != "status":
 		default:
@@ -345,6 +415,18 @@ func (d *Desk) New(f Filter) []Group {
 			continue
 		}
 		items = append(items, d.item(e))
+	}
+	return group(items)
+}
+
+// ResponseGroups are the agents' unread responses to the user (all of them
+// with f.All), grouped like New.
+func (d *Desk) ResponseGroups(f Filter) []Group {
+	var items []Item
+	for _, e := range d.Events {
+		if IsResponse(e) && f.Keep(e) && (d.unread[e.ID] || f.All) {
+			items = append(items, d.item(e))
+		}
 	}
 	return group(items)
 }
@@ -413,7 +495,7 @@ func (d *Desk) Tree(f Filter) []*Node {
 	lastJoin := map[string]string{}
 	hosts := map[string]string{}
 	for _, e := range d.Events {
-		if !scope.Keep(e) || e.Kind == "read" {
+		if !scope.Keep(e) || e.Kind == "read" || e.Kind == "pin" {
 			continue
 		}
 		node := NodeOf(e)

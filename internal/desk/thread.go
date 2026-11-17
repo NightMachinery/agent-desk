@@ -16,9 +16,28 @@ import (
 // before every view flags it.
 const NoResponseAfter = 15 * time.Minute
 
-// IsResponse reports whether e is an agent's response to a message or an
-// answer.
-func IsResponse(e store.Event) bool { return e.Kind == "tell" && e.Ref != "" }
+// IsResponse reports whether e is an agent's response to the user: to a
+// message or an answer (ref), or to something the user asked in chat
+// (meta.asked).
+func IsResponse(e store.Event) bool {
+	return e.Kind == "tell" && (e.Ref != "" || MetaString(e, "asked") != "")
+}
+
+// Asked is what a response responds to, and how it was asked: "message"
+// (from the desk), "answer" (the user's answer to a question) or "chat".
+func (d *Desk) Asked(e store.Event) (text, via string) {
+	if !IsResponse(e) {
+		return "", ""
+	}
+	if q := MetaString(e, "asked"); q != "" {
+		return q, "chat"
+	}
+	r := d.ByID[e.Ref]
+	if r.Kind == "answer" {
+		return r.Body, "answer"
+	}
+	return r.Body, "message"
+}
 
 // inThread reports whether e is a message, an answer or a response: the
 // events a thread is made of, as opposed to its root.
@@ -62,8 +81,8 @@ func (d *Desk) Thread(id, path string) []store.Event {
 	return out
 }
 
-// Responses are the responses to message or answer id, oldest first.
-func (d *Desk) Responses(id string) []store.Event {
+// ResponsesTo are the responses to message or answer id, oldest first.
+func (d *Desk) ResponsesTo(id string) []store.Event {
 	var out []store.Event
 	for _, e := range d.Events {
 		if IsResponse(e) && e.Ref == id {
@@ -91,7 +110,7 @@ func (d *Desk) Marked(id string) bool { return d.marked[id] }
 // has not been marked read: it waits for its agent to respond.
 func (d *Desk) Awaiting(id string) bool {
 	e := d.ByID[id]
-	if e.Kind != "reply" || d.marked[id] || len(d.Responses(id)) > 0 {
+	if e.Kind != "reply" || d.marked[id] || len(d.ResponsesTo(id)) > 0 {
 		return false
 	}
 	_, ok := d.Delivery(id)

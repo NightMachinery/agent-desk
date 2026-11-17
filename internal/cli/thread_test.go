@@ -126,3 +126,90 @@ func TestResponses(t *testing.T) {
 	}
 	h.fails(other, "no", "not of this session's node", "tell", "--re", a)
 }
+
+func TestResponseSectionAndChat(t *testing.T) {
+	h := newHarness(t)
+	env := h.as(sessA)
+	h.ok(env, "", "join", "r1/coord")
+	h.ok(env, "Live.", "tell", "--title", "Deploy finished")
+	r := h.ok(env, "Seed 2 drew shard 17, which has duplicated rows.", "tell", "--re-chat", "Why is seed 2 slow?\nAnd seed 3?")
+	h.fails(env, "x", "not both", "tell", "--re-chat", "q", "--re", r)
+	h.fails(env, "", "needs the response on stdin", "tell", "--re-chat", "q")
+
+	v := h.showJSON("", false)
+	resp := v["responses"].([]any)
+	if len(resp) != 1 {
+		t.Fatalf("responses: %v", resp)
+	}
+	it := resp[0].(map[string]any)["items"].([]any)[0].(map[string]any)
+	if it["display_id"] != r || it["asked_via"] != "chat" || it["asked"] != "Why is seed 2 slow?\nAnd seed 3?" ||
+		it["event"].(map[string]any)["title"] != "Re: Why is seed 2 slow?" {
+		t.Fatalf("chat response: %v", it)
+	}
+	for _, g := range v["new"].([]any) {
+		for _, x := range g.(map[string]any)["items"].([]any) {
+			if x.(map[string]any)["display_id"] == r {
+				t.Fatal("a response is also in New")
+			}
+		}
+	}
+	md := h.ok(nil, "", "show", "--format", "md")
+	if !strings.Contains(md, "Responses to you (1)") || !strings.Contains(md, "You asked (chat): Why is seed 2 slow?") {
+		t.Fatalf("show md:\n%s", md)
+	}
+	h.ok(nil, "", "read", r)
+	if len(h.showJSON("", false)["responses"].([]any)) != 0 {
+		t.Fatal("a read response stays in the section")
+	}
+}
+
+func TestPins(t *testing.T) {
+	h := newHarness(t)
+	env := h.as(sessA)
+	h.ok(env, "", "join", "r1/coord")
+	tl := h.ok(env, "Live.", "tell", "--title", "Deploy finished")
+	s1 := h.ok(env, "", "set", "findings", "first")
+	h.ok(nil, "", "pin", tl, s1)
+	h.ok(nil, "", "read", tl)
+	_, errOut, _ := h.run(nil, "", "pin", tl)
+	if !strings.Contains(errOut, "already pinned") {
+		t.Fatalf("second pin: %q", errOut)
+	}
+	pinned := func() []string {
+		var ids []string
+		for _, x := range h.showJSON("", false)["pinned"].([]any) {
+			ids = append(ids, x.(map[string]any)["display_id"].(string))
+		}
+		return ids
+	}
+	// Most recently pinned first; a read item stays pinned.
+	if p := pinned(); len(p) != 2 || p[0] != s1 || p[1] != tl {
+		t.Fatalf("pinned: %v", p)
+	}
+	// A pinned slot follows the slot's current text, and leaves while cleared.
+	s2 := h.ok(env, "", "set", "findings", "second")
+	if p := pinned(); p[0] != s2 {
+		t.Fatalf("slot pin did not follow: %v", p)
+	}
+	h.ok(env, "", "clear", "findings")
+	if p := pinned(); len(p) != 1 || p[0] != tl {
+		t.Fatalf("cleared slot still pinned: %v", p)
+	}
+	h.ok(nil, "", "unpin", tl)
+	if p := pinned(); len(p) != 0 {
+		t.Fatalf("unpin: %v", p)
+	}
+	h.fails(nil, "", "pin the item itself", "pin", lastOf(t, h, "pin"))
+}
+
+// lastOf is the display id of the latest event of kind k.
+func lastOf(t *testing.T, h *harness, k string) string {
+	d := h.loadDesk()
+	id := ""
+	for _, e := range d.Events {
+		if e.Kind == k {
+			id = d.Display(e.ID)
+		}
+	}
+	return id
+}

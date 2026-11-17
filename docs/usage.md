@@ -95,6 +95,16 @@ minutes after it was delivered is flagged "no response yet", and
 `show --mine` lists every message still awaiting your response.
 `agent-desk whoami` prints the node this session writes to.
 
+A substantive answer to something the user asked in chat is filed the same
+way, with the question in one line instead of an id:
+
+    agent-desk tell --re-chat 'Why is seed 2 slow?' <<'R'
+    Seed 2 drew shard 17, which has duplicated rows.
+    R
+
+Responses of both kinds are listed in their own section, **Responses to
+you**, between Needs you and New, and notify unless sent with `--quiet`.
+
 When a session ends, its summary goes on stdin:
 
     agent-desk done --title 'Rerun finished' --report ~/reports/rerun.org <<'S'
@@ -156,6 +166,7 @@ not write anyway.
     agent-desk read t-k2m9 s-p4d1            # several at once
     agent-desk read m-4c2d                   # clear a message's "no response yet" flag
     agent-desk unread t-k2m9                 # undo a read mark or a dismissal
+    agent-desk pin t-k2m9 s-p4d1             # keep on top of every view; unpin to undo
     agent-desk search cache
 
 ### Answers reach the agent

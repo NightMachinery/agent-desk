@@ -132,6 +132,8 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("POST /api/answer", s.write(s.apiAnswer))
 	mux.HandleFunc("POST /api/reply", s.write(s.apiReply))
 	mux.HandleFunc("POST /api/read", s.write(s.apiRead))
+	mux.HandleFunc("POST /api/pin", s.write(s.apiPin))
+	mux.HandleFunc("POST /api/unpin", s.write(s.apiUnpin))
 	mux.HandleFunc("POST /api/unread", s.write(s.apiUnread))
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, http.StatusNotFound, "no such API")
@@ -291,6 +293,14 @@ func (s *server) apiReply(app *App, body request) (any, error) {
 
 func (s *server) apiRead(app *App, body request) (any, error) {
 	return map[string]string{}, app.run(append([]string{"read", "--"}, body.list(body.Target)...))
+}
+
+func (s *server) apiPin(app *App, body request) (any, error) {
+	return map[string]string{}, app.run(append([]string{"pin", "--"}, body.list(body.ID)...))
+}
+
+func (s *server) apiUnpin(app *App, body request) (any, error) {
+	return map[string]string{}, app.run(append([]string{"unpin", "--"}, body.list(body.ID)...))
 }
 
 func (s *server) apiUnread(app *App, body request) (any, error) {

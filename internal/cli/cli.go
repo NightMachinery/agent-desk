@@ -78,6 +78,8 @@ Agent side (only coordinators write; workers report to their parent):
   agent-desk tell [--notify] --title T                <<'R' ... R
   agent-desk tell --re <m-id|a-id> [--quiet] [--title T] <<'R' ... R
                                       respond to the user's message or answer
+  agent-desk tell --re-chat 'what the user asked' [--quiet] [--title T] <<'R' ... R
+                                      file your answer to a question asked in chat
   agent-desk whoami                   this session's node, or exit 1
   agent-desk set <slot> [text]          text or stdin; status 2 lines, next 5, others 15
   agent-desk clear <slot>
@@ -98,6 +100,7 @@ User side:
                                       the web dashboard (default 127.0.0.1:7740)
   agent-desk read <id|path-prefix>... [--host H]
   agent-desk unread <id>...
+  agent-desk pin <id>... | unpin <id>...   keep items on top (a slot stays pinned as it changes)
   agent-desk search <text> [--host H]
   agent-desk open <id|path>       what a notification click runs (open_command)
   agent-desk export | import [--notify] | snapshot <file> | render
@@ -175,6 +178,10 @@ func (a *App) run(args []string) error {
 		return a.cmdSet(rest)
 	case "whoami":
 		return a.cmdWhoami(rest)
+	case "pin":
+		return a.cmdPin(rest, false)
+	case "unpin":
+		return a.cmdPin(rest, true)
 	case "reply":
 		return a.cmdReply(rest)
 	case "serve":
@@ -538,26 +545,36 @@ func (a *App) cmdAsk(args []string) error {
 }
 
 func (a *App) cmdTell(args []string) error {
-	o, err := parse(args, []string{"notify", "quiet"}, []string{"title", "project", "re"}, 0, 0)
+	o, err := parse(args, []string{"notify", "quiet"}, []string{"title", "project", "re", "re-chat"}, 0, 0)
 	if err != nil {
 		return err
 	}
-	re := strings.TrimSpace(o.vals["re"])
+	re, asked := strings.TrimSpace(o.vals["re"]), strings.TrimSpace(o.vals["re-chat"])
 	if o.set["re"] && re == "" {
 		return usagef("--re needs the id of the message or answer you respond to")
 	}
-	if o.bools["quiet"] && re == "" {
-		return usagef("--quiet goes with --re: it marks a bare acknowledgement")
+	if o.set["re-chat"] && asked == "" {
+		return usagef("--re-chat needs what the user asked in chat, quoted or in a line")
+	}
+	if re != "" && asked != "" {
+		return usagef("give --re (a message on the desk) or --re-chat (a question asked in chat), not both")
+	}
+	responding := re != "" || asked != ""
+	if o.bools["quiet"] && !responding {
+		return usagef("--quiet goes with --re or --re-chat: it marks a bare acknowledgement")
 	}
 	title := strings.TrimSpace(o.vals["title"])
-	if title == "" && re == "" {
+	if title == "" && !responding {
 		return usagef("tell needs --title")
+	}
+	if title == "" && asked != "" {
+		title = "Re: " + clipLine(asked, 60)
 	}
 	body, err := a.stdinText()
 	if err != nil {
 		return err
 	}
-	if re != "" && strings.TrimSpace(body) == "" {
+	if responding && strings.TrimSpace(body) == "" {
 		return usagef("tell --re needs the response on stdin, even one line such as \"Done.\"")
 	}
 	level := "fyi"
@@ -565,7 +582,13 @@ func (a *App) cmdTell(args []string) error {
 		level = "notify"
 	}
 	return a.agentWrite(o.vals["project"], func(from ident.From, node string, d *desk.Desk) ([]store.Event, error) {
-		var extra map[string]any
+		extra := map[string]any{}
+		if asked != "" {
+			extra["asked"] = asked
+		}
+		if o.bools["quiet"] {
+			extra["quiet"] = true
+		}
 		ref := ""
 		if re != "" {
 			target, err := d.Resolve(re)
@@ -580,14 +603,71 @@ func (a *App) cmdTell(args []string) error {
 				title = def
 			}
 			ref = target.ID
-			if o.bools["quiet"] {
-				extra = map[string]any{"quiet": true}
-			}
 		}
 		e := a.event("tell", node, from, "cli", extra)
 		e.Level, e.Title, e.Body, e.Ref = level, title, body, ref
 		return []store.Event{e}, nil
 	})
+}
+
+// cmdPin pins items to the top of every view, or unpins them. A pin on a
+// slot holds the slot, whatever its current text.
+func (a *App) cmdPin(args []string, unpin bool) error {
+	o, err := parse(args, nil, nil, 1, -1)
+	if err != nil {
+		return err
+	}
+	d, err := a.load()
+	if err != nil {
+		return err
+	}
+	from := ident.Resolve(a.Env)
+	var evs []store.Event
+	seen := map[string]bool{}
+	for _, tok := range o.pos {
+		e, err := d.Resolve(tok)
+		if err != nil {
+			return err
+		}
+		switch e.Kind {
+		case "read", "delivered", "pin", "join":
+			return fmt.Errorf("%s is a %s mark; pin the item itself", d.Display(e.ID), e.Kind)
+		}
+		k := d.PinKey(e)
+		if seen[k] {
+			continue
+		}
+		seen[k] = true
+		if d.Pinned(e) != unpin {
+			state := "pinned"
+			if unpin {
+				state = "not pinned"
+			}
+			fmt.Fprintf(a.Stderr, "agent-desk: %s is already %s\n", d.Display(e.ID), state)
+			continue
+		}
+		var extra map[string]any
+		if unpin {
+			extra = map[string]any{"cancel": true}
+		}
+		p := a.event("pin", e.Path, from, "cli", extra)
+		p.Ref = e.ID
+		evs = append(evs, p)
+	}
+	if len(evs) == 0 {
+		fmt.Fprintln(a.Stdout, "ok")
+		return nil
+	}
+	return a.commit(evs, "")
+}
+
+// clipLine is the first line of s, cut to n characters.
+func clipLine(s string, n int) string {
+	line := strings.TrimSpace(strings.SplitN(strings.TrimSpace(s), "\n", 2)[0])
+	if r := []rune(line); len(r) > n {
+		line = string(r[:n-1]) + "…"
+	}
+	return line
 }
 
 // cmdWhoami prints the node the calling session writes to.
@@ -1009,7 +1089,7 @@ func (a *App) cmdSearch(args []string) error {
 	needle := strings.ToLower(strings.Join(o.pos, " "))
 	var hits []store.Event
 	for _, e := range d.Events {
-		if e.Kind == "read" || e.Kind == "join" || e.Kind == "delivered" {
+		if e.Kind == "read" || e.Kind == "pin" || e.Kind == "join" || e.Kind == "delivered" {
 			continue
 		}
 		if o.vals["host"] != "" && e.Host != o.vals["host"] {

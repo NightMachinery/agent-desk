@@ -50,6 +50,8 @@ func Letter(kind string) string {
 		return "v"
 	case "reply":
 		return "m"
+	case "pin":
+		return "k"
 	}
 	return "e"
 }

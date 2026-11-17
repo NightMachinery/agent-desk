@@ -94,6 +94,18 @@ Respond even when you also answered in chat ("Will do after the current
 seed." is enough). Add `--quiet` only for a bare acknowledgement.
 `agent-desk show --mine` lists messages still awaiting your response.
 
+When the user asks you something **in chat** and your answer has substance
+(a finding, an explanation, a decision, where something stands), file the
+answer too, so it is not lost in the transcript:
+
+    agent-desk tell --re-chat 'Why is seed 2 slow?' <<'R'
+    Seed 2 drew shard 17, which has **duplicated rows**. Re-running without it.
+    R
+
+Quote or paraphrase the question in one line. Skip this for quick
+back-and-forth and clarifications. Responses get their own section on the
+desk, above other notices, and notify the user unless `--quiet`.
+
 ## Notices
 
 For something the user should know but need not answer: a result, a finished

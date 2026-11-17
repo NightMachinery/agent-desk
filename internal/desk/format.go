@@ -10,9 +10,11 @@ import (
 
 // View is what `show` prints.
 type View struct {
-	NeedsYou []Group `json:"needs_you"`
-	New      []Group `json:"new"`
-	Runs     []*Node `json:"runs"`
+	Pinned    []Item  `json:"pinned"`
+	NeedsYou  []Group `json:"needs_you"`
+	Responses []Group `json:"responses"`
+	New       []Group `json:"new"`
+	Runs      []*Node `json:"runs"`
 	// Awaiting: the user's messages to this node that wait for its response.
 	// Filled only for an agent's own view (show --mine).
 	Awaiting []Group `json:"awaiting,omitempty"`
@@ -29,7 +31,11 @@ func (d *Desk) AwaitingGroups(path string) []Group {
 
 // Build assembles the three printed views for a filter.
 func (d *Desk) Build(f Filter) View {
-	v := View{NeedsYou: d.NeedsYou(f), New: d.New(f), Runs: Visible(d.Tree(f))}
+	v := View{Pinned: d.PinnedItems(f), NeedsYou: d.NeedsYou(f), Responses: d.ResponseGroups(f), New: d.New(f),
+		Runs: Visible(d.Tree(f))}
+	if v.Responses == nil {
+		v.Responses = []Group{}
+	}
 	// Empty views are empty lists, not null, for JSON readers.
 	if v.NeedsYou == nil {
 		v.NeedsYou = []Group{}
@@ -168,6 +174,9 @@ func (w *Writer) Notice(level int, it Item) {
 	w.h(level, fmt.Sprintf("%s%s %s: %s  (%s · %s%s)", kwd(w.Org, k), it.ID, what, title, label, it.Age,
 		w.hostTag(it.Event.Host)))
 	w.props("DESK_ID", it.ID, "DESK_PATH", it.Event.Path, "DESK_TS", it.Event.TS, "DESK_HOST", it.Event.Host)
+	if it.Response {
+		w.Text(fmt.Sprintf("You asked (%s): %s", it.AskedVia, firstLine(it.Asked)))
+	}
 	w.Text(it.Event.Body)
 	if r := MetaString(it.Event, "report"); r != "" {
 		w.Text("Report: " + r)
@@ -191,6 +200,14 @@ func (w *Writer) Message(level int, it Item) {
 	w.props("DESK_ID", it.ID, "DESK_PATH", it.Event.Path, "DESK_TS", it.Event.TS, "DESK_HOST", it.Event.Host)
 	w.Text(it.Event.Body)
 	w.Text("Respond: agent-desk tell --re " + it.ID)
+}
+
+func firstLine(s string) string {
+	line := strings.TrimSpace(strings.SplitN(strings.TrimSpace(s), "\n", 2)[0])
+	if r := []rune(line); len(r) > 100 {
+		line = string(r[:99]) + "…"
+	}
+	return line
 }
 
 func (w *Writer) groups(level int, gs []Group, each func(int, Item)) {
@@ -256,8 +273,22 @@ func (w *Writer) View(v View) {
 		w.h(1, fmt.Sprintf("Messages awaiting your response (%d)", count(v.Awaiting)))
 		w.groups(2, v.Awaiting, w.Message)
 	}
+	if len(v.Pinned) > 0 {
+		w.h(1, fmt.Sprintf("Pinned (%d)", len(v.Pinned)))
+		for _, it := range v.Pinned {
+			if it.Event.Kind == "ask" {
+				w.Question(2, it)
+			} else {
+				w.Notice(2, it)
+			}
+		}
+	}
 	w.h(1, fmt.Sprintf("Needs you (%d)", count(v.NeedsYou)))
 	w.groups(2, v.NeedsYou, w.Question)
+	if len(v.Responses) > 0 {
+		w.h(1, fmt.Sprintf("Responses to you (%d)", count(v.Responses)))
+		w.groups(2, v.Responses, w.Notice)
+	}
 	w.h(1, fmt.Sprintf("New (%d)", count(v.New)))
 	w.groups(2, v.New, w.Notice)
 	w.h(1, "Runs")

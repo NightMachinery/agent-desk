@@ -29,7 +29,7 @@ func replyTarget(d *desk.Desk, token string) (to ident.From, host, node string, 
 					return replyTarget(d, desk.NodeOf(e))
 				}
 				e = d.ByID[e.Ref]
-			case "read", "delivered":
+			case "read", "delivered", "pin":
 				return to, "", "", e, fmt.Errorf("%s is a %s mark; reply to the item it marks", d.Display(e.ID), e.Kind)
 			}
 			about, node, to, host = e, desk.NodeOf(e), fromOf(e), e.Host
@@ -93,11 +93,7 @@ func respondsTo(d *desk.Desk, e store.Event, node string) (string, error) {
 		}
 		return "Re: " + title, nil
 	}
-	line := strings.TrimSpace(strings.SplitN(strings.TrimSpace(e.Body), "\n", 2)[0])
-	if r := []rune(line); len(r) > 60 {
-		line = string(r[:59]) + "…"
-	}
-	return "Re: " + line, nil
+	return "Re: " + clipLine(e.Body, 60), nil
 }
 
 func (a *App) cmdReply(args []string) error {

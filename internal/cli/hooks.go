@@ -122,7 +122,8 @@ func (a *App) announce(evs []store.Event, notify bool) {
 		var p Payload
 		switch {
 		case !notify:
-		case e.Kind == "ask", e.Kind == "done", e.Kind == "tell" && e.Level == "notify":
+		case e.Kind == "ask", e.Kind == "done", e.Kind == "tell" && e.Level == "notify",
+			desk.IsResponse(e) && desk.Meta(e)["quiet"] != true:
 			cmd, p = c.NotifyCommand, a.payload(d, "notify", e)
 		}
 		switch {
