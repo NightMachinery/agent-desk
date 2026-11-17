@@ -35,6 +35,8 @@ export const kindLabel = {
   slot: 'Slot',
   answer: 'Answer',
   reply: 'Your message',
+  task: 'Task',
+  instruction: 'Your instruction',
 };
 
 export function slotName(event) {

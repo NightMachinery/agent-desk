@@ -80,6 +80,16 @@
     </div>
   {/if}
 
+  {#if !compact && node.tasks?.length}
+    {@const done = node.tasks.filter((t) => t.state === 'done').length}
+    <div class="tasks">
+      <div class="slot-name">Tasks <span class="faint">{done} of {node.tasks.length} done</span></div>
+      {#each node.tasks.filter((t) => t.state !== 'done' && t.state !== 'dropped') as t (t.event.id)}
+        <a class="task" href={href({ item: t.display_id })}><span class="chip">{t.state}</span> {t.event.title}</a>
+      {/each}
+    </div>
+  {/if}
+
   {#if !compact && node.notes?.length}
     <details class="notes">
       <summary title="Run state the agents keep for themselves (agent-desk set --for agents). Never unread.">
@@ -206,6 +216,16 @@
   .coord {
     margin-top: 6px;
     font-size: 12.5px;
+  }
+  .tasks {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 10px 0 12px;
+  }
+  .tasks .task {
+    color: inherit;
+    font-size: 14px;
   }
   .notes {
     margin: 4px 0 12px;

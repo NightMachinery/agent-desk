@@ -7,6 +7,7 @@
   import ItemRow from './ItemRow.svelte';
   import TreeNode from './TreeNode.svelte';
   import NodePanel from './NodePanel.svelte';
+  import Deferred from './Deferred.svelte';
   import { sel, toggleAll, clear, prune, markSelected, pinSelected, selecting } from '../lib/select.svelte.js';
   import { snapshot } from '../lib/nav.svelte.js';
   import { ui, toggleSection } from '../lib/ui.svelte.js';
@@ -204,6 +205,16 @@
       <div class="empty">No project, run or agent matches{route.all ? '' : '; Show all includes finished runs'}.</div>
     {:else}
       <div class="empty">No runs{route.all ? '' : ' with anything to show; Show all includes finished ones'}.</div>
+    {/if}
+
+    {#if view.deferred?.length}
+      <h2 class="section-title" data-section="deferred">
+        {@render fold('deferred', 'Deferred for quota')}
+        <span class="count">{view.deferred.length}</span>
+      </h2>
+      {#if !ui.collapsed.deferred}
+        <Deferred tasks={view.deferred} launch={view.launch} base={route.path} {onchange} />
+      {/if}
     {/if}
   {/if}
 </div>

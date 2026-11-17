@@ -69,6 +69,17 @@
     }
   }
 
+  async function taskAct(action) {
+    try {
+      await post('task', { action, id: it.display_id });
+      toast({ launch: 'Launched.', done: 'Marked done.', drop: 'Dropped.', defer: 'Deferred for quota.', reopen: 'Reopened.', start: 'Marked started.' }[action], 'ok');
+      onchange();
+    } catch (err) {
+      toast(err.message, 'error', 9000);
+      onchange();
+    }
+  }
+
   function report(res, what) {
     toast(res.note ? `${what}. ${res.note}` : `${what}.`, res.note && /not delivered|merge/.test(res.note) ? 'info' : 'ok', res.note ? 7000 : 3000);
   }
@@ -131,11 +142,12 @@
       {#if isQuestion && item.answered}<span class="chip ok">Answered</span>{/if}
       {#if it.dismissed}<span class="chip">Dismissed</span>{/if}
       {#if it.unread}<span class="chip default">Unread</span>{/if}
+      {#if item.task}<span class="chip" class:ok={item.task.state === 'done'}>{item.task.state}</span>{/if}
       <span class="spacer"></span>
       <button data-cmd="pin" class="btn ghost small iconbtn" class:on={it.pinned} aria-pressed={it.pinned} title={tip(it.pinned ? 'Unpin' : 'Pin to the top', 'pin')} onclick={() => pin(!it.pinned)}
         ><Icon name="pin" /></button
       >
-      {#if !isQuestion}
+      {#if !isQuestion && !item.task}
         <button data-cmd="read-toggle" class="btn ghost small iconbtn" title={tip(it.unread ? 'Mark read' : 'Mark unread', it.unread ? 'dismiss' : 'undismiss')} aria-label={it.unread ? 'Mark read' : 'Mark unread'} onclick={() => mark(!!it.unread)}
           ><Icon name={it.unread ? 'read' : 'unread'} /></button
         >
@@ -164,6 +176,27 @@
       {/if}
       <CopyIds paseo={item.from?.paseo} resume={item.resume} />
     </div>
+
+    {#if item.task}
+      {@const t = item.task}
+      <div class="task-bar">
+        {#if t.priority}<span class="chip">p{t.priority}</span>{/if}
+        {#if t.size}<span class="chip">{t.size}</span>{/if}
+        {#if t.profile}<span class="chip mono">{t.profile}</span>{/if}
+        {#if t.agent}<span class="faint mono" title="What launch_command printed, or the agent that started it">{t.agent}</span>{/if}
+        <span class="spacer"></span>
+        {#if t.state === 'deferred' || t.state === 'open'}
+          <button class="btn small primary" disabled={!item.launch_ready} title={item.launch_ready ? 'Start an agent on this task' : 'Set launch_command under [tasks] in config.toml'} onclick={() => taskAct('launch')}>Launch</button>
+        {/if}
+        {#if t.state === 'open'}<button class="btn small" onclick={() => taskAct('defer')}>Defer for quota</button>{/if}
+        {#if t.state === 'done' || t.state === 'dropped'}<button class="btn small" onclick={() => taskAct('reopen')}>Reopen</button>
+        {:else}
+          <button class="btn small" onclick={() => taskAct('done')}>Done</button>
+          <button class="btn small ghost" onclick={() => taskAct('drop')}>Drop</button>
+        {/if}
+      </div>
+      {#if t.note}<div class="faint">Note: {t.note}</div>{/if}
+    {/if}
 
     {#if it.response && it.asked && !inThread}
       <div class="asked">
@@ -264,6 +297,16 @@
 {/if}
 
 <style>
+  .task-bar {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin: 4px 0 12px;
+  }
+  .task-bar .spacer {
+    flex: 1;
+  }
   .pad {
     padding: max(12px, env(safe-area-inset-top)) 24px 0;
     max-width: 820px;
