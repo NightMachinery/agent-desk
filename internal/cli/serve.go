@@ -137,6 +137,7 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("POST /api/pin", s.write(s.apiPin))
 	mux.HandleFunc("POST /api/unpin", s.write(s.apiUnpin))
 	mux.HandleFunc("POST /api/unread", s.write(s.apiUnread))
+	mux.HandleFunc("POST /api/task", s.write(s.apiTask))
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, http.StatusNotFound, "no such API")
 	})
@@ -215,6 +216,8 @@ type request struct {
 	Class string  `json:"class"`
 	Key   string  `json:"key"`
 	Value *string `json:"value"`
+	// task: start, done, drop, defer, reopen or launch.
+	Action string `json:"action"`
 }
 
 func (r request) notify() (map[string]string, error) {
@@ -329,6 +332,22 @@ func (s *server) apiUnread(app *App, body request) (any, error) {
 	return map[string]string{}, app.run(append([]string{"unread", "--"}, body.list(body.ID)...))
 }
 
+// apiTask changes tasks' state, or launches them; the response's "out" is
+// what launch printed.
+func (s *server) apiTask(app *App, body request) (any, error) {
+	switch body.Action {
+	case "start", "done", "drop", "defer", "reopen", "launch":
+	default:
+		return nil, usagef("task action is start, done, drop, defer, reopen or launch")
+	}
+	ids := body.list(body.ID)
+	if len(ids) == 0 {
+		return nil, usagef("task needs an id")
+	}
+	err := app.run(append([]string{"task", body.Action, "--"}, ids...))
+	return map[string]string{}, err
+}
+
 // list is the targets of a bulk write: one, or several.
 func (r request) list(one string) []string {
 	var out []string
@@ -391,6 +410,15 @@ type viewResponse struct {
 	Session      *Session `json:"session,omitempty"`
 	Projects     []string `json:"projects"`
 	Hosts        []string `json:"hosts"`
+	// Deferred are the tasks waiting for quota under the path; Launch says
+	// whether launch_command is set and how many tasks one launch takes.
+	Deferred []desk.Task `json:"deferred"`
+	Launch   launchInfo  `json:"launch"`
+}
+
+type launchInfo struct {
+	Ready bool `json:"ready"`
+	Max   int  `json:"max"`
 }
 
 type viewFilter struct {
@@ -446,6 +474,18 @@ func (s *server) apiView(w http.ResponseWriter, r *http.Request) {
 		hosts[e.Host] = true
 	}
 	resp.Projects, resp.Hosts = sortedKeys(projects), sortedKeys(hosts)
+	resp.Deferred = []desk.Task{}
+	lq := strings.ToLower(query)
+	for _, t := range d.Tasks(desk.Filter{Prefix: f.Prefix, Host: f.Host}) {
+		if t.State == desk.TaskDeferred && (lq == "" || strings.Contains(strings.ToLower(t.Event.Title+"\n"+t.Event.Body), lq)) {
+			resp.Deferred = append(resp.Deferred, t)
+		}
+	}
+	s.mu.Lock()
+	if c, err := s.a.config(); err == nil {
+		resp.Launch = launchInfo{Ready: c.Tasks.LaunchCommand != "", Max: c.Tasks.Max()}
+	}
+	s.mu.Unlock()
 	if f.Prefix != "" {
 		all := f
 		all.All = true
@@ -665,6 +705,8 @@ type itemResponse struct {
 	Answered    bool        `json:"answered"`
 	Superseded  string      `json:"superseded,omitempty"` // a newer text of this slot
 	Media       []MediaView `json:"media,omitempty"`
+	Task        *desk.Task  `json:"task,omitempty"`
+	LaunchReady bool        `json:"launch_ready,omitempty"`
 }
 
 func (s *server) apiItem(w http.ResponseWriter, r *http.Request) {
@@ -689,6 +731,19 @@ func (s *server) apiItem(w http.ResponseWriter, r *http.Request) {
 	resp := itemResponse{Item: it, Node: desk.NodeOf(e), From: f, Resume: ResumeCommand(f), Thread: []Entry{},
 		Report: desk.MetaString(e, "report"), Default: desk.MetaString(e, "default"),
 		Answered: it.Question != nil && !it.Question.Open()}
+	if e.Kind == "task" {
+		for _, t := range d.Tasks(desk.Filter{}) {
+			if t.Event.ID == e.ID {
+				t := t
+				resp.Task = &t
+			}
+		}
+		s.mu.Lock()
+		if c, err := s.a.config(); err == nil {
+			resp.LaunchReady = c.Tasks.LaunchCommand != ""
+		}
+		s.mu.Unlock()
+	}
 	if desk.IsSlotKind(e.Kind) {
 		resp.Slot = desk.SlotName(e)
 		for _, x := range d.Events {

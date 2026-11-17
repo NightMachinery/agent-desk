@@ -374,6 +374,18 @@ func (w *Writer) Node(level int, n *Node) {
 			w.Text(s.Event.Body)
 		}
 	}
+	if len(n.Tasks) > 0 {
+		done, active := 0, []string{}
+		for _, t := range n.Tasks {
+			if t.State == TaskDone {
+				done++
+			}
+			if t.Active() {
+				active = append(active, fmt.Sprintf("- %s %s %s", t.State, t.ID, t.Event.Title))
+			}
+		}
+		w.Text(fmt.Sprintf("Tasks: %d of %d done\n%s", done, len(n.Tasks), strings.Join(active, "\n")))
+	}
 	if len(n.Notes) > 0 {
 		var names []string
 		for _, s := range n.Notes {

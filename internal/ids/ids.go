@@ -60,6 +60,10 @@ func Letter(kind string) string {
 		return "x"
 	case "instruction":
 		return "u"
+	case "task":
+		return "w"
+	case "taskstate":
+		return "z"
 	}
 	return "e"
 }

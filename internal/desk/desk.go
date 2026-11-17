@@ -487,6 +487,7 @@ type Node struct {
 	Host     string  `json:"host,omitempty"` // when not this machine
 	Slots    []Slot  `json:"slots,omitempty"`
 	Notes    []Slot  `json:"notes,omitempty"` // slots for agents only
+	Tasks    []Task  `json:"tasks,omitempty"` // filed at this node
 	Children []*Node `json:"children,omitempty"`
 	Hidden   bool    `json:"-"`
 
@@ -568,6 +569,10 @@ func (d *Desk) Tree(f Filter) []*Node {
 			continue
 		}
 		n.Slots = append(n.Slots, sl)
+	}
+	for _, t := range d.Tasks(scope) {
+		n := get(t.Event.Path)
+		n.Tasks = append(n.Tasks, t)
 	}
 	// A dismissed question no longer asks for attention, but its agent is
 	// still blocked on it.

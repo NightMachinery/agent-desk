@@ -501,6 +501,50 @@ keep its files; `media_keep_days = 0` keeps every file. To run it now:
 Links to attachments in the rendered ledger point at the stored file, so
 they stop working once it is deleted.
 
+## Tasks, and work deferred for quota
+
+A task is a work item at a node (display id `w-...`), in one of the states
+open, started, deferred, done or dropped. Agents keep their checklist with
+`task add`, `task start`, `task done`; the node panel shows "Tasks: 3 of 7
+done" and `show` lists the ones still active.
+
+A deferred task waits for quota to spare. It carries a brief (stdin), and
+optionally `--size S|M|L`, `--priority 1|2|3` (1 first), `--profile NAME`
+(passed to the launcher) and `--cwd DIR` (default: where it was filed). The
+dashboard's "Deferred for quota" section lists them; pick some and Launch,
+or Launch top N (N is `max_launch`). From a terminal:
+
+    agent-desk task list --deferred
+    agent-desk task launch w-3k9d w-8f2a
+    agent-desk task launch --deferred [<prefix>] [--max N] [--dry-run]
+    agent-desk task prompt w-3k9d     # the prompt a launched agent gets
+
+Launching runs `launch_command` under sh with the task as JSON on stdin
+(`id`, `display_id`, `title`, `brief`, `path`, `project`, `run`, `role`,
+`cwd`, `size`, `profile`, `priority`, `prompt`); the last line it prints is
+recorded as the agent started, and the task becomes started. `prompt` is
+`prompts/start-task.md`, a Go text/template; a file of that name in
+`~/.config/agent-desk/prompts/` replaces it.
+
+**The nudge.** Quota left in a window when it resets is lost. `agent-desk
+task nudge`, run from cron every few hours, runs `quota_command`, which
+prints `{"gauges": {"<name>": {"pct": N, "reset": <unix seconds>}}}`. When a
+gauge matching `nudge_gauges` (default the weekly ones, `\.7d$`) resets within
+`nudge_hours` (24) at most `nudge_below` (60) percent used, and deferred
+tasks are waiting, it files one notice per window and reset at
+`_desk/quota/nudge`, listing them.
+
+    [tasks]
+    launch_command = 'my-launcher'    # starts an agent; prints its id last
+    max_launch = 3
+    quota_command = 'my-quota-json'
+    nudge_gauges = '\.7d$'
+    nudge_below = 60
+    nudge_hours = 24
+
+`task add` reads stdin only with `--defer` or `--brief -`, so it never waits
+on an agent shell's held-open stdin.
+
 ## Notes for agents only
 
 `agent-desk set --for agents <slot>` writes a slot only agents read: run

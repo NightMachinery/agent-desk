@@ -560,7 +560,9 @@ One atomic commit group each. Stop after each phase and run its check.
      `set --for agents` stores `meta.audience = "agents"`; the `unread` view
      (rebuilt once, marked `-- unread v2`) leaves such slots out; `get`
      reads any slot.
-   - Tasks as events.
+   - Tasks as events. Built 2026-11-17 with deferred-for-quota tasks
+     (kinds `task` and `taskstate`, `agent-desk task ...`, `[tasks]`
+     launch_command and quota nudge; docs/usage.md).
    - A Paseo plugin.
 
 ## To verify early

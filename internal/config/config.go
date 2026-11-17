@@ -37,6 +37,8 @@ type Config struct {
 	// MediaKeepDays: attachments of items read or answered this many days
 	// ago are deleted by gc (default 30; 0 keeps them for good).
 	MediaKeepDays *int `toml:"media_keep_days"`
+	// Tasks configures launching deferred tasks and the quota nudge ([tasks]).
+	Tasks Tasks `toml:"tasks"`
 	// Instructions configures the prompt hook that records the user's
 	// messages ([instructions]).
 	Instructions Instructions `toml:"instructions"`
@@ -162,4 +164,54 @@ func (i Instructions) SkipPatterns() ([]*regexp.Regexp, error) {
 		out = append(out, re)
 	}
 	return out, nil
+}
+
+// Tasks is the [tasks] table.
+type Tasks struct {
+	// LaunchCommand starts an agent on a task: run under sh with the task
+	// as JSON on stdin (its "prompt" is the rendered start-task prompt). Its
+	// first line of output names the agent started.
+	LaunchCommand string `toml:"launch_command"`
+	// MaxLaunch caps one launch of several tasks (default 3).
+	MaxLaunch *int `toml:"max_launch"`
+	// QuotaCommand prints usage as {"gauges": {"<name>": {"pct": N,
+	// "reset": <unix seconds>}}}, for the nudge.
+	QuotaCommand string `toml:"quota_command"`
+	// NudgeGauges matches the gauges worth spending before they reset
+	// (default `\.7d$`, the weekly windows).
+	NudgeGauges string `toml:"nudge_gauges"`
+	// NudgeBelow: nudge while a gauge is at most this many percent used
+	// (default 60).
+	NudgeBelow *int `toml:"nudge_below"`
+	// NudgeHours: nudge this many hours before the reset (default 24).
+	NudgeHours *int `toml:"nudge_hours"`
+}
+
+func intOr(p *int, d int) int {
+	if p == nil {
+		return d
+	}
+	return *p
+}
+
+// Max is MaxLaunch or its default.
+func (t Tasks) Max() int { return intOr(t.MaxLaunch, 3) }
+
+// Below is NudgeBelow or its default.
+func (t Tasks) Below() int { return intOr(t.NudgeBelow, 60) }
+
+// Hours is NudgeHours or its default.
+func (t Tasks) Hours() int { return intOr(t.NudgeHours, 24) }
+
+// Gauges compiles NudgeGauges or its default.
+func (t Tasks) Gauges() (*regexp.Regexp, error) {
+	s := t.NudgeGauges
+	if s == "" {
+		s = `\.7d$`
+	}
+	re, err := regexp.Compile(s)
+	if err != nil {
+		return nil, fmt.Errorf("[tasks] nudge_gauges: %w", err)
+	}
+	return re, nil
 }

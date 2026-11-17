@@ -213,6 +213,29 @@ by name. It is replaced whole on each `set`, like any slot, so write what is
 true now. `state` may be set this way; any other slug works too. Other agents
 read yours with `agent-desk get <name> --node <path>`.
 
+## Tasks, and work deferred for quota
+
+Keep a run's checklist on the desk when the user should see progress:
+
+    agent-desk task add --title 'Rerun seed 4' [--priority 1] [--brief 'one line']
+    agent-desk task start w-3k9d ; agent-desk task done w-3k9d [--note 'in results.md']
+    agent-desk task list [--all]
+
+When you find work worth doing that the quota does not allow now (a cleanup,
+a deeper check, a nice-to-have), defer it instead of dropping it, with a
+brief that a fresh agent can act on alone: what, why, where, how to check it.
+
+    agent-desk task add --defer --title 'Profile the loader' --size M --priority 2 <<'B'
+    Epoch 1 takes 40 min, later epochs 6. Find out why in loader.py ...
+    B
+
+The user launches deferred tasks from the dashboard when quota is plentiful,
+and the desk reminds them when a weekly window is about to reset unused. An
+agent launched on one gets a prompt telling it to join the desk and run
+`agent-desk task done <id>` when finished. `--defer` reads the brief from
+stdin; otherwise pass `--brief TEXT` (or `--brief -` for stdin): `task add`
+never reads stdin unasked, so it cannot hang on a held-open stdin.
+
 ## Ending
 
 `agent-done` files your done report and sets `status` for you where it is

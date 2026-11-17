@@ -92,6 +92,13 @@ Agent side (only coordinators write; workers report to their parent):
   agent-desk set --for agents <slot> [text]   a note only agents see (run state): never unread, 400 lines
   agent-desk get <slot> [--node PATH]   print a slot's current text (yours by default)
   agent-desk clear <slot>
+  agent-desk task add --title T [--brief TEXT|-] [--priority 1-3] [--size S|M|L] [--node PATH]
+  agent-desk task add --defer --title T [--size] [--priority] [--profile P] [--cwd DIR] <<'B' ... B
+  agent-desk task start|done|drop|defer|reopen <id>... [--note TEXT]
+  agent-desk task list [<prefix>] [--deferred] [--all] [--format json] | task prompt <id>
+  agent-desk task launch <id>... | --deferred [<prefix>] [--max N] [--dry-run]
+                                      start agents on tasks ([tasks] launch_command)
+  agent-desk task nudge [--dry-run]   remind the user when quota would go unused (cron)
   agent-desk link <slot> <file>
   agent-desk answer <id> --from-chat 'text'   record an answer given in chat
   agent-desk done --title T [--report FILE]   <<'S' ... S   (agent-done calls this)
@@ -206,6 +213,8 @@ func (a *App) run(args []string) error {
 		return a.cmdHook(rest)
 	case "instructions":
 		return a.cmdInstructions(rest)
+	case "task":
+		return a.cmdTask(rest)
 	case "get":
 		return a.cmdGet(rest)
 	case "pin":
@@ -387,7 +396,7 @@ func nodeOwner(d *desk.Desk, node string) (store.Event, bool) {
 }
 
 // commit appends events in one transaction, prints the display id of the
-// event `show` (or "ok" when show is empty), and re-renders.
+// event `show` ("ok" when show is empty, nothing when it is "-"), and re-renders.
 func (a *App) commit(evs []store.Event, show string) error {
 	st, err := a.store()
 	if err != nil {
@@ -396,9 +405,11 @@ func (a *App) commit(evs []store.Event, show string) error {
 	if err := st.Append(evs...); err != nil {
 		return err
 	}
-	if show == "" {
+	switch show {
+	case "-": // the caller printed its own report
+	case "":
 		fmt.Fprintln(a.Stdout, "ok")
-	} else {
+	default:
 		d, err := a.load()
 		if err != nil {
 			return err
