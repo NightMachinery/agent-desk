@@ -128,7 +128,11 @@ func (c Choices) Text() string {
 		if q.Multi {
 			pick = "any"
 		}
-		fmt.Fprintf(&b, "%d. %s  (pick %s, or Other)\n", i+1, q.Text, pick)
+		if strings.Contains(q.Text, "\n") {
+			fmt.Fprintf(&b, "%d. %s\n   (pick %s, or Other)\n", i+1, q.Text, pick)
+		} else {
+			fmt.Fprintf(&b, "%d. %s  (pick %s, or Other)\n", i+1, q.Text, pick)
+		}
 		for _, o := range q.Options {
 			rec := ""
 			if o.Key == q.Recommended {
