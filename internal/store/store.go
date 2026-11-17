@@ -99,16 +99,22 @@ FROM events r
 WHERE r.kind = 'read'
   AND r.id = (SELECT max(r2.id) FROM events r2 WHERE r2.kind = 'read' AND r2.ref = r.ref);
 
--- Unread: notices, done reports and the current text of each slot other
--- than status, until a read marker names that exact event.
-CREATE VIEW IF NOT EXISTS unread AS
+`
+
+// unreadView is recreated when the stored one differs (unreadMarker tells
+// them apart): unread are notices, done reports and the current text of each
+// slot other than status, until a read marker names that exact event. A slot
+// written for agents only (meta.audience "agents") is never unread.
+const unreadMarker = "-- unread v2"
+
+const unreadView = `CREATE VIEW unread AS ` + unreadMarker + `
 SELECT e.* FROM events e
 WHERE (e.kind IN ('tell', 'done')
        OR (e.kind = 'set'
            AND e.id IN (SELECT id FROM slot_current)
-           AND e.path NOT LIKE '%/status'))
-  AND NOT EXISTS (SELECT 1 FROM read_current rc WHERE rc.ref = e.id AND rc.cancel = 0);
-`
+           AND e.path NOT LIKE '%/status'
+           AND coalesce(json_extract(e.meta, '$.audience'), '') != 'agents'))
+  AND NOT EXISTS (SELECT 1 FROM read_current rc WHERE rc.ref = e.id AND rc.cancel = 0)`
 
 // Store is an open store.
 type Store struct {
@@ -159,6 +165,14 @@ func Open(home string) (*Store, error) {
 	if _, err := db.Exec(schema); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("creating schema in %s: %w", path, err)
+	}
+	var view string
+	_ = db.QueryRow("SELECT coalesce(sql, '') FROM sqlite_master WHERE type = 'view' AND name = 'unread'").Scan(&view)
+	if !strings.Contains(view, unreadMarker) {
+		if _, err := db.Exec("DROP VIEW IF EXISTS unread; " + unreadView); err != nil {
+			db.Close()
+			return nil, fmt.Errorf("updating the unread view in %s: %w", path, err)
+		}
 	}
 	var mode string
 	if err := db.QueryRow("PRAGMA journal_mode").Scan(&mode); err != nil {

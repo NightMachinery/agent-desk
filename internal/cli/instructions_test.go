@@ -100,3 +100,38 @@ func TestInstructionHook(t *testing.T) {
 		t.Fatalf("hook log: %v %q", err, b)
 	}
 }
+
+func TestAgentNotes(t *testing.T) {
+	h := newHarness(t)
+	a := h.as(sessA)
+	h.ok(a, "", "join", "r1/coord")
+	state := strings.Repeat("a line of run state\n", 120)
+	h.fails(a, state, "at most 15 lines", "set", "findings")
+	h.ok(a, state, "set", "--for", "agents", "state")
+	h.ok(a, "fine", "set", "--for", "agents", "scratch")
+	h.fails(a, "x", "reserved", "set", "--for", "agents", "tasks")
+	h.fails(a, "x", "--for is agents", "set", "--for", "robots", "x")
+	h.ok(a, "", "set", "status", "working")
+
+	if got := h.ok(a, "", "get", "state"); got != strings.TrimRight(state, "\n") {
+		t.Fatalf("get: %q", got)
+	}
+	if got := h.ok(nil, "", "get", "status", "--node", "example-proj/r1/coord"); got != "working" {
+		t.Fatalf("get --node: %q", got)
+	}
+	h.fails(a, "", "no slot nope", "get", "nope")
+
+	// Not unread, not in New; listed by name in show.
+	out := h.ok(nil, "", "show", "--format", "md")
+	if strings.Contains(out, "a line of run state") {
+		t.Fatalf("a note's text shows:\n%s", out)
+	}
+	if !strings.Contains(out, "Agent notes (agent-desk get <name>): scratch (1 lines") || !strings.Contains(out, "state (120 lines") {
+		t.Fatalf("show lacks the notes line:\n%s", out)
+	}
+	_, hd := testServer(t, h)
+	_, body, _ := do(t, hd, "GET", "/api/view?path=example-proj", "", nil)
+	if strings.Contains(body, `"unread":1`) || !strings.Contains(body, `"notes":[`) {
+		t.Fatalf("view: %s", body)
+	}
+}

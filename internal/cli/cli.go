@@ -89,6 +89,8 @@ Agent side (only coordinators write; workers report to their parent):
                                       the user's messages to this run, word for word
   agent-desk hook prompt --agent claude|codex   the UserPromptSubmit hook that records them
   agent-desk set <slot> [text]          text or stdin; status 2 lines, next 5, others 15
+  agent-desk set --for agents <slot> [text]   a note only agents see (run state): never unread, 400 lines
+  agent-desk get <slot> [--node PATH]   print a slot's current text (yours by default)
   agent-desk clear <slot>
   agent-desk link <slot> <file>
   agent-desk answer <id> --from-chat 'text'   record an answer given in chat
@@ -204,6 +206,8 @@ func (a *App) run(args []string) error {
 		return a.cmdHook(rest)
 	case "instructions":
 		return a.cmdInstructions(rest)
+	case "get":
+		return a.cmdGet(rest)
 	case "pin":
 		return a.cmdPin(rest, false)
 	case "unpin":
@@ -768,8 +772,15 @@ func slotArg(name string) error {
 	return nil
 }
 
+// Agent notes (set --for agents) are bigger: run state an agent keeps for
+// itself, read back after compaction.
+const (
+	NoteCap   = 400
+	NoteBytes = 64 << 10
+)
+
 func (a *App) cmdSet(args []string) error {
-	o, err := parse(args, nil, []string{"project"}, 1, -1)
+	o, err := parse(args, nil, []string{"project", "for"}, 1, -1)
 	if err != nil {
 		return err
 	}
@@ -777,7 +788,15 @@ func (a *App) cmdSet(args []string) error {
 	if err := slotArg(name); err != nil {
 		return err
 	}
-	if Reserved[name] {
+	agents := false
+	switch o.vals["for"] {
+	case "", "user":
+	case "agents":
+		agents = true
+	default:
+		return usagef("--for is agents (or user, the default)")
+	}
+	if Reserved[name] && !(agents && name == "state") {
 		return usagef("slot %q is reserved for a linked file: agent-desk link %s <file>", name, name)
 	}
 	text := strings.Join(o.pos[1:], " ")
@@ -798,12 +817,22 @@ func (a *App) cmdSet(args []string) error {
 	if !ok {
 		limit = DefaultCap
 	}
+	if agents {
+		limit = NoteCap
+		if len(text) > NoteBytes {
+			return fmt.Errorf("an agent note takes at most %d KiB; this text has %d bytes. Nothing was written", NoteBytes>>10, len(text))
+		}
+	}
 	if n := strings.Count(text, "\n") + 1; n > limit {
 		return fmt.Errorf("slot %s takes at most %d lines; this text has %d. Nothing was written. "+
 			"State only what is true now", name, limit, n)
 	}
+	var extra map[string]any
+	if agents {
+		extra = map[string]any{"audience": "agents"}
+	}
 	return a.agentWrite(o.vals["project"], func(from ident.From, node string, _ *desk.Desk) ([]store.Event, error) {
-		e := a.event("set", node+"/"+name, from, "cli", nil)
+		e := a.event("set", node+"/"+name, from, "cli", extra)
 		e.Body = text
 		return []store.Event{e}, nil
 	})

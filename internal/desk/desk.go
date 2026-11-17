@@ -431,7 +431,7 @@ func (d *Desk) New(f Filter) []Group {
 		case IsResponse(e):
 			continue // in Responses
 		case e.Kind == "tell" || e.Kind == "done":
-		case e.Kind == "set" && cur[e.ID] && SlotName(e) != "status":
+		case e.Kind == "set" && cur[e.ID] && SlotName(e) != "status" && !ForAgents(e):
 		default:
 			continue
 		}
@@ -462,7 +462,17 @@ type Slot struct {
 	ID     string      `json:"display_id"`
 	Unread bool        `json:"unread"`
 	File   string      `json:"file,omitempty"` // for link slots
+	Lines  int         `json:"lines,omitempty"`
 }
+
+// Slots are the current set and link events of every slot (cleared slots
+// are left out).
+func (d *Desk) Slots() []store.Event { return d.slots }
+
+// ForAgents reports whether a slot was written for agents only (set --for
+// agents): run state an agent keeps for itself, never unread or notified,
+// and listed apart from the slots the user reads.
+func ForAgents(e store.Event) bool { return MetaString(e, "audience") == "agents" }
 
 // Node is a project, run or agent in the tree.
 type Node struct {
@@ -476,6 +486,7 @@ type Node struct {
 	UnreadN  int     `json:"unread"`
 	Host     string  `json:"host,omitempty"` // when not this machine
 	Slots    []Slot  `json:"slots,omitempty"`
+	Notes    []Slot  `json:"notes,omitempty"` // slots for agents only
 	Children []*Node `json:"children,omitempty"`
 	Hidden   bool    `json:"-"`
 
@@ -551,6 +562,11 @@ func (d *Desk) Tree(f Filter) []*Node {
 		if s.Kind == "link" {
 			sl.File = MetaString(s, "file")
 		}
+		if ForAgents(s) {
+			sl.Lines = strings.Count(s.Body, "\n") + 1
+			n.Notes = append(n.Notes, sl)
+			continue
+		}
 		n.Slots = append(n.Slots, sl)
 	}
 	// A dismissed question no longer asks for attention, but its agent is
@@ -595,6 +611,7 @@ func (d *Desk) Tree(f Filter) []*Node {
 			d.settle(n, f)
 		}
 		sortSlots(n.Slots)
+		sortSlots(n.Notes)
 		sortNodes(n.Children)
 	}
 	finish(root)

@@ -374,6 +374,13 @@ func (w *Writer) Node(level int, n *Node) {
 			w.Text(s.Event.Body)
 		}
 	}
+	if len(n.Notes) > 0 {
+		var names []string
+		for _, s := range n.Notes {
+			names = append(names, fmt.Sprintf("%s (%d lines, %s)", s.Name, s.Lines, Age(w.Desk.Now.Sub(Time(s.Event)))))
+		}
+		w.Text("Agent notes (agent-desk get <name>): " + strings.Join(names, ", "))
+	}
 	for _, c := range n.Children {
 		w.Node(level+1, c)
 	}

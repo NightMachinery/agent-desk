@@ -199,6 +199,20 @@ Then add others as they help: `findings`, `artifacts`, or any slug.
 - `tasks`, `user-verbatim` and `state` only take `link`, to the file that
   already holds them.
 
+### Notes for agents only
+
+Run state you keep for yourself (what a STATE.md holds: decisions and their
+reasons, live workers and jobs, result paths, traps you hit) can live on the
+desk as a note only agents see:
+
+    agent-desk set --for agents state < STATE.md   # up to 400 lines, 64 KiB
+    agent-desk get state                            # read it back after compaction
+
+A note is never unread and never notifies; the user's views list it folded,
+by name. It is replaced whole on each `set`, like any slot, so write what is
+true now. `state` may be set this way; any other slug works too. Other agents
+read yours with `agent-desk get <name> --node <path>`.
+
 ## Ending
 
 `agent-done` files your done report and sets `status` for you where it is

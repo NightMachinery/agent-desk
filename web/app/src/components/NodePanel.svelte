@@ -80,6 +80,20 @@
     </div>
   {/if}
 
+  {#if !compact && node.notes?.length}
+    <details class="notes">
+      <summary title="Run state the agents keep for themselves (agent-desk set --for agents). Never unread.">
+        Agent notes ({node.notes.length})
+      </summary>
+      {#each node.notes as s (s.event.id)}
+        <details class="note">
+          <summary><span class="slot-name">{s.name}</span> <span class="faint">{s.lines} lines</span></summary>
+          <Markdown class="slot-text" text={s.event.body} links={false} />
+        </details>
+      {/each}
+    </details>
+  {/if}
+
   {#if conversation.length}
     {#if compact}
       <details class="convo">
@@ -192,6 +206,25 @@
   .coord {
     margin-top: 6px;
     font-size: 12.5px;
+  }
+  .notes {
+    margin: 4px 0 12px;
+    color: var(--muted);
+  }
+  .notes > summary {
+    cursor: pointer;
+    font-size: 13px;
+  }
+  .note {
+    margin: 6px 0 0 14px;
+    color: var(--text);
+  }
+  .note summary {
+    cursor: pointer;
+  }
+  .note summary .slot-name {
+    display: inline;
+    margin-right: 6px;
   }
   .slots {
     margin-top: 16px;

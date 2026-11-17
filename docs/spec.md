@@ -556,7 +556,10 @@ One atomic commit group each. Stop after each phase and run its check.
      other agents. Built 2026-11-17 (`agent-desk hook prompt`,
      `agent-desk instructions`; docs/usage.md). Import and merge now skip
      event kinds a version does not know, so an older binary still merges.
-   - Run state as slots with an agent-only audience.
+   - Run state as slots with an agent-only audience. Built 2026-11-17:
+     `set --for agents` stores `meta.audience = "agents"`; the `unread` view
+     (rebuilt once, marked `-- unread v2`) leaves such slots out; `get`
+     reads any slot.
    - Tasks as events.
    - A Paseo plugin.
 

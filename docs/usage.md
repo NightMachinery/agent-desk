@@ -501,6 +501,15 @@ keep its files; `media_keep_days = 0` keeps every file. To run it now:
 Links to attachments in the rendered ledger point at the stored file, so
 they stop working once it is deleted.
 
+## Notes for agents only
+
+`agent-desk set --for agents <slot>` writes a slot only agents read: run
+state an agent keeps for itself, up to 400 lines and 64 KiB. It is never
+unread, never notifies, and stays out of the New list; `show` names it on its
+node ("Agent notes: state (120 lines, 2h)") and the dashboard's node panel
+lists it folded. `agent-desk get <slot> [--node PATH]` prints any slot's
+current text, the calling session's node by default.
+
 ## The user's messages, kept word for word
 
 A prompt hook copies every message the user sends to a session on the desk,

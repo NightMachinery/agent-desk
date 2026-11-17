@@ -260,3 +260,46 @@ func parseSince(s string, now time.Time) (time.Time, error) {
 	}
 	return time.Time{}, errors.New("--since takes a time (RFC 3339), a date (2006-01-02) or a duration (2h, 3d)")
 }
+
+// cmdGet prints a slot's current text: this session's by default.
+func (a *App) cmdGet(args []string) error {
+	o, err := parse(args, nil, []string{"node"}, 1, 1)
+	if err != nil {
+		return err
+	}
+	name := o.pos[0]
+	if err := slotArg(name); err != nil {
+		return err
+	}
+	d, err := a.load()
+	if err != nil {
+		return err
+	}
+	node := strings.Trim(o.vals["node"], "/")
+	if node == "" {
+		bound, ok := a.binding(d, ident.Resolve(a.Env))
+		if !ok {
+			return usagef("give --node PATH: this session has not joined a node")
+		}
+		node = bound.Path
+	}
+	for _, s := range d.Slots() {
+		if s.Path != node+"/"+name {
+			continue
+		}
+		switch s.Kind {
+		case "set":
+			fmt.Fprintln(a.Stdout, s.Body)
+			return nil
+		case "link":
+			f := desk.MetaString(s, "file")
+			b, err := os.ReadFile(f)
+			if err != nil {
+				return fmt.Errorf("slot %s links %s: %w", name, f, err)
+			}
+			_, err = a.Stdout.Write(b)
+			return err
+		}
+	}
+	return fmt.Errorf("no slot %s at %s", name, node)
+}
