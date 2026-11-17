@@ -498,7 +498,7 @@ func (d *Desk) Tree(f Filter) []*Node {
 	lastJoin := map[string]string{}
 	hosts := map[string]string{}
 	for _, e := range d.Events {
-		if !scope.Keep(e) || e.Kind == "read" || e.Kind == "pin" {
+		if !scope.Keep(e) || e.Kind == "read" || e.Kind == "pin" || e.Kind == "pref" {
 			continue
 		}
 		node := NodeOf(e)

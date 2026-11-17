@@ -92,8 +92,9 @@ User side:
   agent-desk show [<path-prefix>|--mine] [--all] [--host H] [--session S] [--format org|md|json]
   agent-desk answer <id> [--behavior B] 'text'   record, then type it into the asking session
   agent-desk reply <id|path> [--behavior B] 'text'   message the session behind an item or node
-                                      B: steer (default: joins the running turn), queue
-                                      (waits for the turn to end) or interrupt (cancels it)
+                                      B: steer (joins the running turn), queue (waits for
+                                      the turn to end) or interrupt (cancels it); the
+                                      default is the deliver.behavior setting, else steer
   agent-desk deliver                  retry answers and replies not yet delivered
   agent-desk serve [--listen ADDR|unix:PATH] [--allow-host H,...] [--allow-origin URL,...]
                    [--pid-file F] [--config F.json]
@@ -102,6 +103,11 @@ User side:
   agent-desk unread <id>...
   agent-desk pin <id>... | unpin <id>...   keep items on top (a slot stays pinned as it changes)
   agent-desk search <text> [--host H]
+  agent-desk pref set <key> <value> [--scope PATH] [--class C]
+  agent-desk pref unset <key> [--scope PATH] [--class C]
+  agent-desk pref show [<path>] [--class C] [--format json]
+                                      settings: deliver.behavior, notify.desktop,
+                                      notify.remote, notify.remote.dest
   agent-desk open <id|path>       what a notification click runs (open_command)
   agent-desk export | import [--notify] | snapshot <file> | render
   agent-desk merge <file>|ssh:<host> [--notify]
@@ -176,6 +182,8 @@ func (a *App) run(args []string) error {
 		return a.cmdTell(rest)
 	case "set":
 		return a.cmdSet(rest)
+	case "pref":
+		return a.cmdPref(rest)
 	case "whoami":
 		return a.cmdWhoami(rest)
 	case "pin":
@@ -630,7 +638,7 @@ func (a *App) cmdPin(args []string, unpin bool) error {
 			return err
 		}
 		switch e.Kind {
-		case "read", "delivered", "pin", "join":
+		case "read", "delivered", "pin", "pref", "join":
 			return fmt.Errorf("%s is a %s mark; pin the item itself", d.Display(e.ID), e.Kind)
 		}
 		k := d.PinKey(e)
@@ -843,6 +851,11 @@ func (a *App) recordAnswer(d *desk.Desk, q store.Event, text, source, behavior s
 		b, err := checkBehavior(behavior)
 		if err != nil {
 			return err
+		}
+		if b == "" {
+			if b, err = a.defaultBehavior(d, q.Path); err != nil {
+				return err
+			}
 		}
 		extra = map[string]any{"behavior": b}
 	}
@@ -1089,7 +1102,7 @@ func (a *App) cmdSearch(args []string) error {
 	needle := strings.ToLower(strings.Join(o.pos, " "))
 	var hits []store.Event
 	for _, e := range d.Events {
-		if e.Kind == "read" || e.Kind == "pin" || e.Kind == "join" || e.Kind == "delivered" {
+		if e.Kind == "read" || e.Kind == "pin" || e.Kind == "pref" || e.Kind == "join" || e.Kind == "delivered" {
 			continue
 		}
 		if o.vals["host"] != "" && e.Host != o.vals["host"] {

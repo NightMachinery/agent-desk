@@ -33,7 +33,7 @@ type Event struct {
 }
 
 // Kinds lists every event kind the store accepts.
-var Kinds = []string{"join", "ask", "answer", "delivered", "tell", "done", "set", "clear", "link", "read", "reply", "pin"}
+var Kinds = []string{"join", "ask", "answer", "delivered", "tell", "done", "set", "clear", "link", "read", "reply", "pin", "pref"}
 
 func validKind(k string) bool {
 	for _, x := range Kinds {
@@ -184,7 +184,8 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 // Validate checks an event's required fields.
 func Validate(e Event) error {
-	if e.ID == "" || e.TS == "" || e.Host == "" || e.Path == "" {
+	// A pref's path is its scope, and the global scope is the empty path.
+	if e.ID == "" || e.TS == "" || e.Host == "" || (e.Path == "" && e.Kind != "pref") {
 		return fmt.Errorf("event %q: id, ts, host and path are required", e.ID)
 	}
 	if !validKind(e.Kind) {

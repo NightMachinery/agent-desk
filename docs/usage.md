@@ -179,8 +179,9 @@ the session that asked:
 How it lands on a busy agent is its **behaviour**, chosen per message with
 `--behavior` (on `answer` and `reply`, or in the dashboard):
 
-- `steer` (the default): the agent reads it within its current turn, which
-  carries on uninterrupted.
+- `steer` (the default, unless the `deliver.behavior` setting says
+  otherwise; see Settings below): the agent reads it within its current
+  turn, which carries on uninterrupted.
 - `queue`: it waits until the turn ends. Only a Paseo that lists `queue`
   among `paseo send --behavior` choices can do this (the desk reads its
   help once per Paseo binary); elsewhere it is sent as steer, and the
@@ -306,6 +307,52 @@ output goes to `~/.agents/desk/hooks.log`. With no config, nothing is run.
 
 `agent-desk open <id|path>` hands the item to `open_command`, or without one
 opens the inbox scoped to the item's node.
+
+## Settings
+
+A **setting** is a named value that the desk looks up for each event. You
+set it for a **scope**: everywhere, or one project, run or node path. A
+notification setting can also be set for one **class** of event:
+`ask-blocked`, `ask-default`, `response`, `tell-notify`, `tell` or `done`.
+
+    agent-desk pref set deliver.behavior queue --scope example-proj
+    agent-desk pref set notify.remote always --class ask-blocked
+    agent-desk pref unset notify.remote --class ask-blocked
+    agent-desk pref show example-proj/rerun-nov/coord   # each value, and where it comes from
+
+The settings:
+
+- `deliver.behavior`: `steer` or `queue`, the behaviour of a message sent
+  without `--behavior`. `interrupt` is refused here: it cancels the agent's
+  work in progress, so it is only ever chosen for one message.
+- `notify.desktop`: `none`, `origin` (the machine the event was written
+  on), `all`, or host names separated by commas.
+- `notify.remote`: `off`, `away` or `always`, for a channel that reaches you
+  away from your desk, such as your phone.
+- `notify.remote.dest`: free text handed to that channel.
+
+(The notification settings are stored and shown now; routing notifications
+by them comes with the next release.)
+
+For one event, the first match wins:
+
+1. what the message itself asks for (`--behavior`);
+2. a `pref` at the event's node, then at each parent up to the global
+   scope. At one scope a setting for the event's class beats one for any
+   class, and a nearer scope beats a farther one whatever the class;
+3. the config file's defaults, a class's table before the general one;
+4. the built-in values: steer; desktop notifications on the origin machine
+   for everything but a plain `tell`; remote notifications only for blocked
+   questions and responses, and only while you are away.
+
+Overrides are `pref` events in the store, so they merge between machines and
+keep their history. Only you write them: `pref set` from an agent session is
+refused. Defaults go in `config.toml`:
+
+    [defaults]
+    "notify.remote.dest" = "example-chat"
+    [defaults.class.ask-blocked]
+    "notify.remote" = "always"
 
 ## Several machines
 

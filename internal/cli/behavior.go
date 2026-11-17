@@ -19,12 +19,11 @@ import (
 // only ever chosen per message, never stored as a default.
 var Behaviors = []string{"steer", "queue", "interrupt"}
 
-// checkBehavior validates a requested behaviour; empty means the default.
+// checkBehavior validates a requested behaviour; empty stays empty and means
+// the deliver.behavior setting (see defaultBehavior).
 func checkBehavior(b string) (string, error) {
 	switch b {
-	case "":
-		return "steer", nil
-	case "steer", "queue", "interrupt":
+	case "", "steer", "queue", "interrupt":
 		return b, nil
 	}
 	return "", usagef("--behavior is steer, queue or interrupt, not %q", b)

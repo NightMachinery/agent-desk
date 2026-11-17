@@ -29,7 +29,7 @@ func replyTarget(d *desk.Desk, token string) (to ident.From, host, node string, 
 					return replyTarget(d, desk.NodeOf(e))
 				}
 				e = d.ByID[e.Ref]
-			case "read", "delivered", "pin":
+			case "read", "delivered", "pin", "pref":
 				return to, "", "", e, fmt.Errorf("%s is a %s mark; reply to the item it marks", d.Display(e.ID), e.Kind)
 			}
 			about, node, to, host = e, desk.NodeOf(e), fromOf(e), e.Host
@@ -129,9 +129,13 @@ func (a *App) recordReply(token, text, source, behavior string) (store.Event, er
 	if err != nil {
 		return store.Event{}, err
 	}
-	behavior, err = checkBehavior(behavior)
-	if err != nil {
+	if behavior, err = checkBehavior(behavior); err != nil {
 		return store.Event{}, err
+	}
+	if behavior == "" {
+		if behavior, err = a.defaultBehavior(d, node); err != nil {
+			return store.Event{}, err
+		}
 	}
 	e := a.event("reply", node, ident.Resolve(a.Env), source, map[string]any{"to": to, "to_host": host, "behavior": behavior})
 	e.Ref, e.Body = about.ID, text

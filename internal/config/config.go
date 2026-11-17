@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 
 	"github.com/BurntSushi/toml"
+
+	"github.com/NightMachinery/agent-desk/internal/settings"
 )
 
 // Config is the parsed file. Empty commands are not run.
@@ -20,6 +22,9 @@ type Config struct {
 	DismissCommand string `toml:"dismiss_command"`
 	OpenCommand    string `toml:"open_command"`
 	DeliverCommand string `toml:"deliver_command"`
+	// RawDefaults is the [defaults] table as written; Defaults is it checked.
+	RawDefaults map[string]any    `toml:"defaults"`
+	Defaults    settings.Defaults `toml:"-"`
 }
 
 // Path is ${AGENT_DESK_CONFIG}, else ${XDG_CONFIG_HOME:-~/.config}/agent-desk/config.toml.
@@ -44,10 +49,70 @@ func Load(path string) (Config, error) {
 	if err != nil {
 		return Config{}, fmt.Errorf("%s: %w", path, err)
 	}
-	if und := md.Undecoded(); len(und) > 0 {
-		return Config{}, fmt.Errorf("%s: unknown key %q", path, und[0].String())
+	// The [defaults] tables are checked below, by defaults().
+	for _, k := range md.Undecoded() {
+		if len(k) == 0 || k[0] != "defaults" {
+			return Config{}, fmt.Errorf("%s: unknown key %q", path, k.String())
+		}
+	}
+	if c.Defaults, err = defaults(c.RawDefaults); err != nil {
+		return Config{}, fmt.Errorf("%s: %w", path, err)
 	}
 	return c, nil
+}
+
+// defaults checks the [defaults] table: setting keys with string values, and
+// [defaults.class.<class>] tables of the same.
+func defaults(raw map[string]any) (settings.Defaults, error) {
+	d := settings.Defaults{Any: map[string]string{}, Class: map[string]map[string]string{}}
+	table := func(where, class string, t map[string]any, into map[string]string) error {
+		for k, v := range t {
+			s, ok := v.(string)
+			if !ok {
+				return fmt.Errorf("%s: %q must be a string", where, k)
+			}
+			if err := settings.Check(k, s); err != nil {
+				return fmt.Errorf("%s: %w", where, err)
+			}
+			if class != settings.Any {
+				if _, err := settings.CheckClass(k, class); err != nil {
+					return fmt.Errorf("%s: %w", where, err)
+				}
+			}
+			into[k] = s
+		}
+		return nil
+	}
+	rest := map[string]any{}
+	for k, v := range raw {
+		if k != "class" {
+			rest[k] = v
+		}
+	}
+	if err := table("[defaults]", settings.Any, rest, d.Any); err != nil {
+		return d, err
+	}
+	if cl, ok := raw["class"]; ok {
+		classes, ok := cl.(map[string]any)
+		if !ok {
+			return d, fmt.Errorf("[defaults]: class must be tables, [defaults.class.<class>]")
+		}
+		for name, t := range classes {
+			where := "[defaults.class." + name + "]"
+			if _, err := settings.CheckClass("", name); err != nil || name == settings.Any {
+				return d, fmt.Errorf("%s: no class %q; the classes are %v", where, name, settings.Classes)
+			}
+			tt, ok := t.(map[string]any)
+			if !ok {
+				return d, fmt.Errorf("%s must be a table", where)
+			}
+			d.Class[name] = map[string]string{}
+			if err := table(where, name, tt, d.Class[name]); err != nil {
+				return d, err
+			}
+		}
+	}
+	return d, nil
 }
 
 // Exists reports whether a config file is present.

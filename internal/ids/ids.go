@@ -52,6 +52,8 @@ func Letter(kind string) string {
 		return "m"
 	case "pin":
 		return "k"
+	case "pref":
+		return "p"
 	}
 	return "e"
 }

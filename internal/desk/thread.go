@@ -137,3 +137,28 @@ func (d *Desk) AwaitingAt(path string) []store.Event {
 	}
 	return out
 }
+
+// ClassOf is the settings class of a notifiable event: a question is
+// ask-blocked or ask-default; a tell is response when it responds, else
+// tell-notify with --notify, else tell; a done report is done. Other events
+// have no class.
+func ClassOf(e store.Event) string {
+	switch e.Kind {
+	case "ask":
+		if e.Level == "blocked" {
+			return "ask-blocked"
+		}
+		return "ask-default"
+	case "tell":
+		if IsResponse(e) {
+			return "response"
+		}
+		if e.Level == "notify" {
+			return "tell-notify"
+		}
+		return "tell"
+	case "done":
+		return "done"
+	}
+	return ""
+}

@@ -425,7 +425,7 @@ func (s *server) apiView(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if resp.Target != nil {
-			s.behaviors(resp.Target)
+			s.behaviors(d, resp.Target)
 		}
 	}
 	if f.Session != "" {
@@ -530,16 +530,20 @@ type Target struct {
 }
 
 // behaviors fills in a target's behaviours under the server's lock.
-func (s *server) behaviors(t *Target) {
+func (s *server) behaviors(d *desk.Desk, t *Target) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.a.withBehaviors(t)
+	s.a.withBehaviors(d, t)
 }
 
 // withBehaviors fills in what the target can do with a message.
-func (a *App) withBehaviors(t *Target) {
+// The default is the deliver.behavior setting for the target's node.
+func (a *App) withBehaviors(d *desk.Desk, t *Target) {
 	t.Behaviors = a.supports(t.Via, t.to)
 	t.DefaultBehavior = "steer"
+	if b, err := a.defaultBehavior(d, t.Node); err == nil {
+		t.DefaultBehavior = b
+	}
 }
 
 func targetOf(d *desk.Desk, token string) (Target, error) {
@@ -579,7 +583,7 @@ func (s *server) apiTarget(w http.ResponseWriter, r *http.Request) {
 			t.Via = "command"
 		}
 	}
-	s.behaviors(&t)
+	s.behaviors(d, &t)
 	writeJSON(w, t)
 }
 
@@ -655,7 +659,7 @@ func (s *server) apiItem(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if t, err := targetOf(d, e.ID); err == nil {
-		s.behaviors(&t)
+		s.behaviors(d, &t)
 		resp.Target = &t
 	}
 	writeJSON(w, resp)
