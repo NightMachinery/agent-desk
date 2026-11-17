@@ -85,6 +85,9 @@ Agent side (only coordinators write; workers report to their parent):
   agent-desk tell --re-chat 'what the user asked' [--quiet] [--title T] <<'R' ... R
                                       file your answer to a question asked in chat
   agent-desk whoami                   this session's node, or exit 1
+  agent-desk instructions [<path-prefix>] [--since 2d] [--format json]
+                                      the user's messages to this run, word for word
+  agent-desk hook prompt --agent claude|codex   the UserPromptSubmit hook that records them
   agent-desk set <slot> [text]          text or stdin; status 2 lines, next 5, others 15
   agent-desk clear <slot>
   agent-desk link <slot> <file>
@@ -197,6 +200,10 @@ func (a *App) run(args []string) error {
 		return a.cmdPref(rest)
 	case "whoami":
 		return a.cmdWhoami(rest)
+	case "hook":
+		return a.cmdHook(rest)
+	case "instructions":
+		return a.cmdInstructions(rest)
 	case "pin":
 		return a.cmdPin(rest, false)
 	case "unpin":

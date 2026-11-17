@@ -553,7 +553,9 @@ One atomic commit group each. Stop after each phase and run its check.
      hand-kept verbatim file. The user approved this hook (it records the
      user's text, not the agent's). It must skip automated prompts: resume
      pings, cache-warming pings, compaction commands and prompts sent by
-     other agents.
+     other agents. Built 2026-11-17 (`agent-desk hook prompt`,
+     `agent-desk instructions`; docs/usage.md). Import and merge now skip
+     event kinds a version does not know, so an older binary still merges.
    - Run state as slots with an agent-only audience.
    - Tasks as events.
    - A Paseo plugin.

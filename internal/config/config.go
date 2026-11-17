@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 
 	"github.com/BurntSushi/toml"
 
@@ -36,6 +37,9 @@ type Config struct {
 	// MediaKeepDays: attachments of items read or answered this many days
 	// ago are deleted by gc (default 30; 0 keeps them for good).
 	MediaKeepDays *int `toml:"media_keep_days"`
+	// Instructions configures the prompt hook that records the user's
+	// messages ([instructions]).
+	Instructions Instructions `toml:"instructions"`
 	// RawDefaults is the [defaults] table as written; Defaults is it checked.
 	RawDefaults map[string]any    `toml:"defaults"`
 	Defaults    settings.Defaults `toml:"-"`
@@ -133,4 +137,29 @@ func defaults(raw map[string]any) (settings.Defaults, error) {
 func Exists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
+}
+
+// Instructions is the [instructions] table.
+type Instructions struct {
+	// Record turns the hook off when false (default true).
+	Record *bool `toml:"record"`
+	// Skip are more regular expressions for prompts that are not the
+	// user's, matched against the trimmed prompt.
+	Skip []string `toml:"skip"`
+}
+
+// Off reports whether recording is turned off.
+func (i Instructions) Off() bool { return i.Record != nil && !*i.Record }
+
+// SkipPatterns compiles Skip.
+func (i Instructions) SkipPatterns() ([]*regexp.Regexp, error) {
+	var out []*regexp.Regexp
+	for _, s := range i.Skip {
+		re, err := regexp.Compile(s)
+		if err != nil {
+			return nil, fmt.Errorf("[instructions] skip %q: %w", s, err)
+		}
+		out = append(out, re)
+	}
+	return out, nil
 }

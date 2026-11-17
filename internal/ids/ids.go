@@ -58,6 +58,8 @@ func Letter(kind string) string {
 		return "n"
 	case "retracted":
 		return "x"
+	case "instruction":
+		return "u"
 	}
 	return "e"
 }

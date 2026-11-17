@@ -501,6 +501,38 @@ keep its files; `media_keep_days = 0` keeps every file. To run it now:
 Links to attachments in the rendered ledger point at the stored file, so
 they stop working once it is deleted.
 
+## The user's messages, kept word for word
+
+A prompt hook copies every message the user sends to a session on the desk,
+verbatim, as an `instruction` event (display id `u-...`) at the session's
+node. A run then keeps its owner's instructions through compaction without a
+hand-kept file. Agents read them back:
+
+    agent-desk instructions                    # this session's run
+    agent-desk instructions tdesktop/rerun-nov [--since 2d] [--format json]
+
+They never appear in the inbox, the dashboard lists or notifications.
+
+What is recorded: only sessions that have joined a node, only coordinators
+(a tmux worker's prompts are typed by its parent), and only prompts the user
+typed. Skipped: messages from other agents (Paseo's `<paseo-system>`
+envelope), Paseo schedules and heartbeats, `Continue.`, a bare slash command
+such as `/compact`, harness notices, and the answers and replies the desk
+delivers (already on the desk). A slash command with arguments is kept.
+
+Install it as a `UserPromptSubmit` hook. Claude Code (`settings.json`):
+
+    {"hooks": {"UserPromptSubmit": [{"hooks": [{"type": "command",
+      "command": "agent-desk hook prompt --agent claude", "timeout": 10}]}]}}
+
+Codex (`hooks.json`, same shape) uses `--agent codex`. The hook prints
+nothing and always exits 0; its errors go to `hook-errors.log` in the store
+directory. In `config.toml`:
+
+    [instructions]
+    record = false                  # turn it off
+    skip = ['^PING ', '^Nightly:']  # more prompts that are not the user's
+
 ## Several machines
 
     agent-desk snapshot /tmp/copy.db   # consistent copy of the live store

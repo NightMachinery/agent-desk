@@ -1,0 +1,102 @@
+package cli
+
+import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+func hookJSON(session, prompt string) string {
+	b, _ := json.Marshal(map[string]string{"session_id": session, "prompt": prompt, "cwd": "/tmp", "hook_event_name": "UserPromptSubmit"})
+	return string(b)
+}
+
+func TestInstructionHook(t *testing.T) {
+	h := newHarness(t)
+	a := h.as(sessA)
+	none := map[string]string{} // hooks need not inherit the session variables
+	hook := func(prompt string) {
+		t.Helper()
+		if out := h.ok(none, hookJSON(sessA, prompt), "hook", "prompt", "--agent", "claude"); out != "" {
+			t.Fatalf("the hook printed %q; its output would join the prompt", out)
+		}
+	}
+
+	hook("before joining: not recorded")
+	h.ok(a, "", "join", "r1/coord")
+	before := h.count()
+	for _, p := range []string{
+		"Continue.",
+		"/compact",
+		"/clear",
+		`<paseo-system kind="agent-message">from a parent</paseo-system>`,
+		`Schedule "keepalive" fired (id=abc, run=1)` + "\nping",
+		`Answer to q-7f3a "Which split?": B`,
+		"Message from the user via agent-desk, about t-k2m9 \"x\": hi",
+		"<task-notification>done</task-notification>",
+		"   ",
+	} {
+		hook(p)
+	}
+	if h.count() != before {
+		t.Fatalf("an automated prompt was recorded")
+	}
+
+	hook("  Use the big drive for worktrees.\n\nAnd keep the old cache.  ")
+	hook("/delegate stronger: design the reply UX")
+	if h.count() != before+2 {
+		t.Fatalf("want 2 instructions, have %d new events", h.count()-before)
+	}
+	out := h.ok(a, "", "instructions")
+	if !strings.Contains(out, "Use the big drive for worktrees.\n\nAnd keep the old cache.") ||
+		!strings.Contains(out, "/delegate stronger: design the reply UX") || !strings.Contains(out, "r1/coord") ||
+		strings.Contains(out, "before joining") {
+		t.Fatalf("instructions:\n%s", out)
+	}
+	if out := h.ok(nil, "", "instructions", "other"); !strings.Contains(out, "no instructions") {
+		t.Fatalf("other prefix: %q", out)
+	}
+	js := h.ok(nil, "", "instructions", "example-proj/r1", "--format", "json")
+	if n := strings.Count(js, "\n") + 1; n != 2 || !strings.Contains(js, `"id":"u-`) {
+		t.Fatalf("json: %s", js)
+	}
+	// Not in the user's views.
+	if out := h.ok(nil, "", "show", "--all", "--format", "md"); strings.Contains(out, "big drive") {
+		t.Fatalf("an instruction shows in show:\n%s", out)
+	}
+
+	// A tmux worker's prompts come from its parent.
+	h.tmux["%9"] = "ag--worker\tsub\t123"
+	w := map[string]string{"TMUX_PANE": "%9"}
+	h.ok(map[string]string{"AI_AGENT": "claude-code_test", "CLAUDE_CODE_SESSION_ID": sessB, "TMUX_PANE": "%9"}, "", "join", "r1/coord/w1")
+	n := h.count()
+	h.ok(w, hookJSON(sessB, "a brief from the parent"), "hook", "prompt", "--agent", "claude")
+	if h.count() != n {
+		t.Fatalf("a tmux worker's prompt was recorded")
+	}
+
+	// Config: extra skips, and off.
+	cfg := filepath.Join(h.home, ".config", "agent-desk", "config.toml")
+	must(t, os.MkdirAll(filepath.Dir(cfg), 0o755))
+	must(t, os.WriteFile(cfg, []byte("[instructions]\nskip = ['^PING ']\n"), 0o644))
+	n = h.count()
+	hook("PING from a script")
+	if h.count() != n {
+		t.Fatalf("a configured skip was recorded")
+	}
+	must(t, os.WriteFile(cfg, []byte("[instructions]\nrecord = false\n"), 0o644))
+	hook("a real message, but recording is off")
+	if h.count() != n {
+		t.Fatalf("recorded while off")
+	}
+
+	// Bad input is logged, not reported to the agent.
+	if out, _, code := h.run(none, "not json", "hook", "prompt", "--agent", "claude"); code != 0 || out != "" {
+		t.Fatalf("bad input: %d %q", code, out)
+	}
+	if b, err := os.ReadFile(filepath.Join(h.desk, "hook-errors.log")); err != nil || !strings.Contains(string(b), "not JSON") {
+		t.Fatalf("hook log: %v %q", err, b)
+	}
+}

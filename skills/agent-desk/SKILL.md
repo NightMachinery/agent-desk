@@ -234,3 +234,12 @@ them to the dashboard's Notify chip.
     agent-desk show --mine            # your node: open questions, slots, messages awaiting you
     agent-desk show rerun-nov         # one run
     agent-desk search 'leakage'
+    agent-desk instructions           # the user's messages to your run, word for word
+
+Where the prompt hook is installed, every message the user sends a session
+that has joined a node is kept on the desk, word for word; automated prompts
+(heartbeats, `Continue.`, `/compact`, other agents' messages, desk answers)
+are not. After compaction, read `agent-desk instructions` before acting: it
+is the user's own text, not a summary of it. It prints
+`(no instructions recorded ...)` when the hook is not installed; then keep
+the user's words in your own verbatim file as before.
