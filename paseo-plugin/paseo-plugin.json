@@ -1,0 +1,9 @@
+{
+  "id": "agent-desk",
+  "name": "Agent desk",
+  "description": "Questions and reports your agents filed on agent-desk: answer, dismiss and message them from Paseo",
+  "media": [],
+  "requirements": {
+    "paseo": ">=0.15.4"
+  }
+}

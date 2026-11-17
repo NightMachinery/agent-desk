@@ -567,7 +567,11 @@ One atomic commit group each. Stop after each phase and run its check.
    - Tasks as events. Built 2026-11-17 with deferred-for-quota tasks
      (kinds `task` and `taskstate`, `agent-desk task ...`, `[tasks]`
      launch_command and quota nudge; docs/usage.md).
-   - A Paseo plugin.
+   - A Paseo plugin. Built 2026-11-17 in `paseo-plugin/` (Paseo >= 0.15.4):
+     a sidebar footer row and screen, a per-agent panel and composer pill,
+     Command Center items; RPCs run the CLI on the daemon's machine. The
+     user asked that it be easy to disable: `paseo plugin disable
+     agent-desk`, nothing else depends on it.
 
 ## To verify early
 

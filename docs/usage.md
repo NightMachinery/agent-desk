@@ -410,6 +410,32 @@ or `origin` in `--config`); on a unix socket the proxy's `X-Forwarded-Host`
 also counts. See
 [dashboard.md](dashboard.md) to change the page.
 
+### In Paseo
+
+[paseo-plugin/](../paseo-plugin/OVERVIEW.md) is a Paseo plugin that shows the
+desk inside the Paseo app: an **Agent desk** row in the sidebar footer (with
+the number of open questions) opens a screen where you answer, dismiss and
+message; an agent with open questions gets a **Desk** pill on its composer,
+opening a panel with only its items; and the Command Center has both. Its
+daemon side runs `agent-desk` on the daemon's machine (`$AGENT_DESK_BIN`,
+else `~/go/bin/agent-desk`, else `PATH`), so answers are delivered exactly
+as from the dashboard.
+
+Paseo runs plugins only when they are enabled for the daemon (Settings →
+Plugins, or `pluginsEnabled` in its `config.json`); a plugin is trusted,
+unsandboxed code. Then:
+
+    cd paseo-plugin && npm install && npm run typecheck
+    paseo plugin install "$PWD"          # once; the plugin's id is agent-desk
+    paseo plugin reload agent-desk       # after editing its source
+
+To turn it off and on again, without removing it:
+
+    paseo plugin disable agent-desk
+    paseo plugin enable agent-desk
+
+`paseo plugin remove agent-desk` uninstalls it and keeps this directory.
+
 ## Notifications and other machine-specific commands
 
 The core knows nothing about your desktop. It runs commands you name in
