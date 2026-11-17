@@ -236,6 +236,23 @@ agent launched on one gets a prompt telling it to join the desk and run
 stdin; otherwise pass `--brief TEXT` (or `--brief -` for stdin): `task add`
 never reads stdin unasked, so it cannot hang on a held-open stdin.
 
+## The screen: before you drive the GUI
+
+Take the screen lock before anything that clicks, types into another app or
+takes focus on the user's machine (any agent may, a worker too), and release
+it the moment you are done:
+
+    agent-desk screen take --reason 'Clicking through the settings app' [--for 20m] [--wait]
+    agent-desk screen release
+
+It is yours at once when the user has been idle 30 minutes. Otherwise the
+user gets a request in Needs you, and `take` exits 3; `--wait` blocks until
+they approve (the answer also reaches you as a message: run `take` again).
+While you hold it a banner tells the user to keep off the keyboard. Do not
+take it for work that runs headless, in the background or without focus,
+such as a headless browser's screenshots: that does not disturb the user.
+If the user denies it, do not ask again at once; ask them what to do instead.
+
 ## Ending
 
 `agent-done` files your done report and sets `status` for you where it is

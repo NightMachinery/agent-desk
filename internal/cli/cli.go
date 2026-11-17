@@ -100,6 +100,11 @@ Agent side (only coordinators write; workers report to their parent):
                                       start agents on tasks ([tasks] launch_command)
   agent-desk task nudge [--dry-run]   remind the user when quota would go unused (cron)
   agent-desk link <slot> <file>
+  agent-desk screen take --reason R [--for 30m] [--wait [--timeout 1h]]
+                                      before driving this machine's GUI: yours at once if the
+                                      user has been idle 30 minutes, else asks them (exit 3
+                                      until granted); a banner shows while you hold it
+  agent-desk screen release | status [--host H]
   agent-desk answer <id> --from-chat 'text'   record an answer given in chat
   agent-desk done --title T [--report FILE]   <<'S' ... S   (agent-done calls this)
       ask, tell and done take [--attach FILE --caption 'what it shows']...: images
@@ -108,6 +113,7 @@ Agent side (only coordinators write; workers report to their parent):
 User side:
   agent-desk inbox [<path-prefix>] [--all]    interactive (needs fzf)
   agent-desk show [<path-prefix>|--mine] [--all] [--host H] [--session S] [--format org|md|json]
+  agent-desk screen grant|deny <q-id>   hand an agent the screen, or refuse it
   agent-desk answer <id> [--behavior B] [--notify-desktop V] [--notify-remote V] 'text'
                                       record, then type it into the asking session
   agent-desk reply <id|path> [--behavior B] [--notify-desktop V] [--notify-remote V] 'text'
@@ -155,6 +161,10 @@ func (a *App) Run(args []string) int {
 	var u usageError
 	if errors.As(err, &u) {
 		return 2
+	}
+	var x exitError
+	if errors.As(err, &x) {
+		return x.code
 	}
 	return 1
 }
@@ -219,6 +229,8 @@ func (a *App) run(args []string) error {
 		return a.cmdInstructions(rest)
 	case "task":
 		return a.cmdTask(rest)
+	case "screen":
+		return a.cmdScreen(rest)
 	case "get":
 		return a.cmdGet(rest)
 	case "pin":
@@ -962,7 +974,11 @@ func (a *App) recordAnswer(d *desk.Desk, q store.Event, text, source, behavior s
 	}
 	e := a.event("answer", q.Path, ident.Resolve(a.Env), source, extra)
 	e.Ref, e.Body = q.ID, text
-	if err := a.commit1(e); err != nil {
+	evs := []store.Event{e}
+	if se, ok := a.screenDecision(q, text); ok {
+		evs = append(evs, se) // an answer to a screen request grants or denies it
+	}
+	if err := a.commit(evs, e.ID); err != nil {
 		return err
 	}
 	if source == "chat" {

@@ -606,6 +606,38 @@ tasks are waiting, it files one notice per window and reset at
 `task add` reads stdin only with `--defer` or `--brief -`, so it never waits
 on an agent shell's held-open stdin.
 
+## The screen lock
+
+An agent that must drive the GUI of the machine it runs on (click through an
+app, type into a window, take focus) takes the machine's screen first, so you
+know to keep off the keyboard, and two agents do not fight over it:
+
+    agent-desk screen take --reason 'Clicking through the settings app' --for 20m
+    agent-desk screen release
+    agent-desk screen status            # who holds it, who asks, how long you have been idle
+
+The lock is per machine and outside every project (its events are under
+`_desk/screen/<host>`), so a worker may take it too. `take` grants it at
+once when the screen is free, nobody asked first, and you have been idle at
+least `[screen] idle_minutes` (30): on macOS the HID idle time from `ioreg`,
+elsewhere whatever `[screen] idle_command` prints in seconds (without one, it
+is never granted unasked). Otherwise it files a request in Needs you and
+exits 3. You may approve a request at any time, whatever your idle time:
+**Approve** or **Deny** on the dashboard, `agent-desk screen grant|deny
+<q-id>`, or any answer (an answer that starts with "no", "deny" or "not
+now" denies it). The answer reaches the agent as usual; `take --wait` also
+notices the grant itself. After a denial the agent may not ask again for 10
+minutes.
+
+A grant lasts `--for` (30 minutes by default, at most 2 hours); `take` again
+renews it. While an agent holds the screen, the dashboard shows who, why and
+until when above Needs you, with **Take it back**, which releases it (the
+agent is not stopped). `[screen] banner_on` runs when an agent gets the
+screen, with `AGENT_DESK_REASON` and `AGENT_DESK_SECONDS` set, and
+`banner_off` when it lets go: point them at whatever tells you to keep off,
+such as a banner across the screen. Each grant tells the agent to hold the
+screen only while its automation truly needs focus or needs you away.
+
 ## Notes for agents only
 
 `agent-desk set --for agents <slot>` writes a slot only agents read: run

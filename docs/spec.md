@@ -547,6 +547,11 @@ One atomic commit group each. Stop after each phase and run its check.
    also checks the `Host` header against DNS rebinding. `serve --listen`
    takes `HOST:PORT` or `unix:PATH`; `GET /api/health` answers `ok`.
 8. **Later, each needing the user's go-ahead:**
+   - The screen lock (asked by the user 2026-11-17): one per machine, kind
+     `screen` at `_desk/screen/<host>`; granted unasked only after the user
+     has been idle 30 minutes, approved on the desk at any time otherwise;
+     banner commands in `[screen]`. Built 2026-11-17 (docs/usage.md, "The
+     screen lock").
    - Emacs commands on rendered headings. Built 2026-11-17 as
      `emacs/agent-desk.el`: a minor mode in the render directory's files
      (read-only, auto-revert) with the dashboard's keys in evil's normal

@@ -38,7 +38,7 @@
     return titleOf(it);
   });
   const quick = $derived(
-    !isQuestion
+    !isQuestion || e.meta?.screen
       ? []
       : item.default
         ? [{ label: 'Go with the default', text: `Go ahead with your default: ${item.default}` }]
@@ -77,6 +77,16 @@
     } catch (err) {
       toast(err.message, 'error', 9000);
       onchange();
+    }
+  }
+
+  async function screenAct(action) {
+    try {
+      await post('screen', { action, id: it.display_id });
+      toast(action === 'grant' ? 'Approved: the agent has the screen.' : 'Denied.', 'ok');
+      onchange();
+    } catch (err) {
+      toast(err.message, 'error');
     }
   }
 
@@ -177,6 +187,14 @@
       <CopyIds paseo={item.from?.paseo} resume={item.resume} />
     </div>
 
+    {#if isQuestion && !item.answered && e.meta?.screen}
+      <div class="task-bar">
+        <span class="faint">Asks for the screen on {e.meta.screen.host} for {e.meta.screen.minutes ? `${e.meta.screen.minutes} min` : e.meta.screen.for}</span>
+        <span class="spacer"></span>
+        <button data-cmd="screen-grant" class="btn small primary" title="Hand it the screen now; a banner shows while it holds it" onclick={() => screenAct('grant')}>Approve</button>
+        <button data-cmd="screen-deny" class="btn small" onclick={() => screenAct('deny')}>Deny</button>
+      </div>
+    {/if}
     {#if item.task}
       {@const t = item.task}
       <div class="task-bar">

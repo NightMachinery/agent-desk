@@ -39,6 +39,9 @@ type Config struct {
 	MediaKeepDays *int `toml:"media_keep_days"`
 	// Tasks configures launching deferred tasks and the quota nudge ([tasks]).
 	Tasks Tasks `toml:"tasks"`
+	// Screen configures the screen lock, which an agent takes before it
+	// drives this machine's GUI ([screen]).
+	Screen Screen `toml:"screen"`
 	// Instructions configures the prompt hook that records the user's
 	// messages ([instructions]).
 	Instructions Instructions `toml:"instructions"`
@@ -215,3 +218,22 @@ func (t Tasks) Gauges() (*regexp.Regexp, error) {
 	}
 	return re, nil
 }
+
+// Screen is the [screen] table.
+type Screen struct {
+	// IdleMinutes: grant the screen without asking once the user has been
+	// idle this long (default 30). Asking on the desk works at any time.
+	IdleMinutes *int `toml:"idle_minutes"`
+	// IdleCommand prints the user's idle time in seconds. Empty: macOS's
+	// HID idle time from ioreg; elsewhere the screen is never granted
+	// without asking.
+	IdleCommand string `toml:"idle_command"`
+	// BannerOn runs under sh when an agent takes the screen, with
+	// AGENT_DESK_REASON (what it is doing) and AGENT_DESK_SECONDS (how long
+	// it holds it) set; BannerOff when it lets go.
+	BannerOn  string `toml:"banner_on"`
+	BannerOff string `toml:"banner_off"`
+}
+
+// Idle is IdleMinutes or its default.
+func (s Screen) Idle() int { return intOr(s.IdleMinutes, 30) }

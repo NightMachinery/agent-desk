@@ -8,6 +8,7 @@
   import TreeNode from './TreeNode.svelte';
   import NodePanel from './NodePanel.svelte';
   import Deferred from './Deferred.svelte';
+  import ScreenStrip from './ScreenStrip.svelte';
   import { sel, toggleAll, clear, prune, markSelected, pinSelected, selecting } from '../lib/select.svelte.js';
   import { snapshot } from '../lib/nav.svelte.js';
   import { ui, toggleSection } from '../lib/ui.svelte.js';
@@ -133,6 +134,8 @@
     {#if view.node}
       <div class="phone-node"><NodePanel node={view.node} target={view.target} conversation={view.conversation} stamp={view.stamp} {onchange} compact /></div>
     {/if}
+
+    {#if view.screens?.length}<ScreenStrip screens={view.screens} host={view.host} {onchange} />{/if}
 
     <h2 class="section-title" data-section="needs">
       {@render fold('needs', 'Needs you')}

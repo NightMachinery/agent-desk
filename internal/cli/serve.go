@@ -138,6 +138,7 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("POST /api/unpin", s.write(s.apiUnpin))
 	mux.HandleFunc("POST /api/unread", s.write(s.apiUnread))
 	mux.HandleFunc("POST /api/task", s.write(s.apiTask))
+	mux.HandleFunc("POST /api/screen", s.write(s.apiScreen))
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, http.StatusNotFound, "no such API")
 	})
@@ -342,6 +343,26 @@ func (s *server) apiUnread(app *App, body request) (any, error) {
 	return map[string]string{}, app.run(append([]string{"unread", "--"}, body.list(body.ID)...))
 }
 
+// apiScreen decides a request for the screen (grant, deny), or takes the
+// screen back from the agent that holds it (release, on this machine only).
+func (s *server) apiScreen(app *App, body request) (any, error) {
+	switch body.Action {
+	case "grant", "deny":
+		return map[string]string{}, app.screenDecide(body.ID, body.Action == "grant", "web")
+	case "release":
+		d, err := app.load()
+		if err != nil {
+			return nil, err
+		}
+		st := d.Screen(app.Host)
+		if st.Hold == nil {
+			return nil, usagef("no agent holds the screen on %s", app.Host)
+		}
+		return map[string]string{}, app.screenLetGo(ident.Resolve(app.Env), st, "user")
+	}
+	return nil, usagef("screen action is grant, deny or release")
+}
+
 // apiTask changes tasks' state, or launches them; the response's "out" is
 // what launch printed.
 func (s *server) apiTask(app *App, body request) (any, error) {
@@ -424,6 +445,41 @@ type viewResponse struct {
 	// whether launch_command is set and how many tasks one launch takes.
 	Deferred []desk.Task `json:"deferred"`
 	Launch   launchInfo  `json:"launch"`
+	// Screens are the machines whose screen an agent holds or asks for.
+	Screens []screenInfo `json:"screens"`
+}
+
+type screenInfo struct {
+	Host     string   `json:"host"`
+	Held     bool     `json:"held"`
+	Agent    string   `json:"agent,omitempty"` // who holds it
+	Paseo    string   `json:"paseo,omitempty"`
+	Reason   string   `json:"reason,omitempty"`
+	Until    string   `json:"until,omitempty"`
+	By       string   `json:"by,omitempty"`
+	Requests []string `json:"requests"` // display ids of open requests
+}
+
+// screens describes the held and asked-for screens.
+func screens(d *desk.Desk) []screenInfo {
+	out := []screenInfo{}
+	for _, st := range d.Screens() {
+		si := screenInfo{Host: st.Host, Requests: []string{}}
+		for _, q := range st.Requests {
+			si.Requests = append(si.Requests, d.Display(q.ID))
+		}
+		if h := st.Hold; h != nil {
+			si.Held, si.Reason, si.By = true, h.Reason, h.By
+			si.Until = h.Until.Format(time.RFC3339)
+			for _, e := range d.Events { // the holder's latest word names it
+				if sessionOf(e) == h.Session {
+					si.Agent, si.Paseo = agentTitle(e), fromOf(e).Paseo
+				}
+			}
+		}
+		out = append(out, si)
+	}
+	return out
 }
 
 type launchInfo struct {
@@ -485,6 +541,7 @@ func (s *server) apiView(w http.ResponseWriter, r *http.Request) {
 	}
 	resp.Projects, resp.Hosts = sortedKeys(projects), sortedKeys(hosts)
 	resp.Deferred = []desk.Task{}
+	resp.Screens = screens(d)
 	lq := strings.ToLower(query)
 	for _, t := range d.Tasks(desk.Filter{Prefix: f.Prefix, Host: f.Host}) {
 		if t.State == desk.TaskDeferred && (lq == "" || strings.Contains(strings.ToLower(t.Event.Title+"\n"+t.Event.Body), lq)) {

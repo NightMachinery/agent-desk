@@ -64,6 +64,8 @@ func Letter(kind string) string {
 		return "w"
 	case "taskstate":
 		return "z"
+	case "screen":
+		return "g"
 	}
 	return "e"
 }
