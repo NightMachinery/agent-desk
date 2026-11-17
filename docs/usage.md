@@ -144,8 +144,8 @@ the session that asked:
 
     Answer to q-7f3a "Which split for the rerun?": B
 
-A Paseo agent gets it through `paseo send`, which queues it if the agent is
-busy. An agent in a tmux pane gets it pasted into that pane, but only while the
+A Paseo agent gets it through `paseo send --behavior steer`: a busy agent
+reads it within its current turn, which carries on uninterrupted. An agent in a tmux pane gets it pasted into that pane, but only while the
 pane still runs the same process and session. Anything else goes to
 `deliver_command` if you configured one. A reply travels the same way, as
 `Message from the user via agent-desk, about t-k2m9 "Deploy finished": ...`.

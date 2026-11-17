@@ -53,7 +53,7 @@ export function viaText(t) {
   if (!t) return '';
   switch (t.via) {
     case 'paseo':
-      return 'Typed into its Paseo agent; queued if it is busy.';
+      return 'Sent to its Paseo agent; if it is busy, it reads this mid-turn without being interrupted.';
     case 'tmux':
       return 'Typed into its tmux pane, if the pane still runs it.';
     case 'command':

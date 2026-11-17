@@ -413,8 +413,13 @@ approved hook, deferred to phase 8, copies the user's own messages.
 
     Answer to q-7f3a "Which split for the rerun?": B, and keep the old cache.
 
-- Paseo agent: `paseo send --no-wait <uuid> ...` (it revives an archived
-  agent).
+- Paseo agent: `paseo send --no-wait --behavior steer <uuid> ...` (it
+  revives an archived agent). Steer hands a busy agent the message inside its
+  current turn, which carries on; it is never interrupted. The flag must be
+  explicit: `paseo send` steers only when sent by an agent (`PASEO_AGENT_ID`
+  set) and otherwise interrupts. `PASEO_AGENT_ID` is removed from that call's
+  environment, so an answer typed in an agent's shell still arrives as the
+  user's, not as a message from that agent.
 - tmux pane: the text through `tmux load-buffer` and `paste-buffer -p`
   (bracketed paste, so a multi-line answer stays one message), then Enter,
   after checking that the pane still runs the recorded session: its

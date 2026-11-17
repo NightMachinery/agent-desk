@@ -49,7 +49,9 @@ func TestDeliverToPaseo(t *testing.T) {
 	if len(h.delivered(t)) != 0 {
 		t.Fatal("a failed delivery was marked delivered")
 	}
-	want := fmt.Sprintf(`paseo send --no-wait %s Answer to %s "Which split?": B, keep the cache`, uuid, q)
+	// --behavior steer, explicitly: without a sending agent, paseo send
+	// would interrupt a busy agent's turn.
+	want := fmt.Sprintf(`paseo send --no-wait --behavior steer %s Answer to %s "Which split?": B, keep the cache`, uuid, q)
 	if c := *h.calls; len(c) != 1 || c[0] != want {
 		t.Fatalf("calls: %q", c)
 	}
@@ -180,5 +182,18 @@ func TestMergeSSHDeliversRemoteAnswers(t *testing.T) {
 	}
 	if h.ok(nil, "", "export") != hb.ok(nil, "", "export") {
 		t.Fatal("stores differ after the second merge")
+	}
+}
+
+// paseo never sees PASEO_AGENT_ID: from an agent's shell it would send the
+// user's answer as a message from that agent.
+func TestPaseoEnvScrubbed(t *testing.T) {
+	env := []string{"HOME=/home/x", "PASEO_AGENT_ID=22222222-0000-4000-8000-000000000003", "PASEO_AGENT_IDX=keep"}
+	got := strings.Join(envFor("paseo", env), " ")
+	if got != "HOME=/home/x PASEO_AGENT_IDX=keep" {
+		t.Fatalf("paseo env: %q", got)
+	}
+	if len(envFor("tmux", env)) != 3 {
+		t.Fatal("tmux lost its environment")
 	}
 }

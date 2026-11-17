@@ -35,8 +35,34 @@ func (a *App) runExt(ctx context.Context, stdin []byte, name string, args ...str
 	return runReal(ctx, stdin, name, args...)
 }
 
+// scrubbed names the variables each program must not inherit. paseo send
+// reads the sender from PASEO_AGENT_ID: inherited from an agent's shell, an
+// answer from the user would arrive as a message from that agent, wrapped in
+// an agent-message envelope.
+var scrubbed = map[string][]string{"paseo": {"PASEO_AGENT_ID"}}
+
+// envFor is environ without the variables program name must not see.
+func envFor(name string, environ []string) []string {
+	drop := scrubbed[name]
+	if len(drop) == 0 {
+		return environ
+	}
+	out := make([]string, 0, len(environ))
+next:
+	for _, kv := range environ {
+		for _, k := range drop {
+			if strings.HasPrefix(kv, k+"=") {
+				continue next
+			}
+		}
+		out = append(out, kv)
+	}
+	return out
+}
+
 func runReal(ctx context.Context, stdin []byte, name string, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.Env = envFor(name, os.Environ())
 	if stdin != nil {
 		cmd.Stdin = bytes.NewReader(stdin)
 	}
@@ -107,9 +133,11 @@ func (a *App) deliverOne(d *desk.Desk, j job) (string, error) {
 	defer cancel()
 	var reasons []string
 	if f.Paseo != "" {
-		// The default behaviour queues the message for a busy agent; never
-		// --behavior interrupt.
-		out, err := a.runExt(ctx, nil, "paseo", "send", "--no-wait", f.Paseo, text)
+		// Steer: a busy agent gets the message within its current turn, which
+		// carries on. It must be explicit: paseo send interrupts the turn by
+		// default unless it is sent by an agent (PASEO_AGENT_ID set), and
+		// that variable is removed from its environment (see scrubbed).
+		out, err := a.runExt(ctx, nil, "paseo", "send", "--no-wait", "--behavior", "steer", f.Paseo, text)
 		if err == nil {
 			return "paseo", nil
 		}
