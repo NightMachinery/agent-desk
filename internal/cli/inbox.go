@@ -444,7 +444,7 @@ func (a *App) inboxAct(d *desk.Desk, st inboxState, action, key string) error {
 		if e.Kind != "ask" {
 			return nil
 		}
-		return a.recordAnswer(d, e, TakeText(e), "cli")
+		return a.recordAnswer(d, e, TakeText(e), "cli", "")
 	case "open":
 		return a.openSession(e)
 	}
@@ -529,7 +529,7 @@ func (a *App) answerPrompt(d *desk.Desk, q store.Event) error {
 			return nil
 		}
 	}
-	return a.recordAnswer(d, q, text, "cli")
+	return a.recordAnswer(d, q, text, "cli", "")
 }
 
 // openItem opens what an item points to in $EDITOR: a linked file, a done

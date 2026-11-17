@@ -88,8 +88,10 @@ Agent side (only coordinators write; workers report to their parent):
 User side:
   agent-desk inbox [<path-prefix>] [--all]    interactive (needs fzf)
   agent-desk show [<path-prefix>|--mine] [--all] [--host H] [--session S] [--format org|md|json]
-  agent-desk answer <id> 'text'       record, then type it into the asking session
-  agent-desk reply <id|path> 'text'   send a message to the session behind an item or node
+  agent-desk answer <id> [--behavior B] 'text'   record, then type it into the asking session
+  agent-desk reply <id|path> [--behavior B] 'text'   message the session behind an item or node
+                                      B: steer (default: joins the running turn), queue
+                                      (waits for the turn to end) or interrupt (cancels it)
   agent-desk deliver                  retry answers and replies not yet delivered
   agent-desk serve [--listen ADDR|unix:PATH] [--allow-host H,...] [--allow-origin URL,...]
                    [--pid-file F] [--config F.json]
@@ -707,9 +709,16 @@ func (a *App) cmdLink(args []string) error {
 }
 
 func (a *App) cmdAnswer(args []string) error {
-	o, err := parse(args, nil, []string{"from-chat"}, 1, -1)
+	o, err := parse(args, nil, []string{"from-chat", "behavior"}, 1, -1)
 	if err != nil {
 		return err
+	}
+	beh, err := checkBehavior(o.vals["behavior"])
+	if err != nil {
+		return err
+	}
+	if o.set["from-chat"] && o.set["behavior"] {
+		return usagef("--behavior is for delivering an answer; one given in chat is not delivered")
 	}
 	d, err := a.load()
 	if err != nil {
@@ -735,11 +744,11 @@ func (a *App) cmdAnswer(args []string) error {
 			return err
 		}
 	}
-	return a.recordAnswer(d, q, text, source)
+	return a.recordAnswer(d, q, text, source, beh)
 }
 
 // recordAnswer appends an answer to question q and prints its display id.
-func (a *App) recordAnswer(d *desk.Desk, q store.Event, text, source string) error {
+func (a *App) recordAnswer(d *desk.Desk, q store.Event, text, source, behavior string) error {
 	if strings.TrimSpace(text) == "" {
 		return usagef("answer needs the answer's text")
 	}
@@ -749,7 +758,15 @@ func (a *App) recordAnswer(d *desk.Desk, q store.Event, text, source string) err
 				d.Display(q.ID), d.Display(x.AnswerID))
 		}
 	}
-	e := a.event("answer", q.Path, ident.Resolve(a.Env), source, nil)
+	var extra map[string]any
+	if source != "chat" {
+		b, err := checkBehavior(behavior)
+		if err != nil {
+			return err
+		}
+		extra = map[string]any{"behavior": b}
+	}
+	e := a.event("answer", q.Path, ident.Resolve(a.Env), source, extra)
 	e.Ref, e.Body = q.ID, text
 	if err := a.commit1(e); err != nil {
 		return err

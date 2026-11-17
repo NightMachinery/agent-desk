@@ -165,8 +165,20 @@ the session that asked:
 
     Answer to q-7f3a "Which split for the rerun?": B
 
-A Paseo agent gets it through `paseo send --behavior steer`: a busy agent
-reads it within its current turn, which carries on uninterrupted. An agent in a tmux pane gets it pasted into that pane, but only while the
+How it lands on a busy agent is its **behaviour**, chosen per message with
+`--behavior` (on `answer` and `reply`, or in the dashboard):
+
+- `steer` (the default): the agent reads it within its current turn, which
+  carries on uninterrupted.
+- `queue`: it waits until the turn ends. Only a Paseo that lists `queue`
+  among `paseo send --behavior` choices can do this (the desk reads its
+  help once per Paseo binary); elsewhere it is sent as steer, and the
+  delivery records why.
+- `interrupt`: the running turn is cancelled first. Use it only to stop
+  work that is going wrong. In tmux this sends Escape before the paste, and
+  is offered only for Claude Code and Codex.
+
+A Paseo agent gets it through `paseo send` with the behaviour named. An agent in a tmux pane gets it pasted into that pane, but only while the
 pane still runs the same process and session. Anything else goes to
 `deliver_command` if you configured one. A reply travels the same way, as
 `Message m-4c2d from the user via agent-desk, about t-k2m9 "Deploy finished": ...`,

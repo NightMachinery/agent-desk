@@ -101,7 +101,11 @@ func respondsTo(d *desk.Desk, e store.Event, node string) (string, error) {
 }
 
 func (a *App) cmdReply(args []string) error {
-	o, err := parse(args, nil, nil, 1, -1)
+	o, err := parse(args, nil, []string{"behavior"}, 1, -1)
+	if err != nil {
+		return err
+	}
+	beh, err := checkBehavior(o.vals["behavior"])
 	if err != nil {
 		return err
 	}
@@ -111,13 +115,13 @@ func (a *App) cmdReply(args []string) error {
 			return err
 		}
 	}
-	_, err = a.recordReply(o.pos[0], text, "cli")
+	_, err = a.recordReply(o.pos[0], text, "cli", beh)
 	return err
 }
 
 // recordReply appends a reply and delivers it when its session is on this
 // machine. It returns the reply.
-func (a *App) recordReply(token, text, source string) (store.Event, error) {
+func (a *App) recordReply(token, text, source, behavior string) (store.Event, error) {
 	if strings.TrimSpace(text) == "" {
 		return store.Event{}, usagef("reply needs the message's text")
 	}
@@ -129,7 +133,11 @@ func (a *App) recordReply(token, text, source string) (store.Event, error) {
 	if err != nil {
 		return store.Event{}, err
 	}
-	e := a.event("reply", node, ident.Resolve(a.Env), source, map[string]any{"to": to, "to_host": host})
+	behavior, err = checkBehavior(behavior)
+	if err != nil {
+		return store.Event{}, err
+	}
+	e := a.event("reply", node, ident.Resolve(a.Env), source, map[string]any{"to": to, "to_host": host, "behavior": behavior})
 	e.Ref, e.Body = about.ID, text
 	if err := a.commit1(e); err != nil {
 		return e, err

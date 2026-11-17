@@ -112,6 +112,19 @@ func (a *App) typeIntoPane(ctx context.Context, pane, text string) error {
 	return nil
 }
 
+// interruptPane cancels the running turn of Claude Code or Codex with
+// Escape, then waits for the prompt to come back before the paste.
+func (a *App) interruptPane(ctx context.Context, pane string) error {
+	if out, err := a.runExt(ctx, nil, "tmux", "send-keys", "-t", pane, "Escape"); err != nil {
+		return fmt.Errorf("tmux send-keys Escape: %v: %s", err, out)
+	}
+	time.Sleep(interruptSettle)
+	return nil
+}
+
+// interruptSettle is how long a cancelled turn takes to give the prompt back.
+var interruptSettle = 1500 * time.Millisecond
+
 var errUnreachable = errors.New("unreachable")
 
 // job is one message to type into a session: an answer to the question it
@@ -196,25 +209,62 @@ func (a *App) deliverOne(d *desk.Desk, j job) (receipt, error) {
 	defer cancel()
 	var reasons []string
 	if f.Paseo != "" {
-		// Steer: a busy agent gets the message within its current turn, which
-		// carries on. It must be explicit: paseo send interrupts the turn by
+		// The behaviour is always explicit: paseo send interrupts the turn by
 		// default unless it is sent by an agent (PASEO_AGENT_ID set), and
 		// that variable is removed from its environment (see scrubbed).
-		out, err := a.runExt(ctx, nil, "paseo", "send", "--no-wait", "--json", "--behavior", beh, f.Paseo, text)
+		use, fallback := beh, ""
+		if use == "queue" && !a.paseoCanQueue() {
+			use, fallback = "steer", "queue unsupported"
+		}
+		if use != "interrupt" {
+			if err := slashRefusal(text); err != nil {
+				if !a.paseoCanQueue() {
+					return receipt{}, err
+				}
+				if use != "queue" {
+					use, fallback = "queue", "text starts with /"
+				}
+			}
+		}
+		send := func(b string) (string, error) {
+			return a.runExt(ctx, nil, "paseo", "send", "--no-wait", "--json", "--behavior", b, f.Paseo, text)
+		}
+		out, err := send(use)
+		if err != nil && use == "queue" && fallback == "" {
+			// A daemon without the queue refuses the send and delivers
+			// nothing, so steering after it cannot deliver twice.
+			if out2, err2 := send("steer"); err2 == nil {
+				out, err, use, fallback = out2, nil, "steer", "queue unsupported by the Paseo daemon"
+			}
+		}
 		if err == nil {
-			r := receipt{Via: "paseo", Behavior: beh}
+			r := receipt{Via: "paseo", Behavior: use, Fallback: fallback}
 			paseoReceipt(out, &r)
 			return r, nil
 		}
 		reasons = append(reasons, fmt.Sprintf("paseo send: %v: %s", err, out))
 	}
 	if f.Paseo == "" && f.TmuxPane != "" {
+		use, fallback := beh, ""
+		switch {
+		case use == "queue":
+			use, fallback = "steer", "queue unsupported"
+		case use == "interrupt" && !tmuxInterruptible(f.Agent):
+			use, fallback = "steer", "interrupt unsupported for this agent in tmux"
+		}
 		err := a.sameTmuxSession(ctx, f)
+		if err == nil && use == "interrupt" {
+			err = a.interruptPane(ctx, f.TmuxPane)
+		}
 		if err == nil {
 			err = a.typeIntoPane(ctx, f.TmuxPane, text)
 		}
 		if err == nil {
-			return receipt{Via: "tmux", Behavior: "steer", Disposition: "typed"}, nil
+			disp := "typed"
+			if use == "interrupt" {
+				disp = "interrupted"
+			}
+			return receipt{Via: "tmux", Behavior: use, Disposition: disp, Fallback: fallback}, nil
 		}
 		reasons = append(reasons, err.Error())
 	}
@@ -286,7 +336,8 @@ func pending(d *desk.Desk, host string, only string) []job {
 		if desk.MetaString(ans, "source") == "chat" {
 			continue
 		}
-		out = append(out, job{msg: ans, about: q.Event, to: fromOf(q.Event), host: q.Host, text: DeliveryText(d, q.Event, ans)})
+		out = append(out, job{msg: ans, about: q.Event, to: fromOf(q.Event), host: q.Host, text: DeliveryText(d, q.Event, ans),
+			behavior: desk.MetaString(ans, "behavior")})
 	}
 	delivered := map[string]bool{}
 	for _, e := range d.Events {
@@ -302,7 +353,8 @@ func pending(d *desk.Desk, host string, only string) []job {
 		if toHost != host {
 			continue
 		}
-		out = append(out, job{msg: e, about: d.ByID[e.Ref], to: to, host: toHost, text: ReplyText(d, e)})
+		out = append(out, job{msg: e, about: d.ByID[e.Ref], to: to, host: toHost, text: ReplyText(d, e),
+			behavior: desk.MetaString(e, "behavior")})
 	}
 	return out
 }

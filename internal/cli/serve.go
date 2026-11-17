@@ -201,6 +201,8 @@ type request struct {
 	To      string   `json:"to"`      // reply: an item or a node path
 	Target  string   `json:"target"`  // read: an item or a node path
 	Targets []string `json:"targets"` // read, unread: several at once
+	// Behavior: answer, reply: steer, queue or interrupt (empty: default).
+	Behavior string `json:"behavior"`
 }
 
 type writeFunc func(app *App, body request) (any, error)
@@ -272,11 +274,11 @@ func (s *server) apiAnswer(app *App, body request) (any, error) {
 	if q.Kind != "ask" {
 		return nil, fmt.Errorf("%s is a %s, not a question", d.Display(q.ID), q.Kind)
 	}
-	return map[string]string{}, app.recordAnswer(d, q, body.Text, "web")
+	return map[string]string{}, app.recordAnswer(d, q, body.Text, "web", body.Behavior)
 }
 
 func (s *server) apiReply(app *App, body request) (any, error) {
-	e, err := app.recordReply(body.To, body.Text, "web")
+	e, err := app.recordReply(body.To, body.Text, "web", body.Behavior)
 	if err != nil {
 		return nil, err
 	}
@@ -405,6 +407,9 @@ func (s *server) apiView(w http.ResponseWriter, r *http.Request) {
 				resp.Target = &t
 			}
 		}
+		if resp.Target != nil {
+			s.behaviors(resp.Target)
+		}
 	}
 	if f.Session != "" {
 		resp.Session = sessionInfo(d, f.Session)
@@ -467,6 +472,24 @@ type Target struct {
 	Node    string `json:"node"`
 	Via     string `json:"via"` // paseo, tmux, command, merge (another machine) or none
 	Resume  string `json:"resume,omitempty"`
+	// Behaviors: steer, queue and interrupt, each supported or not, and
+	// why; filled by withBehaviors.
+	Behaviors       []Support `json:"behaviors,omitempty"`
+	DefaultBehavior string    `json:"default_behavior,omitempty"`
+	to              ident.From
+}
+
+// behaviors fills in a target's behaviours under the server's lock.
+func (s *server) behaviors(t *Target) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.a.withBehaviors(t)
+}
+
+// withBehaviors fills in what the target can do with a message.
+func (a *App) withBehaviors(t *Target) {
+	t.Behaviors = a.supports(t.Via, t.to)
+	t.DefaultBehavior = "steer"
 }
 
 func targetOf(d *desk.Desk, token string) (Target, error) {
@@ -474,7 +497,7 @@ func targetOf(d *desk.Desk, token string) (Target, error) {
 	if err != nil {
 		return Target{}, err
 	}
-	t := Target{Agent: to.Agent, Session: to.Session, Paseo: to.Paseo, Host: host, Node: node, Resume: ResumeCommand(to)}
+	t := Target{Agent: to.Agent, Session: to.Session, Paseo: to.Paseo, Host: host, Node: node, Resume: ResumeCommand(to), to: to}
 	switch {
 	case host != d.Host:
 		t.Via = "merge"
@@ -506,6 +529,7 @@ func (s *server) apiTarget(w http.ResponseWriter, r *http.Request) {
 			t.Via = "command"
 		}
 	}
+	s.behaviors(&t)
 	writeJSON(w, t)
 }
 
@@ -582,6 +606,7 @@ func (s *server) apiItem(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if t, err := targetOf(d, e.ID); err == nil {
+		s.behaviors(&t)
 		resp.Target = &t
 	}
 	writeJSON(w, resp)

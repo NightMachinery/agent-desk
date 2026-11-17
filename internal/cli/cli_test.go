@@ -97,7 +97,11 @@ func (h *harness) app(env map[string]string, stdin string) (*App, *bytes.Buffer,
 			if stdin != nil {
 				call += " <<< " + string(stdin)
 			}
-			*h.calls = append(*h.calls, call)
+			// Help probes (queue detection) are not deliveries; respond
+			// still answers them.
+			if args[len(args)-1] != "--help" {
+				*h.calls = append(*h.calls, call)
+			}
 			if h.respond != nil {
 				return h.respond(name, args)
 			}
