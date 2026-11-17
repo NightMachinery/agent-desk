@@ -1,13 +1,14 @@
 <script>
   import { route, href } from '../lib/route.svelte.js';
   import { kindOf, kindLabel, titleOf } from '../lib/format.js';
+  import { previewLine } from '../lib/md.js';
   import { desk } from '../lib/desk.svelte.js';
   import { sel, toggle, selecting } from '../lib/select.svelte.js';
 
   let { item } = $props();
   const kind = $derived(kindOf(item));
   const remote = $derived(item.event.host && item.event.host !== desk.host);
-  const preview = $derived((item.event.body || '').split('\n').find((l) => l.trim()) || '');
+  const preview = $derived(previewLine(item.event.body));
   const picked = $derived(sel.ids.has(item.display_id));
 
   // Cmd-, ctrl- or shift-click selects instead of opening; so does any tap

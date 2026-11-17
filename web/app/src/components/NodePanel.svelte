@@ -4,6 +4,7 @@
   import { toast } from '../lib/toast.svelte.js';
   import { agentName, short, stateClass, viaText } from '../lib/format.js';
   import Composer from './Composer.svelte';
+  import Markdown from './Markdown.svelte';
 
   let { node, target, onchange, compact = false } = $props();
 
@@ -62,7 +63,7 @@
       {#each compact ? slots.filter((s) => s.name === 'status') : slots as s (s.event.id)}
         <a class="slot" class:unread={s.unread} href={href({ item: s.display_id })}>
           <div class="slot-name">{s.name}{#if s.unread}<span class="new"></span>{/if}</div>
-          <div class="text slot-text">{s.file ? s.file : s.event.body}</div>
+          {#if s.file}<div class="text slot-text">{s.file}</div>{:else}<Markdown class="slot-text" text={s.event.body} links={false} />{/if}
         </a>
       {/each}
     </div>
@@ -173,7 +174,7 @@
     color: var(--muted);
     margin-bottom: 3px;
   }
-  .slot-text {
+  .slot :global(.slot-text) {
     font-size: 13.5px;
     max-height: 9.5em;
     overflow: hidden;

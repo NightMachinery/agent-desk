@@ -5,6 +5,7 @@
   import { desk } from '../lib/desk.svelte.js';
   import { agentName, copy, kindLabel, kindOf, sessionOf, short, titleOf, viaText } from '../lib/format.js';
   import Composer from './Composer.svelte';
+  import Markdown from './Markdown.svelte';
 
   let { item, error, onchange } = $props();
 
@@ -113,7 +114,7 @@
       {/if}
     </div>
 
-    {#if e.body}<div class="text body">{e.body}</div>{/if}
+    {#if e.body}<Markdown class="body" text={e.body} />{/if}
 
     {#if item.default}
       <div class="callout default"><strong>Default:</strong> {item.default}</div>
@@ -127,7 +128,7 @@
     {#if item.file}
       <details class="file" open>
         <summary><span class="mono">{item.file}</span></summary>
-        <pre>{item.file_text}</pre>
+        {#if /\.(md|markdown)$/i.test(item.file)}<div class="file-md"><Markdown text={item.file_text} /></div>{:else}<pre>{item.file_text}</pre>{/if}
       </details>
     {/if}
     {#if item.superseded}
@@ -147,7 +148,7 @@
               {#if t.delivered}<span class="chip ok">delivered · {t.delivered}</span>{:else if t.source !== 'chat'}<span class="chip waiting">not delivered yet</span>{/if}
               <a class="mono faint idlink" href={href({ item: t.display_id })}>{t.display_id}</a>
             </div>
-            <div class="text">{t.event.body}</div>
+            <Markdown text={t.event.body} />
           </div>
         {/each}
       </div>
@@ -251,7 +252,7 @@
   .remote {
     color: var(--notice);
   }
-  .body {
+  article :global(.md.body) {
     margin-top: 18px;
     font-size: 14.5px;
   }
@@ -282,6 +283,11 @@
     padding: 8px 12px;
     background: var(--sunken);
     cursor: pointer;
+  }
+  .file-md {
+    padding: 4px 14px;
+    max-height: 520px;
+    overflow: auto;
   }
   .file pre {
     margin: 0;

@@ -243,7 +243,10 @@ or any coordinator, dismiss a question without answering it, and mark things
 read. To act on many items at once, press Select (or long-press a row on a
 phone, or cmd-click one on a desktop), then tap rows, shift-click a range or
 use "Select all" per section or group, and mark them read or unread. It
-updates live. Served over HTTPS (or on localhost), it can be installed as an
+updates live. Bodies, slots, messages and linked `.md` files render as
+Markdown; raw HTML shows as text, and images are not loaded. A single line
+break inside a sentence flows as a soft wrap, so hard-wrapped text reads
+well on a phone; any other line break is kept. Served over HTTPS (or on localhost), it can be installed as an
 app: "Install" or "Add to Home screen" in the browser's menu.
 
 It serves this machine's store only. To reach it from a phone, put it behind

@@ -61,7 +61,7 @@ export function viaText(t) {
     case 'merge':
       return `Its session is on ${t.host}; delivered there after the next merge.`;
     default:
-      return 'This session cannot be reached now; the message is kept and `agent-desk deliver` retries.';
+      return 'This session cannot be reached now; the message is kept and sent when it can be.';
   }
 }
 

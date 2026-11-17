@@ -23,10 +23,14 @@ s 1 ${B} set status 'Seeds 3/5 done. ETA 14:00.' >/dev/null
 s 1 ${B} set findings $'Seed 2 diverges at step 400.\nSeeds 1 and 3 match the baseline within 0.2%.' >/dev/null
 s 1 ${B} set next $'Finish seeds 4 and 5.\nWrite the comparison table.' >/dev/null
 s 1 ${B} ask --blocked --title 'Which split for the rerun?' >/dev/null <<'Q'
-The rerun needs a train/test split.
-A. Reuse the cached split: fast, but it predates the label fix.
-B. Regenerate: an hour longer, consistent with the fix.
-I recommend B.
+The rerun needs a train/test split, and the cached one predates the
+label fix in `prep.py`.
+
+- **A. Reuse the cached split.** Fast, but scores are not comparable with
+  runs after the fix.
+- **B. Regenerate it.** About an hour longer; consistent with the fix.
+
+**I recommend B**: the rerun exists to compare against post-fix runs.
 Q
 s 2 ${B} join rerun-nov/coord/eval-lead >/dev/null
 s 2 ${B} set status 'Evaluating seed 2 on the held-out set.' >/dev/null

@@ -274,3 +274,88 @@ textarea.input {
   color: var(--muted);
   text-align: center;
 }
+
+/* Markdown from agents (Markdown.svelte). */
+.md {
+  overflow-wrap: anywhere;
+  line-height: 1.55;
+}
+.md > :first-child {
+  margin-top: 0;
+}
+.md > :last-child {
+  margin-bottom: 0;
+}
+.md p,
+.md ul,
+.md ol,
+.md blockquote,
+.md pre,
+.md table {
+  margin: 0 0 0.65em;
+}
+.md ul,
+.md ol {
+  padding-left: 1.4em;
+}
+.md li + li {
+  margin-top: 0.2em;
+}
+.md h1,
+.md h2,
+.md h3,
+.md h4,
+.md h5,
+.md h6 {
+  font-size: 1em;
+  font-weight: 700;
+  margin: 0.9em 0 0.35em;
+}
+.md h1,
+.md h2 {
+  font-size: 1.12em;
+}
+.md a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.md code {
+  font: 0.9em var(--mono);
+  background: var(--sunken);
+  padding: 0.1em 0.3em;
+  border-radius: 4px;
+}
+.md pre {
+  background: var(--sunken);
+  padding: 10px 12px;
+  border-radius: 8px;
+  overflow: auto;
+}
+.md pre code {
+  background: none;
+  padding: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.md blockquote {
+  padding-left: 0.8em;
+  border-left: 3px solid var(--line-strong);
+  color: var(--muted);
+}
+.md table {
+  border-collapse: collapse;
+  display: block;
+  overflow-x: auto;
+}
+.md th,
+.md td {
+  border: 1px solid var(--line);
+  padding: 4px 8px;
+  text-align: left;
+}
+.md hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 0.9em 0;
+}
