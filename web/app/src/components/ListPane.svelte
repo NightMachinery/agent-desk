@@ -7,6 +7,7 @@
   import NodePanel from './NodePanel.svelte';
   import { sel, toggleAll, clear, prune, markSelected, pinSelected, selecting } from '../lib/select.svelte.js';
   import { snapshot } from '../lib/nav.svelte.js';
+  import { ui, toggleSection } from '../lib/ui.svelte.js';
 
   let { view, error, onmenu, onchange } = $props();
 
@@ -33,7 +34,11 @@
   const freshIds = $derived(idsOf(fresh));
   const responseIds = $derived(idsOf(responses));
   const pinnedIds = $derived(pinned.map((it) => it.display_id));
-  const allIds = $derived([...new Set([...pinnedIds, ...needIds, ...responseIds, ...freshIds])]);
+  // Folded sections drop out of j/k and previous/next.
+  const shown = (name, ids) => (ui.collapsed[name] ? [] : ids);
+  const allIds = $derived([
+    ...new Set([...shown('needs', needIds), ...shown('pinned', pinnedIds), ...shown('responses', responseIds), ...shown('new', freshIds)]),
+  ]);
   // Previous and next walk the list in the order shown.
   $effect(() => snapshot(allIds, route.item));
   const pickedPinned = $derived(pinnedIds.filter((x) => sel.ids.has(x)).length);
@@ -44,6 +49,9 @@
   const crumbs = $derived(route.path ? route.path.split('/').map((name, i, all) => ({ name, path: all.slice(0, i + 1).join('/') })) : []);
   // Under a run or deeper, group headers repeat the scope; drop them.
   const deep = $derived(crumbs.length >= 2);
+  // What a row's lineage leaves out: its group heading, or the scope when
+  // headings are dropped.
+  const baseOf = (g) => (deep ? route.path : `${g.project}/${g.run}`);
 
   let q = $state(route.q);
   $effect(() => {
@@ -125,54 +133,70 @@
       <div class="phone-node"><NodePanel node={view.node} target={view.target} conversation={view.conversation} stamp={view.stamp} {onchange} compact /></div>
     {/if}
 
-    {#if pinned.length}
-      <h2 class="section-title">Pinned <span class="count">{pinned.length}</span></h2>
-      <div class="rows">
-        {#each pinned as it (it.event.id)}<ItemRow item={it} />{/each}
-      </div>
-    {/if}
-
-    <h2 class="section-title">
-      Needs you {#if count(needs)}<span class="count hot">{count(needs)}</span>{/if}
-      {#if needIds.length > 1}<button class="pick" onclick={() => toggleAll(needIds)}>{allOn(needIds) ? 'Deselect' : 'Select all'}</button>{/if}
+    <h2 class="section-title" data-section="needs">
+      {@render fold('needs', 'Needs you')}
+      {#if count(needs)}<span class="count hot">{count(needs)}</span>{/if}
+      {#if needIds.length > 1 && !ui.collapsed.needs}<button class="pick" onclick={() => toggleAll(needIds)}>{allOn(needIds) ? 'Deselect' : 'Select all'}</button>{/if}
     </h2>
-    {#each needs as g (g.project + '/' + g.run)}
-      {@render groupHead(g)}
-      <div class="rows">
-        {#each g.items as it (it.event.id)}<ItemRow item={it} />{/each}
-      </div>
-    {:else}
-      <div class="empty">Nothing is waiting on you{route.q ? ' that matches' : ''}.</div>
-    {/each}
-
-    {#if responses.length}
-      <h2 class="section-title">
-        Responses to you <span class="count response">{count(responses)}</span>
-        {#if responseIds.length > 1}<button class="pick" onclick={() => toggleAll(responseIds)}>{allOn(responseIds) ? 'Deselect' : 'Select all'}</button>{/if}
-      </h2>
-      {#each responses as g (g.project + '/' + g.run)}
+    {#if !ui.collapsed.needs}
+      {#each needs as g (g.project + '/' + g.run)}
         {@render groupHead(g)}
         <div class="rows">
-          {#each g.items as it (it.event.id)}<ItemRow item={it} />{/each}
+          {#each g.items as it (it.event.id)}<ItemRow item={it} base={baseOf(g)} />{/each}
         </div>
+      {:else}
+        <div class="empty">Nothing is waiting on you{route.q ? ' that matches' : ''}.</div>
       {/each}
     {/if}
 
-    <h2 class="section-title">
-      {route.all ? 'Notices and slots' : 'New'} {#if count(fresh)}<span class="count">{count(fresh)}</span>{/if}
-      {#if freshIds.length > 1}<button class="pick" onclick={() => toggleAll(freshIds)}>{allOn(freshIds) ? 'Deselect' : 'Select all'}</button>{/if}
-    </h2>
-    {#each fresh as g (g.project + '/' + g.run)}
-      {@render groupHead(g)}
-      <div class="rows">
-        {#each g.items as it (it.event.id)}<ItemRow item={it} />{/each}
-      </div>
-    {:else}
-      <div class="empty">{route.all ? 'No notices here.' : 'All read.'}</div>
-    {/each}
+    {#if pinned.length}
+      <h2 class="section-title" data-section="pinned">
+        {@render fold('pinned', 'Pinned')}
+        <span class="count">{pinned.length}</span>
+      </h2>
+      {#if !ui.collapsed.pinned}
+        <div class="rows">
+          {#each pinned as it (it.event.id)}<ItemRow item={it} base={route.path} />{/each}
+        </div>
+      {/if}
+    {/if}
 
-    <h2 class="section-title">Runs</h2>
-    {#if runs.length}
+    {#if responses.length}
+      <h2 class="section-title" data-section="responses">
+        {@render fold('responses', 'Responses to you')}
+        <span class="count response">{count(responses)}</span>
+        {#if responseIds.length > 1 && !ui.collapsed.responses}<button class="pick" onclick={() => toggleAll(responseIds)}>{allOn(responseIds) ? 'Deselect' : 'Select all'}</button>{/if}
+      </h2>
+      {#if !ui.collapsed.responses}
+        {#each responses as g (g.project + '/' + g.run)}
+          {@render groupHead(g)}
+          <div class="rows">
+            {#each g.items as it (it.event.id)}<ItemRow item={it} base={baseOf(g)} />{/each}
+          </div>
+        {/each}
+      {/if}
+    {/if}
+
+    <h2 class="section-title" data-section="new">
+      {@render fold('new', route.all ? 'Notices and slots' : 'New')}
+      {#if count(fresh)}<span class="count">{count(fresh)}</span>{/if}
+      {#if freshIds.length > 1 && !ui.collapsed.new}<button class="pick" onclick={() => toggleAll(freshIds)}>{allOn(freshIds) ? 'Deselect' : 'Select all'}</button>{/if}
+    </h2>
+    {#if !ui.collapsed.new}
+      {#each fresh as g (g.project + '/' + g.run)}
+        {@render groupHead(g)}
+        <div class="rows">
+          {#each g.items as it (it.event.id)}<ItemRow item={it} base={baseOf(g)} />{/each}
+        </div>
+      {:else}
+        <div class="empty">{route.all ? 'No notices here.' : 'All read.'}</div>
+      {/each}
+    {/if}
+
+    <h2 class="section-title" data-section="runs">{@render fold('runs', 'Runs')}</h2>
+    {#if ui.collapsed.runs}
+      <!-- folded -->
+    {:else if runs.length}
       <div class="tree">
         {#each runs as n (n.path)}<TreeNode node={n} />{/each}
       </div>
@@ -202,6 +226,13 @@
     >
   </div>
 {/if}
+
+{#snippet fold(name, label)}
+  <button class="fold" data-cmd={'fold-' + name} aria-expanded={!ui.collapsed[name]} onclick={() => toggleSection(name)} title={ui.collapsed[name] ? 'Show this section (za)' : 'Fold this section (za)'}>
+    <svg class="chev" class:shut={ui.collapsed[name]} width="11" height="11" viewBox="0 0 12 12" aria-hidden="true"><path d="m3 4.5 3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" /></svg>
+    {label}
+  </button>
+{/snippet}
 
 {#snippet groupHead(g)}
   {@const ids = g.items.map((it) => it.display_id)}
@@ -312,6 +343,27 @@
   }
   .body {
     padding: 4px 18px 60px;
+  }
+  .fold {
+    all: unset;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 4px;
+  }
+  .fold:hover {
+    color: var(--text);
+  }
+  .fold:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .chev {
+    transition: transform 0.14s;
+  }
+  .chev.shut {
+    transform: rotate(-90deg);
   }
   .group-line {
     display: flex;

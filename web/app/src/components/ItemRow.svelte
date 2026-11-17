@@ -5,9 +5,20 @@
   import Icon from './Icon.svelte';
   import { desk } from '../lib/desk.svelte.js';
   import { sel, toggle, selecting } from '../lib/select.svelte.js';
+  import { dimmed } from '../lib/linger.svelte.js';
 
-  let { item } = $props();
+  // base: the path the surroundings already name (the view's scope, or the
+  // project and run of the group heading); the row shows its lineage below it.
+  let { item, base = '' } = $props();
   const kind = $derived(kindOf(item));
+  const lineage = $derived.by(() => {
+    const p = item.event.path.split('/');
+    if (kind === 'slot') p.pop();
+    const node = p.join('/');
+    let rel = node;
+    if (base && (node === base || node.startsWith(base + '/'))) rel = node.slice(base.length + 1);
+    return (rel || p[p.length - 1] || 'coordinator').split('/').join(' / ');
+  });
   const remote = $derived(item.event.host && item.event.host !== desk.host);
   const preview = $derived(previewLine(item.event.body));
   const picked = $derived(sel.ids.has(item.display_id));
@@ -69,6 +80,7 @@
   class:selected={route.item === item.display_id}
   class:picked
   class:unread={item.unread}
+  class:lingering={dimmed(item.event.id) && route.item !== item.display_id}
   data-item={item.display_id}
   href={href({ item: item.display_id })}
   {onclick}
@@ -98,7 +110,7 @@
     <div class="preview">{preview || item.event.meta?.file || ''}</div>
   {/if}
   <div class="meta">
-    <span>{(kind === 'slot' ? item.label.split('/').slice(0, -1).join('/') : item.label) || 'coordinator'}</span>
+    <span class="lineage" title={item.event.path}>{lineage}</span>
     <span class="faint">·</span>
     <span>{item.age} ago</span>
     {#if remote}<span class="faint">·</span><span class="host">@{item.event.host}</span>{/if}
@@ -158,6 +170,9 @@
   }
   .picking .row {
     padding-left: 39px;
+  }
+  .row.lingering {
+    opacity: 0.5;
   }
   .row:hover {
     border-color: var(--line-strong);

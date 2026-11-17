@@ -5,6 +5,9 @@
   import { toast } from '../lib/toast.svelte.js';
   import { href } from '../lib/route.svelte.js';
   import { desktopText, remoteText, originText, behaviorLabel } from '../lib/format.js';
+  import { ui, saveUI } from '../lib/ui.svelte.js';
+  const lingerChoices = [0, 15, 30, 60, 120, 300];
+  const lingerText = (n) => (n === 0 ? 'Drop it at once' : n < 60 ? `${n} seconds` : n === 60 ? '1 minute' : `${n / 60} minutes`);
 
   let { path = '', stamp = '', onchange = () => {} } = $props();
 
@@ -131,6 +134,19 @@
     {/if}
   {:else}
     <div class="skeleton"></div>
+  {/if}
+
+  {#if !path}
+    <div class="key">
+      <div class="key-head">
+        <span class="key-name">Keep a read item in the list for</span>
+        <span class="mono faint">this device</span>
+      </div>
+      <select class="input" value={ui.lingerSeconds} onchange={(e) => ((ui.lingerSeconds = +e.currentTarget.value), saveUI())}>
+        {#each lingerChoices as n (n)}<option value={n}>{lingerText(n)}</option>{/each}
+      </select>
+      <div class="origin"><span class="faint">Opening an item marks it read. It stays in place, dimmed once you move on, for this long.</span></div>
+    </div>
   {/if}
 </div>
 

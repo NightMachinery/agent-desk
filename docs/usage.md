@@ -301,10 +301,14 @@ first write after the 15 minutes. `agent-desk render` re-renders by hand.
     agent-desk serve --config config.json     # listen, pid_file, allow_hosts, origin, title, device, color from a supervisor's JSON
 
 The same sections as the inbox, on a desktop in three panes and on a phone
-in one column: Pinned (when anything is), Needs you, Responses to you (the
-agents' answers to what you asked), New, and the run tree. Opening an item
-marks it read (a question excepted: reading one dismisses it); the icon
-beside its id marks it unread again, and the pin icon keeps it on top.
+in one column: Needs you, Pinned (when anything is), Responses to you (the
+agents' answers to what you asked), New, and the run tree. Click a section's
+title to fold it. Each row names its project, run and agent below what the
+view or its group heading already says. Opening an item marks it read (a
+question excepted: reading one dismisses it), but the row stays where it
+is, dimmed once you open another, for a minute (Settings: "Keep a read item
+in the list for", per device). The icon beside its id marks it unread
+again, and the pin icon keeps it on top.
 Previous and Next at the bottom of an item walk the list in the order
 shown. The search filters every section, and the run tree by project, run
 or agent name and by the session or Paseo id of whoever joined a node.

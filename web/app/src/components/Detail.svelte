@@ -7,6 +7,7 @@
   import Composer from './Composer.svelte';
   import Markdown from './Markdown.svelte';
   import Attachments from './Attachments.svelte';
+  import { hold } from '../lib/linger.svelte.js';
   import Icon from './Icon.svelte';
   import Thread from './Thread.svelte';
   import { autoRead, position, step } from '../lib/nav.svelte.js';
@@ -33,8 +34,9 @@
   $effect(() => {
     if (!it || isQuestion || !it.unread || autoRead.has(e.id)) return;
     autoRead.add(e.id);
-    post('read', { target: it.display_id })
-      .then(onchange)
+    const id = e.id, display = it.display_id;
+    post('read', { target: display })
+      .then(() => (hold(id, display), onchange()))
       .catch(() => autoRead.delete(e.id));
   });
 

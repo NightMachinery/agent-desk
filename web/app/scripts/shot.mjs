@@ -4,11 +4,12 @@
 // UI change can be checked in one command. It speaks the DevTools protocol
 // directly: no puppeteer, nothing to install beyond Node 22+ and Chrome.
 //
-//   node scripts/shot.mjs URL OUT.png [--width 1360] [--height 860] [--wait 1500]
+//   node scripts/shot.mjs URL OUT.png [--width 1360] [--height 860] [--wait 1500] [--timeout 30000]
 //                         [--scale 2] [--transparent] [--js 'code'] [--js-file F]
 //
 // The code runs as the body of an async function; its return value is printed
-// as JSON, so a check can both show and assert. --width under 600 emulates a
+// as JSON, so a check can both show and assert. --timeout bounds the whole
+// run after --wait (default 30 s); raise it for a check that waits on a timer. --width under 600 emulates a
 // phone (touch, mobile viewport). --scale is the device pixel ratio (default
 // 2), so --width 512 --scale 1 makes a 512-pixel image; --transparent keeps
 // what the page does not paint transparent. CHROME names the browser binary.
@@ -25,13 +26,13 @@ import { join } from 'node:path';
 
 function usage(msg) {
   if (msg) console.error(`shot: ${msg}`);
-  console.error('usage: shot.mjs URL OUT.png [--width N] [--height N] [--wait MS] [--scale N] [--transparent] [--js CODE] [--js-file F]');
+  console.error('usage: shot.mjs URL OUT.png [--width N] [--height N] [--wait MS] [--timeout MS] [--scale N] [--transparent] [--js CODE] [--js-file F]');
   process.exit(2);
 }
 
 const args = process.argv.slice(2);
 const pos = [];
-const opt = { width: 1360, height: 860, wait: 1500, scale: 2, js: '', transparent: false };
+const opt = { width: 1360, height: 860, wait: 1500, timeout: 30000, scale: 2, js: '', transparent: false };
 for (let i = 0; i < args.length; i++) {
   const a = args[i];
   if (!a.startsWith('--')) {
@@ -46,7 +47,7 @@ for (let i = 0; i < args.length; i++) {
   if (v === undefined) usage(`${a} needs a value`);
   if (a === '--js') opt.js = v;
   else if (a === '--js-file') opt.js = readFileSync(v, 'utf8');
-  else if (['--width', '--height', '--wait', '--scale'].includes(a)) {
+  else if (['--width', '--height', '--wait', '--timeout', '--scale'].includes(a)) {
     opt[a.slice(2)] = Number(v);
     if (!Number.isFinite(opt[a.slice(2)]) || opt[a.slice(2)] < 0) usage(`${a} takes a number`);
   } else usage(`unknown option ${a}`);
@@ -90,7 +91,7 @@ function finish(code) {
 const deadline = setTimeout(() => {
   console.error('shot: timed out');
   finish(1);
-}, 30000 + opt.wait);
+}, opt.timeout + opt.wait);
 
 try {
   let port = '';

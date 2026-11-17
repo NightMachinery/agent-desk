@@ -64,7 +64,7 @@ Rules the page keeps:
 
 The API, all JSON:
 
-- `GET api/view?path=&session=&host=&all=1&q=`: the sections, the node at
+- `GET api/view?path=&session=&host=&all=1&q=&linger=`: the sections, the node at
   `path` with its target (where a message to it goes) and `conversation`
   (the node's own thread), the session's details, and the lists of projects
   and machines.

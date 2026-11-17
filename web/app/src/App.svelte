@@ -3,6 +3,8 @@
   import { get, watch } from './lib/api.js';
   import { toasts } from './lib/toast.svelte.js';
   import { desk } from './lib/desk.svelte.js';
+  import { untrack } from 'svelte';
+  import { lingerIds, moved, onLingerEnd } from './lib/linger.svelte.js';
   import { keys, ctx, pane, onkeydown } from './lib/keys.svelte.js';
   import './lib/keymap.js';
   import Keys from './components/Keys.svelte';
@@ -25,6 +27,9 @@
   async function loadView() {
     const my = ++seq;
     const params = { path: route.path, session: route.session, host: route.host, all: route.all ? '1' : '', q: route.q };
+    // Rows just read stay listed for a while; reading the list of them must
+    // not make every hold refetch the view.
+    params.linger = untrack(lingerIds).join(',');
     try {
       const [v, g] = await Promise.all([get('view', params), get('view', { host: route.host })]);
       if (my !== seq) return;
@@ -70,6 +75,11 @@
     route.item;
     loadItem();
   });
+  $effect(() => {
+    const cur = route.item;
+    untrack(() => moved(cur));
+  });
+  onLingerEnd(() => loadView());
 
   let timer;
   $effect(() =>

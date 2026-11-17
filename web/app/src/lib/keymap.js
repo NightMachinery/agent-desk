@@ -5,6 +5,7 @@ import { nav, step } from './nav.svelte.js';
 import { sel, toggle, toggleAll, clear } from './select.svelte.js';
 import { copy } from './format.js';
 import { toast } from './toast.svelte.js';
+import { toggleSection } from './ui.svelte.js';
 import {
   keys, ctx, bind, group, pane, paneEl, cmdEl, say, dialog, moveFocus, focusables, startHints, openPalette,
   activeBindings, setVisual, syncMode,
@@ -71,6 +72,17 @@ function section(n) {
   let at = -1;
   firsts.forEach((id, i) => nav.order.indexOf(id) <= cur && (at = i));
   openItem(firsts[Math.max(0, Math.min(firsts.length - 1, at + n))]);
+}
+
+/** The list section the open item is in, else the first one. */
+function sectionHere() {
+  let el = route.item ? rowEl(route.item) : null;
+  while (el && !el.matches?.('h2.section-title')) el = el.previousElementSibling || el.parentElement;
+  return el?.dataset.section || paneEl('list')?.querySelector('h2.section-title')?.getAttribute('data-section') || 'needs';
+}
+const sections = ['needs', 'pinned', 'responses', 'new', 'runs'];
+function foldAll(open) {
+  for (const s of sections) toggleSection(s, open);
 }
 
 function scroll(p, by) {
@@ -335,6 +347,12 @@ bind('g g', 'First item', () => edge(false), { pane: 'list' });
 bind('G', 'Last item', () => edge(true), { pane: 'list' });
 bind('}', 'Next section', (n) => section(n), { pane: 'list' });
 bind('{', 'Previous section', (n) => section(-n), { pane: 'list' });
+group('z', '+fold');
+bind('z a', 'Fold or unfold this section', () => toggleSection(sectionHere()), { pane: 'list' });
+bind('z c', 'Fold this section', () => toggleSection(sectionHere(), false), { pane: 'list' });
+bind('z o', 'Unfold this section', () => toggleSection(sectionHere(), true), { pane: 'list' });
+bind('z M', 'Fold every section', () => foldAll(false), { pane: 'list' });
+bind('z R', 'Unfold every section', () => foldAll(true), { pane: 'list' });
 bind('C-d', 'Scroll down half a page', () => scroll('list', 0.5), { pane: 'list' });
 bind('C-u', 'Scroll up half a page', () => scroll('list', -0.5), { pane: 'list' });
 bind('RET', 'Read the item in the detail pane', () => focusPane('detail'), { pane: 'list' });

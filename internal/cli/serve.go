@@ -413,6 +413,15 @@ func (s *server) apiView(w http.ResponseWriter, r *http.Request) {
 		Session: q.Get("session"),
 		All:     q.Get("all") == "1" || q.Get("all") == "true",
 	}
+	if l := q.Get("linger"); l != "" {
+		f.Linger = map[string]bool{}
+		for i, id := range strings.Split(l, ",") {
+			if i == 200 {
+				break
+			}
+			f.Linger[strings.TrimSpace(id)] = true
+		}
+	}
 	v := d.Build(f)
 	query := strings.TrimSpace(q.Get("q"))
 	if query != "" {

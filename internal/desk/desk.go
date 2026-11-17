@@ -237,6 +237,10 @@ type Filter struct {
 	// Dismissed keeps dismissed questions in Needs you: an agent's own view
 	// of what it is still waiting for.
 	Dismissed bool
+	// Linger keeps these events (full ids) in New and Responses after they
+	// are read: the dashboard holds a row the user just read in place for a
+	// while, instead of pulling it from under the cursor.
+	Linger map[string]bool
 }
 
 func (f Filter) Keep(e store.Event) bool {
@@ -431,7 +435,7 @@ func (d *Desk) New(f Filter) []Group {
 		default:
 			continue
 		}
-		if !d.unread[e.ID] && !f.All {
+		if !d.unread[e.ID] && !f.All && !f.Linger[e.ID] {
 			continue
 		}
 		items = append(items, d.item(e))
@@ -444,7 +448,7 @@ func (d *Desk) New(f Filter) []Group {
 func (d *Desk) ResponseGroups(f Filter) []Group {
 	var items []Item
 	for _, e := range d.Events {
-		if IsResponse(e) && f.Keep(e) && (d.unread[e.ID] || f.All) {
+		if IsResponse(e) && f.Keep(e) && (d.unread[e.ID] || f.All || f.Linger[e.ID]) {
 			items = append(items, d.item(e))
 		}
 	}
