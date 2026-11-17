@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -113,6 +114,8 @@ WHERE (e.kind IN ('tell', 'done')
 type Store struct {
 	DB   *sql.DB
 	Path string
+	// Skipped counts the events of unknown kinds Import and Merge left out.
+	Skipped int
 }
 
 // DefaultHome is ${AGENT_DESK_HOME:-~/.agents/desk}.
@@ -182,6 +185,11 @@ func null(s string) any {
 const insertSQL = `INSERT INTO events (id, ts, host, kind, path, ref, level, title, body, meta)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
+// ErrUnknownKind marks an event of a kind this version does not know. Import
+// and merge skip such events, counting them in Skipped, so an older binary
+// still merges a newer desk; a later merge, after updating, takes them in.
+var ErrUnknownKind = errors.New("unknown kind")
+
 // Validate checks an event's required fields.
 func Validate(e Event) error {
 	// A pref's path is its scope, and the global scope is the empty path.
@@ -189,7 +197,7 @@ func Validate(e Event) error {
 		return fmt.Errorf("event %q: id, ts, host and path are required", e.ID)
 	}
 	if !validKind(e.Kind) {
-		return fmt.Errorf("event %s: unknown kind %q", e.ID, e.Kind)
+		return fmt.Errorf("event %s: %w %q", e.ID, ErrUnknownKind, e.Kind)
 	}
 	if len(e.Meta) == 0 || !json.Valid(e.Meta) {
 		return fmt.Errorf("event %s: meta must be JSON", e.ID)
@@ -350,7 +358,10 @@ func (s *Store) Import(r io.Reader) ([]Event, error) {
 		if err := json.Unmarshal([]byte(line), &e); err != nil {
 			return nil, fmt.Errorf("line %d: %w", n, err)
 		}
-		if err := Validate(e); err != nil {
+		if err := Validate(e); errors.Is(err, ErrUnknownKind) {
+			s.Skipped++
+			continue
+		} else if err != nil {
 			return nil, fmt.Errorf("line %d: %w", n, err)
 		}
 		in = append(in, e)
@@ -432,13 +443,19 @@ func (s *Store) Merge(file string) ([]Event, error) {
 	if err != nil {
 		return nil, err
 	}
+	known := added[:0]
 	for _, e := range added {
-		if err := Validate(e); err != nil {
+		if err := Validate(e); errors.Is(err, ErrUnknownKind) {
+			s.Skipped++
+			continue
+		} else if err != nil {
 			return nil, fmt.Errorf("%s: %w", abs, err)
 		}
+		known = append(known, e)
 	}
+	added = known
 	if _, err := conn.ExecContext(ctx, "INSERT OR IGNORE INTO main.events ("+plain+") SELECT "+
-		plain+" FROM other.events"); err != nil {
+		plain+" FROM other.events WHERE kind IN ('"+strings.Join(Kinds, "', '")+"')"); err != nil {
 		return nil, err
 	}
 	if _, err := conn.ExecContext(ctx, "COMMIT"); err != nil {

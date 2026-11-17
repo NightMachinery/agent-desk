@@ -36,8 +36,8 @@ func TestAskChoices(t *testing.T) {
 
 	bad := map[string]string{
 		`{"questions": []}`: "1 to 30 questions",
-		`{"questions": [{"text": "x", "options": ["only"]}]}`: "2 to 12 options",
-		`{"questions": [{"text": "x", "options": ["a", "b"], "recommended": "z"}]}`: "not one of its options",
+		`{"questions": [{"text": "x", "options": ["only"]}]}`:                              "2 to 12 options",
+		`{"questions": [{"text": "x", "options": ["a", "b"], "recommended": "z"}]}`:        "not one of its options",
 		`{"questions": [{"text": "x", "options": ["a", {"key": "other", "label": "b"}]}]}`: "reserved",
 		`{"qs": []}`: "the form is",
 	}

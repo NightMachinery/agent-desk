@@ -1201,6 +1201,10 @@ func (a *App) cmdExport(args []string) error {
 func (a *App) imported(added []store.Event, notify bool) error {
 	fmt.Fprintln(a.Stdout, "ok")
 	fmt.Fprintf(a.Stderr, "agent-desk: %d new event(s)\n", len(added))
+	if a.st != nil && a.st.Skipped > 0 {
+		fmt.Fprintf(a.Stderr, "agent-desk: left out %d event(s) of kinds this version does not know; "+
+			"update agent-desk and merge again to take them in\n", a.st.Skipped)
+	}
 	if len(added) == 0 {
 		return nil
 	}
