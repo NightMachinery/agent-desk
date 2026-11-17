@@ -6,6 +6,8 @@ import (
 	"io"
 	"os"
 	"strings"
+
+	"github.com/NightMachinery/agent-desk/internal/store"
 )
 
 // View is what `show` prints.
@@ -121,7 +123,7 @@ func kwd(org bool, k string) string {
 // Header starts an org file with the keywords the items use.
 func (w *Writer) Header(title string) {
 	if w.Org {
-		fmt.Fprintf(w.W, "#+TITLE: %s\n#+TODO: ASK NEW | ANSWERED\n#+STARTUP: overview\n\n", title)
+		fmt.Fprintf(w.W, "#+TITLE: %s\n#+TODO: ASK NEW MSG RE | ANSWERED\n#+STARTUP: overview\n\n", title)
 	}
 }
 
@@ -200,6 +202,81 @@ func (w *Writer) Message(level int, it Item) {
 	w.props("DESK_ID", it.ID, "DESK_PATH", it.Event.Path, "DESK_TS", it.Event.TS, "DESK_HOST", it.Event.Host)
 	w.Text(it.Event.Body)
 	w.Text("Respond: agent-desk tell --re " + it.ID)
+}
+
+// DeliveryTag is the org tag for a message's or an answer's delivery:
+// pending, delivered, in_chat (an answer given in the agent's chat), plus
+// no_response once a delivered message has waited too long.
+func (d *Desk) DeliveryTag(e store.Event) string {
+	if MetaString(e, "source") == "chat" {
+		return ":in_chat:"
+	}
+	if _, ok := d.Delivery(e.ID); !ok {
+		return ":pending:"
+	}
+	if d.NoResponse(e.ID) {
+		return ":delivered:no_response:"
+	}
+	return ":delivered:"
+}
+
+// Thread prints a thread's messages, answers and responses as headings at
+// one level: MSG for what the user sent, with its delivery state as a tag,
+// and RE for an agent's response.
+func (w *Writer) Thread(level int, thread []store.Event) {
+	d := w.Desk
+	for _, e := range thread {
+		if e.Kind == "delivered" {
+			continue
+		}
+		// Files keep a timestamp, which does not go stale; views an age.
+		age := Age(d.Now.Sub(Time(e)))
+		if w.Props && len(e.TS) >= 16 {
+			age = e.TS[:16]
+		}
+		if IsResponse(e) {
+			re := ""
+			if e.Ref != "" {
+				re = " to " + d.Display(e.Ref)
+			}
+			w.h(level, fmt.Sprintf("%s%s response%s: %s  (%s · %s%s)", kwd(w.Org, "RE"), d.Display(e.ID), re,
+				e.Title, agentLabel(e), age, w.hostTag(e.Host)))
+		} else {
+			what := "message"
+			if e.Kind == "answer" {
+				what = "answer"
+			}
+			tag := ""
+			if w.Org {
+				tag = "  " + d.DeliveryTag(e)
+			} else {
+				tag = " · " + strings.ReplaceAll(strings.Trim(d.DeliveryTag(e), ":"), ":", ", ")
+			}
+			if level == 1 {
+				// Not under its root item, so say where it went.
+				age = e.Path + " · " + age
+			}
+			w.h(level, fmt.Sprintf("%s%s %s: %s  (%s%s)%s", kwd(w.Org, "MSG"), d.Display(e.ID), what,
+				firstLine(e.Body), age, w.hostTag(e.Host), tag))
+		}
+		w.props("DESK_ID", d.Display(e.ID), "DESK_PATH", e.Path, "DESK_TS", e.TS, "DESK_HOST", e.Host)
+		w.Text(e.Body)
+	}
+}
+
+// agentLabel names the session that wrote e, briefly.
+func agentLabel(e store.Event) string {
+	var m struct {
+		From struct{ Agent, Session, Title string } `json:"from"`
+	}
+	_ = json.Unmarshal(e.Meta, &m)
+	switch {
+	case m.From.Title != "":
+		return m.From.Title
+	case m.From.Agent != "":
+		return m.From.Agent
+	}
+	return NodeOf(e)
 }
 
 func firstLine(s string) string {

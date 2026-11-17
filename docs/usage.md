@@ -209,12 +209,22 @@ another machine is answered there after the next merge.
 
 - **NEEDS YOU**: open questions, blocked ones first, oldest first, grouped
   by project and run.
+- **RESPONSES**: unread responses from agents to what you sent them, each
+  row marked `re` and naming the message it responds to (`to m-4c2d`, or
+  `to chat` for something you asked in its chat).
 - **NEW**: unread notices, done reports and changed slots.
 - **RUNS**: the tree of projects, runs and agents. Each node shows its state
   (`waiting on you`, `active 10m`, `quiet 4d`, `finished`) and how many open
   questions and unread items lie beneath it. Only the way to something that
   needs you is unfolded; everything else is one line, an agent's line carrying
   its status.
+
+The preview of an item shows its conversation under it: your messages and
+answers, what happened to each (`joined the running turn`, `queued`,
+`waiting for a merge to host-b`), whether it got a response, and the
+responses. A response's preview shows the conversation it belongs to, with
+itself marked `▸`; a node's preview shows the messages sent to the node
+itself.
 
 Typing filters the list, as in any fzf. Keys:
 
@@ -227,6 +237,10 @@ Typing filters the list, as in any fzf. Keys:
 - `ctrl-o`: open the session that wrote the item: in Paseo for a Paseo agent,
   by selecting its tmux pane, or else by copying its resume command to the
   clipboard.
+- `alt-m`: message the session behind the row, as `agent-desk reply` does:
+  about the item on an item's row, to the node on a node's row. Type a line,
+  or leave it empty to write it in `$EDITOR`. It goes with your
+  `deliver.behavior` setting.
 - `alt-a`: show all, including read items and finished runs.
 - `ctrl-l`: refresh. `esc`: quit.
 
@@ -250,8 +264,15 @@ After every write the tool re-renders plain org files, so `cat` is enough:
     ~/.agents/desk/render/ledger/<yyyy-mm>.org
 
 Each item is a heading with a `:DESK_ID:` property and a keyword: `ASK` or
-`ANSWERED` for questions, `NEW` for unread items. `agent-desk render`
-re-renders by hand.
+`ANSWERED` for questions, `NEW` for unread items. In the ledger an item's
+conversation hangs under it as child headings: `MSG` for a message or an
+answer you sent, tagged with its delivery state (`:pending:`, `:delivered:`,
+`:in_chat:` for an answer given in the agent's chat, plus `:no_response:`
+once a delivered message has waited 15 minutes), and `RE` for an agent's
+response. A message with no item to hang under (one sent to a node, or
+about a slot) is a top-level `MSG` heading with its responses under it. The
+files are rendered at each write, so a `:no_response:` tag appears at the
+first write after the 15 minutes. `agent-desk render` re-renders by hand.
 
 ### The web dashboard
 

@@ -12,6 +12,7 @@ import (
 	"syscall"
 
 	"github.com/NightMachinery/agent-desk/internal/desk"
+	"github.com/NightMachinery/agent-desk/internal/store"
 )
 
 // All re-renders every file under dir/render. A lock serialises concurrent
@@ -57,14 +58,23 @@ func All(dir string, load func() (*desk.Desk, error)) error {
 		}
 	}
 
+	// The ledger lists questions, notices and done reports by month. A
+	// conversation hangs under its root item as child headings; a message
+	// whose root is not listed (a node's own thread, or a slot) is a heading
+	// of its own, with its responses under it.
 	months := map[string][]desk.Item{}
 	qs := map[string]int{}
 	for i, q := range d.Questions {
 		qs[q.ID] = i
 	}
 	for _, e := range d.Events {
-		switch e.Kind {
-		case "ask", "tell", "done":
+		switch {
+		case e.Kind == "ask" || e.Kind == "done":
+		case e.Kind == "tell" && e.Ref == "":
+		case e.Kind == "reply":
+			if root, ok := d.Root(e); ok && listed(root) {
+				continue
+			}
 		default:
 			continue
 		}
@@ -72,7 +82,8 @@ func All(dir string, load func() (*desk.Desk, error)) error {
 			continue
 		}
 		m := e.TS[:7]
-		it := desk.Item{Event: e, ID: d.Display(e.ID), Label: e.Path, Age: e.TS[:16], Unread: d.Unread(e.ID)}
+		it := d.Item(e)
+		it.Label, it.Age = e.Path, e.TS[:16]
 		if e.Kind == "ask" {
 			q := d.Questions[qs[e.ID]]
 			it.Question = &q
@@ -88,17 +99,28 @@ func All(dir string, load func() (*desk.Desk, error)) error {
 		b.Reset()
 		w.Header("agent-desk ledger " + m)
 		for _, it := range months[m] {
-			if it.Event.Kind == "ask" {
+			switch it.Event.Kind {
+			case "ask":
 				w.Question(1, it)
-			} else {
+			case "reply":
+				w.Thread(1, []store.Event{it.Event})
+				w.Thread(2, d.ResponsesTo(it.Event.ID))
+				continue
+			default:
 				w.Notice(1, it)
 			}
+			w.Thread(2, d.Thread(it.Event.ID, ""))
 		}
 		if err := atomicWrite(filepath.Join(out, "ledger", m+".org"), b.Bytes()); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// listed reports whether the ledger lists e as an item of its own.
+func listed(e store.Event) bool {
+	return e.Kind == "ask" || e.Kind == "done" || (e.Kind == "tell" && e.Ref == "")
 }
 
 func atomicWrite(path string, data []byte) error {
