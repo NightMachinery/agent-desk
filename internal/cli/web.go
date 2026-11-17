@@ -34,6 +34,7 @@ type Entry struct {
 	Re        string            `json:"re,omitempty"` // a response: what it responds to
 	Notify    map[string]string `json:"notify,omitempty"`
 	Unread    bool              `json:"unread,omitempty"`
+	Media     []MediaView       `json:"media,omitempty"`
 }
 
 // Delivery is a delivered mark's receipt.

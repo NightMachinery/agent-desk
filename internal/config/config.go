@@ -33,6 +33,9 @@ type Config struct {
 	// SSHHosts maps a desk host name to an ssh destination, for pushing
 	// events there at once (merge ssh:).
 	SSHHosts map[string]string `toml:"ssh_hosts"`
+	// MediaKeepDays: attachments of items read or answered this many days
+	// ago are deleted by gc (default 30; 0 keeps them for good).
+	MediaKeepDays *int `toml:"media_keep_days"`
 	// RawDefaults is the [defaults] table as written; Defaults is it checked.
 	RawDefaults map[string]any    `toml:"defaults"`
 	Defaults    settings.Defaults `toml:"-"`

@@ -129,6 +129,7 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("GET /api/target", s.apiTarget)
 	mux.HandleFunc("GET /api/stream", s.apiStream)
 	mux.HandleFunc("GET /api/prefs", s.apiPrefs)
+	mux.HandleFunc("GET /api/media/{file}", s.apiMedia)
 	mux.HandleFunc("POST /api/pref", s.write(s.apiPref))
 	mux.HandleFunc("POST /api/answer", s.write(s.apiAnswer))
 	mux.HandleFunc("POST /api/reply", s.write(s.apiReply))
@@ -645,15 +646,16 @@ type itemResponse struct {
 	Thread []Entry    `json:"thread"`
 	// ThreadOf: the thread shown is not this item's own but that of the
 	// item (display id) or node (path) it belongs to; ThreadTitle names it.
-	ThreadOf    string  `json:"thread_of,omitempty"`
-	ThreadTitle string  `json:"thread_title,omitempty"`
-	Target      *Target `json:"target,omitempty"`
-	File        string  `json:"file,omitempty"`
-	FileText    string  `json:"file_text,omitempty"`
-	Report      string  `json:"report,omitempty"`
-	Default     string  `json:"default,omitempty"`
-	Answered    bool    `json:"answered"`
-	Superseded  string  `json:"superseded,omitempty"` // a newer text of this slot
+	ThreadOf    string      `json:"thread_of,omitempty"`
+	ThreadTitle string      `json:"thread_title,omitempty"`
+	Target      *Target     `json:"target,omitempty"`
+	File        string      `json:"file,omitempty"`
+	FileText    string      `json:"file_text,omitempty"`
+	Report      string      `json:"report,omitempty"`
+	Default     string      `json:"default,omitempty"`
+	Answered    bool        `json:"answered"`
+	Superseded  string      `json:"superseded,omitempty"` // a newer text of this slot
+	Media       []MediaView `json:"media,omitempty"`
 }
 
 func (s *server) apiItem(w http.ResponseWriter, r *http.Request) {
@@ -699,7 +701,11 @@ func (s *server) apiItem(w http.ResponseWriter, r *http.Request) {
 			thread, resp.ThreadOf = d.Thread("", desk.NodeOf(e)), desk.NodeOf(e)
 		}
 	}
+	resp.Media = s.a.mediaViews(d, e)
 	resp.Thread = entries(d, thread, s.sshHosts())
+	for i := range resp.Thread {
+		resp.Thread[i].Media = s.a.mediaViews(d, resp.Thread[i].Event)
+	}
 	if t, err := targetOf(d, e.ID); err == nil {
 		s.behaviors(d, &t)
 		resp.Target = &t

@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/NightMachinery/agent-desk/internal/media"
 	"github.com/NightMachinery/agent-desk/internal/store"
 )
 
@@ -65,6 +66,7 @@ type Writer struct {
 	Desk  *Desk
 	Org   bool // org, else markdown
 	Props bool // org property drawers
+	Plain bool // a terminal: paths, not markdown links
 }
 
 func (w *Writer) h(level int, text string) {
@@ -101,6 +103,33 @@ func (w *Writer) Text(s string) {
 		}
 		fmt.Fprintf(w.W, "  %s\n", line)
 	}
+}
+
+// Media lists an event's attachments, each with its caption and a link to
+// the stored file, or why it is not on this host.
+func (w *Writer) Media(e store.Event) {
+	refs := media.Of(e)
+	if len(refs) == 0 {
+		return
+	}
+	var lines []string
+	for _, r := range refs {
+		where := "not on this host"
+		if w.Desk.Home != "" && r.Present(w.Desk.Home) {
+			where = r.Path(w.Desk.Home)
+			if w.Org {
+				where = "[[file:" + where + "][" + r.Name + "]]"
+			} else if w.Plain {
+				where = r.Name + "  " + where
+			} else {
+				where = "[" + r.Name + "](<" + where + ">)"
+			}
+		} else {
+			where = r.Name + " (" + where + ")"
+		}
+		lines = append(lines, fmt.Sprintf("- %s %s: %s", r.Kind(), where, r.Caption))
+	}
+	w.Text("Attachments:\n" + strings.Join(lines, "\n"))
 }
 
 func (w *Writer) hostTag(host string) string {
@@ -146,6 +175,7 @@ func (w *Writer) Question(level int, it Item) {
 		label, lvl, it.Age, w.hostTag(it.Event.Host)))
 	w.props("DESK_ID", it.ID, "DESK_PATH", it.Event.Path, "DESK_TS", it.Event.TS, "DESK_HOST", it.Event.Host)
 	w.Text(it.Event.Body)
+	w.Media(it.Event)
 	if def := MetaString(it.Event, "default"); def != "" {
 		w.Text("Default: " + def)
 	}
@@ -180,6 +210,7 @@ func (w *Writer) Notice(level int, it Item) {
 		w.Text(fmt.Sprintf("You asked (%s): %s", it.AskedVia, firstLine(it.Asked)))
 	}
 	w.Text(it.Event.Body)
+	w.Media(it.Event)
 	if r := MetaString(it.Event, "report"); r != "" {
 		w.Text("Report: " + r)
 	}
@@ -261,6 +292,7 @@ func (w *Writer) Thread(level int, thread []store.Event) {
 		}
 		w.props("DESK_ID", d.Display(e.ID), "DESK_PATH", e.Path, "DESK_TS", e.TS, "DESK_HOST", e.Host)
 		w.Text(e.Body)
+		w.Media(e)
 	}
 }
 

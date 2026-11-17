@@ -5,11 +5,13 @@ package desk
 import (
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/NightMachinery/agent-desk/internal/ids"
+	"github.com/NightMachinery/agent-desk/internal/media"
 	"github.com/NightMachinery/agent-desk/internal/store"
 )
 
@@ -40,6 +42,7 @@ func stateRank(s string) int {
 type Desk struct {
 	Now       time.Time
 	Host      string // this machine
+	Home      string // the store's directory, where media/ is
 	Events    []store.Event
 	ByID      map[string]store.Event
 	Table     *ids.Table
@@ -57,7 +60,7 @@ func Load(s *store.Store, host string, now time.Time) (*Desk, error) {
 	if err != nil {
 		return nil, err
 	}
-	d := &Desk{Now: now, Host: host, Events: evs, ByID: make(map[string]store.Event, len(evs))}
+	d := &Desk{Now: now, Host: host, Home: filepath.Dir(s.Path), Events: evs, ByID: make(map[string]store.Event, len(evs))}
 	all := make([]string, len(evs))
 	for i := range evs {
 		if evs[i].Kind == "set" {
@@ -324,6 +327,8 @@ type Item struct {
 	Re        string `json:"re,omitempty"`
 	Root      string `json:"root,omitempty"`
 	RootTitle string `json:"root_title,omitempty"`
+	// Attachments counts the images and audio files the item carries.
+	Attachments int `json:"attachments,omitempty"`
 }
 
 // Group is the items of one project and run.
@@ -341,6 +346,7 @@ func (d *Desk) item(e store.Event) Item {
 	it := Item{Event: e, ID: d.Display(e.ID), Label: rest, Age: Age(d.Now.Sub(Time(e))), Unread: d.unread[e.ID],
 		NoResponse: e.Kind == "reply" && d.NoResponse(e.ID), Pinned: d.Pinned(e), Response: IsResponse(e)}
 	it.Asked, it.AskedVia = d.Asked(e)
+	it.Attachments = len(media.Of(e))
 	if it.Response && e.Ref != "" {
 		it.Re = d.Display(e.Ref)
 		if root, ok := d.Root(e); ok {

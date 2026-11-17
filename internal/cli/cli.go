@@ -88,6 +88,8 @@ Agent side (only coordinators write; workers report to their parent):
   agent-desk link <slot> <file>
   agent-desk answer <id> --from-chat 'text'   record an answer given in chat
   agent-desk done --title T [--report FILE]   <<'S' ... S   (agent-done calls this)
+      ask, tell and done take [--attach FILE --caption 'what it shows']...: images
+      and audio, up to 8; the desk keeps a copy
 
 User side:
   agent-desk inbox [<path-prefix>] [--all]    interactive (needs fzf)
@@ -116,6 +118,8 @@ User side:
   agent-desk open <id|path>       what a notification click runs (open_command)
   agent-desk export | import [--notify] | snapshot <file> | render
   agent-desk merge <file>|ssh:<host> [--notify]
+  agent-desk gc [--dry-run] [--days N]   delete attachments of old items read or answered
+                                      (media_keep_days, default 30)
 
 Store: ${AGENT_DESK_HOME:-~/.agents/desk}. See docs/usage.md.
 `
@@ -221,6 +225,10 @@ func (a *App) run(args []string) error {
 		return a.cmdImport(rest)
 	case "snapshot":
 		return a.cmdSnapshot(rest)
+	case "gc":
+		return a.cmdGC(rest)
+	case "media":
+		return a.cmdMedia(rest)
 	case "merge":
 		return a.cmdMerge(rest)
 	case "inbox":
@@ -249,6 +257,9 @@ type opts struct {
 	vals  map[string]string
 	set   map[string]bool
 	pos   []string
+	// seq is every valued option in the order given, for options that may
+	// repeat (--attach F --caption C ...).
+	seq [][2]string
 }
 
 // parse accepts --name, --name=value and --name value anywhere, and "--" to
@@ -286,6 +297,7 @@ func parse(args []string, boolNames, valNames []string, minPos, maxPos int) (opt
 				val = args[i]
 			}
 			o.vals[name] = val
+			o.seq = append(o.seq, [2]string{name, val})
 		default:
 			return o, usagef("unknown option --%s", name)
 		}
@@ -384,6 +396,7 @@ func (a *App) commit(evs []store.Event, show string) error {
 		fmt.Fprintf(a.Stderr, "agent-desk: warning: rendering failed: %v\n", err)
 	}
 	a.announce(evs, false, false)
+	a.maybeGC()
 	return nil
 }
 
@@ -527,7 +540,7 @@ func (a *App) cmdJoin(args []string) error {
 }
 
 func (a *App) cmdAsk(args []string) error {
-	o, err := parse(args, []string{"blocked"}, []string{"default", "title", "project"}, 0, 0)
+	o, err := parse(args, []string{"blocked"}, append([]string{"default", "title", "project"}, attachOpts...), 0, 0)
 	if err != nil {
 		return err
 	}
@@ -552,6 +565,9 @@ func (a *App) cmdAsk(args []string) error {
 		}
 		level, extra["default"] = "default", o.vals["default"]
 	}
+	if err := a.attach(o, extra); err != nil {
+		return err
+	}
 	return a.agentWrite(o.vals["project"], func(from ident.From, node string, _ *desk.Desk) ([]store.Event, error) {
 		e := a.event("ask", node, from, "cli", extra)
 		e.Level, e.Title, e.Body = level, title, body
@@ -560,7 +576,7 @@ func (a *App) cmdAsk(args []string) error {
 }
 
 func (a *App) cmdTell(args []string) error {
-	o, err := parse(args, []string{"notify", "quiet"}, []string{"title", "project", "re", "re-chat"}, 0, 0)
+	o, err := parse(args, []string{"notify", "quiet"}, append([]string{"title", "project", "re", "re-chat"}, attachOpts...), 0, 0)
 	if err != nil {
 		return err
 	}
@@ -596,8 +612,11 @@ func (a *App) cmdTell(args []string) error {
 	if o.bools["notify"] {
 		level = "notify"
 	}
+	extra := map[string]any{}
+	if err := a.attach(o, extra); err != nil {
+		return err
+	}
 	return a.agentWrite(o.vals["project"], func(from ident.From, node string, d *desk.Desk) ([]store.Event, error) {
-		extra := map[string]any{}
 		if asked != "" {
 			extra["asked"] = asked
 		}
@@ -1223,6 +1242,7 @@ func (a *App) cmdMerge(args []string) error {
 	if err != nil {
 		return err
 	}
+	a.mergeMediaDir(filepath.Dir(src))
 	if err := a.imported(added, o.bools["notify"]); err != nil {
 		return err
 	}
@@ -1284,7 +1304,7 @@ func (a *App) cmdOpen(args []string) error {
 // cmdDone files a finished session's summary and report path, and sets its
 // status slot to say so, in one transaction.
 func (a *App) cmdDone(args []string) error {
-	o, err := parse(args, nil, []string{"title", "report", "project"}, 0, 0)
+	o, err := parse(args, nil, append([]string{"title", "report", "project"}, attachOpts...), 0, 0)
 	if err != nil {
 		return err
 	}
@@ -1302,6 +1322,9 @@ func (a *App) cmdDone(args []string) error {
 			r = filepath.Join(a.Env.Cwd, r)
 		}
 		extra["report"] = r
+	}
+	if err := a.attach(o, extra); err != nil {
+		return err
 	}
 	return a.agentWrite(o.vals["project"], func(from ident.From, node string, _ *desk.Desk) ([]store.Event, error) {
 		e := a.event("done", node, from, "cli", extra)

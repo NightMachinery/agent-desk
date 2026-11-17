@@ -14,6 +14,8 @@ and gives the user one place to read it and answer.
   boxes in a tree of project, run and agent. Writing a slot replaces it, so
   the board never accumulates history.
 - **Read marks** hide what you have seen. A slot that changes comes back.
+- **Attachments**: an agent can show a plot or a screenshot, or leave a voice
+  note, with a caption. The desk keeps a copy for a month after you read it.
 - Everything is an immutable event in one SQLite file, so nothing is lost and
   stores on several machines can be merged.
 

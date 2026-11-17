@@ -443,6 +443,9 @@ func (a *App) mergeSSH(host string, notify bool) error {
 		remote+" import && { "+remote+" deliver || true; }")
 	push.Stdin, push.Stdout, push.Stderr = &ours, &errb, &errb
 	pushErr := push.Run()
+	if pushErr == nil {
+		a.mergeMediaSSH(ctx, sshBin, host, remote)
+	}
 	if out := strings.TrimSpace(errb.String()); out != "" {
 		for _, l := range strings.Split(out, "\n") {
 			if l != "ok" {

@@ -116,6 +116,26 @@ This files a done report and sets the node's `status` to "Finished." (or
 the run finished. `agent-done` does this for you where it is installed.
 `agent-desk show --mine` shows only the calling session's own node.
 
+**Attachments.** `ask`, `tell` and `done` take images and audio: a plot,
+a screenshot, a voice note. Each `--attach` needs a `--caption` right after
+it, saying what the file shows and why it matters, since the caption is what
+the user reads first and what a terminal shows:
+
+    agent-desk tell --title 'Seed 2 diverges' \
+      --attach plots/loss.png --caption 'Seed 2 (orange) leaves the others at step 400' <<'R'
+    Shard 17 has duplicated rows; seed 2 drew it.
+    R
+
+Up to 8 files per item; an image may be 10 MB and an audio file 50 MB. The
+types accepted are png, jpg, gif, webp, svg, heic and avif images, and mp3,
+m4a, aac, ogg, opus, wav, flac and weba audio. The desk copies each file into
+`<store>/media/`, named by its content hash, so the agent may delete its own
+copy. The dashboard shows the images and plays the audio; the inbox, `show`
+and the ledger list each file with its caption and path.
+
+The files are not part of the event history: the events hold only a
+reference, and old files are deleted (see Attachments are temporary, below).
+
 Slots hold what is true now, not history:
 
     agent-desk set status 'Seeds 3/5 done. ETA 14:00.'
@@ -347,6 +367,7 @@ The core knows nothing about your desktop. It runs commands you name in
     base_url        = "https://desk.example.net/"   # the web dashboard, for links
     away_command    = "my-away-check"      # exits 0 while you are away from this machine
     remote_label    = "Phone"              # what the dashboard calls the remote channel
+    media_keep_days = 30                   # see Attachments are temporary; 0 keeps them
     [ssh_hosts]                            # desk host name = ssh destination
     otherhost = "otherhost.example.net"
 
@@ -434,6 +455,26 @@ refused. Defaults go in `config.toml`:
     [defaults.class.ask-blocked]
     "notify.remote" = "always"
 
+## Attachments are temporary
+
+Attachments are copies kept for reading, not an archive. Once a day, at the
+first write, the desk deletes the file of every item that is
+
+- older than `media_keep_days` (default 30),
+- read, or for a question answered or dismissed, and
+- not pinned.
+
+A file several items share stays while any of them keeps it, and a file no
+item names is deleted after a day (an `ask` that failed after copying it).
+The item itself stays, and says its attachment was deleted. Pin an item to
+keep its files; `media_keep_days = 0` keeps every file. To run it now:
+
+    agent-desk gc --dry-run         # list what would go
+    agent-desk gc [--days N]        # delete
+
+Links to attachments in the rendered ledger point at the stored file, so
+they stop working once it is deleted.
+
 ## Several machines
 
     agent-desk snapshot /tmp/copy.db   # consistent copy of the live store
@@ -463,3 +504,9 @@ another listed machine, and a message or answer for a session there, start
 a `merge ssh:` to it in the background. An unreachable machine catches up at
 its next merge. Merging is idempotent and order-free, since events never
 change and ids are globally unique. Items from another machine show its name.
+
+Attachments travel too, as best effort: after the events, `merge ssh:`
+copies the files each side keeps and the other lacks (`agent-desk media
+list|cat|put` on the other side), and `merge <file>` copies them from the
+`media/` directory next to that file. A file that has not arrived shows as
+"not fetched yet". `import` brings no files.

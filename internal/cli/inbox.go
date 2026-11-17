@@ -12,6 +12,7 @@ import (
 
 	"github.com/NightMachinery/agent-desk/internal/desk"
 	"github.com/NightMachinery/agent-desk/internal/ident"
+	"github.com/NightMachinery/agent-desk/internal/media"
 	"github.com/NightMachinery/agent-desk/internal/store"
 )
 
@@ -303,7 +304,7 @@ func (a *App) preview(d *desk.Desk, st inboxState, key string) string {
 		}
 		age := desk.Age(d.Now.Sub(desk.Time(e)))
 		head := d.Display(e.ID)
-		w := &desk.Writer{W: &b, Desk: d}
+		w := &desk.Writer{W: &b, Desk: d, Plain: true}
 		hint := ""
 		switch e.Kind {
 		case "ask":
@@ -313,6 +314,7 @@ func (a *App) preview(d *desk.Desk, st inboxState, key string) string {
 			}
 			fmt.Fprintf(&b, "%s  %s  %s%s\n%s\n\n%s\n\n", head, lvl, age, hostTag(d, e.Host), dim(where), bold(e.Title))
 			w.Text(e.Body)
+			w.Media(e)
 			if def := desk.MetaString(e, "default"); def != "" {
 				fmt.Fprintf(&b, "\n%s %s\n", yellow("Default:"), def)
 			}
@@ -336,6 +338,7 @@ func (a *App) preview(d *desk.Desk, st inboxState, key string) string {
 			} else {
 				w.Text(e.Body)
 			}
+			w.Media(e)
 			if r := desk.MetaString(e, "report"); r != "" {
 				fmt.Fprintf(&b, "\nReport: %s\n", r)
 			}
@@ -434,6 +437,13 @@ func (a *App) threadText(d *desk.Desk, thread []store.Event, title, highlight st
 		}
 		for _, l := range lines {
 			fmt.Fprintf(&b, "    %s\n", l)
+		}
+		for _, r := range media.Of(en.Event) {
+			where := dim("(not on this host)")
+			if r.Present(a.Home) {
+				where = r.Path(a.Home)
+			}
+			fmt.Fprintf(&b, "    %s %s: %s  %s\n", r.Kind(), r.Name, r.Caption, where)
 		}
 		var state []string
 		if en.Delivery != nil {
