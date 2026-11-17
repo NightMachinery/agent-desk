@@ -122,7 +122,7 @@
     <div class="skeleton short"></div>
   {:else}
     {#if view.node}
-      <div class="phone-node"><NodePanel node={view.node} target={view.target} {onchange} compact /></div>
+      <div class="phone-node"><NodePanel node={view.node} target={view.target} conversation={view.conversation} stamp={view.stamp} {onchange} compact /></div>
     {/if}
 
     {#if pinned.length}

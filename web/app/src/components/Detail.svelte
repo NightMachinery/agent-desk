@@ -7,6 +7,7 @@
   import Composer from './Composer.svelte';
   import Markdown from './Markdown.svelte';
   import Icon from './Icon.svelte';
+  import Thread from './Thread.svelte';
   import { autoRead, position, step } from '../lib/nav.svelte.js';
 
   let { item, error, onchange } = $props();
@@ -54,18 +55,18 @@
     toast(res.note ? `${what}. ${res.note}` : `${what}.`, res.note && /not delivered|merge/.test(res.note) ? 'info' : 'ok', res.note ? 7000 : 3000);
   }
 
-  async function answer(text) {
+  async function answer(text, opts = {}) {
     try {
-      report(await post('answer', { id: it.display_id, text }), 'Answer recorded');
+      report(await post('answer', { id: it.display_id, text, ...opts }), 'Answer recorded');
       onchange();
       return true;
     } catch (err) {
       toast(err.message, 'error');
     }
   }
-  async function reply(text) {
+  async function reply(text, opts = {}) {
     try {
-      report(await post('reply', { to: it.display_id, text }), 'Message sent');
+      report(await post('reply', { to: it.display_id, text, ...opts }), 'Message sent');
       onchange();
       return true;
     } catch (err) {
@@ -179,18 +180,15 @@
 
     {#if item.thread.length}
       <div class="thread">
-        {#each item.thread as t (t.event.id)}
-          <div class="entry {t.event.kind}">
-            <div class="entry-head">
-              <strong>{t.event.kind === 'answer' ? 'Answer' : 'Your message'}</strong>
-              <span class="faint">{t.age} ago</span>
-              {#if t.source === 'chat'}<span class="chip">in chat</span>{/if}
-              {#if t.delivered}<span class="chip ok">delivered · {t.delivered}</span>{:else if t.source !== 'chat'}<span class="chip waiting">not delivered yet</span>{/if}
-              <a class="mono faint idlink" href={href({ item: t.display_id })}>{t.display_id}</a>
-            </div>
-            <Markdown text={t.event.body} />
+        {#if item.thread_of}
+          <div class="thread-of faint">
+            In the conversation
+            {#if item.thread_title}about <a href={href({ item: item.thread_of })}>{item.thread_title}</a>{:else}with <a href={href({ path: item.thread_of, item: '', session: '', q: '' })}>{item.thread_of}</a>{/if}
           </div>
-        {/each}
+        {:else}
+          <div class="section-title">Conversation</div>
+        {/if}
+        <Thread entries={item.thread} current={item.thread_of ? it.display_id : ''} remoteLabel={item.target?.remote_label} />
       </div>
     {/if}
 
@@ -203,6 +201,7 @@
           sendLabel="Answer"
           {quick}
           hint={item.target ? viaText(item.target) : ''}
+          target={item.target}
           send={answer}
         />
       </section>
@@ -215,6 +214,7 @@
           label={`Message ${agentName(item.target.agent)}`}
           placeholder={isQuestion && !item.answered ? 'Or say something else to the agent…' : 'Say something to the agent that wrote this…'}
           hint={isQuestion && !item.answered ? '' : viaText(item.target)}
+          target={item.target}
           send={reply}
         />
       </section>
@@ -390,33 +390,14 @@
   }
   .thread {
     margin-top: 22px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
   }
-  .entry {
-    padding: 10px 12px;
-    border-radius: 10px;
-    border: 1px solid var(--line);
-  }
-  .entry.answer {
-    background: var(--ok-soft);
-    border-color: transparent;
-  }
-  .entry.reply {
-    background: var(--default-soft);
-    border-color: transparent;
-  }
-  .entry-head {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 7px;
+  .thread-of {
     font-size: 12.5px;
-    margin-bottom: 4px;
+    margin-bottom: 8px;
   }
-  .idlink {
-    margin-left: auto;
+  .thread-of a {
+    color: var(--text);
+    text-decoration: underline;
   }
   .act {
     margin-top: 22px;

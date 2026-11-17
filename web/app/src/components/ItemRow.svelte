@@ -86,7 +86,10 @@
     {#if item.unread}<span class="new" title="Unread"></span>{/if}
   </div>
   {#if item.response && item.asked}
-    <div class="asked">{item.asked_via === 'answer' ? 'Your answer' : 'You asked'}{item.asked_via === 'chat' ? ' in chat' : ''}: {previewLine(item.asked)}</div>
+    <div class="asked">
+      {#if item.re}<span>Response to <span class="mono">{item.re}</span> ·</span>{/if}
+      <span>{{ answer: 'Your answer', message: 'Your message', chat: 'You asked in chat' }[item.asked_via] || 'You asked'}: {previewLine(item.asked)}</span>
+    </div>
   {/if}
   {#if preview && kind !== 'slot'}
     <div class="preview">{preview}</div>

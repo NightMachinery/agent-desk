@@ -162,6 +162,7 @@ not write anyway.
     agent-desk reply example-proj/rerun-nov/coord 'Pause after seed 4'   # or a node's coordinator
     agent-desk reply t-k2m9 --notify-remote always 'Tell me on the phone when done'
                                              # route the notification of the response
+    agent-desk answer q-7f3a --notify-desktop none --notify-remote always 'B'   # answers take them too
     agent-desk read t-k2m9                   # mark one item read, with the responses in its thread
     agent-desk read example-proj/rerun-nov   # mark everything under a node read
     agent-desk read q-7f3a                   # dismiss a question without answering it
@@ -273,7 +274,24 @@ first (`?sort=old`; recent first is the default) and an open item
 (`?item=q-7f3a`). From it you answer questions (with one-click "take your
 recommendation" or "go with the default"), message the agent behind any item
 or any coordinator, dismiss a question without answering it, and mark things
-read. To act on many items at once, press Select (or long-press a row on a
+read.
+
+An item shows its conversation under it: your messages and answers, each
+with what happened to it ("joined the running turn", "queued, position 2",
+"waiting for a merge to host-b", a fallback note when the behaviour you asked
+for was unavailable), then "responded" or, 15 minutes after delivery, "no
+response yet"; the agents' responses follow in order. A node shows its own
+conversation the same way. A response in the list reads "Response to
+m-4c2d", and its page shows the conversation it belongs to. The Send button
+uses your `deliver.behavior` setting; the menu beside it offers the others,
+greys out one the session cannot do and says why, and asks before "Stop and
+send" (interrupt). "Notify me" beside it changes, for this message only,
+where its response notifies you. When the session has finished (a done
+report, or an archived Paseo agent) the composer says that sending revives
+it. The Notify chip on a node opens its settings, and Settings in the sidebar
+opens the global ones: one control per setting with where its value comes
+from ("inherited from example-proj"), for all kinds of event or one, and
+"Reset to inherited" where an override stands. To act on many items at once, press Select (or long-press a row on a
 phone, or cmd-click one on a desktop), then tap rows, shift-click a range or
 use "Select all" per section or group, and mark them read or unread. It
 updates live. Bodies, slots, messages and linked `.md` files render as

@@ -242,7 +242,8 @@ button {
 }
 
 textarea.input,
-input.input {
+input.input,
+select.input {
   width: 100%;
   border: 1px solid var(--line-strong);
   background: var(--panel);
@@ -252,10 +253,17 @@ input.input {
 }
 
 textarea.input:focus,
-input.input:focus {
+input.input:focus,
+select.input:focus {
   outline: none;
   border-color: var(--default);
   box-shadow: 0 0 0 3px var(--focus);
+}
+
+select.input {
+  height: 36px;
+  padding: 0 9px;
+  color: var(--text);
 }
 
 textarea.input {

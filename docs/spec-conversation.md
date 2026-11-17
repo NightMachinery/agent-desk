@@ -260,12 +260,15 @@ Web dashboard:
   resolved value and its origin ("inherited from example-proj"), with a
   class selector that defaults to "all kinds", and "reset to inherited".
 - New: a response is listed as "Response to m-4c2d" under its root item's
-  group and opens the root item scrolled to it.
+  group. Its page, and a message's, shows the conversation it belongs to
+  (the root item's, or the node's) with itself highlighted, and links the
+  root item. It stays its own page so that opening it marks it read and
+  Previous and Next keep their place in the list.
 - Phone: the composer sticks to the bottom; the behaviour menu and "Notify
   me" open as sheets; settings sit behind one "Notify" chip on the node.
 
 API: `GET api/item` and `api/view` return threads as described and the
-target's behaviours; `POST api/reply` and `api/answer` accept `behavior` and
+target's behaviours, its notify values and whether it has finished; `POST api/reply` and `api/answer` accept `behavior` and
 `notify`; `GET api/prefs?path=&class=` and `POST api/pref {scope, class,
 key, value}`.
 

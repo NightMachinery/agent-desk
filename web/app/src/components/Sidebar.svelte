@@ -56,6 +56,7 @@
 
   <div class="foot">
     <span class="live {live}"><span class="dot"></span>{live === 'live' ? 'Live' : live === 'reconnecting' ? 'Reconnecting…' : 'Connecting…'}</span>
+    <a class="faint" class:on={route.settings} href={href({ path: '', item: '', session: '', settings: true })}>Settings</a>
     <a class="faint" href="https://github.com/NightMachinery/agent-desk" target="_blank" rel="noreferrer">About</a>
   </div>
 </nav>

@@ -9,6 +9,7 @@
   import ListPane from './components/ListPane.svelte';
   import Detail from './components/Detail.svelte';
   import NodePanel from './components/NodePanel.svelte';
+  import Settings from './components/Settings.svelte';
 
   let view = $state(null);
   let globalView = $state(null);
@@ -101,6 +102,8 @@
       clear();
     } else if (e.key === 'Escape' && route.item) {
       go({ item: '' });
+    } else if (e.key === 'Escape' && route.settings) {
+      go({ settings: false });
     } else if ((e.key === 'x' || e.key === 'X') && route.item && document.querySelector(`[data-item="${CSS.escape(route.item)}"]`)) {
       toggle(route.item, e.shiftKey);
     } else if (e.key === 'j' || e.key === 'k') {
@@ -120,7 +123,7 @@
 
 <svelte:window onkeydown={onkey} />
 
-<div class="shell" class:has-item={!!route.item}>
+<div class="shell" class:has-item={!!route.item || route.settings}>
   <div class="side" class:open={drawer}>
     <Sidebar view={globalView} {live} />
   </div>
@@ -135,8 +138,17 @@
   <aside class="detail">
     {#if route.item}
       <Detail {item} error={itemError} onchange={refresh} />
+    {:else if route.settings}
+      <section class="settings-page">
+        <div class="settings-bar">
+          <button class="btn ghost small" onclick={() => go({ settings: false })}>← Back</button>
+        </div>
+        <h1>Settings</h1>
+        <p class="faint lede">How a message reaches a busy agent, and where you are notified. An override set here applies to everything under it, unless something nearer says otherwise.</p>
+        <Settings path={route.path} stamp={view?.stamp} onchange={refresh} />
+      </section>
     {:else if view?.node}
-      <NodePanel node={view.node} target={view.target} onchange={refresh} />
+      <NodePanel node={view.node} target={view.target} conversation={view.conversation} stamp={view.stamp} onchange={refresh} />
     {:else}
       <div class="placeholder">
         <svg viewBox="0 0 32 32" width="40" height="40" aria-hidden="true"
@@ -184,6 +196,19 @@
   }
   .scrim {
     display: none;
+  }
+  .settings-page {
+    padding: max(12px, env(safe-area-inset-top)) 24px 40px;
+    max-width: 640px;
+  }
+  .settings-page h1 {
+    margin: 8px 0 4px;
+    font-size: 21px;
+    letter-spacing: -0.015em;
+  }
+  .lede {
+    margin: 0 0 16px;
+    font-size: 13px;
   }
   .placeholder {
     height: 100%;

@@ -5,8 +5,12 @@
   import { agentName, short, stateClass, viaText } from '../lib/format.js';
   import Composer from './Composer.svelte';
   import Markdown from './Markdown.svelte';
+  import Thread from './Thread.svelte';
+  import Sheet from './Sheet.svelte';
+  import Settings from './Settings.svelte';
 
-  let { node, target, onchange, compact = false } = $props();
+  let { node, target, conversation = [], stamp = '', onchange, compact = false } = $props();
+  let settingsOpen = $state(false);
 
   const order = { status: 0, next: 1, done: 2, velocity: 3, findings: 4, artifacts: 5 };
   const slots = $derived(
@@ -16,9 +20,9 @@
   const label = $derived(node.state === 'active' || node.state === 'quiet' ? `${node.state} ${node.age}` : node.state);
   let writing = $state(false);
 
-  async function reply(text) {
+  async function reply(text, opts = {}) {
     try {
-      const res = await post('reply', { to: node.path, text });
+      const res = await post('reply', { to: node.path, text, ...opts });
       toast(res.note ? `Message sent. ${res.note}` : 'Message sent.', 'ok', res.note ? 7000 : 3000);
       writing = false;
       onchange();
@@ -48,6 +52,10 @@
       <span class="chip {stateClass(node.state)}">{label}</span>
       {#if node.open_questions}<span class="chip waiting">{node.open_questions} open</span>{/if}
       {#if node.unread}<span class="chip default">{node.unread} unread</span>{/if}
+      <button class="chip chip-btn" title="Settings for {node.path}: delivery and notifications" onclick={() => (settingsOpen = true)}>
+        <svg width="11" height="11" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5a3.5 3.5 0 0 0-3.5 3.5v2.5L3 11h10l-1.5-2.5V6A3.5 3.5 0 0 0 8 2.5zM6.5 13a1.5 1.5 0 0 0 3 0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+        Notify
+      </button>
     </div>
   </div>
 
@@ -69,6 +77,18 @@
     </div>
   {/if}
 
+  {#if conversation.length}
+    {#if compact}
+      <details class="convo">
+        <summary>Conversation ({conversation.length})</summary>
+        <Thread entries={conversation} remoteLabel={target?.remote_label} />
+      </details>
+    {:else}
+      <div class="section-title">Conversation</div>
+      <Thread entries={conversation} remoteLabel={target?.remote_label} />
+    {/if}
+  {/if}
+
   {#if target}
     {#if compact && !writing}
       <div class="row-actions">
@@ -82,11 +102,13 @@
           label={`Message the ${kind.toLowerCase()}'s coordinator`}
           placeholder="Tell it something, steer it, or ask what it is doing…"
           hint={viaText(target)}
+          {target}
           send={reply}
         />
       </div>
     {/if}
   {/if}
+
 
   {#if !compact}
     {#if node.unread}
@@ -107,7 +129,27 @@
   {/if}
 </section>
 
+<Sheet bind:open={settingsOpen} title="Settings">
+  <Settings path={node.path} {stamp} {onchange} />
+</Sheet>
+
 <style>
+  .chip-btn {
+    border: 0;
+    cursor: pointer;
+    font: inherit;
+    font-size: 11.5px;
+    font-weight: 600;
+  }
+  .convo summary {
+    cursor: pointer;
+    margin: 14px 0 8px;
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+  .chip-btn:hover {
+    background: var(--line);
+  }
   .panel {
     padding: max(16px, env(safe-area-inset-top)) 24px 40px;
     max-width: 820px;

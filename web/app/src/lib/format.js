@@ -55,13 +55,13 @@ export function viaText(t) {
   if (!t) return '';
   switch (t.via) {
     case 'paseo':
-      return 'Sent to its Paseo agent; if it is busy, it reads this mid-turn without being interrupted.';
+      return 'Sent through Paseo.';
     case 'tmux':
       return 'Typed into its tmux pane, if the pane still runs it.';
     case 'command':
       return 'Handed to your deliver_command.';
     case 'merge':
-      return `Its session is on ${t.host}; delivered there after the next merge.`;
+      return t.pushed ? `Its session is on ${t.host}; pushed there at once.` : `Its session is on ${t.host}; delivered there after the next merge.`;
     default:
       return 'This session cannot be reached now; the message is kept and sent when it can be.';
   }
@@ -74,4 +74,55 @@ export async function copy(text) {
   } catch {
     return false;
   }
+}
+
+// Behaviours, as the composer offers them.
+export const behaviorLabel = { steer: 'Send', queue: 'Send after its turn', interrupt: 'Stop and send' };
+export const behaviorHelp = {
+  steer: 'Joins the running turn at its next step; starts a turn if the agent is idle.',
+  queue: 'Waits for the running turn to end, then starts the next one.',
+  interrupt: 'Cancels the running turn, losing its work in progress, then sends.',
+};
+
+/** What a delivery receipt says happened to a message. */
+export function dispositionText(d) {
+  if (!d) return '';
+  const words = {
+    turn_started: 'started a new turn',
+    steered: 'joined the running turn',
+    interrupted: 'interrupted the turn',
+    out_of_band: 'answered without a turn',
+    typed: 'typed into its pane',
+    command: 'handed to deliver_command',
+  };
+  let t = d.disposition === 'queued' ? `queued${d.queue_position ? `, position ${d.queue_position}` : ''}` : words[d.disposition] || '';
+  if (!t) t = d.via === 'tmux' ? 'typed into its pane' : 'delivered';
+  if (d.revived) t += ' · revived the session';
+  return t;
+}
+
+/** A notify.desktop value in words. */
+export function desktopText(v) {
+  if (!v || v === 'none') return 'no desktop notification';
+  if (v === 'origin') return 'on the machine it ran on';
+  if (v === 'all') return 'on every machine';
+  return 'on ' + v.split(',').map((h) => (h === 'origin' ? 'its machine' : h)).join(', ');
+}
+
+/** A notify.remote value in words; label names the remote channel. */
+export function remoteText(v, label = '') {
+  const on = label ? `by ${label}` : 'on your phone';
+  return { off: label ? `not by ${label}` : 'not on your phone', away: `${on} when you are away`, always: on }[v] || v || '';
+}
+
+/** Where a resolved setting comes from, seen from path. */
+export function originText(o, path) {
+  if (!o) return '';
+  const cls = o.class && o.class !== '*' ? ` for ${o.class}` : '';
+  if (o.source === 'pref') {
+    if ((o.scope || '') === (path || '')) return `set here${cls}`;
+    return `inherited from ${o.scope || 'the global setting'}${cls}`;
+  }
+  if (o.source === 'config') return `config default${cls}`;
+  return 'built in';
 }
