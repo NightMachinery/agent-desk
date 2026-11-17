@@ -6,7 +6,9 @@
   import { behaviorLabel, behaviorHelp, desktopText, remoteText } from '../lib/format.js';
   import Sheet from './Sheet.svelte';
 
-  let { id = undefined, label, placeholder, send, hint = '', quick = [], sendLabel = 'Send', target = null } = $props();
+  // compose turns the typed text into what is sent (a question's picks plus
+  // the text); ready allows sending with the box empty.
+  let { id = undefined, label, placeholder, send, hint = '', quick = [], sendLabel = 'Send', target = null, compose = null, ready = false } = $props();
   let text = $state('');
   let busy = $state(false);
   let menu = $state(false);
@@ -25,6 +27,7 @@
   const remoteName = $derived(target?.remote_label || 'Phone');
 
   async function submit(value = text, behavior = '') {
+    if (compose) value = compose(value);
     if (!value.trim() || busy) return;
     busy = true;
     try {
@@ -88,11 +91,11 @@
     {/if}
     <span class="hint faint">{hint}</span>
     <div class="split">
-      <button data-cmd="send" class="btn primary small main" disabled={busy || !text.trim()} onclick={() => submit()} title={tip(behaviorHelp[def] || 'Send', 'send')}>
+      <button data-cmd="send" class="btn primary small main" disabled={busy || !(text.trim() || ready)} onclick={() => submit()} title={tip(behaviorHelp[def] || 'Send', 'send')}>
         {busy ? 'Sending…' : mainLabel}
       </button>
       {#if others.length}
-        <button data-cmd="send-menu" class="btn primary small more" disabled={busy || !text.trim()} aria-label="Other ways to send" title={tip('Other ways to send', 'send-menu')} onclick={() => { confirming = false; menu = true; }}>
+        <button data-cmd="send-menu" class="btn primary small more" disabled={busy || !(text.trim() || ready)} aria-label="Other ways to send" title={tip('Other ways to send', 'send-menu')} onclick={() => { confirming = false; menu = true; }}>
           <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="m2 3.5 3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
         </button>
       {/if}

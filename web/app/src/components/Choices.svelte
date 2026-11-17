@@ -1,12 +1,13 @@
 <script>
   // A question's multiple-choice part. Each question has options and one
   // text field: with a pick it is a note on the pick, with none it is your
-  // own answer. Clicking a picked option again unpicks it. The answer goes
-  // out as text ("1. B: label. Note: ..."), which any agent can read.
+  // own answer. Clicking a picked option again unpicks it. `lines` is the
+  // answer so far, one line per question ("1. B: label. Note: ...", or
+  // "(no answer)"); the answer box below sends it with any general message.
   import Markdown from './Markdown.svelte';
   import { tip } from '../lib/shortcuts.js';
 
-  let { choices, send } = $props();
+  let { choices, lines = $bindable(''), count = $bindable(0) } = $props();
 
   const qs = $derived(choices?.questions ?? []);
   // Per question: the picked keys and the text field.
@@ -14,7 +15,6 @@
   $effect(() => {
     if (ans.length !== qs.length) ans = qs.map(() => ({ picked: [], text: '' }));
   });
-  let busy = $state(false);
 
   function pick(i, key) {
     const s = ans[i];
@@ -22,25 +22,20 @@
     else s.picked = qs[i].multi ? [...s.picked, key] : [key];
   }
   const answered = (i) => ans[i] && (ans[i].picked.length > 0 || ans[i].text.trim() !== '');
-  const count = $derived(qs.filter((_, i) => answered(i)).length);
 
   function line(i) {
     const q = qs[i];
     const s = ans[i];
-    const text = s.text.trim();
-    if (!s.picked.length) return `${i + 1}. ${text ? 'Other: ' + text : '(no answer)'}`;
+    const text = s?.text.trim() ?? '';
+    if (!s?.picked.length) return `${i + 1}. ${text ? 'Other: ' + text : '(no answer)'}`;
     const os = q.options.filter((o) => s.picked.includes(o.key));
     let out = `${i + 1}. ${os.map((o) => o.key).join(', ')}: ${os.map((o) => o.label).join('; ')}`;
     return text ? `${out}. Note: ${text}` : out;
   }
-  async function submit() {
-    busy = true;
-    try {
-      await send(qs.map((_, i) => line(i)).join('\n'));
-    } finally {
-      busy = false;
-    }
-  }
+  $effect(() => {
+    count = qs.filter((_, i) => answered(i)).length;
+    lines = qs.map((_, i) => line(i)).join('\n');
+  });
   function takeAll() {
     qs.forEach((q, i) => q.recommended && (ans[i].picked = [q.recommended]));
   }
@@ -83,8 +78,7 @@
   {/each}
   <div class="bar">
     {#if anyRec}<button class="btn small" data-cmd="quick" title={tip('Pick every recommendation; you can still change them', 'quick')} onclick={takeAll}>Pick the recommendations</button>{/if}
-    <span class="faint">{count} of {qs.length} answered</span>
-    <button class="btn primary small" disabled={busy || count === 0} onclick={submit}>Answer</button>
+    <span class="faint">{count} of {qs.length} answered; unanswered ones are sent as "(no answer)"</span>
   </div>
 </div>
 

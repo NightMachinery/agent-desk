@@ -25,6 +25,8 @@
     item ? item.node.split('/').map((name, i, all) => ({ name, path: all.slice(0, i + 1).join('/') })) : [],
   );
   const sess = $derived(e ? sessionOf(e) : '');
+  let choiceLines = $state('');
+  let choiceCount = $state(0);
   // An answer, message or response is shown inside its conversation, marked;
   // repeating its text above that would show it twice.
   const inThread = $derived(!!item?.thread_of && item.thread.some((t) => t.display_id === it?.display_id));
@@ -212,12 +214,14 @@
     {#if isQuestion && !item.answered}
       <section class="act">
         {#if e.meta?.choices}
-          <Choices choices={e.meta.choices} send={(text) => answer(text)} />
+          <Choices choices={e.meta.choices} bind:lines={choiceLines} bind:count={choiceCount} />
         {/if}
         <Composer
           id="answer-box"
-          label={e.meta?.choices ? 'Or answer in your own words' : 'Answer'}
-          placeholder="Type your answer…"
+          label={e.meta?.choices ? 'A message with your answers (optional)' : 'Answer'}
+          placeholder={e.meta?.choices ? 'Anything that is not about one question…' : 'Type your answer…'}
+          compose={e.meta?.choices ? (t) => choiceLines + (t.trim() ? '\n\n' + t.trim() : '') : null}
+          ready={!!e.meta?.choices && choiceCount > 0}
           sendLabel="Answer"
           quick={e.meta?.choices ? [] : quick}
           hint={item.target ? viaText(item.target) : ''}

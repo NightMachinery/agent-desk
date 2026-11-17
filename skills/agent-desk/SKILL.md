@@ -87,10 +87,15 @@ questions, as many as needed (up to 30), each with 2 to 12 options:
 An option is a label or `{key, label, detail}`; keys default to A, B, C.
 `multi` lets the user pick several. For each question the dashboard shows the
 options and one text field: a note on the pick, or the user's own answer when
-nothing is picked. The answer arrives as text, one line per question; act on each:
+nothing is picked; clicking a pick again unpicks it. Below them, one message
+box takes anything that is not about a single question, and sends it with
+the picks. The answer arrives as text, one line per question, then the general message if any. Act on each line; a question marked "(no answer)" is still open, so ask it again later if you need it:
 
     1. B: Regenerate. Note: keep the old cache
     2. Other: only seed 7
+    3. (no answer)
+
+    And rerun the sync tonight.
 
 
 **Record every answer you receive in chat** (typed reply or a question tool),
