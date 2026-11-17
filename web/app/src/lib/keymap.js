@@ -248,8 +248,8 @@ group('C-w', '+window');
 
 // --- everywhere ------------------------------------------------------------------
 
-bind('?', 'Show every key binding', () => (keys.help = true), { anywhere: true });
-bind('SPC h b', 'Show every key binding', () => (keys.help = true));
+bind('?', 'The cheatsheet', () => (keys.help = 'sheet'), { anywhere: true });
+bind('SPC h b', 'Show every key binding', () => (keys.help = 'all'));
 bind(':', 'Run a command (M-x)', commands, { palette: false, anywhere: true });
 bind('M-x', 'Run a command (M-x)', commands, { palette: false, anywhere: true });
 bind('SPC :', 'Run a command (M-x)', commands, { palette: false });
@@ -313,6 +313,7 @@ bind('SPC i m', 'Send how? (steer, queue, interrupt)', () => click('send-menu', 
 bind('y y', 'Copy a link to the item', () => yank(open() ? location.href : '', 'Link'));
 bind('y i', "Copy the item's id", () => yank(route.item, 'Id'));
 bind('y r', 'Copy the resume command', () => yank(ctx.item()?.resume ?? '', 'Resume command'));
+bind('y a', "Copy the agent's Paseo id", () => yank(ctx.item()?.from?.paseo || ctx.view()?.target?.paseo || '', 'Paseo id'));
 bind('y p', 'Copy the path shown', () => yank(ctx.item()?.node ?? route.path, 'Path'));
 
 // The node page (nothing open).

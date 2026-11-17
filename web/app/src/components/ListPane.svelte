@@ -1,4 +1,6 @@
 <script>
+  import CopyIds from './CopyIds.svelte';
+  import { tip } from '../lib/shortcuts.js';
   import { route, href, go } from '../lib/route.svelte.js';
   import { agentName, copy, short } from '../lib/format.js';
   import { toast } from '../lib/toast.svelte.js';
@@ -80,15 +82,15 @@
   <div class="filters">
     <label class="search">
       <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" stroke-width="1.6" /><path d="m11 11 3.5 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" /></svg>
-      <input id="search" type="search" placeholder="Search items and runs" bind:value={q} oninput={onsearch} autocomplete="off" />
+      <input id="search" type="search" placeholder="Search items and runs  (/)" bind:value={q} oninput={onsearch} autocomplete="off" />
     </label>
-    <a class="btn small toggle" class:on={route.all} href={href({ all: !route.all, item: '' })} title="Include read items and finished runs">
+    <a class="btn small toggle" class:on={route.all} href={href({ all: !route.all, item: '' })} title={tip('Include read items and finished runs', 'show-all')}>
       {route.all ? 'Showing all' : 'Show all'}
     </a>
     <a
       class="btn small icon"
       href={href({ old: !route.old })}
-      title={route.old ? 'Oldest first; switch to recent first' : 'Recent first; switch to oldest first'}
+      title={tip(route.old ? 'Oldest first; switch to recent first' : 'Recent first; switch to oldest first', 'sort')}
       aria-label={route.old ? 'Sorted oldest first' : 'Sorted recent first'}
     >
       <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true"
@@ -101,7 +103,7 @@
       >
       <span class="label">{route.old ? 'Oldest' : 'Recent'}</span>
     </a>
-    <button data-cmd="select-mode" class="btn small" class:on={selecting()} onclick={() => (selecting() ? clear() : (sel.mode = true))}>{selecting() ? 'Done' : 'Select'}</button>
+    <button data-cmd="select-mode" title={tip('Select items', 'select-mode')} class="btn small" class:on={selecting()} onclick={() => (selecting() ? clear() : (sel.mode = true))}>{selecting() ? 'Done' : 'Select'}</button>
   </div>
   {#if route.session}
     {@const s = view?.session}
@@ -113,9 +115,7 @@
         {#if s?.node}<div class="faint">{s.node}{s.last_age ? ` · last wrote ${s.last_age} ago` : ''}{s.host && s.host !== view?.host ? ` · on ${s.host}` : ''}</div>{/if}
       </div>
       <div class="actions">
-        {#if s?.resume}
-          <button class="btn small" onclick={async () => toast((await copy(s.resume)) ? 'Resume command copied.' : s.resume, 'ok')}>Copy resume</button>
-        {/if}
+        <CopyIds paseo={s?.paseo} resume={s?.resume} keys={false} />
         <a class="btn small" href={href({ session: '', item: '' })}>Clear</a>
       </div>
     </div>
@@ -228,7 +228,7 @@
 {/if}
 
 {#snippet fold(name, label)}
-  <button class="fold" data-cmd={'fold-' + name} aria-expanded={!ui.collapsed[name]} onclick={() => toggleSection(name)} title={ui.collapsed[name] ? 'Show this section (za)' : 'Fold this section (za)'}>
+  <button class="fold" data-cmd={'fold-' + name} aria-expanded={!ui.collapsed[name]} onclick={() => toggleSection(name)} title={tip(ui.collapsed[name] ? 'Show this section' : 'Fold this section', 'fold-' + name)}>
     <svg class="chev" class:shut={ui.collapsed[name]} width="11" height="11" viewBox="0 0 12 12" aria-hidden="true"><path d="m3 4.5 3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" /></svg>
     {label}
   </button>

@@ -1,4 +1,6 @@
 <script>
+  import CopyIds from './CopyIds.svelte';
+  import { tip } from '../lib/shortcuts.js';
   import { route, href, go } from '../lib/route.svelte.js';
   import { post } from '../lib/api.js';
   import { toast } from '../lib/toast.svelte.js';
@@ -22,6 +24,16 @@
     item ? item.node.split('/').map((name, i, all) => ({ name, path: all.slice(0, i + 1).join('/') })) : [],
   );
   const sess = $derived(e ? sessionOf(e) : '');
+  // An answer, message or response is shown inside its conversation, marked;
+  // repeating its text above that would show it twice.
+  const inThread = $derived(!!item?.thread_of && item.thread.some((t) => t.display_id === it?.display_id));
+  const title = $derived.by(() => {
+    if (!it) return '';
+    const about = item.thread_title ? ` to “${item.thread_title}”` : '';
+    if (e.kind === 'answer') return `Your answer${about}`;
+    if (e.kind === 'reply' && !e.title) return item.thread_title ? `Your message about “${item.thread_title}”` : 'Your message';
+    return titleOf(it);
+  });
   const quick = $derived(
     !isQuestion
       ? []
@@ -108,7 +120,7 @@
 {:else}
   <article class="pad">
     <div class="toolbar">
-      <button class="btn ghost back" onclick={() => go({ item: '' })} aria-label="Close">
+      <button class="btn ghost back" onclick={() => go({ item: '' })} aria-label="Close" title={tip('Close', 'close')}>
         <svg width="16" height="16" viewBox="0 0 16 16"><path d="M10 3 5 8l5 5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" /></svg>
         <span class="back-label">Back</span>
       </button>
@@ -117,18 +129,18 @@
       {#if it.dismissed}<span class="chip">Dismissed</span>{/if}
       {#if it.unread}<span class="chip default">Unread</span>{/if}
       <span class="spacer"></span>
-      <button data-cmd="pin" class="btn ghost small iconbtn" class:on={it.pinned} aria-pressed={it.pinned} title={it.pinned ? 'Unpin' : 'Pin to the top'} onclick={() => pin(!it.pinned)}
+      <button data-cmd="pin" class="btn ghost small iconbtn" class:on={it.pinned} aria-pressed={it.pinned} title={tip(it.pinned ? 'Unpin' : 'Pin to the top', 'pin')} onclick={() => pin(!it.pinned)}
         ><Icon name="pin" /></button
       >
       {#if !isQuestion}
-        <button data-cmd="read-toggle" class="btn ghost small iconbtn" title={it.unread ? 'Mark read' : 'Mark unread'} aria-label={it.unread ? 'Mark read' : 'Mark unread'} onclick={() => mark(!!it.unread)}
+        <button data-cmd="read-toggle" class="btn ghost small iconbtn" title={tip(it.unread ? 'Mark read' : 'Mark unread', it.unread ? 'dismiss' : 'undismiss')} aria-label={it.unread ? 'Mark read' : 'Mark unread'} onclick={() => mark(!!it.unread)}
           ><Icon name={it.unread ? 'read' : 'unread'} /></button
         >
       {/if}
-      <button data-cmd="copy-link" class="btn ghost small mono" title="Copy a link to this item" onclick={() => copyText(location.href, 'Link')}>{it.display_id}</button>
+      <button data-cmd="copy-link" class="btn ghost small mono" title={tip('Copy a link to this item', 'copy-link')} onclick={() => copyText(location.href, 'Link')}>{it.display_id}</button>
     </div>
 
-    <h1>{titleOf(it)}</h1>
+    <h1>{title}</h1>
 
     <div class="meta">
       <nav class="crumbs">
@@ -147,19 +159,19 @@
           {agentName(item.from.agent)} · <span class="mono">{short(sess)}</span>
         </a>
       {/if}
-      {#if item.resume}
-        <button data-cmd="copy-resume" class="btn ghost small" onclick={() => copyText(item.resume, 'Resume command')}>Copy resume command</button>
-      {/if}
+      <CopyIds paseo={item.from?.paseo} resume={item.resume} />
     </div>
 
-    {#if it.response && it.asked}
+    {#if it.response && it.asked && !inThread}
       <div class="asked">
         <div class="asked-label">{it.asked_via === 'answer' ? 'Your answer' : 'You asked'}{it.asked_via === 'chat' ? ' in chat' : ''}</div>
         <Markdown text={it.asked} />
       </div>
     {/if}
-    {#if e.body}<Markdown class="body" text={e.body} />{/if}
-    <Attachments media={item.media} />
+    {#if !inThread}
+      {#if e.body}<Markdown class="body" text={e.body} />{/if}
+      <Attachments media={item.media} />
+    {/if}
 
     {#if item.default}
       <div class="callout default"><strong>Default:</strong> {item.default}</div>
@@ -236,9 +248,9 @@
     </div>
 
     <nav class="stepper" aria-label="Previous and next">
-      <button class="btn small" disabled={!prevId} onclick={() => go({ item: prevId }, { replace: true })}><Icon name="prev" size={14} /> Previous</button>
+      <button class="btn small" title={tip('Previous item', 'prev')} disabled={!prevId} onclick={() => go({ item: prevId }, { replace: true })}><Icon name="prev" size={14} /> Previous</button>
       <span class="faint pos">{pos.at ? `${pos.at} of ${pos.of}` : ''}</span>
-      <button class="btn small" disabled={!nextId} onclick={() => go({ item: nextId }, { replace: true })}>Next <Icon name="next" size={14} /></button>
+      <button class="btn small" title={tip('Next item', 'next')} disabled={!nextId} onclick={() => go({ item: nextId }, { replace: true })}>Next <Icon name="next" size={14} /></button>
     </nav>
   </article>
 {/if}

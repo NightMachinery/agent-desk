@@ -2,8 +2,9 @@
 
 The dashboard can be used without a mouse, in the style of Doom Emacs's evil
 mode: modal keys, a `SPC` leader with a which-key popup, `M-x`, and link hints
-for anything else. Press `?` on the page for every binding that applies where
-you are; this page explains the model.
+for anything else. Press `?` on the page for a cheatsheet, and `TAB` in it
+(or `SPC h b`) for every binding that applies where you are. Every button's
+tooltip names its key. This page explains the model.
 
 ## Modes
 
@@ -64,8 +65,9 @@ On a phone there is one pane at a time: the list, or the open item.
   question, put it back in Needs you. `p`: pin or unpin. With a selection,
   these act on every selected item.
 - `x`: select or unselect it.
-- `yy` copies a link to it, `yi` its id, `yr` the session's resume command,
-  `yp` the path.
+- `yy` copies a link to it, `yi` its id, `ya` its agent's Paseo id, `yr`
+  the session's resume command, `yp` the path. The two icons beside the
+  agent's name copy the Paseo id and the resume command too.
 - `go` opens its node, `gw` shows everything its session wrote, `gt` the item
   its conversation is about.
 
@@ -86,7 +88,7 @@ follow, with groups in colour.
 - `SPC t a` show all, `SPC t o` oldest first, `SPC t s` select mode.
 - `SPC x a` select every item, `SPC x c` clear the selection.
 - `SPC w`: panes, as `C-w`.
-- `SPC h b`: every binding (as `?`).
+- `SPC h b`: every binding that applies here (`?` shows the cheatsheet).
 
 In the pickers (`SPC SPC`, `SPC ,`, `M-x`) the words you type match in any
 order. `C-n` / `C-p`, `C-j` / `C-k` or the arrows move, `RET` picks, `Esc` or
@@ -121,7 +123,9 @@ search.
 
 The engine is `web/app/src/lib/keys.svelte.js`: tokens, modes, panes,
 sequences, which-key, hints and the palette. The bindings are in
-`web/app/src/lib/keymap.js`. A binding is
+`web/app/src/lib/keymap.js`; `lib/shortcuts.js` holds the cheatsheet and the
+key each `data-cmd` button's tooltip names (`tip(label, cmd)`), so update it
+with a key. A binding is
 
     bind('SPC i p', 'Pin or unpin', run, { pane, when, palette, anywhere })
 

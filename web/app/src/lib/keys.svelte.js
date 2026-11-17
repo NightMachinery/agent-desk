@@ -195,6 +195,7 @@ export function onkeydown(e) {
   if (keys.hints) return hintKey(e, tok);
   if (keys.help) {
     if (['ESC', 'C-g', 'q', '?'].includes(tok)) keys.help = false;
+    else if (tok === 'TAB') keys.help = keys.help === 'all' ? 'sheet' : 'all';
     else if (tok === 'j' || tok === 'C-d') document.querySelector('.keyhelp')?.scrollBy(0, tok === 'j' ? 60 : 300);
     else if (tok === 'k' || tok === 'C-u') document.querySelector('.keyhelp')?.scrollBy(0, tok === 'k' ? -60 : -300);
     e.preventDefault();

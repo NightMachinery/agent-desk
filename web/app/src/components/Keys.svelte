@@ -1,4 +1,5 @@
 <script>
+  import { cheatsheet } from '../lib/shortcuts.js';
   // What the keyboard layer draws: the mode line, the which-key popup, the
   // list of every binding, the M-x palette and the link hints.
   import { keys, pane, continuations, activeBindings, matches, groups } from '../lib/keys.svelte.js';
@@ -52,7 +53,7 @@
 
   // The help sheet: every binding that applies now, by context.
   const helpGroups = $derived.by(() => {
-    if (!keys.help) return [];
+    if (keys.help !== 'all') return [];
     const by = new Map();
     for (const b of activeBindings()) {
       const where = b.pane ? `In the ${paneName[b.pane]}` : b.seq[0] === 'SPC' ? `Leader: ${groups[b.seq.slice(0, 2).join(' ')] ?? 'SPC'}` : 'Everywhere';
@@ -75,12 +76,37 @@
   </div>
 {/if}
 
-{#if keys.help}
+{#if keys.help === 'sheet'}
+  <div class="keys-overlay scrimmed" role="presentation" onpointerdown={(e) => e.target === e.currentTarget && (keys.help = false)}>
+    <div class="sheet keys-ui" role="dialog" aria-label="Keyboard cheatsheet">
+      <div class="kh-head">
+        <h3>Keyboard</h3>
+        <span class="faint"><kbd>TAB</kbd> every key for here · <kbd>q</kbd> close</span>
+      </div>
+      <div class="cards">
+        {#each cheatsheet as c (c.title)}
+          <section class="card">
+            <h4>{c.title}</h4>
+            {#each c.rows as [ks, desc] (desc)}
+              <div class="cs-row">
+                <span class="cs-keys">{#each ks as k, i (k)}{#if i}<span class="or">/</span>{/if}<kbd>{k}</kbd>{/each}</span>
+                <span>{desc}</span>
+              </div>
+            {/each}
+          </section>
+        {/each}
+      </div>
+      <p class="faint kh-note">
+        Keys are commands until a text box has focus. The which-key popup after <kbd>SPC</kbd> or <kbd>g</kbd> lists what can follow; every button's tooltip names its key.
+      </p>
+    </div>
+  </div>
+{:else if keys.help}
   <div class="keys-overlay scrimmed">
     <div class="keyhelp keys-ui" role="dialog" aria-label="Key bindings">
       <div class="kh-head">
         <h3>Key bindings</h3>
-        <span class="faint">for the {paneName[paneNow]} and everywhere · <kbd>j</kbd>/<kbd>k</kbd> scroll · <kbd>q</kbd> close</span>
+        <span class="faint">for the {paneName[paneNow]} and everywhere · <kbd>j</kbd>/<kbd>k</kbd> scroll · <kbd>TAB</kbd> cheatsheet · <kbd>q</kbd> close</span>
       </div>
       <p class="faint kh-note">
         Normal mode: keys are commands. A text box puts you in insert mode; <kbd>Esc</kbd> or <kbd>C-g</kbd> leaves it, and
@@ -220,6 +246,48 @@
     font-weight: 600;
   }
 
+  .sheet {
+    width: min(1040px, calc(100vw - 32px));
+    max-height: 86vh;
+    overflow: auto;
+    background: var(--panel);
+    border-radius: 16px;
+    box-shadow: var(--shadow);
+    padding: 18px 22px 16px;
+    font-size: 13px;
+  }
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+    gap: 12px;
+    margin-top: 12px;
+  }
+  .card {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 10px 12px 8px;
+  }
+  .card h4 {
+    margin: 0 0 6px;
+    color: var(--accent);
+  }
+  .cs-row {
+    display: grid;
+    grid-template-columns: 112px 1fr;
+    gap: 10px;
+    align-items: baseline;
+    padding: 3px 0;
+  }
+  .cs-keys {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+    align-items: baseline;
+  }
+  .or {
+    color: var(--muted);
+    font-size: 11px;
+  }
   .keyhelp {
     width: min(760px, calc(100vw - 32px));
     max-height: 80vh;
