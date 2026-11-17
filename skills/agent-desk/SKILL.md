@@ -124,6 +124,19 @@ milestone, a problem you worked around, a report written to a file.
 
 Add `--notify` only when it is worth interrupting the user for.
 
+**Show, when a picture says it faster.** `ask`, `tell` and `done` take images
+and audio (a plot, a screenshot, a voice note), up to 8 per item:
+
+    agent-desk tell --title 'Seed 2 diverges' \
+      --attach plots/loss.png --caption 'Seed 2 (orange) leaves the others at step 400' <<'R'
+    ...
+    R
+
+Every `--attach` needs a `--caption` after it that says what the file shows
+and why it matters: the user reads it first, and a terminal shows only it.
+Keep the point in the text too, since old attachments are deleted after about
+a month. Images up to 10 MB, audio up to 50 MB; the desk keeps its own copy.
+
 ## Slots: what is true now
 
 A slot is a named box at your node whose text you replace. The board shows the
