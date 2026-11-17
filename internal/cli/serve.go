@@ -25,7 +25,6 @@ import (
 
 	"github.com/NightMachinery/agent-desk/internal/desk"
 	"github.com/NightMachinery/agent-desk/internal/ident"
-	"github.com/NightMachinery/agent-desk/internal/store"
 	"github.com/NightMachinery/agent-desk/web"
 )
 
@@ -129,6 +128,8 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("GET /api/item", s.apiItem)
 	mux.HandleFunc("GET /api/target", s.apiTarget)
 	mux.HandleFunc("GET /api/stream", s.apiStream)
+	mux.HandleFunc("GET /api/prefs", s.apiPrefs)
+	mux.HandleFunc("POST /api/pref", s.write(s.apiPref))
 	mux.HandleFunc("POST /api/answer", s.write(s.apiAnswer))
 	mux.HandleFunc("POST /api/reply", s.write(s.apiReply))
 	mux.HandleFunc("POST /api/read", s.write(s.apiRead))
@@ -205,6 +206,18 @@ type request struct {
 	Targets []string `json:"targets"` // read, unread: several at once
 	// Behavior: answer, reply: steer, queue or interrupt (empty: default).
 	Behavior string `json:"behavior"`
+	// Notify: answer, reply: {desktop, remote} for the response to this
+	// message only.
+	Notify map[string]string `json:"notify"`
+	// pref: the override to set; a null value removes it.
+	Scope string  `json:"scope"`
+	Class string  `json:"class"`
+	Key   string  `json:"key"`
+	Value *string `json:"value"`
+}
+
+func (r request) notify() (map[string]string, error) {
+	return checkNotify(r.Notify["desktop"], r.Notify["remote"])
 }
 
 type writeFunc func(app *App, body request) (any, error)
@@ -276,11 +289,19 @@ func (s *server) apiAnswer(app *App, body request) (any, error) {
 	if q.Kind != "ask" {
 		return nil, fmt.Errorf("%s is a %s, not a question", d.Display(q.ID), q.Kind)
 	}
-	return map[string]string{}, app.recordAnswer(d, q, body.Text, "web", body.Behavior)
+	notify, err := body.notify()
+	if err != nil {
+		return nil, err
+	}
+	return map[string]string{}, app.recordAnswer(d, q, body.Text, "web", body.Behavior, notify)
 }
 
 func (s *server) apiReply(app *App, body request) (any, error) {
-	e, err := app.recordReply(body.To, body.Text, "web", body.Behavior, nil)
+	notify, err := body.notify()
+	if err != nil {
+		return nil, err
+	}
+	e, err := app.recordReply(body.To, body.Text, "web", body.Behavior, notify)
 	if err != nil {
 		return nil, err
 	}
@@ -363,6 +384,9 @@ type viewResponse struct {
 	View     desk.View  `json:"view"`
 	Node     *desk.Node `json:"node,omitempty"`
 	Target   *Target    `json:"target,omitempty"`
+	// Conversation is the target node's own thread: messages to the node
+	// and the responses to them, oldest first.
+	Conversation []Entry `json:"conversation,omitempty"`
 	Session  *Session   `json:"session,omitempty"`
 	Projects []string   `json:"projects"`
 	Hosts    []string   `json:"hosts"`
@@ -426,6 +450,7 @@ func (s *server) apiView(w http.ResponseWriter, r *http.Request) {
 		}
 		if resp.Target != nil {
 			s.behaviors(d, resp.Target)
+			resp.Conversation = entries(d, d.Thread("", resp.Target.Node), s.sshHosts())
 		}
 	}
 	if f.Session != "" {
@@ -526,7 +551,28 @@ type Target struct {
 	// why; filled by withBehaviors.
 	Behaviors       []Support `json:"behaviors,omitempty"`
 	DefaultBehavior string    `json:"default_behavior,omitempty"`
-	to              ident.From
+	// Notify is where the response to a message would notify:
+	// {desktop, remote}, resolved for class response at the node.
+	Notify map[string]string `json:"notify,omitempty"`
+	// Finished: done (the node has a done report since it joined) or
+	// archived (its Paseo agent is); sending revives the session.
+	Finished string `json:"finished,omitempty"`
+	// Pushed: the host is in ssh_hosts, so a message is pushed there at once.
+	Pushed bool `json:"pushed,omitempty"`
+	// RemoteLabel is the config's name for the remote channel.
+	RemoteLabel string `json:"remote_label,omitempty"`
+	to     ident.From
+}
+
+// sshHosts is the config's ssh_hosts, under the server's lock.
+func (s *server) sshHosts() map[string]string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	c, err := s.a.config()
+	if err != nil {
+		return nil
+	}
+	return c.SSHHosts
 }
 
 // behaviors fills in a target's behaviours under the server's lock.
@@ -539,10 +585,21 @@ func (s *server) behaviors(d *desk.Desk, t *Target) {
 // withBehaviors fills in what the target can do with a message.
 // The default is the deliver.behavior setting for the target's node.
 func (a *App) withBehaviors(d *desk.Desk, t *Target) {
+	if c, err := a.config(); err == nil && t.Via == "none" && c.DeliverCommand != "" {
+		t.Via = "command"
+	}
 	t.Behaviors = a.supports(t.Via, t.to)
 	t.DefaultBehavior = "steer"
-	if b, err := a.defaultBehavior(d, t.Node); err == nil {
-		t.DefaultBehavior = b
+	if r, err := a.settings(d); err == nil {
+		t.DefaultBehavior, _ = r.Resolve("deliver.behavior", t.Node, "")
+		t.Notify = map[string]string{}
+		t.Notify["desktop"], _ = r.Resolve("notify.desktop", t.Node, "response")
+		t.Notify["remote"], _ = r.Resolve("notify.remote", t.Node, "response")
+	}
+	t.Finished = a.finished(d, t)
+	if c, err := a.config(); err == nil {
+		_, t.Pushed = c.SSHHosts[t.Host]
+		t.RemoteLabel = c.RemoteLabel
 	}
 }
 
@@ -575,25 +632,8 @@ func (s *server) apiTarget(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, http.StatusNotFound, err.Error())
 		return
 	}
-	if t.Via == "none" {
-		s.mu.Lock()
-		c, err := s.a.config()
-		s.mu.Unlock()
-		if err == nil && c.DeliverCommand != "" {
-			t.Via = "command"
-		}
-	}
 	s.behaviors(d, &t)
 	writeJSON(w, t)
-}
-
-// Entry is one event in an item's thread.
-type Entry struct {
-	ID        string      `json:"display_id"`
-	Event     store.Event `json:"event"`
-	Age       string      `json:"age"`
-	Source    string      `json:"source,omitempty"`
-	Delivered string      `json:"delivered,omitempty"` // how, once delivered
 }
 
 type itemResponse struct {
@@ -603,6 +643,10 @@ type itemResponse struct {
 	From       ident.From `json:"from"`
 	Resume     string     `json:"resume,omitempty"`
 	Thread     []Entry    `json:"thread"`
+	// ThreadOf: the thread shown is not this item's own but that of the
+	// item (display id) or node (path) it belongs to; ThreadTitle names it.
+	ThreadOf    string `json:"thread_of,omitempty"`
+	ThreadTitle string `json:"thread_title,omitempty"`
 	Target     *Target    `json:"target,omitempty"`
 	File       string     `json:"file,omitempty"`
 	FileText   string     `json:"file_text,omitempty"`
@@ -646,18 +690,16 @@ func (s *server) apiItem(w http.ResponseWriter, r *http.Request) {
 		resp.File = file
 		resp.FileText = fileText(file)
 	}
-	how := map[string]string{}
-	for _, x := range d.Events {
-		if x.Kind == "delivered" {
-			how[x.Ref] = desk.MetaString(x, "via")
+	thread := d.Thread(e.ID, "")
+	if e.Kind == "reply" || e.Kind == "answer" || desk.IsResponse(e) {
+		// A message or response is shown in the conversation it belongs to.
+		if root, ok := d.Root(e); ok {
+			thread, resp.ThreadOf, resp.ThreadTitle = d.Thread(root.ID, ""), d.Display(root.ID), root.Title
+		} else if e.Ref != "" || e.Kind == "reply" {
+			thread, resp.ThreadOf = d.Thread("", desk.NodeOf(e)), desk.NodeOf(e)
 		}
 	}
-	for _, x := range d.Events {
-		if (x.Kind == "answer" || x.Kind == "reply") && x.Ref == e.ID {
-			resp.Thread = append(resp.Thread, Entry{ID: d.Display(x.ID), Event: x, Age: desk.Age(d.Now.Sub(desk.Time(x))),
-				Source: desk.MetaString(x, "source"), Delivered: how[x.ID]})
-		}
-	}
+	resp.Thread = entries(d, thread, s.sshHosts())
 	if t, err := targetOf(d, e.ID); err == nil {
 		s.behaviors(d, &t)
 		resp.Target = &t

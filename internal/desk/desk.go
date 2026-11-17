@@ -319,6 +319,11 @@ type Item struct {
 	Response bool   `json:"response,omitempty"`
 	Asked    string `json:"asked,omitempty"`
 	AskedVia string `json:"asked_via,omitempty"`
+	// Re is the display id of the message or answer a response responds
+	// to; Root and RootTitle name the item its thread hangs from, if any.
+	Re        string `json:"re,omitempty"`
+	Root      string `json:"root,omitempty"`
+	RootTitle string `json:"root_title,omitempty"`
 }
 
 // Group is the items of one project and run.
@@ -336,6 +341,12 @@ func (d *Desk) item(e store.Event) Item {
 	it := Item{Event: e, ID: d.Display(e.ID), Label: rest, Age: Age(d.Now.Sub(Time(e))), Unread: d.unread[e.ID],
 		NoResponse: e.Kind == "reply" && d.NoResponse(e.ID), Pinned: d.Pinned(e), Response: IsResponse(e)}
 	it.Asked, it.AskedVia = d.Asked(e)
+	if it.Response && e.Ref != "" {
+		it.Re = d.Display(e.Ref)
+		if root, ok := d.Root(e); ok {
+			it.Root, it.RootTitle = d.Display(root.ID), root.Title
+		}
+	}
 	return it
 }
 

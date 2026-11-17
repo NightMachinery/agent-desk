@@ -64,13 +64,38 @@ Rules the page keeps:
 
 The API, all JSON:
 
-- `GET api/view?path=&session=&host=&all=1&q=`: the three sections, the node
-  at `path` with where a message to it goes, the session's details, and the
-  lists of projects and machines.
-- `GET api/item?id=`: one item, its answers and replies with how each was
-  delivered, and where a reply goes.
+- `GET api/view?path=&session=&host=&all=1&q=`: the sections, the node at
+  `path` with its target (where a message to it goes) and `conversation`
+  (the node's own thread), the session's details, and the lists of projects
+  and machines.
+- `GET api/item?id=`: one item, its `thread` and its target. For a message
+  or a response the thread is the one it belongs to, named by `thread_of`
+  (an item's id or a node's path).
+- A thread is a list of entries, oldest first. Each has a `kind` (`message`,
+  `answer` or `response`) and, for the user's words: `by` (the session it
+  went to), the `behavior` asked for, `delivery` (the receipt: `via`,
+  `behavior`, `disposition`, `queue_position`, `revived`, `fallback`) or a
+  `pending` reason, `status` (`responded`, `awaiting`, `no_response` after 15
+  minutes, or `cleared` by a read) with the `responses`' ids, and `notify`,
+  its per-message routing. A response has `by` (its agent) and `re`.
+- A target has `via`, `behaviors` (each `supported`, or not and `why`),
+  `default_behavior` (the `deliver.behavior` setting), `notify` (`desktop`
+  and `remote` resolved for class `response`), `finished` (`done` or
+  `archived`: sending revives it), `pushed` (its host is in `ssh_hosts`) and
+  `remote_label`.
+- `GET api/target?to=`: the target of an id or a node path.
+- `GET api/prefs?path=&class=`: each setting at that scope for one class
+  (none: all kinds), with its value, `origin`, `here` (an override stands at
+  exactly this scope and class, so it can be reset), `differs` (the classes
+  that resolve otherwise) and `options`; also every override on the desk.
 - `GET api/stream`: server-sent events; `change` whenever the store changes.
-- `POST api/answer {id, text}`, `api/reply {to, text}` (an id or a node
-  path), `api/read {target}` or `{targets: [...]}` (ids or paths; an open
-  question named by id is dismissed), `api/unread {id}` or `{targets: [...]}`.
+- `POST api/answer {id, text, behavior?, notify?}`, `api/reply {to, text,
+  behavior?, notify?}` (an id or a node path; `notify` is `{desktop,
+  remote}` for the response to this message only), `api/read {target}` or
+  `{targets: [...]}` (ids or paths; an open question named by id is
+  dismissed), `api/unread {id}` or `{targets: [...]}`, `api/pin` and
+  `api/unpin {id}`.
+- `POST api/pref {scope, class?, key, value}`: sets an override; a null
+  `value` removes it. The browser acts as the user, so this works even when
+  the server was started from an agent's shell.
 - `GET api/health`: `ok`.

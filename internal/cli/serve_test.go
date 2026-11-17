@@ -138,7 +138,7 @@ func TestServe(t *testing.T) {
 	var it itemResponse
 	must(t, json.Unmarshal([]byte(body), &it))
 	if code != 200 || !it.Answered || len(it.Thread) != 2 || it.Thread[0].Source != "web" ||
-		it.Thread[0].Delivered != "paseo" || it.Thread[1].Event.Kind != "reply" || it.Target.Via != "paseo" {
+		it.Thread[0].Delivery == nil || it.Thread[0].Delivery.Via != "paseo" || it.Thread[0].Kind != "answer" || it.Thread[1].Event.Kind != "reply" || it.Target.Via != "paseo" {
 		t.Fatalf("item: %d %s", code, body)
 	}
 	// The answer came from the user, not from the agent whose shell runs the server.

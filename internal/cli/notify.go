@@ -76,7 +76,7 @@ func routeOf(d *desk.Desk, r *settings.Resolver, e store.Event) route {
 	rt.remote, _ = r.Resolve("notify.remote", node, rt.class)
 	rt.dest, _ = r.Resolve("notify.remote.dest", node, rt.class)
 	if rt.class == "response" {
-		if msg, ok := d.ByID[e.Ref]; ok && msg.Kind == "reply" {
+		if msg, ok := d.ByID[e.Ref]; ok && (msg.Kind == "reply" || msg.Kind == "answer") {
 			var m struct {
 				Notify struct {
 					Desktop string `json:"desktop"`
