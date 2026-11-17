@@ -6,6 +6,7 @@
   import { agentName, copy, kindLabel, kindOf, sessionOf, short, titleOf, viaText } from '../lib/format.js';
   import Composer from './Composer.svelte';
   import Markdown from './Markdown.svelte';
+  import Attachments from './Attachments.svelte';
   import Icon from './Icon.svelte';
   import Thread from './Thread.svelte';
   import { autoRead, position, step } from '../lib/nav.svelte.js';
@@ -156,6 +157,7 @@
       </div>
     {/if}
     {#if e.body}<Markdown class="body" text={e.body} />{/if}
+    <Attachments media={item.media} />
 
     {#if item.default}
       <div class="callout default"><strong>Default:</strong> {item.default}</div>

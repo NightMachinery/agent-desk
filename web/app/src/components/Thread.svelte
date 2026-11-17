@@ -4,6 +4,7 @@
   import { href } from '../lib/route.svelte.js';
   import { dispositionText, desktopText, remoteText } from '../lib/format.js';
   import Markdown from './Markdown.svelte';
+  import Attachments from './Attachments.svelte';
 
   let { entries = [], current = '', remoteLabel = '' } = $props();
 
@@ -65,6 +66,7 @@
         <div class="note">Response to <a class="mono" href={'#e-' + t.re} onclick={(e) => { e.preventDefault(); document.getElementById('e-' + t.re)?.scrollIntoView({ block: 'center', behavior: 'smooth' }); }}>{t.re}</a></div>
       {/if}
       {#if t.event.body}<Markdown text={t.event.body} />{/if}
+      <Attachments media={t.media} />
     </li>
   {/each}
 </ol>

@@ -82,6 +82,7 @@
     <span class="chip {kind}">{kind === 'slot' ? 'Slot' : kindLabel[kind]}</span>
     <span class="title">{titleOf(item)}</span>
     {#if item.pinned}<span class="pin" title="Pinned"><Icon name="pin" size={13} /></span>{/if}
+    {#if item.attachments}<span class="pin" title={item.attachments + (item.attachments === 1 ? ' attachment' : ' attachments')}><Icon name="clip" size={13} />{#if item.attachments > 1}<span class="n">{item.attachments}</span>{/if}</span>{/if}
     {#if item.dismissed}<span class="chip">Dismissed</span>{/if}
     {#if item.unread}<span class="new" title="Unread"></span>{/if}
   </div>
@@ -183,6 +184,10 @@
   }
   .row.response::before {
     background: var(--response);
+  }
+  .pin .n {
+    font-size: 11px;
+    margin-left: 1px;
   }
   .pin {
     color: var(--muted);
