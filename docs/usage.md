@@ -457,6 +457,10 @@ again, and the pin icon keeps it on top.
 Previous and Next at the bottom of an item walk the list in the order
 shown. The search filters every section, and the run tree by project, run
 or agent name and by the session or Paseo id of whoever joined a node.
+A row of the run tree has icons on its right (on hover with a mouse, always
+on a touch screen): copy the Paseo id of the agent behind it (when it runs
+under Paseo on this machine), message that agent (opens its node with the
+message box ready), and mark everything under it read.
 Clicking a part of an item's path shows that subtree. Every view is a URL you can bookmark: a project, run or
 agent (`#/p/example-proj/rerun-nov`), one session's writing (`?session=`),
 one machine (`?host=`), read items too (`?all=1`), a search (`?q=`), oldest

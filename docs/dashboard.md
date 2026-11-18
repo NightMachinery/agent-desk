@@ -73,7 +73,9 @@ The API, all JSON:
 - `GET api/view?path=&session=&host=&all=1&q=&linger=&unfocused=1`: the
   sections, the node at `path` with its target (where a message to it goes)
   and `conversation` (the node's own thread), the session's details, and the
-  lists of projects and machines. The sections follow the focus unless
+  lists of projects and machines; each node in the run tree carries `paseo`,
+  the Paseo agent of its latest join on this machine, when there is one. The
+  sections follow the focus unless
   `unfocused=1`. Also `sets` (each `name`, `prefixes`, `focused`), `focus`
   (`name`, `prefixes` and `hidden`: `needs_you` and `unread`, what the focus
   hides in this view; null when nothing is focused) and `paths` (every

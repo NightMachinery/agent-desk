@@ -1,7 +1,11 @@
 <script>
   import TreeNode from './TreeNode.svelte';
-  import { route, href } from '../lib/route.svelte.js';
+  import CopyIds from './CopyIds.svelte';
+  import Icon from './Icon.svelte';
+  import { route, href, go } from '../lib/route.svelte.js';
   import { stateClass } from '../lib/format.js';
+  import { post } from '../lib/api.js';
+  import { toast } from '../lib/toast.svelte.js';
 
   let { node } = $props();
   const status = $derived(node.slots?.find((s) => s.name === 'status')?.event?.body || '');
@@ -10,6 +14,20 @@
   // every match (the server keeps only matches and their ancestors).
   let open = $state(null);
   const shown = $derived(open ?? (!!route.q || node.state === 'waiting on you' || node.depth === 1));
+  // Row tools (shown on hover, always on touch screens): copy its Paseo id,
+  // message its agent, mark everything under it read.
+  function message() {
+    go({ path: node.path, item: '', session: '', q: '' });
+    setTimeout(() => document.getElementById('reply-box')?.focus(), 250);
+  }
+  async function readAll() {
+    try {
+      const res = await post('read', { target: node.path });
+      toast(res.note || `Marked ${node.name} read.`, 'ok');
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  }
   const label = $derived(
     node.state === 'active' || node.state === 'quiet' ? `${node.state} ${node.age}` : node.state,
   );
@@ -31,6 +49,18 @@
       {#if node.unread}<span class="count" title="Unread">{node.unread}</span>{/if}
       {#if node.host}<span class="host">@{node.host}</span>{/if}
     </a>
+    <div class="tools">
+      {#if node.paseo}<CopyIds paseo={node.paseo} keys={false} />{/if}
+      {#if node.depth >= 3}
+        <button class="btn ghost small iconbtn" title={`Message ${node.name}`} aria-label={`Message ${node.name}`} onclick={message}><Icon name="message" /></button>
+      {/if}
+      <!-- Mark read keeps the last slot, read or not, so the icons line up. -->
+      {#if node.unread}
+        <button class="btn ghost small iconbtn" title={`Mark everything under ${node.name} read`} aria-label="Mark everything under it read" onclick={readAll}><Icon name="readall" /></button>
+      {:else}
+        <span class="spacer"></span>
+      {/if}
+    </div>
   </div>
   {#if status && node.depth >= 3}
     <div class="status">{status}</div>
@@ -53,6 +83,31 @@
   .line:hover,
   .line.here {
     background: var(--sunken);
+  }
+  .tools {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    flex: none;
+    padding-right: 4px;
+  }
+  .tools :global(.iconbtn),
+  .spacer {
+    width: 30px;
+    height: 28px;
+    padding: 0;
+    display: inline-grid;
+    place-items: center;
+  }
+  /* With a mouse, the tools show on the row under it (or keyboard focus). */
+  @media (hover: hover) and (pointer: fine) {
+    .tools {
+      visibility: hidden;
+    }
+    .line:hover .tools,
+    .line:focus-within .tools {
+      visibility: visible;
+    }
   }
   .caret {
     width: 22px;

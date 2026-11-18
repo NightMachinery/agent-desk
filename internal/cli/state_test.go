@@ -68,6 +68,18 @@ func TestNodeState(t *testing.T) {
 	// agent is quiet however recent its events.
 	check(map[string]string{"example-proj/r1/a": "active", "example-proj/r1/b": "quiet",
 		"example-proj/r1": "active", "example-proj/r2/c": "active"})
+	// The tree names each node's Paseo agent, for the dashboard's copy button.
+	for _, r := range h.showJSON("", true)["runs"].([]any) {
+		for _, x := range r.(map[string]any)["children"].([]any) {
+			for _, a := range x.(map[string]any)["children"].([]any) {
+				n := a.(map[string]any)
+				want := map[string]string{"example-proj/r1/a": pa, "example-proj/r1/b": pb}[n["path"].(string)]
+				if got, _ := n["paseo"].(string); got != want {
+					t.Errorf("%s: paseo %q, want %q", n["path"], got, want)
+				}
+			}
+		}
+	}
 
 	// Two hours on: time alone makes the plain session quiet; the running
 	// agent stays active.

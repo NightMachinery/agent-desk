@@ -494,6 +494,7 @@ type Node struct {
 	Blocked  int     `json:"blocked"`
 	UnreadN  int     `json:"unread"`
 	Host     string  `json:"host,omitempty"` // when not this machine
+	Paseo    string  `json:"paseo,omitempty"` // its Paseo agent, on this machine
 	Slots    []Slot  `json:"slots,omitempty"`
 	Notes    []Slot  `json:"notes,omitempty"` // slots for agents only
 	Tasks    []Task  `json:"tasks,omitempty"` // filed at this node
@@ -694,6 +695,7 @@ func (d *Desk) settle(n *Node, f Filter) {
 	if age > QuietAfter {
 		live = Quiet
 	}
+	n.Paseo = n.paseo
 	if s, ok := d.Live[n.paseo]; ok && n.paseo != "" {
 		switch s {
 		case "running":
