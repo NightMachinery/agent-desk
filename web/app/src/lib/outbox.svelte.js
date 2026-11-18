@@ -52,7 +52,8 @@ export function startOutbox(onRecorded) {
   };
 }
 
-export function queueMessage(kind, body, target = body.id || body.to) {
+/** quiet skips the "queued" toast, for a caller that shows its own. */
+export function queueMessage(kind, body, target = body.id || body.to, { quiet = false } = {}) {
   const bytes = crypto.getRandomValues(new Uint8Array(16));
   const key = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
   const message = { key, kind, target, body: { ...body, send_key: key }, time: Date.now() };
@@ -63,7 +64,7 @@ export function queueMessage(kind, body, target = body.id || body.to) {
     return false;
   }
   messages.set(key, message);
-  toast(kind === 'answer' ? 'Answer queued.' : 'Message queued.', 'info');
+  if (!quiet) toast(kind === 'answer' ? 'Answer queued.' : 'Message queued.', 'info');
   flush();
   return true;
 }

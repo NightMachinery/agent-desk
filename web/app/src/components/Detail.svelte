@@ -15,7 +15,7 @@
   import { hold } from '../lib/linger.svelte.js';
   import Icon from './Icon.svelte';
   import Thread from './Thread.svelte';
-  import { autoRead, position, step } from '../lib/nav.svelte.js';
+  import { autoRead, nav, position, step } from '../lib/nav.svelte.js';
 
   let { item, error, onchange } = $props();
 
@@ -87,16 +87,45 @@
   async function screenAct(action) {
     try {
       await post('screen', { action, id: it.display_id });
-      toast(action === 'grant' ? 'Approved: the agent has the screen.' : 'Denied.', 'ok');
+      moveOn(action === 'grant' ? 'Approved: the agent has the screen.' : 'Denied.');
       onchange();
     } catch (err) {
       toast(err.message, 'error');
     }
   }
 
+  // Once a question is dealt with (answered, approved, denied, dismissed),
+  // move on: on a wide screen to the next item in the list, on a phone back
+  // to the list. The toast's Back returns to it. A message sent in a
+  // conversation stays put: its response is what the user waits for.
+  const wide = () => typeof matchMedia === 'function' && matchMedia('(min-width: 901px)').matches;
+  // The next question still in the list after here (or, past the last, the
+  // nearest one before it), else the next item of any kind.
+  function nextOpen(here) {
+    const o = nav.order.filter((id) => id !== here);
+    const at = Math.max(0, nav.order.indexOf(here));
+    const q = (id) => id.startsWith('q-');
+    return o.slice(at).find(q) || o.slice(0, at).reverse().find(q) || step(1, here) || step(-1, here);
+  }
+  function moveOn(text, back = null) {
+    const here = route.item;
+    const next = wide() ? nextOpen(here) : '';
+    setTimeout(() => go({ item: next }), 0); // after the composer has finished with its draft
+    toast(text, 'ok', 6000, {
+      label: back ? 'Undo' : 'Back',
+      run: () => {
+        if (back) back();
+        go({ item: here });
+      },
+    });
+  }
+
   function answer(text, opts = {}) {
-    const queued = queueMessage('answer', { id: e.id, text, ...opts });
-    if (queued) clearDraft('choices:' + it.display_id);
+    const queued = queueMessage('answer', { id: e.id, text, ...opts }, e.id, { quiet: true });
+    if (queued) {
+      clearDraft('choices:' + it.display_id);
+      moveOn(`Answer to ${it.display_id} queued.`);
+    }
     return queued;
   }
   function reply(text, opts = {}) {
@@ -105,14 +134,13 @@
   async function mark(read) {
     try {
       await post(read ? 'read' : 'unread', read ? { target: it.display_id } : { id: it.display_id });
-      if (isQuestion)
-        toast(
-          read
-            ? `Dismissed: out of Needs you, still open. ${e.level === 'blocked' ? 'The agent stays blocked until you answer.' : 'The agent goes ahead with its default unless you answer.'}`
-            : 'Back in Needs you.',
-          'ok',
-          5000,
+      if (isQuestion && read) {
+        const display = it.display_id;
+        moveOn(
+          `Dismissed: out of Needs you, still open. ${e.level === 'blocked' ? 'The agent stays blocked until you answer.' : 'The agent goes ahead with its default unless you answer.'}`,
+          () => post('unread', { id: display }).then(onchange),
         );
+      } else if (isQuestion) toast('Back in Needs you.', 'ok', 5000);
       else toast(read ? 'Marked read.' : 'Marked unread.', 'ok');
       onchange();
     } catch (err) {

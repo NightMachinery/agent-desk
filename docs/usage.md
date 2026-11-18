@@ -485,7 +485,11 @@ is, dimmed once you open another, for a minute (Settings: "Keep a read item
 in the list for", per device). The icon beside its id marks it unread
 again, and the pin icon keeps it on top.
 Previous and Next at the bottom of an item walk the list in the order
-shown. The search filters every section, and the run tree by project, run
+shown. Once you answer a question, approve or deny a screen request, or
+dismiss a question, the page moves on: on a wide screen to the next question
+still in the list (else the next item), on a phone back to the list. The
+toast's Back (Undo for a dismissal) returns to it. A message you send in a
+conversation keeps you there, since you wait for its response. The search filters every section, and the run tree by project, run
 or agent name and by the session or Paseo id of whoever joined a node.
 A row of the run tree has icons on its right (on hover with a mouse, always
 on a touch screen): copy the Paseo id of the agent behind it (when it runs
