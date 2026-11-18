@@ -638,6 +638,10 @@ On the phone, open the dashboard (over HTTPS; on Android, Chrome; on an
 iPhone, only the copy added to the Home Screen), install it if you like, go
 to Settings and press **Turn on** under "Push to this device". The browser
 asks for permission and then subscribes; **Test** sends one at once.
+Allowing notifications for the app in the phone's own settings is not
+enough: the page has to subscribe. So on a phone or an installed app that
+does not receive pushes yet, a strip above the list says so, with **Turn on**
+(the same thing) and **Not now** (hidden on that device for 30 days).
 
 - What is pushed is the `notify.push` setting: `off`, `away` or `always`,
   per class. Built in: blocked questions, always. To add done reports:

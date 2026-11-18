@@ -4,16 +4,11 @@
   // notify.push setting decides which kinds of item are pushed.
   import { get, post } from '../lib/api.js';
   import { toast } from '../lib/toast.svelte.js';
+  import { current, idOf, ios, pushSupported, subscribeHere } from '../lib/push.js';
 
   let { stamp = '' } = $props();
 
-  const supported =
-    typeof window !== 'undefined' &&
-    window.isSecureContext &&
-    'serviceWorker' in navigator &&
-    'PushManager' in window &&
-    'Notification' in window;
-  const ios = typeof navigator !== 'undefined' && /iPhone|iPad/.test(navigator.userAgent);
+  const supported = pushSupported;
 
   let info = $state(null);
   let mine = $state(''); // this browser's subscription id, if it has one
@@ -21,26 +16,6 @@
   let error = $state('');
   const subscribed = $derived(!!mine && !!info?.devices.some((d) => d.id === mine));
   const blocked = $derived(supported && typeof Notification !== 'undefined' && Notification.permission === 'denied');
-
-  // The server names a device by the first 6 bytes of its endpoint's SHA-256.
-  async function idOf(endpoint) {
-    const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(endpoint));
-    return [...new Uint8Array(b).slice(0, 6)].map((x) => x.toString(16).padStart(2, '0')).join('');
-  }
-  function keyBytes(b64) {
-    const s = atob(b64.replace(/-/g, '+').replace(/_/g, '/'));
-    return Uint8Array.from(s, (c) => c.charCodeAt(0));
-  }
-  function sameKey(buf, b64) {
-    if (!buf) return false;
-    const a = new Uint8Array(buf);
-    const b = keyBytes(b64);
-    return a.length === b.length && a.every((x, i) => x === b[i]);
-  }
-  async function current() {
-    const reg = await navigator.serviceWorker.ready;
-    return [reg, await reg.pushManager.getSubscription()];
-  }
 
   async function load() {
     try {
@@ -59,29 +34,10 @@
     load();
   });
 
-  function label() {
-    const ua = navigator.userAgent;
-    const os = /Android/.test(ua) ? 'Android' : ios ? 'iOS' : /Mac OS X/.test(ua) ? 'macOS' : /Windows/.test(ua) ? 'Windows' : /Linux/.test(ua) ? 'Linux' : 'a device';
-    const br = /Firefox\//.test(ua) ? 'Firefox' : /Edg\//.test(ua) ? 'Edge' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : 'a browser';
-    const app = matchMedia('(display-mode: standalone)').matches ? ', installed app' : '';
-    return `${br} on ${os}${app}`;
-  }
-
   async function enable() {
     busy = true;
     try {
-      const perm = await Notification.requestPermission();
-      if (perm !== 'granted')
-        throw new Error(perm === 'denied' ? 'Notifications are blocked for this site: allow them in the site settings, then try again.' : 'Notifications were not allowed.');
-      const [reg, old] = await current();
-      let sub = old;
-      // A subscription made for another key cannot carry the desk's pushes.
-      if (sub && !sameKey(sub.options.applicationServerKey, info.key)) {
-        await sub.unsubscribe();
-        sub = null;
-      }
-      if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(info.key) });
-      await post('push', { action: 'subscribe', subscription: sub.toJSON(), label: label() });
+      mine = await subscribeHere(info);
       toast('Push is on for this device. Try Test.', 'ok');
       await load();
     } catch (e) {

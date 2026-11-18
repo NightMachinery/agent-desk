@@ -10,6 +10,7 @@
   import NodePanel from './NodePanel.svelte';
   import Deferred from './Deferred.svelte';
   import ScreenStrip from './ScreenStrip.svelte';
+  import PushNudge from './PushNudge.svelte';
   import QuotaHit from './QuotaHit.svelte';
   let quotaCount = $state(0);
   let quotaHidden = $state(0);
@@ -169,6 +170,7 @@
       <div class="phone-node"><NodePanel node={view.node} target={view.target} conversation={view.conversation} stamp={view.stamp} {onchange} compact /></div>
     {/if}
 
+    <PushNudge />
     {#if view.screens?.length}<ScreenStrip screens={view.screens} host={view.host} {onchange} />{/if}
 
     <h2 class="section-title" data-section="needs">
