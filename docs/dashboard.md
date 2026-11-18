@@ -70,10 +70,17 @@ Rules the page keeps:
 
 The API, all JSON:
 
-- `GET api/view?path=&session=&host=&all=1&q=&linger=`: the sections, the node at
-  `path` with its target (where a message to it goes) and `conversation`
-  (the node's own thread), the session's details, and the lists of projects
-  and machines.
+- `GET api/view?path=&session=&host=&all=1&q=&linger=&unfocused=1`: the
+  sections, the node at `path` with its target (where a message to it goes)
+  and `conversation` (the node's own thread), the session's details, and the
+  lists of projects and machines. The sections follow the focus unless
+  `unfocused=1`. Also `sets` (each `name`, `prefixes`, `focused`), `focus`
+  (`name`, `prefixes` and `hidden`: `needs_you` and `unread`, what the focus
+  hides in this view; null when nothing is focused) and `paths` (every
+  project, each followed by its runs, for the set editor).
+- `POST api/sets {action, name, prefixes?}`: `define` (create or replace a
+  set), `delete`, or `focus` (an empty `name` turns the focus off), as the
+  `sets` and `focus` commands do.
 - `GET api/item?id=`: one item, its `thread` and its target. For a message
   or a response the thread is the one it belongs to, named by `thread_of`
   (an item's id or a node's path).
@@ -110,7 +117,9 @@ The API, all JSON:
   `title`, `provider`, `last_active`, `parent`, `children`, `node`, `scope`
   (the node it is filtered under: its own, or its nearest ancestor's),
   `auto_continue` and `dismissed`), whether `auto_continue` and
-  `launch_ready` are configured, and `profiles` (the Replace menu).
+  `launch_ready` are configured, and `profiles` (the Replace menu). Under a
+  focus only the agents whose `scope` is inside it are listed, unless
+  `unfocused=1`.
   `POST api/quota {action, id, profile?}` with `auto-continue-on`,
   `auto-continue-off`, `ask-parent`, `replace`, `dismiss` or `undismiss`.
 - `GET api/auto-continue?paseo=`: `{available, on}` for one agent, for the

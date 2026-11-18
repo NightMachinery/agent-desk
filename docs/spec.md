@@ -198,6 +198,12 @@ Event semantics:
 - `set`: new text for the slot at `path`. `clear`: the slot is empty from now.
 - `link`: the slot at `path` shows the file `meta.file` (rendered at view
   time; never unread).
+- `projectset`: defines the project set at `_desk/sets/<name>`
+  (`meta.prefixes`) or deletes it (`meta.deleted`). `focus`: at
+  `_desk/focus`, names the focused set (`meta.set`, empty for none). For
+  both the latest event counts. While a set is focused the views keep only
+  events under its prefixes or under `_desk/`, and only those raise
+  notifications (see usage.md, Project sets and the focus).
 - `read`: `ref` is the exact event the user has seen. Marking a node read
   expands, at command time, into one `read` per current unread item under it.
   A `read` naming an open question **dismisses** it (see Commands).
@@ -481,6 +487,8 @@ question or item it closes.
   click actions) and `desk_home`.
 - `agent-desk open <id|path>` is what a click runs: it hands the item to
   `open_command`, or without one opens the inbox scoped to the item's node.
+- Nothing outside the focused project set notifies, on any channel; such
+  items stay unread and are not raised when the focus ends.
 - Imported and merged events notify only with `--notify`; the dismissals they
   call for always run, so a question answered on another machine loses its
   card here after the next merge.

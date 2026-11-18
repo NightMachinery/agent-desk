@@ -263,6 +263,9 @@ not write anyway.
     agent-desk unread t-k2m9                 # undo a read mark or a dismissal
     agent-desk pin t-k2m9 s-p4d1             # keep on top of every view; unpin to undo
     agent-desk search cache
+    agent-desk sets define work agent-desk private/linear-finetune   # a project set
+    agent-desk focus work                    # show and notify only for it; focus off ends it
+    agent-desk show --unfocused              # everything, whatever the focus
 
 ### Answers reach the agent
 
@@ -405,6 +408,12 @@ them when Emacs is installed.
     agent-desk serve                          # http://127.0.0.1:7740/
     agent-desk serve --listen unix:/path/to/desk.sock   # behind a proxy
     agent-desk serve --config config.json     # listen, pid_file, allow_hosts, origin, title, device, color from a supervisor's JSON
+
+The sidebar's Focus list switches the focus between your project sets (see
+Project sets and the focus); Edit sets creates or changes one by ticking
+projects, or some of a project's runs. While a set is focused, the bar under
+the search names it, says how much it hides that needs you, and has Leave
+focus.
 
 The same sections as the inbox, on a desktop in three panes and on a phone
 in one column: Needs you, Pinned (when anything is), Responses to you (the
@@ -635,6 +644,48 @@ refused. Defaults go in `config.toml`:
     "notify.remote.dest" = "example-chat"
     [defaults.class.ask-blocked]
     "notify.remote" = "always"
+
+## Project sets and the focus
+
+A **project set** is a name and a list of path prefixes. A prefix is
+usually a project (`agent-desk`), but it can be any path on the desk, such
+as one run (`private/linear-finetune`); it matches whole path segments, so
+`site` does not take in `site-old`. The **focus** is one set, or none.
+While a set is focused, the desk shows you only what is under its
+prefixes, and notifies you only about that, so you can work on a group of
+projects without the others pulling at you.
+
+    agent-desk sets                          # list them; * marks the focused one
+    agent-desk sets define work agent-desk caap private/linear-finetune
+    agent-desk sets define work agent-desk   # defining again replaces it
+    agent-desk sets delete work
+    agent-desk focus work
+    agent-desk focus                         # the focus, and what it hides
+    agent-desk focus off
+
+What the focus changes:
+
+- `show`, the inbox and the dashboard list only the items, runs, tasks,
+  Needs you entries and Out of quota agents under the set. The desk's own
+  items (a screen lock request) still show. `show --unfocused` ignores the
+  focus; `show --mine`, an agent's own view, never uses it.
+- Notifications on every channel (desktop, remote, push) are raised only for
+  items inside the set. An item outside is still stored and stays unread;
+  when the focus ends it simply shows again. It is not notified then, which
+  would bring a flood at once.
+- `show` says on stderr what the focus hides ("4 hidden: 1 waiting on
+  you"), and the dashboard shows it beside the focus.
+
+Nothing else changes: agents write, ask and receive your answers as usual,
+and you can still open any item by its id.
+
+The focus is one for the whole desk, not per device, because it governs
+notifications: the phone and the laptop agree on it. Sets and the focus are
+events (`projectset` and `focus`), so they merge between machines and the
+latest wins. An agent session may define sets but may not change the focus,
+which is yours, as settings are. Deleting the focused set turns the focus
+off. A machine running an older agent-desk skips these events when it
+merges and takes them in once updated.
 
 ## Attachments are temporary
 
