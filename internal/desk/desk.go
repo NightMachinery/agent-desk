@@ -672,10 +672,12 @@ func (d *Desk) settle(n *Node, f Filter) {
 	if age > QuietAfter {
 		live = Quiet
 	}
-	if s, ok := d.Live[n.paseo]; ok && n.paseo != "" && !n.finished {
+	if s, ok := d.Live[n.paseo]; ok && n.paseo != "" {
 		switch s {
 		case "running":
-			live = Active
+			// Still working, even after a done report: a coordinator
+			// may report a milestone with done and carry on.
+			live, n.finished = Active, false
 		case "archived":
 			n.finished = true
 		default:

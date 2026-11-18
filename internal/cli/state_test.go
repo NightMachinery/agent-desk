@@ -75,9 +75,12 @@ func TestNodeState(t *testing.T) {
 	check(map[string]string{"example-proj/r1/a": "active", "example-proj/r1": "active",
 		"example-proj/r2/c": "quiet", "example-proj/r2": "quiet"})
 
+	// A done report from an agent that keeps running: still active.
+	h.ok(envA, "Milestone one.", "done", "--title", "Phase 1 finished")
+	check(map[string]string{"example-proj/r1/a": "active", "example-proj/r1": "active"})
+
 	// Idle and archived agents: quiet and finished; the run is quiet.
 	paseoStatus(t, h.paseo, pa, sessA, "idle")
 	paseoStatus(t, h.paseo, pb, sessB, "archived")
-	check(map[string]string{"example-proj/r1/a": "quiet", "example-proj/r1/b": "finished",
-		"example-proj/r1": "quiet"})
+	check(map[string]string{"example-proj/r1/a": "finished", "example-proj/r1/b": "finished"})
 }

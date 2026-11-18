@@ -320,7 +320,8 @@ Node state, computed: `waiting on you` (open blocked question), `finished`
 (`done` from the root coordinator, or its Paseo agent archived), otherwise
 `active` or `quiet` with the age of its last event. An agent whose session is
 a Paseo agent on this machine is `active` exactly while Paseo says it is
-running. Any other node is `active` for an hour after its last event, then
+running, even after its `done` (a coordinator may report a milestone and
+carry on). Any other node is `active` for an hour after its last event, then
 `quiet`. A run or agent with agents under it is `active` while one of them is.
 
 ### Using the hierarchy
