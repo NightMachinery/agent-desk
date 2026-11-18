@@ -502,8 +502,8 @@ The core knows nothing about your desktop. It runs commands you name in
     [ssh_hosts]                            # desk host name = ssh destination
     otherhost = "otherhost.example.net"
 
-**Channels.** A notification goes out on up to two channels, chosen by the
-settings below (see Settings):
+**Channels.** A notification goes out on up to three channels, chosen by
+the settings below (see Settings):
 
 - `desktop`: a card on a machine. `notify.desktop` says which machines:
   `origin` (where the event was written), `all`, or host names.
@@ -511,6 +511,9 @@ settings below (see Settings):
   message to your phone. `notify.remote` says when: `off`, `away` (only
   while `away_command` exits 0) or `always`. Only the machine the event was
   written on raises it.
+- `push`: Web Push to the browsers that turned it on, such as the dashboard
+  installed on an Android phone. Built in, no command needed: see Push to
+  your phone below. `notify.push` says when, like `notify.remote`.
 
 `notify_command` runs once per channel. Whatever it prints on its first line
 is the notification's **handle** (a card group, a message id), which the
@@ -539,6 +542,40 @@ The commands run in a detached `agent-desk notify-run`, so a slow notifier
 never holds up an agent's write; output goes to `~/.agents/desk/hooks.log`.
 With no config, nothing is run.
 
+### Push to your phone
+
+The web dashboard can notify a phone directly, even while the app is closed.
+On the phone, open the dashboard (over HTTPS; on Android, Chrome; on an
+iPhone, only the copy added to the Home Screen), install it if you like, go
+to Settings and press **Turn on** under "Push to this device". The browser
+asks for permission and then subscribes; **Test** sends one at once.
+
+- What is pushed is the `notify.push` setting: `off`, `away` or `always`,
+  per class. Built in: blocked questions, always. To add done reports:
+  `agent-desk pref set notify.push always --class done`.
+- Tapping a notification opens the item. Once the item is answered, read or
+  dismissed anywhere, a second push closes the notification.
+- The machine that serves the dashboard sends the pushes, for events
+  written there and those it merges in from other machines. Subscriptions
+  and its key pair live in `~/.agents/desk/push/` (owner-only), not in the
+  event log, so they do not travel with a merge.
+- Messages go through the browser maker's push service (Google's, for
+  Chrome) encrypted end to end (RFC 8291): the service sees when a push
+  happens, not what it says. The desk signs its requests with its own key
+  (VAPID, RFC 8292); the contact it gives the service names this software,
+  not you, unless you set one:
+
+      [push]
+      subject = "mailto:you@example.net"   # optional
+      off = true                           # stop pushing, keep the devices
+
+- A device the push service reports gone is dropped. The Settings page lists
+  every subscribed device, with its last push and a Remove button.
+- Chrome expects every push to show something. A take-back that finds its
+  notification already cleared shows nothing, which Chrome tolerates now and
+  then; if Android ever shows "This site has been updated in the
+  background", that is why.
+
 `agent-desk open <id|path>` hands the item to `open_command`; without one it
 opens `url` in the browser when `base_url` is set, and otherwise opens the
 inbox scoped to the item's node.
@@ -565,6 +602,8 @@ The settings:
 - `notify.remote`: `off`, `away` or `always`, for a channel that reaches you
   away from your desk, such as your phone.
 - `notify.remote.dest`: free text handed to that channel.
+- `notify.push`: `off`, `away` or `always`, for Web Push to the devices
+  that turned it on (see Push to your phone).
 
 For one event, the first match wins:
 
@@ -575,7 +614,8 @@ For one event, the first match wins:
 3. the config file's defaults, a class's table before the general one;
 4. the built-in values: steer; desktop notifications on the origin machine
    for everything but a plain `tell`; remote notifications only for blocked
-   questions and responses, and only while you are away.
+   questions and responses, and only while you are away; pushes for
+   blocked questions.
 
 Overrides are `pref` events in the store, so they merge between machines and
 keep their history. Only you write them: `pref set` from an agent session is

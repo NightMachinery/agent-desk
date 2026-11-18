@@ -4,8 +4,9 @@
   import { get, post } from '../lib/api.js';
   import { toast } from '../lib/toast.svelte.js';
   import { href } from '../lib/route.svelte.js';
-  import { desktopText, remoteText, originText, behaviorLabel } from '../lib/format.js';
+  import { desktopText, remoteText, pushText, originText, behaviorLabel } from '../lib/format.js';
   import { ui, saveUI } from '../lib/ui.svelte.js';
+  import PushSettings from './PushSettings.svelte';
   const lingerChoices = [0, 15, 30, 60, 120, 300];
   const lingerText = (n) => (n === 0 ? 'Drop it at once' : n < 60 ? `${n} seconds` : n === 60 ? '1 minute' : `${n / 60} minutes`);
 
@@ -31,6 +32,7 @@
     'notify.desktop': 'Desktop notification',
     'notify.remote': 'Phone notification',
     'notify.remote.dest': 'Phone destination',
+    'notify.push': 'Push to subscribed devices',
   };
 
   async function load() {
@@ -51,6 +53,7 @@
     if (key === 'deliver.behavior') return `${behaviorLabel[v] || v} (${v})`;
     if (key === 'notify.desktop') return desktopText(v);
     if (key === 'notify.remote') return remoteText(v, view?.remote_label);
+    if (key === 'notify.push') return pushText(v);
     return v || 'not set';
   }
   function choices(k) {
@@ -137,6 +140,7 @@
   {/if}
 
   {#if !path}
+    <PushSettings {stamp} />
     <div class="key">
       <div class="key-head">
         <span class="key-name">Keep a read item in the list for</span>

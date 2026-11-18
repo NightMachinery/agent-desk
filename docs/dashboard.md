@@ -50,7 +50,13 @@ Rules the page keeps:
   `public/offline.html`, shown when the server cannot be reached. These keep
   stable names, as browsers and home screens find them by URL, and the server
   sends everything outside `assets/` as `no-cache`. Never let the worker cache
-  the page or its data: an installed app must not show a stale desk.
+  the page or its data: an installed app must not show a stale desk. The
+  worker also shows push messages (`{type: "show"|"close", tag, title, body,
+  url, sticky}`, from `internal/cli/push.go`) and opens the item on a tap;
+  `components/PushSettings.svelte` subscribes the device. To check the
+  handlers without a phone, deliver a message through the DevTools
+  protocol's `ServiceWorker.deliverPushMessage` after granting the
+  `notifications` permission.
   `scripts/icons.sh` renders the PNG icons from the drawing in
   `public/favicon.svg`. The manifest has no `id`: one resolves against the
   origin, so `"./"` would make it the same app as every other on the host.

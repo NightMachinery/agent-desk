@@ -126,6 +126,11 @@ export function remoteText(v, label = '') {
   return { off: label ? `not by ${label}` : 'not on your phone', away: `${on} when you are away`, always: on }[v] || v || '';
 }
 
+/** A notify.push value in words. */
+export function pushText(v) {
+  return { off: 'not pushed', away: 'pushed when you are away', always: 'pushed' }[v] || v || '';
+}
+
 /** Where a resolved setting comes from, seen from path. */
 export function originText(o, path) {
   if (!o) return '';
