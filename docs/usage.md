@@ -40,11 +40,15 @@ Only coordinators write. A coordinator first joins a node:
     agent-desk join rerun-nov/coord              # first coordinator of a run
     agent-desk join rerun-nov/coord/eval-lead    # nested, under its parent
     agent-desk join rerun-nov/coord --takeover   # replacing a coordinator
+    agent-desk takeover <paseo-id|session-id>    # every node a stopped agent held
 
 The project is the repository the working directory is in (`--project` to
 override). A node already held by another session refuses `join` unless
 `--takeover` is given, and the session it was taken from can no longer write
 there. A nested coordinator can only join under a node someone has joined.
+`takeover` does that for every node another agent holds on this machine, in
+one step: name it by its Paseo id (any session it ran as counts) or its
+session id. That is how a replacement inherits a stopped agent's whole role.
 
 A session **holds** every node it joined, until it leaves the node or another
 session takes it over. One session can coordinate two unrelated runs this way:
@@ -835,14 +839,14 @@ each of them. For each:
   returns, or unregisters it.
 - **Ask parent to reassign** (only when its parent still has quota) messages
   the parent: pick an account with quota left (the quota-management skill),
-  start a replacement with the same role that takes over each of its desk
-  nodes, recover the stopped agent's partial work, archive it, and look after
+  start a replacement with the same role that takes over all of its desk
+  nodes with one `agent-desk takeover <its Paseo id>`, recover the stopped agent's partial work, archive it, and look after
   its subagents.
 - **Replace with a new agent** starts an agent through `[tasks]
   launch_command` (with an optional profile) that recovers the stopped
-  agent's work, takes over each of its desk nodes (`join --takeover`, which
-  also drops them from the stopped session; with several it then writes
-  with `--node`), tells its parent and subagents, and archives it.
+  agent's work, takes over all of its desk nodes in one step (`agent-desk
+  takeover <its Paseo id>`, which also drops them from the stopped session;
+  with several it then writes with `--node`), tells its parent and subagents, and archives it.
   The caret beside Replace picks the profile: the default, the ones listed
   in `[quota] profiles`, or another typed as `provider[/model][@thinking]`.
 - The id icon copies its Paseo id. To copy several, select them (the list's

@@ -103,6 +103,8 @@ const usage = `agent-desk: a desk where agents file questions and state for the 
 Agent side (only coordinators write; workers report to their parent):
   agent-desk join <run>/<role>[/<role>...] [--takeover] [--project P]
                                       adds a node to those this session holds
+  agent-desk takeover <paseo-id|session-id>
+                                      take over every node that agent holds
   agent-desk leave <node>...          drop a node this session holds
       while a session holds several nodes, every write (ask, tell, set, clear,
       link, done, task add) needs --node PATH: a held node, full or relative
@@ -264,6 +266,8 @@ func (a *App) run(args []string) error {
 		return nil
 	case "join":
 		return a.cmdJoin(rest)
+	case "takeover":
+		return a.cmdTakeover(rest)
 	case "ask":
 		return a.cmdAsk(rest)
 	case "tell":

@@ -117,6 +117,7 @@ variable (children inherit the parent's environment, which is how
     agent-desk join rerun-nov/coord              #: first coordinator of a run
     agent-desk join rerun-nov/coord/eval-lead    #: nested coordinator
     agent-desk join rerun-nov/coord --takeover   #: replacement coordinator
+    agent-desk takeover <paseo-id|session-id>    #: every node that agent holds
 
 - `join` appends a `join` event binding this session id to the node, and adds
   the node to the nodes the session **holds**. A session holds a node while
@@ -125,6 +126,9 @@ variable (children inherit the parent's environment, which is how
 - A node held by another session refuses `join` without `--takeover`. A
   takeover drops the node from the old session's held set, so its writes there
   are refused. A node whose holder left it is free to join.
+- `takeover <paseo-id|session-id>` appends a takeover join for every node
+  that agent holds on this host (all sessions recorded for a Paseo id), so a
+  replacement inherits a whole role in one write.
 - `leave <node>...` appends a `leave` event: the session no longer holds the
   node. Leaving the last one makes the session nodeless again (its next write
   auto-joins as below). The tree stops following the leaver's Paseo agent at
@@ -251,6 +255,7 @@ prints one line: the display id or `ok`.
 Agent side:
 
     agent-desk join <run>/<role-path> [--takeover]     #: adds to the held nodes
+    agent-desk takeover <paseo-id|session-id>          #: all nodes that agent holds
     agent-desk leave <node>...                         #: drops held nodes
     agent-desk whoami                                  #: held nodes, one per line
     #: with several held, each write below takes --node PATH

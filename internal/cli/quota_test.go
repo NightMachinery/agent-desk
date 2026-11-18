@@ -127,13 +127,11 @@ func TestQuotaSeveralNodes(t *testing.T) {
 		t.Fatalf("list: %s", out)
 	}
 
-	// Replace: take over each with --takeover, leave none, use --node.
+	// Replace: take them all over in one step, then use --node.
 	out := h.ok(env, "", "quota", "replace", stopped, "--dry-run")
 	for _, s := range []string{
-		"It held 2 agent-desk nodes",
-		"agent-desk join r1/eval --project example-proj --takeover",
-		"agent-desk join r2/eval --project example-proj --takeover",
-		"Leave none of them", "--node PATH",
+		"It held the agent-desk nodes example-proj/r1/eval, example-proj/r2/eval",
+		"agent-desk takeover " + stopped, "--node PATH",
 	} {
 		if !strings.Contains(out, s) {
 			t.Fatalf("replace prompt lacks %q:\n%s", s, out)
@@ -145,7 +143,7 @@ func TestQuotaSeveralNodes(t *testing.T) {
 	// Ask parent: names both.
 	out = h.ok(env, "", "quota", "ask-parent", stopped, "--dry-run")
 	if !strings.Contains(out, "nodes example-proj/r1/eval, example-proj/r2/eval") ||
-		!strings.Contains(out, "agent-desk join r2/eval --project example-proj --takeover") || !strings.Contains(out, "--node PATH") {
+		!strings.Contains(out, "agent-desk takeover "+stopped) || !strings.Contains(out, "--node PATH") {
 		t.Fatalf("ask-parent prompt:\n%s", out)
 	}
 
@@ -171,16 +169,29 @@ func TestQuotaSeveralNodes(t *testing.T) {
 		t.Fatalf("after a takeover: %+v", qs[0].Nodes)
 	}
 	out = h.ok(env, "", "quota", "replace", stopped, "--dry-run")
-	if !strings.Contains(out, "It kept the agent-desk node example-proj/r2/eval. Take it over: `agent-desk join r2/eval --project example-proj --takeover`") ||
+	if !strings.Contains(out, "It held the agent-desk node example-proj/r2/eval. Take it over in one step: `agent-desk takeover "+stopped+"`") ||
 		strings.Contains(out, "--node PATH") {
 		t.Fatalf("replace prompt with one node:\n%s", out)
 	}
-	h.ok(h.as(sessC), "", "join", "r2/eval", "--takeover")
+	// takeover by Paseo id takes what it still holds (r2/eval) in one step.
+	repl := h.as(sessC)
+	repl["PASEO_HOME"] = h.paseo
+	if out := h.ok(repl, "", "takeover", stopped); !strings.Contains(out, "took over example-proj/r2/eval") ||
+		strings.Contains(out, "r1/eval") {
+		t.Fatalf("takeover: %s", out)
+	}
 	must(t, json.Unmarshal([]byte(h.ok(env, "", "quota", "list", "--format", "json")), &qs))
 	if len(qs[0].Nodes) != 0 || strings.Join(qs[0].Scopes, ",") != "example-proj/r0/coord" {
 		t.Fatalf("no nodes left: %+v", qs[0])
 	}
-	if out := h.ok(env, "", "quota", "replace", stopped, "--dry-run"); strings.Contains(out, "agent-desk join") {
+	if out := h.ok(env, "", "quota", "replace", stopped, "--dry-run"); strings.Contains(out, "agent-desk takeover") {
 		t.Fatalf("replace prompt with no node:\n%s", out)
+	}
+	// Nothing left to take; yourself is refused; a session id works too.
+	h.fails(repl, "", "holds no desk node", "takeover", stopped)
+	h.fails(worker, "", "is this session", "takeover", sessB)
+	if out := h.ok(worker, "", "takeover", sessC); !strings.Contains(out, "took over example-proj/r1/eval") ||
+		!strings.Contains(out, "took over example-proj/r2/eval") || !strings.Contains(out, "--node PATH") {
+		t.Fatalf("takeover by session id: %s", out)
 	}
 }

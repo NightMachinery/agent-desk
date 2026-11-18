@@ -21,6 +21,7 @@ piece of work. Join a node once, at the start:
     agent-desk join rerun-nov/coord              # the run's top coordinator
     agent-desk join rerun-nov/coord/eval-lead    # nested, under the coordinator that started you
     agent-desk join rerun-nov/coord --takeover   # replacing a coordinator that is gone
+    agent-desk takeover <paseo-id|session-id>    # replacing an agent: all the nodes it held
 
 The path is `<run>/<role>[/<role>...]`: a short run slug, then role slugs (not
 agent ids). The project is the repository you are in (`--project` to
