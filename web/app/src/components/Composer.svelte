@@ -39,8 +39,7 @@
   let voiceStatus = $state({});
   let missing = $state(null);
   let missingOpen = $state(false);
-  const unsettled = $derived(voiceTokens(text).length > 0);
-  const preview = $derived(voiceTokens(text).map(({ id }) => voiceStatus[id]).filter(Boolean));
+  const preview = $derived([...new Set(voiceTokens(text).map(({ id }) => id))].map((id) => voiceStatus[id]).filter(Boolean));
   const hasVoice = $derived(voiceDraft.length > 0);
   let closed = false;
 
@@ -276,9 +275,10 @@
   const remoteName = $derived(target?.remote_label || 'Phone');
 
   async function submit(value = text, behavior = '', allowMissing = false) {
-    if (busy || uploading || voiceTokens(value).length) return;
+    if (busy || uploading) return;
+    const pending = new Set(voiceTokens(value).map(({ id }) => id));
     const used = voiceDraft.filter((item) => item.block && value.includes(item.block));
-    const removed = voiceDraft.filter((item) => !used.includes(item));
+    const removed = voiceDraft.filter((item) => !pending.has(item.id) && !used.includes(item));
     if (!allowMissing && removed.length) {
       missing = { value, behavior, removed };
       missingOpen = true;
@@ -293,7 +293,9 @@
       if (behavior) opts.behavior = behavior;
       if (overridden) opts.notify = Object.fromEntries(Object.entries(notify).filter(([, v]) => v));
       if (readyFiles.length) opts.media = readyFiles.map((f) => f.ref);
+      if (used.length) opts.voice_recordings = used.map(({ id }) => id);
       if (await send(value, opts)) {
+        if (draftOf === key) void capture?.stop();
         clearDraft(key);
         clearDraft('voice:' + key);
         if (draftOf === key) {
@@ -310,9 +312,11 @@
 
   async function restoreMissing() {
     const choices = missing;
+    const key = draftOf;
     missing = null;
     missingOpen = false;
     const entries = await Promise.allSettled(choices.removed.map(({ id }) => get(`recordings/${id}`)));
+    if (closed || draftOf !== key) return;
     for (const entry of entries) {
       if (entry.status !== 'fulfilled') {
         voiceError = 'A removed recording is no longer available.';
@@ -328,7 +332,7 @@
         voiceStatus[rec.id] = rec;
       }
     }
-    if (!voiceTokens(text).length && !voiceError) await submit(text, choices.behavior, true);
+    if (entries.every((entry) => entry.status === 'fulfilled')) await submit(text, choices.behavior, true);
   }
 
   function onkeydown(e) {
@@ -412,11 +416,11 @@
     {/if}
     <span class="hint faint">{hint}</span>
     <div class="split">
-      <button data-cmd="send" class="btn primary small main" disabled={busy || uploading || unsettled || !(text.trim() || ready || readyFiles.length || hasVoice)} onclick={() => submit()} title={tip(behaviorHelp[def] || 'Send', 'send')}>
+      <button data-cmd="send" class="btn primary small main" disabled={busy || uploading || !(text.trim() || ready || readyFiles.length || hasVoice)} onclick={() => submit()} title={tip(behaviorHelp[def] || 'Send', 'send')}>
         {busy ? 'Sending…' : mainLabel}
       </button>
       {#if others.length}
-        <button data-cmd="send-menu" class="btn primary small more" disabled={busy || uploading || unsettled || !(text.trim() || ready || readyFiles.length || hasVoice)} aria-label="Other ways to send" title={tip('Other ways to send', 'send-menu')} onclick={() => { confirming = false; menu = true; }}>
+        <button data-cmd="send-menu" class="btn primary small more" disabled={busy || uploading || !(text.trim() || ready || readyFiles.length || hasVoice)} aria-label="Other ways to send" title={tip('Other ways to send', 'send-menu')} onclick={() => { confirming = false; menu = true; }}>
           <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="m2 3.5 3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
         </button>
       {/if}

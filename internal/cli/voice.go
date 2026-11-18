@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -135,6 +136,30 @@ func (s *server) apiRecordings(w http.ResponseWriter, r *http.Request) {
 	messages := make(map[string][]string)
 	for _, e := range used {
 		messages[e.Ref] = append(messages[e.Ref], e.Body)
+	}
+	deliveries, err := st.Query("events", "kind = 'delivered' AND json_type(meta, '$.voice_recordings') = 'array'")
+	if err != nil {
+		jsonError(w, 500, err.Error())
+		return
+	}
+	nodes := make(map[string]string, len(recs))
+	for _, rec := range recs {
+		nodes[rec.ID] = rec.Node
+	}
+	for _, delivery := range deliveries {
+		for _, id := range voiceReferences(delivery) {
+			if nodes[id] != delivery.Path {
+				continue
+			}
+			msg, err := st.Get(delivery.Ref)
+			if err != nil {
+				continue
+			}
+			display := sendDisplayID(st, msg)
+			if !slices.Contains(messages[id], display) {
+				messages[id] = append(messages[id], display)
+			}
+		}
 	}
 	for i := range recs {
 		recs[i] = s.voiceSnapshot(recs[i])
@@ -342,6 +367,8 @@ func (s *server) completeVoice(run *voiceRun) {
 	}
 	if err := s.a.appendRecording(s.voice.store, run.rec); err != nil {
 		fmt.Fprintf(s.a.Stderr, "agent-desk: saving voice result: %v\n", err)
+	} else {
+		s.wakeSendQueue()
 	}
 	delete(s.voice.runs, run.rec.ID)
 }
@@ -510,6 +537,7 @@ func (s *server) apiRecordingAction(w http.ResponseWriter, r *http.Request) {
 			voiceAPIError(w, e)
 			return
 		}
+		s.wakeSendQueue()
 		run = &voiceRun{rec: rec}
 		s.voice.runs[rec.ID] = run
 		s.armVoice(run, voiceFinalTimeout)
@@ -553,9 +581,33 @@ func (s *server) apiRecordingAction(w http.ResponseWriter, r *http.Request) {
 			voiceAPIError(w, err)
 			return
 		}
+		s.wakeSendQueue()
 	default:
 		jsonError(w, 400, "Unknown recording action")
 		return
 	}
 	writeJSON(w, rec)
+}
+
+// recoverVoice gives interrupted captures a retryable state before delivery
+// starts on a fresh server process.
+func (s *server) recoverVoice() error {
+	st, err := s.a.store()
+	if err != nil {
+		return err
+	}
+	records, err := listRecordings(st, "", s.a.Host)
+	if err != nil {
+		return err
+	}
+	for _, rec := range records {
+		if rec.Status != voiceRecording && rec.Status != voiceTranscribing {
+			continue
+		}
+		rec = s.voiceSnapshot(rec)
+		if err := s.a.appendRecording(st, rec); err != nil {
+			return err
+		}
+	}
+	return nil
 }

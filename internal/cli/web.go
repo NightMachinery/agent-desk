@@ -28,7 +28,8 @@ type Entry struct {
 	// Pending says why an undelivered message has not gone out yet.
 	Pending string `json:"pending,omitempty"`
 	// Failure is why the latest attempt to deliver it failed.
-	Failure *Failure `json:"failure,omitempty"`
+	Failure      *Failure      `json:"failure,omitempty"`
+	VoiceFailure *VoiceFailure `json:"voice_failure,omitempty"`
 	// Status: responded, awaiting, no_response or cleared (read without a
 	// response); empty before delivery and for answers with no response.
 	Status    string            `json:"status,omitempty"`
@@ -48,6 +49,14 @@ type Failure struct {
 	Age       string `json:"age"`
 	Retrying  bool   `json:"retrying,omitempty"`
 	Uncertain bool   `json:"uncertain,omitempty"`
+}
+
+// VoiceFailure identifies the recording holding a queued message.
+type VoiceFailure struct {
+	ID        string `json:"id"`
+	Recording string `json:"recording"`
+	Error     string `json:"error"`
+	Retryable bool   `json:"retryable,omitempty"`
 }
 
 // Delivery is a delivered mark's receipt.
@@ -126,6 +135,9 @@ func entries(d *desk.Desk, thread []store.Event, pushed map[string]string) []Ent
 				OnAnswer                             *onAnswerRun `json:"on_answer"`
 			}
 			_ = json.Unmarshal(del.Meta, &r)
+			if resolved := desk.MetaString(del, "voice_body"); resolved != "" {
+				en.Event.Body = resolved
+			}
 			en.Delivery = &Delivery{Via: r.Via, Behavior: r.Behavior, Disposition: r.Disposition,
 				QueuePosition: r.QueuePosition, Revived: r.Revived, Fallback: r.Fallback, OnAnswer: r.OnAnswer,
 				Age: desk.Age(d.Now.Sub(desk.Time(del)))}
@@ -139,12 +151,18 @@ func entries(d *desk.Desk, thread []store.Event, pushed map[string]string) []Ent
 				en.Pending = "waiting for a merge to " + host
 			case e.Kind == "answer" && answer != "" && answer != e.ID:
 				en.Pending = "superseded by a newer answer"
+			case state.Status == sendVoiceWaiting:
+				en.Pending = "waiting for transcription"
+			case state.Status == sendVoiceFailed:
+				en.Pending = "transcription failed"
+				en.VoiceFailure = &VoiceFailure{ID: state.ID, Recording: state.VoiceRecording, Error: state.Error,
+					Retryable: state.VoiceRetryable}
 			case queuedForDelivery(e) || state.Status != "":
 				en.Pending = "queued"
 			default:
 				en.Pending = "not delivered yet"
 			}
-			if state.Error != "" && en.Pending != "superseded by a newer answer" {
+			if !state.blockedOnVoice() && state.Error != "" && en.Pending != "superseded by a newer answer" {
 				f, _ := d.DeliveryFailure(e.ID)
 				en.Pending = "not delivered"
 				if state.RetryAt != "" && host == d.Host {

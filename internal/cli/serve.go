@@ -267,7 +267,8 @@ type request struct {
 	Name     string   `json:"name"`
 	Prefixes []string `json:"prefixes"`
 	// Media: answer, reply: files sent with it, as /api/upload returned them.
-	Media []media.Ref `json:"media"`
+	Media           []media.Ref `json:"media"`
+	VoiceRecordings []string    `json:"voice_recordings,omitempty"`
 }
 
 func (r request) notify() (map[string]string, error) {
@@ -418,7 +419,12 @@ func (s *server) apiDeliver(app *App, body request) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	status, err := app.queueRetry(d, e, body.Force, body.FailureID)
+	var status string
+	if body.Action == "omit-recording" {
+		status, err = app.queueWithoutVoice(d, e, body.FailureID)
+	} else {
+		status, err = app.queueRetry(d, e, body.Force, body.FailureID)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -1300,6 +1306,10 @@ func (a *App) cmdServe(args []string) error {
 			return err
 		}
 		defer os.Remove(pf)
+	}
+	if err := s.recoverVoice(); err != nil {
+		ln.Close()
+		return fmt.Errorf("recovering interrupted recordings: %w", err)
 	}
 	srv := &http.Server{Handler: s.routes(), ReadHeaderTimeout: 10 * time.Second}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

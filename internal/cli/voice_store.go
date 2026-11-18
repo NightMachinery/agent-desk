@@ -121,38 +121,65 @@ func voiceBlock(text string) string {
 	return fence + "speech-to-text\n" + strings.TrimSpace(text) + "\n" + fence
 }
 
-// resolveVoiceTokens is the delivery hook. Call it with the immutable job
-// body before preparing the attachment note or running an on-answer command.
-// The queue decides how to display and schedule a voiceBlocked error.
-func resolveVoiceTokens(st *store.Store, node, text string) (string, error) {
+// resolveVoiceTokens resolves the immutable queue body before a transport
+// attempt starts. A failure takes precedence over a still-running recording.
+func resolveVoiceTokens(st *store.Store, node, text string, omitted []string) (string, []string, error) {
 	var result strings.Builder
+	var included []string
+	var waiting *voiceBlocked
 	last := 0
 	for _, m := range voiceToken.FindAllStringSubmatchIndex(text, -1) {
 		id := text[m[2]:m[3]]
+		if slices.Contains(omitted, id) {
+			result.WriteString(text[last:m[0]])
+			result.WriteString("(Voice recording omitted.)")
+			last = m[1]
+			continue
+		}
 		rec, err := loadRecording(st, id)
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
-			return "", err
+			return "", nil, err
 		}
 		if errors.Is(err, os.ErrNotExist) || rec.Node != node || rec.Status == voiceDeleted {
-			return "", &voiceBlocked{id, "recording is unavailable"}
+			return "", nil, &voiceBlocked{id: id, reason: "Recording is unavailable", failed: true}
 		}
 		if rec.Status == voiceFailed {
-			return "", &voiceBlocked{id, rec.Error}
+			return "", nil, &voiceBlocked{id: id, reason: rec.Error, failed: true, retryable: rec.Bytes > 0}
 		}
 		if rec.Status != voiceReady {
-			return "", &voiceBlocked{id, "waiting for transcription"}
+			if waiting == nil {
+				waiting = &voiceBlocked{id: id, reason: "waiting for transcription"}
+			}
+			continue
+		}
+		if !slices.Contains(included, id) {
+			included = append(included, id)
 		}
 		result.WriteString(text[last:m[0]])
 		result.WriteString("\n\n" + voiceBlock(rec.Text) + "\n\n")
 		last = m[1]
 	}
+	if waiting != nil {
+		return "", nil, waiting
+	}
 	result.WriteString(text[last:])
-	return result.String(), nil
+	return result.String(), included, nil
 }
 
-type voiceBlocked struct{ id, reason string }
+type voiceBlocked struct {
+	id, reason        string
+	failed, retryable bool
+}
 
 func (e *voiceBlocked) Error() string { return "voice " + e.id + ": " + e.reason }
+
+func voiceReferences(e store.Event) []string {
+	var m struct {
+		Recordings []string `json:"voice_recordings"`
+	}
+	_ = json.Unmarshal(e.Meta, &m)
+	return m.Recordings
+}
 
 func (a *App) gcVoice(days int, dry bool) (int, int64, error) {
 	if days == 0 {

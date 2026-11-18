@@ -64,7 +64,7 @@ func TestVoiceCaptureResolveAndExpire(t *testing.T) {
 	rec := testVoiceRequest(t, hd, "POST", "", req)
 	match := "before [voice " + rec.ID + " 0:00, transcribing] after"
 	st := s.voice.store
-	if _, err := resolveVoiceTokens(st, node, match); err == nil || !strings.Contains(err.Error(), "waiting") {
+	if _, _, err := resolveVoiceTokens(st, node, match, nil); err == nil || !strings.Contains(err.Error(), "waiting") {
 		t.Fatalf("unfinished voice should block delivery: %v", err)
 	}
 	if code, body, _ := do(t, hd, "POST", "/api/recordings/"+rec.ID+"/chunk?offset=0", "\x01\x02\x03\x04", dashboard); code != 200 {
@@ -76,7 +76,7 @@ func TestVoiceCaptureResolveAndExpire(t *testing.T) {
 	if final.Text != "one two" || final.Bytes != 4 {
 		t.Fatalf("unexpected final transcript: %+v", final)
 	}
-	resolved, err := resolveVoiceTokens(st, node, match)
+	resolved, _, err := resolveVoiceTokens(st, node, match, nil)
 	must(t, err)
 	if resolved != "before \n\n```speech-to-text\none two\n```\n\n after" {
 		t.Fatalf("resolved message = %q", resolved)
@@ -97,7 +97,7 @@ func TestVoiceCaptureResolveAndExpire(t *testing.T) {
 	if _, err := os.Stat(voiceFile(s.a.Home, rec.ID)); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("audio after gc: %v", err)
 	}
-	if _, err := resolveVoiceTokens(st, node, match); err == nil || !strings.Contains(err.Error(), "unavailable") {
+	if _, _, err := resolveVoiceTokens(st, node, match, nil); err == nil || !strings.Contains(err.Error(), "unavailable") {
 		t.Fatalf("expired audio should block unresolved delivery: %v", err)
 	}
 }

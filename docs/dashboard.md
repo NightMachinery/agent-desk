@@ -168,5 +168,8 @@ draft, Send asks whether to put it at the end or leave it out.
 
 Open **Recordings** beside the composer to play audio, retry transcription,
 insert a transcript into your draft, or delete an entry. Settings contains
-the list for all agents on that desk. The composer waits for recordings in the
-draft to finish before it enables Send.
+the list for all agents on that desk. Send saves the message in the outbox
+with any unresolved voice tokens. The delivery worker waits for transcription
+before opening a transport attempt. A failed recording stays visible in the
+thread with its error and buttons to retry it or send without it. The
+delivered thread shows the text that was sent.

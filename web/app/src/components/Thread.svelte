@@ -47,6 +47,26 @@
       retrying = '';
     }
   }
+  async function voiceAction(entry, action) {
+    retrying = entry.event.id;
+    try {
+      if (action === 'retry') {
+        await post(`recordings/${entry.voice_failure.recording}`, { action });
+        toast('Transcribing the recording again.', 'info');
+      } else {
+        const res = await post('deliver', {
+          id: entry.event.id,
+          action: 'omit-recording',
+          failure_id: entry.voice_failure.id,
+        });
+        toast(res.status === 'delivered' ? 'Already delivered.' : 'Queued without the recording.', 'info');
+      }
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      retrying = '';
+    }
+  }
   function copy(text) {
     navigator.clipboard?.writeText(text).then(() => toast('Copied.', 'ok'), () => toast('Could not copy.', 'error'));
   }
@@ -71,7 +91,7 @@
             {#if t.delivery}
               {@const disposition = dispositionText(t.delivery)}
               <span class="chip ok" title={deliveryTitle(t.delivery)}>{disposition.startsWith('delivered') ? disposition : 'delivered · ' + disposition}</span>
-            {:else if t.pending && !t.failure}
+            {:else if t.pending && !t.failure && !t.voice_failure}
               <span class="chip waiting">{t.pending}</span>
             {/if}
           {/if}
@@ -84,6 +104,17 @@
           {/if}
         </div>
         {#if t.delivery?.fallback}<div class="note">Sent as {t.delivery.behavior}: {t.delivery.fallback}</div>{/if}
+        {#if t.voice_failure && !t.delivery}
+          <div class="failure" data-failure>
+            <div><strong>Transcription failed</strong> · {t.voice_failure.error}</div>
+            <div class="voice-actions">
+              {#if t.voice_failure.retryable}
+                <button class="btn small" disabled={retrying === t.event.id} onclick={() => voiceAction(t, 'retry')}>Retry transcription</button>
+              {/if}
+              <button class="btn small" disabled={retrying === t.event.id} onclick={() => voiceAction(t, 'omit')}>Send without recording</button>
+            </div>
+          </div>
+        {/if}
         {#if t.failure && !t.delivery}
           <div class="failure" data-failure>
             <div><strong>{t.failure.retrying ? 'Retrying' : t.failure.uncertain ? 'Delivery unconfirmed' : 'Not delivered'}</strong> <span class="faint">({t.failure.age} ago)</span>: {t.failure.error}</div>
@@ -206,7 +237,7 @@
     gap: 5px;
     overflow-wrap: anywhere;
   }
-  .resume {
+  .resume, .voice-actions {
     display: flex;
     flex-wrap: wrap;
     align-items: center;

@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 	"time"
@@ -155,6 +156,12 @@ type receipt struct {
 	Fallback      string // why Behavior differs from the one requested
 	// OnAnswer is what the question's on-answer command did, if it has one.
 	OnAnswer *onAnswerRun
+	Voice    *voiceReceipt
+}
+
+type voiceReceipt struct {
+	Body       string
+	Recordings []string
 }
 
 // meta is the receipt as a delivered event's meta.
@@ -174,6 +181,14 @@ func (r receipt) meta() map[string]any {
 	}
 	if r.OnAnswer != nil {
 		m["on_answer"] = r.OnAnswer
+	}
+	if r.Voice != nil {
+		if r.Voice.Body != "" {
+			m["voice_body"] = r.Voice.Body
+		}
+		if len(r.Voice.Recordings) != 0 {
+			m["voice_recordings"] = r.Voice.Recordings
+		}
 	}
 	return m
 }
@@ -204,9 +219,42 @@ func paseoReceipt(out string, r *receipt) {
 // deliverOne types a message into its session, and says how. An answer to
 // a question asked with --on-answer goes to that command first; the session
 // gets it only when the command passes it on (see onAnswer).
-func (a *App) deliverOne(d *desk.Desk, j job) (receipt, error) {
+func (a *App) deliverOne(d *desk.Desk, j job, omitted []string, begin func() error) (result receipt, resultErr error) {
 	if j.host != a.Host {
 		return receipt{}, fmt.Errorf("its session is on %s; it is delivered there after the next merge", j.host)
+	}
+	recordings := voiceReferences(j.msg)
+	resolved := ""
+	if voiceToken.MatchString(j.msg.Body) {
+		body, included, err := resolveVoiceTokens(a.st, j.msg.Path, j.msg.Body, omitted)
+		if err != nil {
+			return receipt{}, err
+		}
+		resolved, j.msg.Body = body, body
+		for _, id := range included {
+			if !slices.Contains(recordings, id) {
+				recordings = append(recordings, id)
+			}
+		}
+	}
+	if resolved != "" || len(recordings) != 0 {
+		// Keep a fenced block on its own line after the transport's header.
+		if strings.HasPrefix(j.msg.Body, "```") {
+			j.msg.Body = "\n\n" + j.msg.Body
+		}
+		if j.msg.Kind == "answer" {
+			j.text = DeliveryText(d, j.about, j.msg)
+		} else {
+			j.text = ReplyText(d, j.msg)
+		}
+		defer func() {
+			if resultErr == nil {
+				result.Voice = &voiceReceipt{Body: resolved, Recordings: recordings}
+			}
+		}()
+	}
+	if err := begin(); err != nil {
+		return receipt{}, err
 	}
 	note, missing := a.attachmentNote(j.msg)
 	if missing != "" {
@@ -428,7 +476,7 @@ func (a *App) deliverPending(only string, webOnly bool) (failed int, changed boo
 	}
 	for _, j := range pending(d, a.Host, only) {
 		state := deliveryProgress(d, j.msg.ID)
-		automatic := queuedForDelivery(j.msg) || state.Deadline != "" || state.Status == "queued"
+		automatic := queuedForDelivery(j.msg) || state.Deadline != "" || state.Status == "queued" || state.blockedOnVoice()
 		if webOnly && !automatic {
 			continue
 		}
@@ -439,14 +487,15 @@ func (a *App) deliverPending(only string, webOnly bool) (failed int, changed boo
 		switch {
 		case state.Status == "attempting":
 			// The flock is ours. The previous holder left no acknowledgement.
-			state = sendProgress{ID: state.ID, Error: "The previous send ended without an acknowledgement.", Uncertain: true}
+			state = sendProgress{ID: state.ID, Error: "The previous send ended without an acknowledgement.",
+				Uncertain: true, VoiceOmitted: state.VoiceOmitted}
 			if err := st.Append(a.deliveryState(j.msg, "undelivered", state)); err != nil {
 				return failed, changed, next, err
 			}
 			failed++
 			changed = true
 			continue
-		case automatic && state.Error != "" && state.RetryAt == "":
+		case automatic && !state.blockedOnVoice() && state.Error != "" && state.RetryAt == "":
 			continue
 		case state.RetryAt != "" && now.Before(parseSendTime(state.RetryAt)):
 			next = earlierSend(next, parseSendTime(state.RetryAt))
@@ -464,29 +513,74 @@ func (a *App) deliverPending(only string, webOnly bool) (failed int, changed boo
 			changed = changed || recorded
 			continue
 		}
-		if automatic {
+		var beginErr error
+		var began, stateChanged bool
+		begin := func() error {
+			began = true
+			if !automatic {
+				return nil
+			}
 			if state.Deadline == "" {
 				state.Deadline = now.Add(sendRetryWindow).Format(time.RFC3339Nano)
 			}
 			attempt := state
 			attempt.Status = "attempting"
+			if state.blockedOnVoice() {
+				attempt.Error, attempt.VoiceRecording, attempt.VoiceRetryable = "", "", false
+			}
 			marker := a.deliveryState(j.msg, "delivery-state", attempt)
 			recorded, err := st.AppendDeliveryIfCurrent(marker, state.ID)
 			if err != nil {
-				return failed, changed, next, err
+				beginErr = err
+				return err
 			}
 			if !recorded {
-				next = earlierSend(next, now)
-				continue
+				stateChanged = true
+				return errors.New("delivery state changed")
 			}
 			state.ID = marker.ID
+			return nil
 		}
+
 		dest := j.msg.Path
 		if j.about.ID != "" {
 			dest = d.Display(j.about.ID)
 		}
 		id := d.Display(j.msg.ID)
-		r, sendErr := a.deliverOne(d, j)
+		r, sendErr := a.deliverOne(d, j, state.VoiceOmitted, begin)
+		if beginErr != nil {
+			return failed, changed, next, beginErr
+		}
+		if stateChanged {
+			next = earlierSend(next, now)
+			continue
+		}
+		var voice *voiceBlocked
+		if errors.As(sendErr, &voice) {
+			status, reason := sendVoiceWaiting, ""
+			if voice.failed {
+				status, reason = sendVoiceFailed, voice.reason
+			}
+			if state.Status == status && state.VoiceRecording == voice.id &&
+				state.Error == reason && state.VoiceRetryable == voice.retryable {
+				continue
+			}
+			waiting := sendProgress{ID: state.ID, Status: status, Error: reason,
+				VoiceRecording: voice.id, VoiceRetryable: voice.retryable, VoiceOmitted: state.VoiceOmitted}
+			recorded, err := st.AppendDeliveryIfCurrent(a.deliveryState(j.msg, "delivery-state", waiting), state.ID)
+			if err != nil {
+				return failed, changed, next, err
+			}
+			if !recorded {
+				next = earlierSend(next, now)
+			}
+			changed = changed || recorded
+			continue
+		}
+
+		if !began && sendErr != nil {
+			return failed, changed, next, sendErr
+		}
 		if sendErr == nil {
 			e := a.event("delivered", j.msg.Path, ident.Resolve(a.Env), "cli", r.meta())
 			e.Ref = j.msg.ID
@@ -510,7 +604,7 @@ func (a *App) deliverPending(only string, webOnly bool) (failed int, changed boo
 		} else {
 			fmt.Fprintf(a.Stderr, "agent-desk: %s not delivered: %v. `agent-desk deliver` retries.\n", id, sendErr)
 		}
-		failure := sendProgress{ID: state.ID, Error: reason, Resume: resume, Uncertain: uncertain, Deadline: state.Deadline}
+		failure := sendProgress{ID: state.ID, Error: reason, Resume: resume, Uncertain: uncertain, Deadline: state.Deadline, VoiceOmitted: state.VoiceOmitted}
 		var permanent permanentDeliveryError
 		if automatic && !uncertain && !errors.As(sendErr, &permanent) {
 			failure.Attempts = state.Attempts + 1

@@ -4,8 +4,10 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -17,8 +19,10 @@ import (
 )
 
 const (
-	sendRetryWindow = 24 * time.Hour
-	sendQueuePoll   = 30 * time.Second
+	sendRetryWindow  = 24 * time.Hour
+	sendQueuePoll    = 30 * time.Second
+	sendVoiceWaiting = "waiting-transcription"
+	sendVoiceFailed  = "transcription-failed"
 )
 
 var sendKeyPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]{16,80}$`)
@@ -57,6 +61,16 @@ func (s *server) enqueue(app *App, kind string, body request, prepare func() ([]
 		return nil, err
 	}
 	msg := markQueued(evs[0], key, fingerprint)
+	if len(body.VoiceRecordings) != 0 {
+		for _, id := range body.VoiceRecordings {
+			if !voiceID.MatchString(id) {
+				return nil, usagef("invalid recording id")
+			}
+		}
+		m := desk.Meta(msg)
+		m["voice_recordings"] = body.VoiceRecordings
+		msg.Meta = meta(m)
+	}
 	evs[0] = msg
 	inserted := true
 	if key != "" {
@@ -184,15 +198,22 @@ func (s *server) sendQueueStep() time.Duration {
 }
 
 type sendProgress struct {
-	ID        string `json:"-"`
-	Status    string `json:"status,omitempty"`
-	Error     string `json:"error,omitempty"`
-	Resume    string `json:"resume,omitempty"`
-	RetryAt   string `json:"retry_at,omitempty"`
-	Deadline  string `json:"deadline,omitempty"`
-	Attempts  int    `json:"attempts,omitempty"`
-	Uncertain bool   `json:"uncertain,omitempty"`
-	Forced    bool   `json:"forced,omitempty"`
+	ID             string   `json:"-"`
+	Status         string   `json:"status,omitempty"`
+	Error          string   `json:"error,omitempty"`
+	Resume         string   `json:"resume,omitempty"`
+	RetryAt        string   `json:"retry_at,omitempty"`
+	Deadline       string   `json:"deadline,omitempty"`
+	Attempts       int      `json:"attempts,omitempty"`
+	Uncertain      bool     `json:"uncertain,omitempty"`
+	Forced         bool     `json:"forced,omitempty"`
+	VoiceRecording string   `json:"voice_recording,omitempty"`
+	VoiceRetryable bool     `json:"voice_retryable,omitempty"`
+	VoiceOmitted   []string `json:"voice_omitted,omitempty"`
+}
+
+func (p sendProgress) blockedOnVoice() bool {
+	return p.Status == sendVoiceWaiting || p.Status == sendVoiceFailed
 }
 
 func queuedForDelivery(e store.Event) bool { return desk.Meta(e)["send_queue"] == true }
@@ -223,7 +244,8 @@ func (a *App) deliveryState(msg store.Event, kind string, progress sendProgress)
 	}
 	e.Meta = meta(map[string]any{"status": progress.Status, "error": progress.Error, "resume": progress.Resume,
 		"retry_at": progress.RetryAt, "deadline": progress.Deadline, "attempts": progress.Attempts,
-		"uncertain": progress.Uncertain, "forced": progress.Forced})
+		"uncertain": progress.Uncertain, "forced": progress.Forced, "voice_recording": progress.VoiceRecording,
+		"voice_retryable": progress.VoiceRetryable, "voice_omitted": progress.VoiceOmitted})
 	e.Ref = msg.ID
 	return e
 }
@@ -284,7 +306,7 @@ func (a *App) queueRetry(d *desk.Desk, e store.Event, force bool, failureID stri
 	}
 	for _, j := range pending(d, a.Host, deliveryJobID(e)) {
 		if j.msg.ID == e.ID {
-			retry := a.deliveryState(e, "delivery-state", sendProgress{Status: "queued", Forced: force, ID: state.ID})
+			retry := a.deliveryState(e, "delivery-state", sendProgress{Status: "queued", Forced: force, ID: state.ID, VoiceOmitted: state.VoiceOmitted})
 			if _, err := a.st.AppendDeliveryIfCurrent(retry, state.ID); err != nil {
 				return "", sendUnavailable{err}
 			}
@@ -292,4 +314,44 @@ func (a *App) queueRetry(d *desk.Desk, e store.Event, force bool, failureID stri
 		}
 	}
 	return "", usagef("%s is not pending on this desk", d.Display(e.ID))
+}
+
+// queueWithoutVoice records an omission against the specific failure the user
+// saw. Comparing the current delivery marker prevents racing the transport.
+func (a *App) queueWithoutVoice(d *desk.Desk, msg store.Event, failureID string) (string, error) {
+	if _, ok := d.Delivery(msg.ID); ok {
+		return "delivered", nil
+	}
+	state := deliveryProgress(d, msg.ID)
+	if state.Status != sendVoiceFailed || state.ID != failureID {
+		return "", usagef("Transcription state changed. Check the latest message status.")
+	}
+	destination := ""
+	for _, j := range pending(d, a.Host, deliveryJobID(msg)) {
+		if j.msg.ID == msg.ID {
+			destination = j.msg.Path
+			break
+		}
+	}
+	if destination == "" {
+		return "", usagef("this message is no longer pending on this desk")
+	}
+	_, _, err := resolveVoiceTokens(a.st, destination, msg.Body, state.VoiceOmitted)
+	var blocked *voiceBlocked
+	if !errors.As(err, &blocked) || !blocked.failed || blocked.id != state.VoiceRecording {
+		if err != nil && !errors.As(err, &blocked) {
+			return "", err
+		}
+		return "", usagef("Transcription state changed. Check the latest message status.")
+	}
+	omitted := append(slices.Clone(state.VoiceOmitted), blocked.id)
+	marker := a.deliveryState(msg, "delivery-state", sendProgress{Status: "queued", ID: state.ID, VoiceOmitted: omitted})
+	recorded, err := a.st.AppendDeliveryIfCurrent(marker, state.ID)
+	if err != nil {
+		return "", sendUnavailable{err}
+	}
+	if !recorded {
+		return "", usagef("Delivery state changed. Check the latest message status.")
+	}
+	return "queued", nil
 }

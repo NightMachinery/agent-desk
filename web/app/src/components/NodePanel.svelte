@@ -5,6 +5,7 @@
   import { post } from '../lib/api.js';
   import { toast } from '../lib/toast.svelte.js';
   import { pendingMessages, queueMessage } from '../lib/outbox.svelte.js';
+  import { voiceTokens } from '../lib/voice.js';
   import { agentName, short, stateClass, viaText } from '../lib/format.js';
   import Composer from './Composer.svelte';
   import Markdown from './Markdown.svelte';
@@ -23,12 +24,22 @@
   const kind = $derived(node.depth === 1 ? 'Project' : node.depth === 2 ? 'Run' : 'Agent');
   const label = $derived(node.state === 'active' || node.state === 'quiet' ? `${node.state} ${node.age}` : node.state);
   let writing = $state(false);
+  let conversationOpen = $state(false);
+  let wasWaitingForVoice = false;
+  $effect(() => {
+    const waiting = conversation.some((entry) => entry.voice_failure || entry.pending === 'waiting for transcription');
+    if (compact && waiting && !wasWaitingForVoice) conversationOpen = true;
+    wasWaitingForVoice = waiting;
+  });
 
   const pending = $derived(pendingMessages([node.path], conversation));
 
   function reply(text, opts = {}) {
     const queued = queueMessage('reply', { to: node.path, text, ...opts });
-    if (queued) writing = false;
+    if (queued) {
+      writing = false;
+      if (voiceTokens(text).length) conversationOpen = true;
+    }
     return queued;
   }
   // The prompt is rendered on the server, using the node's current status.
@@ -114,7 +125,7 @@
 
   {#if conversation.length || pending.length}
     {#if compact && !pending.length}
-      <details class="convo">
+      <details class="convo" bind:open={conversationOpen}>
         <summary>Conversation ({conversation.length})</summary>
         <Thread entries={conversation} {pending} remoteLabel={target?.remote_label} />
       </details>

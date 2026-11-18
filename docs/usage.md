@@ -1013,6 +1013,13 @@ shows the partial transcript, then select **Stop recording**. The final
 transcript goes into the message as a fenced `speech-to-text` block. Phone
 recording requires opening the dashboard over HTTPS.
 
+You can select **Send** while the recording or transcription is still running.
+Sending stops the microphone and queues the message with its voice token.
+Delivery starts when every recording is ready. If transcription fails, the
+thread shows why. **Retry transcription** uses the saved audio and resumes the
+queued send when it succeeds. **Send without recording** queues the same
+message with a short note in place of the failed recording.
+
 The running desk server owns transcription. Its config can select a backend
 and set the recording retention period.
 
