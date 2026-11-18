@@ -91,7 +91,7 @@ The API, all JSON:
   went to), the `behavior` asked for, `delivery` (the receipt: `via`,
   `behavior`, `disposition`, `queue_position`, `revived`, `fallback`) or a
   `pending` reason with, after a failed attempt, `failure` (`error`,
-  `resume`, `age`), `status` (`responded`, `awaiting`, `no_response` after 15
+  `resume`, `age`, `retrying`, `uncertain`), `status` (`responded`, `awaiting`, `no_response` after 15
   minutes, or `cleared` by a read) with the `responses`' ids, and `notify`,
   its per-message routing. A response has `by` (its agent) and `re`.
 - A target has `via`, `behaviors` (each `supported`, or not and `why`),
@@ -105,13 +105,18 @@ The API, all JSON:
   exactly this scope and class, so it can be reset), `differs` (the classes
   that resolve otherwise) and `options`; also every override on the desk.
 - `GET api/stream`: server-sent events; `change` whenever the store changes.
-- `POST api/answer {id, text, behavior?, notify?}`, `api/reply {to, text,
-  behavior?, notify?}` (an id or a node path; `notify` is `{desktop,
-  remote}` for the response to this message only), `api/read {target}` or
-  `{targets: [...]}` (ids or paths; an open question named by id is
-  dismissed), `api/unread {id}` or `{targets: [...]}`, `api/pin` and
-  `api/unpin {id}`, `api/deliver {id}` (retry one answer, named by itself
-  or its question, or one reply; 422 with the reason when it fails again).
+- `POST api/answer {id, text, behavior?, notify?, send_key?}` and
+  `api/reply {to, text, behavior?, notify?, send_key?}` record the message
+  and return `{id, event_id, status: "queued"}`. The dashboard persists a
+  random `send_key` with the outgoing message before the first request.
+  Replaying the same body with that key returns the original event id.
+  `to` is an item id or node path. `notify` is `{desktop, remote}` for the
+  response to this message.
+- `POST api/deliver {id}` queues a delivery retry for an answer, its
+  question, or a reply. A retry after an unconfirmed send is refused.
+- `POST api/read {target}` or `{targets: [...]}` accepts ids and paths.
+  An open question named by id is dismissed. `api/unread` accepts `{id}`
+  or `{targets: [...]}`, and `api/pin` and `api/unpin` accept `{id}`.
 - `POST api/pref {scope, class?, key, value}`: sets an override; a null
   `value` removes it. The browser acts as the user, so this works even when
   the server was started from an agent's shell.
@@ -124,8 +129,11 @@ The API, all JSON:
   focus only the agents with a scope inside it are listed, unless
   `unfocused=1`. (`nodes` and `scopes` are lists since agents could hold
   several nodes; they replace the single `node` and `scope`.)
-  `POST api/quota {action, id, profile?}` with `auto-continue-on`,
+  `POST api/quota {action, id, profile?}` accepts `auto-continue-on`,
   `auto-continue-off`, `ask-parent`, `replace`, `dismiss` or `undismiss`.
+  Dismiss and Undismiss also accept `targets` for multiple agent ids.
+  `quota_activity` carries the last activity shown for each selected agent.
+  Dismissal flags are applied to every quota response, including cached lists.
 - `GET api/auto-continue?paseo=`: `{available, on}` for one agent, for the
   node panel's checkbox.
 - `GET api/health`: `ok`.

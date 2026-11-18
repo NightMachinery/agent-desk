@@ -334,6 +334,28 @@ attempt, delivered or not, adds a line to `deliver.log` in the desk
 directory. A question asked on another machine is answered there after the
 next merge.
 
+### Sending from the dashboard
+
+Pressing Send or Answer shows **queued** immediately. The browser keeps the
+message in local storage until the desk records it. If the request fails
+because the phone goes offline or the server is unavailable, the dashboard
+retries while open and resumes the queue on the next load. A repeated HTTP
+request returns the existing message.
+
+The desk retries a confirmed delivery failure after 15 seconds, doubles the
+delay after each failure up to 10 minutes, and stops within 24 hours of the
+first attempt. The conversation shows **retrying** with the last error.
+After retries stop, **Retry** starts a new window. A successful delivery
+shows how it reached the agent, including whether the agent itself queued
+it until its turn ended. For a session on another machine, the conversation
+shows when it is waiting for a merge.
+
+If the transport may already have accepted a message, the desk shows
+**delivery unconfirmed**. This can happen on a timeout, a lost connection
+during send, an interrupted desk process, or a custom command that exits
+with an error after it starts. Check the agent's conversation before
+sending again.
+
 ### The inbox
 
 `agent-desk inbox` lists three sections, with a preview of the selected row:
@@ -885,7 +907,9 @@ the section reads each agent's details from its Paseo record
 under sh with `list`, `on ID` or `off ID`; `list` prints the registered ids.
 Without `stopped_command` the section stays hidden. Dismissals are kept in
 `<desk>/quota-dismissed.json`, each with the agent's last activity time, so an
-agent that runs again and stops again shows up again.
+agent that runs again and stops again shows up again. In the dashboard, open
+**Show dismissed** to restore an agent. Select mode can dismiss or restore
+several agents together.
 
     [quota]
     profiles = ['codex/gpt-6.1-terra@high', 'claude/opus@high']   # the Replace menu
