@@ -141,6 +141,7 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("POST /api/answer", s.write(s.apiAnswer))
 	mux.HandleFunc("POST /api/reply", s.write(s.apiReply))
 	mux.HandleFunc("POST /api/read", s.write(s.apiRead))
+	mux.HandleFunc("POST /api/deliver", s.write(s.apiDeliver))
 	mux.HandleFunc("POST /api/pin", s.write(s.apiPin))
 	mux.HandleFunc("POST /api/unpin", s.write(s.apiUnpin))
 	mux.HandleFunc("POST /api/unread", s.write(s.apiUnread))
@@ -358,6 +359,43 @@ func (s *server) apiReply(app *App, body request) (any, error) {
 
 func (s *server) apiRead(app *App, body request) (any, error) {
 	return map[string]string{}, app.run(append([]string{"read", "--"}, body.list(body.Target)...))
+}
+
+// apiDeliver retries delivering one answer (named by itself or its
+// question) or reply: the Retry button beside "not delivered".
+func (s *server) apiDeliver(app *App, body request) (any, error) {
+	d, err := app.load()
+	if err != nil {
+		return nil, err
+	}
+	e, err := d.Resolve(body.ID)
+	if err != nil {
+		return nil, err
+	}
+	only, msg := e.ID, e.ID
+	switch e.Kind {
+	case "answer":
+		only = e.Ref
+	case "ask":
+		for _, q := range d.Questions {
+			if q.ID == e.ID {
+				msg = q.AnswerID
+			}
+		}
+	case "reply":
+	default:
+		return nil, usagef("%s is not an answer, a question or a reply: nothing to deliver", d.Display(e.ID))
+	}
+	if failed, err := app.deliver(only); err != nil {
+		return nil, err
+	} else if failed > 0 {
+		d, _ = app.load()
+		if f, ok := d.DeliveryFailure(msg); ok {
+			return nil, fmt.Errorf("not delivered: %s", desk.MetaString(f, "error"))
+		}
+		return nil, errors.New("not delivered")
+	}
+	return map[string]string{}, nil
 }
 
 func (s *server) apiPin(app *App, body request) (any, error) {

@@ -103,6 +103,22 @@ func (d *Desk) Delivery(id string) (store.Event, bool) {
 	return found, found.ID != ""
 }
 
+// DeliveryFailure is the latest failed attempt to deliver message id, if
+// it has not been delivered since.
+func (d *Desk) DeliveryFailure(id string) (store.Event, bool) {
+	var found store.Event
+	for _, e := range d.Events {
+		switch {
+		case e.Ref != id:
+		case e.Kind == "undelivered":
+			found = e
+		case e.Kind == "delivered":
+			found = store.Event{}
+		}
+	}
+	return found, found.ID != ""
+}
+
 // Marked reports whether the user's latest read mark on id stands.
 func (d *Desk) Marked(id string) bool { return d.marked[id] }
 
@@ -169,7 +185,7 @@ func ClassOf(e store.Event) string {
 // and are not included.
 func IsMark(kind string) bool {
 	switch kind {
-	case "read", "pin", "pref", "notified", "retracted":
+	case "read", "pin", "pref", "notified", "retracted", "undelivered":
 		return true
 	}
 	return false

@@ -81,7 +81,8 @@ The API, all JSON:
   `answer` or `response`) and, for the user's words: `by` (the session it
   went to), the `behavior` asked for, `delivery` (the receipt: `via`,
   `behavior`, `disposition`, `queue_position`, `revived`, `fallback`) or a
-  `pending` reason, `status` (`responded`, `awaiting`, `no_response` after 15
+  `pending` reason with, after a failed attempt, `failure` (`error`,
+  `resume`, `age`), `status` (`responded`, `awaiting`, `no_response` after 15
   minutes, or `cleared` by a read) with the `responses`' ids, and `notify`,
   its per-message routing. A response has `by` (its agent) and `re`.
 - A target has `via`, `behaviors` (each `supported`, or not and `why`),
@@ -100,7 +101,8 @@ The API, all JSON:
   remote}` for the response to this message only), `api/read {target}` or
   `{targets: [...]}` (ids or paths; an open question named by id is
   dismissed), `api/unread {id}` or `{targets: [...]}`, `api/pin` and
-  `api/unpin {id}`.
+  `api/unpin {id}`, `api/deliver {id}` (retry one answer, named by itself
+  or its question, or one reply; 422 with the reason when it fails again).
 - `POST api/pref {scope, class?, key, value}`: sets an override; a null
   `value` removes it. The browser acts as the user, so this works even when
   the server was started from an agent's shell.

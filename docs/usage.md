@@ -292,8 +292,12 @@ pane still runs the same process and session. Anything else goes to
 followed by the command that responds to it (see the agent side above).
 When the session cannot be reached,
 the answer stays recorded and undelivered, the command prints how to resume
-the session, and `agent-desk deliver` tries again later. A question asked on
-another machine is answered there after the next merge.
+the session, and `agent-desk deliver` tries again later. The reason is kept
+on the desk: the dashboard shows it under the answer, with the resume command
+and a **Retry** button, and the inbox and the org ledger show it too. Every
+attempt, delivered or not, adds a line to `deliver.log` in the desk
+directory. A question asked on another machine is answered there after the
+next merge.
 
 ### The inbox
 

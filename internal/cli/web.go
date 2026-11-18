@@ -27,6 +27,8 @@ type Entry struct {
 	Delivery *Delivery `json:"delivery,omitempty"`
 	// Pending says why an undelivered message has not gone out yet.
 	Pending string `json:"pending,omitempty"`
+	// Failure is why the latest attempt to deliver it failed.
+	Failure *Failure `json:"failure,omitempty"`
 	// Status: responded, awaiting, no_response or cleared (read without a
 	// response); empty before delivery and for answers with no response.
 	Status    string            `json:"status,omitempty"`
@@ -35,6 +37,14 @@ type Entry struct {
 	Notify    map[string]string `json:"notify,omitempty"`
 	Unread    bool              `json:"unread,omitempty"`
 	Media     []MediaView       `json:"media,omitempty"`
+}
+
+// Failure is an undelivered mark: why the message did not reach its
+// session, and how to resume that session by hand.
+type Failure struct {
+	Error  string `json:"error"`
+	Resume string `json:"resume,omitempty"`
+	Age    string `json:"age"`
 }
 
 // Delivery is a delivered mark's receipt.
@@ -124,6 +134,11 @@ func entries(d *desk.Desk, thread []store.Event, pushed map[string]string) []Ent
 				en.Pending = "waiting for a merge to " + host
 			default:
 				en.Pending = "not delivered yet"
+			}
+			if f, ok := d.DeliveryFailure(e.ID); ok {
+				en.Pending = "not delivered"
+				en.Failure = &Failure{Error: desk.MetaString(f, "error"), Resume: desk.MetaString(f, "resume"),
+					Age: desk.Age(d.Now.Sub(desk.Time(f)))}
 			}
 		}
 		switch {

@@ -48,6 +48,8 @@ func Letter(kind string) string {
 		return "r"
 	case "delivered":
 		return "v"
+	case "undelivered":
+		return "f"
 	case "reply":
 		return "m"
 	case "pin":

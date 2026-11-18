@@ -5,6 +5,8 @@
   import { dispositionText, deliveryTitle, desktopText, remoteText } from '../lib/format.js';
   import Markdown from './Markdown.svelte';
   import Attachments from './Attachments.svelte';
+  import { post } from '../lib/api.js';
+  import { toast } from '../lib/toast.svelte.js';
 
   let { entries = [], current = '', remoteLabel = '' } = $props();
 
@@ -24,6 +26,21 @@
     if (n.desktop) parts.push(desktopText(n.desktop));
     if (n.remote) parts.push(remoteText(n.remote, remoteLabel));
     return parts.length ? 'Its response notifies ' + parts.join(' and ') + '.' : '';
+  }
+  let retrying = $state('');
+  async function retry(id) {
+    retrying = id;
+    try {
+      await post('deliver', { id });
+      toast('Delivered.', 'ok');
+    } catch (e) {
+      toast(e.message, 'error');
+    } finally {
+      retrying = '';
+    }
+  }
+  function copy(text) {
+    navigator.clipboard?.writeText(text).then(() => toast('Copied.', 'ok'), () => toast('Could not copy.', 'error'));
   }
 </script>
 
@@ -47,7 +64,7 @@
             {#if t.delivery}
               <span class="chip ok" title={deliveryTitle(t.delivery)}>{dispositionText(t.delivery)}</span>
             {:else if t.pending}
-              <span class="chip waiting">{t.pending}</span>
+              <span class="chip {t.failure ? 'blocked' : 'waiting'}">{t.pending}</span>
             {/if}
           {/if}
           {#if t.status === 'responded'}
@@ -59,6 +76,19 @@
           {/if}
         </div>
         {#if t.delivery?.fallback}<div class="note">Sent as {t.delivery.behavior}: {t.delivery.fallback}</div>{/if}
+        {#if t.failure && !t.delivery}
+          <div class="failure" data-failure>
+            <div><strong>Not delivered</strong> <span class="faint">({t.failure.age} ago)</span>: {t.failure.error}</div>
+            {#if t.failure.resume}
+              <div class="resume">
+                <span class="faint">Resume its session by hand:</span>
+                <code class="mono">{t.failure.resume}</code>
+                <button class="btn ghost small" onclick={() => copy(t.failure.resume)}>Copy</button>
+              </div>
+            {/if}
+            <div><button class="btn small" disabled={retrying === t.display_id} onclick={() => retry(t.display_id)} data-cmd="deliver-retry">{retrying === t.display_id ? 'Retrying…' : 'Retry'}</button></div>
+          </div>
+        {/if}
         {#if notifyNote(t.notify)}<div class="note">{notifyNote(t.notify)}</div>{/if}
       {:else if t.event.meta?.asked}
         <div class="note">Answers what you asked in chat: {t.event.meta.asked}</div>
@@ -124,6 +154,27 @@
   }
   .note a {
     text-decoration: underline;
+  }
+  .failure {
+    margin-top: 6px;
+    padding: 7px 9px;
+    border-radius: 8px;
+    border-left: 3px solid var(--blocked);
+    background: var(--panel);
+    font-size: 12.5px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    overflow-wrap: anywhere;
+  }
+  .resume {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+  }
+  .resume code {
+    font-size: 11.5px;
   }
   .entry :global(.md) {
     margin-top: 6px;

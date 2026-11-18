@@ -599,7 +599,17 @@ func TestMergeEitherOrder(t *testing.T) {
 		t.Fatalf("second merge: %q", errOut)
 	}
 
-	exportOf := func(x *harness) string { return x.ok(nil, "", "export") }
+	// A delivery that fails after a merge (A has no way to reach the
+	// session) records why on that side alone, until the next merge.
+	exportOf := func(x *harness) string {
+		var keep []string
+		for _, l := range strings.Split(x.ok(nil, "", "export"), "\n") {
+			if !strings.Contains(l, `"kind":"undelivered"`) {
+				keep = append(keep, l)
+			}
+		}
+		return strings.Join(keep, "\n")
+	}
 	if ea, eb := exportOf(h), exportOf(&hb); ea != eb {
 		t.Fatalf("exports differ after merging both ways")
 	}

@@ -189,6 +189,10 @@ Event semantics:
 - `answer`: `ref` is the `ask`. A second answer to the same question is
   allowed and is the one that counts (a changed decision).
 - `delivered`: `ref` is an `answer` that has been typed into its session.
+- `undelivered`: `ref` is an `answer` or `reply` that could not be typed into
+  its session; `meta.error` says why and `meta.resume` how to resume the
+  session by hand. A retry failing for the same reason adds none, and a later
+  `delivered` supersedes it.
 - `tell`: a notice or interim report. `level=notify` raises a notification.
 - `done`: a finished session's summary and report path, from `agent-done`.
 - `set`: new text for the slot at `path`. `clear`: the slot is empty from now.

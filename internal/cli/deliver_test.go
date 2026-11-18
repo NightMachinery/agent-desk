@@ -185,8 +185,14 @@ func TestMergeSSHDeliversRemoteAnswers(t *testing.T) {
 	if code != 0 || !strings.Contains(errOut, "other: agent-desk: a-") || !strings.Contains(errOut, "not delivered") {
 		t.Fatalf("second merge: %d %q", code, errOut)
 	}
+	// The remote side recorded why after the exchange; the next merge
+	// brings it here.
+	if strings.Contains(h.ok(nil, "", "export"), `"kind":"undelivered"`) || !strings.Contains(hb.ok(nil, "", "export"), `"kind":"undelivered"`) {
+		t.Fatal("the remote delivery failure is not where it was recorded")
+	}
+	h.run(sshEnv, "", "merge", "ssh:other")
 	if h.ok(nil, "", "export") != hb.ok(nil, "", "export") {
-		t.Fatal("stores differ after the second merge")
+		t.Fatal("stores differ after the third merge")
 	}
 }
 

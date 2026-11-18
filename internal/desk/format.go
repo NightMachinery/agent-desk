@@ -239,13 +239,17 @@ func (w *Writer) Message(level int, it Item) {
 }
 
 // DeliveryTag is the org tag for a message's or an answer's delivery:
-// pending, delivered, in_chat (an answer given in the agent's chat), plus
-// no_response once a delivered message has waited too long.
+// pending, undelivered (the last attempt failed), delivered, in_chat (an
+// answer given in the agent's chat), plus no_response once a delivered
+// message has waited too long.
 func (d *Desk) DeliveryTag(e store.Event) string {
 	if MetaString(e, "source") == "chat" {
 		return ":in_chat:"
 	}
 	if _, ok := d.Delivery(e.ID); !ok {
+		if _, failed := d.DeliveryFailure(e.ID); failed {
+			return ":undelivered:"
+		}
 		return ":pending:"
 	}
 	if d.NoResponse(e.ID) {
@@ -296,6 +300,12 @@ func (w *Writer) Thread(level int, thread []store.Event) {
 		w.props("DESK_ID", d.Display(e.ID), "DESK_PATH", e.Path, "DESK_TS", e.TS, "DESK_HOST", e.Host)
 		w.Text(e.Body)
 		w.Media(e)
+		if f, ok := d.DeliveryFailure(e.ID); ok {
+			w.Text("Not delivered: " + MetaString(f, "error"))
+			if r := MetaString(f, "resume"); r != "" {
+				w.Text("Resume its session: " + r)
+			}
+		}
 	}
 }
 

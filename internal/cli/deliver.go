@@ -266,7 +266,7 @@ func (a *App) deliverSession(d *desk.Desk, j job) (receipt, error) {
 			paseoReceipt(out, &r)
 			return r, nil
 		}
-		reasons = append(reasons, fmt.Sprintf("paseo send: %v: %s", err, out))
+		reasons = append(reasons, fmt.Sprintf("paseo send: %s (%v)", paseoError(out), err))
 	}
 	if f.Paseo == "" && f.TmuxPane != "" {
 		use, fallback := beh, ""
@@ -322,7 +322,7 @@ func (a *App) deliverSession(d *desk.Desk, j job) (receipt, error) {
 		msg = strings.Join(reasons, "; ")
 	}
 	if r := ResumeCommand(f); r != "" {
-		msg += ". Resume it with: " + r
+		msg += resumeSep + r
 	}
 	return receipt{}, fmt.Errorf("%w: %s", errUnreachable, msg)
 }
@@ -392,29 +392,73 @@ func (a *App) deliver(only string) (int, error) {
 	}
 	failed := 0
 	for _, j := range pending(d, a.Host, only) {
+		dest := j.msg.Path
+		if j.about.ID != "" {
+			dest = d.Display(j.about.ID)
+		}
+		st, err := a.store()
+		if err != nil {
+			return failed, err
+		}
 		r, err := a.deliverOne(d, j)
 		if err != nil {
 			failed++
 			fmt.Fprintf(a.Stderr, "agent-desk: %s not delivered: %v. `agent-desk deliver` retries.\n",
 				d.Display(j.msg.ID), err)
+			reason, resume, _ := strings.Cut(err.Error(), resumeSep)
+			reason = strings.TrimPrefix(reason, errUnreachable.Error()+": ")
+			a.deliverLog(d.Display(j.msg.ID), dest, "failed", reason)
+			// The reason is kept on the desk, where the dashboard shows it
+			// beside the message; a retry failing the same way adds nothing.
+			if last, ok := d.DeliveryFailure(j.msg.ID); !ok || desk.MetaString(last, "error") != reason {
+				m := map[string]any{"error": reason}
+				if resume != "" {
+					m["resume"] = resume
+				}
+				e := a.event("undelivered", j.msg.Path, ident.Resolve(a.Env), "cli", m)
+				e.Ref = j.msg.ID
+				if err := st.Append(e); err != nil {
+					return failed, err
+				}
+			}
 			continue
 		}
 		e := a.event("delivered", j.msg.Path, ident.Resolve(a.Env), "cli", r.meta())
 		e.Ref = j.msg.ID
-		st, err := a.store()
-		if err != nil {
-			return failed, err
-		}
 		if err := st.Append(e); err != nil {
 			return failed, err
 		}
-		dest := j.msg.Path
-		if j.about.ID != "" {
-			dest = d.Display(j.about.ID)
-		}
+		a.deliverLog(d.Display(j.msg.ID), dest, "delivered", strings.TrimSpace(r.Via+" "+r.Disposition))
 		fmt.Fprintf(a.Stderr, "agent-desk: %s delivered to %s via %s\n", d.Display(j.msg.ID), dest, r.Via)
 	}
 	return failed, nil
+}
+
+// resumeSep leads the resume command at the end of a delivery error.
+const resumeSep = ". Resume it with: "
+
+// deliverLog appends one line per delivery attempt to <desk>/deliver.log:
+// when, which message, where it was going, and how it went.
+func (a *App) deliverLog(id, dest, outcome, detail string) {
+	f, err := os.OpenFile(filepath.Join(a.Home, "deliver.log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	fmt.Fprintf(f, "%s %s -> %s %s: %s\n", a.Now().Format(time.RFC3339), id, dest, outcome, clipLine(detail, 2000))
+}
+
+// paseoError is the message in paseo's JSON error output, else the output.
+func paseoError(out string) string {
+	var v struct {
+		Error struct {
+			Code, Message string
+		}
+	}
+	if i := strings.Index(out, "{"); i >= 0 && json.Unmarshal([]byte(out[i:]), &v) == nil && v.Error.Message != "" {
+		return v.Error.Message
+	}
+	return strings.TrimSpace(out)
 }
 
 func (a *App) cmdDeliver(args []string) error {

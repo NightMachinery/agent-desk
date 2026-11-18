@@ -471,6 +471,12 @@ func (a *App) threadText(d *desk.Desk, thread []store.Event, title, highlight st
 		if len(state) > 0 {
 			fmt.Fprintf(&b, "    %s\n", dim(strings.Join(state, " · ")))
 		}
+		if f := en.Failure; f != nil {
+			fmt.Fprintf(&b, "    %s\n", red(fmt.Sprintf("%s ago: %s", f.Age, f.Error)))
+			if f.Resume != "" {
+				fmt.Fprintf(&b, "    %s\n", dim("resume it: "+f.Resume))
+			}
+		}
 	}
 	return b.String()
 }

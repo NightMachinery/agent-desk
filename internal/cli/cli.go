@@ -738,7 +738,7 @@ func (a *App) cmdPin(args []string, unpin bool) error {
 			return err
 		}
 		switch e.Kind {
-		case "read", "delivered", "pin", "pref", "notified", "retracted", "join":
+		case "read", "delivered", "undelivered", "pin", "pref", "notified", "retracted", "join":
 			return fmt.Errorf("%s is a %s mark; pin the item itself", d.Display(e.ID), e.Kind)
 		}
 		k := d.PinKey(e)
