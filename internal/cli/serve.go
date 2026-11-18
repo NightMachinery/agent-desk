@@ -102,9 +102,6 @@ var agentVars = map[string]bool{
 }
 
 func newServer(a *App, ui fs.FS) (*server, error) {
-	if _, err := a.store(); err != nil {
-		return nil, err
-	}
 	s := &server{a: a, ui: ui, poll: time.Second, logger: a.Stderr, sendWake: make(chan struct{}, 1)}
 	index, err := fs.ReadFile(ui, "index.html")
 	if err != nil {
@@ -418,12 +415,7 @@ func (s *server) apiDeliver(app *App, body request) (any, error) {
 		return nil, err
 	}
 	if e.Kind == "ask" {
-		for _, q := range d.Questions {
-			if q.ID == e.ID {
-				e = d.ByID[q.AnswerID]
-				break
-			}
-		}
+		e = d.ByID[d.AnswerID(e.ID)]
 	}
 	if e.Kind != "answer" && e.Kind != "reply" {
 		return nil, usagef("nothing to deliver for %s", body.ID)

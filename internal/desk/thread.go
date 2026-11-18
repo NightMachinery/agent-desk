@@ -77,6 +77,7 @@ type threadIndex struct {
 	responses map[string][]int
 	delivered map[string]int
 	failed    map[string]int
+	progress  map[string]int
 }
 
 func (d *Desk) indexThreads() {
@@ -85,6 +86,7 @@ func (d *Desk) indexThreads() {
 		responses: map[string][]int{},
 		delivered: map[string]int{},
 		failed:    map[string]int{},
+		progress:  map[string]int{},
 	}
 	for i, e := range d.Events {
 		x := e
@@ -92,9 +94,18 @@ func (d *Desk) indexThreads() {
 		case "delivered":
 			d.threads.delivered[e.Ref] = i
 			delete(d.threads.failed, e.Ref)
+			delete(d.threads.progress, e.Ref)
 			x = d.ByID[e.Ref]
-		case "undelivered":
-			d.threads.failed[e.Ref] = i
+		case "undelivered", "delivery-state":
+			if _, delivered := d.threads.delivered[e.Ref]; delivered {
+				continue
+			}
+			d.threads.progress[e.Ref] = i
+			if e.Kind == "undelivered" {
+				d.threads.failed[e.Ref] = i
+			} else if MetaString(e, "status") == "queued" {
+				delete(d.threads.failed, e.Ref)
+			}
 		}
 		if !inThread(x) {
 			continue
@@ -144,8 +155,16 @@ func (d *Desk) Delivery(id string) (store.Event, bool) {
 	return store.Event{}, false
 }
 
-// DeliveryFailure is the latest failed attempt to deliver message id, if
-// it has not been delivered since.
+// DeliveryProgress is the latest queue action or failure of a message
+// still awaiting delivery.
+func (d *Desk) DeliveryProgress(id string) (store.Event, bool) {
+	if i, ok := d.threads.progress[id]; ok {
+		return d.Events[i], true
+	}
+	return store.Event{}, false
+}
+
+// DeliveryFailure is the latest failed attempt in the current retry window.
 func (d *Desk) DeliveryFailure(id string) (store.Event, bool) {
 	if i, ok := d.threads.failed[id]; ok {
 		return d.Events[i], true

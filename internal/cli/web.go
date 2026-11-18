@@ -76,14 +76,6 @@ func fromTitle(f ident.From) string {
 // response state. pushed names the hosts in ssh_hosts.
 func entries(d *desk.Desk, thread []store.Event, pushed map[string]string) []Entry {
 	out := []Entry{}
-	if len(thread) == 0 {
-		return out
-	}
-	states := deliveryStates(d)
-	answers := map[string]string{}
-	for _, q := range d.Questions {
-		answers[q.ID] = q.AnswerID
-	}
 	for _, e := range thread {
 		if e.Kind == "delivered" {
 			continue
@@ -137,19 +129,21 @@ func entries(d *desk.Desk, thread []store.Event, pushed map[string]string) []Ent
 				QueuePosition: r.QueuePosition, Revived: r.Revived, Fallback: r.Fallback, OnAnswer: r.OnAnswer,
 				Age: desk.Age(d.Now.Sub(desk.Time(del)))}
 		} else if en.Source != "chat" {
+			state := deliveryProgress(d, e.ID)
+			answer := d.AnswerID(e.Ref)
 			switch {
 			case host != "" && host != d.Host && pushed[host] != "":
 				en.Pending = "sent to " + host + "; its delivery shows here after the next merge"
 			case host != "" && host != d.Host:
 				en.Pending = "waiting for a merge to " + host
-			case e.Kind == "answer" && answers[e.Ref] != "" && answers[e.Ref] != e.ID:
+			case e.Kind == "answer" && answer != "" && answer != e.ID:
 				en.Pending = "superseded by a newer answer"
-			case queuedByWeb(e) || states[e.ID].Status != "":
+			case queuedByWeb(e) || state.Status != "":
 				en.Pending = "queued"
 			default:
 				en.Pending = "not delivered yet"
 			}
-			if state := states[e.ID]; state.Error != "" && en.Pending != "superseded by a newer answer" {
+			if state.Error != "" && en.Pending != "superseded by a newer answer" {
 				f, _ := d.DeliveryFailure(e.ID)
 				en.Pending = "not delivered"
 				if state.RetryAt != "" && host == d.Host {

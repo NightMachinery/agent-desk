@@ -202,7 +202,7 @@ func TestServeQueueRetriesUntilDeliveredOrStopped(t *testing.T) {
 	}
 	d, err := desk.Load(st, s.a.Host, now)
 	must(t, err)
-	if state := deliveryStates(d)[interrupted]; state.Status != "" || !state.Uncertain {
+	if state := deliveryProgress(d, interrupted); state.Status != "" || !state.Uncertain {
 		t.Fatalf("interrupted marker did not become terminal: %+v", state)
 	}
 

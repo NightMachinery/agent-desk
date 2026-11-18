@@ -185,23 +185,19 @@ type sendProgress struct {
 
 func queuedByWeb(e store.Event) bool { return desk.Meta(e)["send_queue"] == true }
 
-func deliveryStates(d *desk.Desk) map[string]sendProgress {
-	states := map[string]sendProgress{}
-	for _, e := range d.Events {
-		if e.Kind != "delivery-state" && e.Kind != "undelivered" {
-			continue
-		}
-		var st sendProgress
-		_ = json.Unmarshal(e.Meta, &st)
-		// Older desks recorded timeouts as ordinary failures. Treat those
-		// existing messages as unconfirmed before offering a retry.
-		if message, ok := strings.CutPrefix(st.Error, "paseo send: "); ok {
-			st.Uncertain = st.Uncertain || paseoAcknowledgementLost(message)
-		}
-		st.ID = e.ID
-		states[e.Ref] = st
+func deliveryProgress(d *desk.Desk, id string) sendProgress {
+	e, ok := d.DeliveryProgress(id)
+	if !ok {
+		return sendProgress{}
 	}
-	return states
+	var state sendProgress
+	_ = json.Unmarshal(e.Meta, &state)
+	// Older desks recorded timeouts as ordinary failures.
+	if message, ok := strings.CutPrefix(state.Error, "paseo send: "); ok {
+		state.Uncertain = state.Uncertain || paseoAcknowledgementLost(message)
+	}
+	state.ID = e.ID
+	return state
 }
 
 func (a *App) deliveryState(msg store.Event, kind string, progress sendProgress) store.Event {
@@ -242,7 +238,7 @@ func (s *server) queueRetry(app *App, d *desk.Desk, e store.Event) (any, error) 
 		result["status"] = "delivered"
 		return result, nil
 	}
-	state := deliveryStates(d)[e.ID]
+	state := deliveryProgress(d, e.ID)
 	if state.Uncertain {
 		return nil, usagef("delivery could not be confirmed. Check its session before sending again")
 	}

@@ -372,14 +372,11 @@ func pending(d *desk.Desk, host string, only string) []job {
 		out = append(out, job{msg: ans, about: q.Event, to: fromOf(q.Event), host: q.Host, text: DeliveryText(d, q.Event, ans),
 			behavior: desk.MetaString(ans, "behavior")})
 	}
-	delivered := map[string]bool{}
 	for _, e := range d.Events {
-		if e.Kind == "delivered" {
-			delivered[e.Ref] = true
+		if e.Kind != "reply" || (only != "" && e.ID != only) {
+			continue
 		}
-	}
-	for _, e := range d.Events {
-		if e.Kind != "reply" || delivered[e.ID] || (only != "" && e.ID != only) {
+		if _, delivered := d.Delivery(e.ID); delivered {
 			continue
 		}
 		to, toHost := toOf(e)
@@ -414,9 +411,8 @@ func (a *App) deliverPending(only string, webOnly bool) (failed int, changed boo
 	if err != nil {
 		return 0, false, next, err
 	}
-	states := deliveryStates(d)
 	for _, j := range pending(d, a.Host, only) {
-		state := states[j.msg.ID]
+		state := deliveryProgress(d, j.msg.ID)
 		automatic := queuedByWeb(j.msg) || state.Deadline != "" || state.Status == "queued"
 		if webOnly && !automatic {
 			continue

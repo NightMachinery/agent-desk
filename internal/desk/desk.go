@@ -48,6 +48,7 @@ type Desk struct {
 	ByID      map[string]store.Event
 	Table     *ids.Table
 	Questions []store.Question
+	answers   map[string]string
 	unread    map[string]bool
 	dismissed map[string]bool // questions marked read: open, but out of Needs you
 	marked    map[string]bool // events whose latest read mark stands
@@ -60,6 +61,9 @@ type Desk struct {
 	// session is one of them takes its state from it rather than from time.
 	Live map[string]string
 }
+
+// AnswerID returns the answer that counts for the given question.
+func (d *Desk) AnswerID(question string) string { return d.answers[question] }
 
 // Load reads the store.
 func Load(s *store.Store, host string, now time.Time) (*Desk, error) {
@@ -82,6 +86,10 @@ func Load(s *store.Store, host string, now time.Time) (*Desk, error) {
 	d.indexThreads()
 	if d.Questions, err = s.Questions(); err != nil {
 		return nil, err
+	}
+	d.answers = make(map[string]string, len(d.Questions))
+	for _, question := range d.Questions {
+		d.answers[question.ID] = question.AnswerID
 	}
 	un, err := s.Query("unread", "")
 	if err != nil {
