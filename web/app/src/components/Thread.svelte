@@ -35,10 +35,11 @@
     return parts.length ? 'Its response notifies ' + parts.join(' and ') + '.' : '';
   }
   let retrying = $state('');
-  async function retry(id) {
+  async function retry(id, force = false, failureID = '') {
+    if (force && !window.confirm('The agent may already have this message and could get it twice. Send it again anyway?')) return;
     retrying = id;
     try {
-      const res = await post('deliver', { id });
+      const res = await post('deliver', { id, force, failure_id: failureID });
       toast(res.status === 'delivered' ? 'Already delivered.' : 'Retry queued.', 'info');
     } catch (e) {
       toast(e.message, 'error');
@@ -95,6 +96,9 @@
             {/if}
             {#if t.failure.uncertain}
               <div>Look for this message in the agent’s conversation before sending it again.</div>
+              <div><button class="btn small" disabled={retrying === t.display_id} onclick={() => retry(t.event.id, true, t.failure.id)}>
+                {retrying === t.display_id ? 'Queuing…' : 'Send again anyway'}
+              </button></div>
             {:else if !t.failure.retrying}
               <div><button class="btn small" disabled={retrying === t.display_id} onclick={() => retry(t.display_id)} data-cmd="deliver-retry">{retrying === t.display_id ? 'Queuing…' : 'Retry'}</button></div>
             {/if}

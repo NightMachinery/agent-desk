@@ -82,18 +82,25 @@ func runReal(ctx context.Context, stdin []byte, name string, args ...string) (st
 func (a *App) sameTmuxSession(ctx context.Context, f ident.From) error {
 	out, err := a.runExt(ctx, nil, "tmux", "display-message", "-p", "-t", f.TmuxPane,
 		"#{pane_id}\t#{pane_dead}\t#{pane_pid}\t#{@agent_session}")
+	gone := fmt.Errorf("tmux pane %s is gone", f.TmuxPane)
 	if err != nil {
-		return fmt.Errorf("tmux pane %s is gone", f.TmuxPane)
+		if strings.HasPrefix(out, "can't find pane:") {
+			return permanentDeliveryError{gone}
+		}
+		return gone
 	}
 	parts := strings.Split(out, "\t")
-	if len(parts) < 3 || parts[0] != f.TmuxPane || parts[1] == "1" {
-		return fmt.Errorf("tmux pane %s is gone", f.TmuxPane)
+	if len(parts) < 3 {
+		return gone
+	}
+	if parts[0] != f.TmuxPane || parts[1] == "1" {
+		return permanentDeliveryError{gone}
 	}
 	if f.TmuxPID != "" && parts[2] != f.TmuxPID {
-		return fmt.Errorf("tmux pane %s now runs another process", f.TmuxPane)
+		return permanentDeliveryError{fmt.Errorf("tmux pane %s now runs another process", f.TmuxPane)}
 	}
 	if len(parts) > 4 && parts[4] != "" && parts[4] != f.Session {
-		return fmt.Errorf("tmux pane %s now runs another agent session", f.TmuxPane)
+		return permanentDeliveryError{fmt.Errorf("tmux pane %s now runs another agent session", f.TmuxPane)}
 	}
 	return nil
 }
@@ -118,6 +125,8 @@ func (a *App) typeIntoPane(ctx context.Context, pane, text string) error {
 var errUnreachable = errors.New("unreachable")
 
 var errDeliveryUncertain = errors.New("delivery could not be confirmed")
+
+type permanentDeliveryError struct{ error }
 
 // job is one message to type into a session: an answer to the question it
 // asked, or a reply from the user.
@@ -235,6 +244,7 @@ func (a *App) deliverSession(d *desk.Desk, j job) (receipt, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), DeliverTimeout)
 	defer cancel()
 	var reasons []string
+	var stalePane permanentDeliveryError
 	if f.Paseo != "" {
 		// The behaviour is always explicit: paseo send interrupts the turn by
 		// default unless it is sent by an agent (PASEO_AGENT_ID set), and
@@ -291,6 +301,7 @@ func (a *App) deliverSession(d *desk.Desk, j job) (receipt, error) {
 		if errors.Is(err, errDeliveryUncertain) {
 			return receipt{}, err
 		}
+		_ = errors.As(err, &stalePane)
 		reasons = append(reasons, err.Error())
 	}
 	c, err := a.config()
@@ -335,7 +346,11 @@ func (a *App) deliverSession(d *desk.Desk, j job) (receipt, error) {
 	if r := ResumeCommand(f); r != "" {
 		msg += resumeSep + r
 	}
-	return receipt{}, fmt.Errorf("%w: %s", errUnreachable, msg)
+	failure := fmt.Errorf("%w: %s", errUnreachable, msg)
+	if c.DeliverCommand == "" && (stalePane.error != nil || (f.Paseo == "" && f.TmuxPane == "")) {
+		return receipt{}, permanentDeliveryError{failure}
+	}
+	return receipt{}, failure
 }
 
 // deliverLock serialises deliveries, so two runs never type one answer twice.
@@ -496,7 +511,8 @@ func (a *App) deliverPending(only string, webOnly bool) (failed int, changed boo
 			fmt.Fprintf(a.Stderr, "agent-desk: %s not delivered: %v. `agent-desk deliver` retries.\n", id, sendErr)
 		}
 		failure := sendProgress{ID: state.ID, Error: reason, Resume: resume, Uncertain: uncertain, Deadline: state.Deadline}
-		if automatic && !uncertain {
+		var permanent permanentDeliveryError
+		if automatic && !uncertain && !errors.As(sendErr, &permanent) {
 			failure.Attempts = state.Attempts + 1
 			retryAt := a.Now().Add(sendRetryDelay(failure.Attempts))
 			if retryAt.Before(parseSendTime(state.Deadline)) {
@@ -570,13 +586,37 @@ func paseoError(out string) string {
 }
 
 func (a *App) cmdDeliver(args []string) error {
-	if _, err := parse(args, nil, nil, 0, 0); err != nil {
+	o, err := parse(args, []string{"force"}, nil, 0, 1)
+	if err != nil {
 		return err
+	}
+	if o.bools["force"] != (len(o.pos) == 1) {
+		return usagef("usage: agent-desk deliver [--force <answer-or-reply-id>]")
 	}
 	if _, err := a.store(); err != nil {
 		return err
 	}
-	failed, err := a.deliver("")
+	only := ""
+	if o.bools["force"] {
+		d, err := a.load()
+		if err != nil {
+			return err
+		}
+		e, err := deliveryTarget(d, o.pos[0])
+		if err != nil {
+			return err
+		}
+		status, err := a.queueRetry(d, e, true, "")
+		if err != nil {
+			return err
+		}
+		if status == "delivered" {
+			fmt.Fprintln(a.Stdout, "Already delivered.")
+			return nil
+		}
+		only = deliveryJobID(e)
+	}
+	failed, err := a.deliver(only)
 	if err != nil {
 		return err
 	}

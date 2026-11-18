@@ -222,6 +222,53 @@ func TestServeQueueRetriesUntilDeliveredOrStopped(t *testing.T) {
 	if calls != 5 {
 		t.Fatalf("sent an unconfirmed message again: %d attempts", calls)
 	}
+
+	old := entry(timedOut).Failure.ID
+	warm, stamp, err := s.storedDesk()
+	must(t, err)
+	if _, ok := warm.DeliveryFailure(timedOut); !ok {
+		t.Fatal("warm snapshot lacks the last failure")
+	}
+	if code, _, _ := do(t, hd, "POST", "/api/deliver", fmt.Sprintf(`{"id":%q,"force":true,"failure_id":"stale"}`, timedOut), dashboard); code != 400 {
+		t.Fatalf("stale forced retry status: %d", code)
+	}
+	force := fmt.Sprintf(`{"id":%q,"force":true,"failure_id":%q}`, timedOut, old)
+	for i := 0; i < 2; i++ {
+		if code, body, _ := do(t, hd, "POST", "/api/deliver", force, dashboard); code != 200 || !strings.Contains(body, "queued") {
+			t.Fatalf("forced retry: %d %s", code, body)
+		}
+	}
+	cold, nextStamp, err := s.storedDesk()
+	must(t, err)
+	if cold == warm || nextStamp == stamp {
+		t.Fatal("delivery-state did not invalidate the cached desk")
+	}
+	if _, ok := cold.DeliveryFailure(timedOut); ok {
+		t.Fatal("a fresh attempt inherited the old failure")
+	}
+	if e := entry(timedOut); e.Pending != "queued" || e.Failure != nil {
+		t.Fatalf("forced retry is missing from the thread: %+v", e)
+	}
+	if state := deliveryProgress(cold, timedOut); !state.Forced || state.Status != "queued" {
+		t.Fatalf("forced retry was not recorded: %+v", state)
+	}
+	sendErr = nil
+	s.sendQueueStep()
+	s.sendQueueStep()
+	if e := entry(timedOut); e.Delivery == nil || calls != 6 {
+		t.Fatalf("forced retry delivery: %+v, attempts %d", e, calls)
+	}
+
+	h.now = now
+	h.respond = func(_ string, _ []string) (string, error) { return `{"disposition":"steered"}`, nil }
+	h.ok(nil, "", "deliver", "--force", legacy)
+	h.ok(nil, "", "deliver", "--force", legacy)
+	if e := entry(legacy); e.Delivery == nil {
+		t.Fatalf("CLI force did not deliver: %+v", e)
+	}
+	if delivered := h.delivered(t); len(delivered) != 4 {
+		t.Fatalf("expected one receipt per successful send: %+v", delivered)
+	}
 }
 
 func TestServeQuotaDismissUsesCachedListWithoutRescan(t *testing.T) {
@@ -246,5 +293,48 @@ func TestServeQuotaDismissUsesCachedListWithoutRescan(t *testing.T) {
 		if (action == "dismiss" && got != 2) || (action == "undismiss" && got != 0) || scans != 1 {
 			t.Fatalf("%s: %d scans, %s", action, scans, res)
 		}
+	}
+}
+
+func TestServeQueueStopsAfterConfirmedDeadPane(t *testing.T) {
+	h := newHarness(t)
+	h.tmux["%5"] = "work\tmain\t4242"
+	env := map[string]string{"AI_AGENT": "codex", "CODEX_THREAD_ID": sessB, "TMUX_PANE": "%5"}
+	h.ok(env, "", "join", "r1/coord")
+	q := h.ok(env, "context", "ask", "--blocked", "--title", "Fixture question")
+	checks := 0
+	h.respond = func(name string, args []string) (string, error) {
+		if name != "tmux" || args[0] != "display-message" {
+			t.Fatalf("unexpected transport operation: %s %v", name, args)
+		}
+		checks++
+		return "%5\t1\t4242", nil
+	}
+	s, hd := testServer(t, h)
+	now := s.a.Now()
+	s.a.Now = func() time.Time { return now }
+	if code, body, _ := do(t, hd, "POST", "/api/answer", fmt.Sprintf(`{"id":%q,"text":"yes"}`, q), dashboard); code != 200 {
+		t.Fatalf("answer: %d %s", code, body)
+	}
+	s.sendQueueStep()
+	now = now.Add(time.Minute)
+	s.sendQueueStep()
+	_, body, _ := do(t, hd, "GET", "/api/item?id="+q, "", nil)
+	var item itemResponse
+	must(t, json.Unmarshal([]byte(body), &item))
+	entry := item.Thread[0]
+	if checks != 1 || entry.Pending != "not delivered" || entry.Failure == nil ||
+		entry.Failure.Retrying || entry.Failure.Uncertain || !strings.Contains(entry.Failure.Error, "pane %5 is gone") {
+		t.Fatalf("dead pane: %d checks, %+v", checks, item.Thread)
+	}
+}
+
+func TestSendRetryWindowAttemptBudget(t *testing.T) {
+	attempts := 0
+	for due := time.Duration(0); due < sendRetryWindow; due += sendRetryDelay(attempts) {
+		attempts++
+	}
+	if attempts != 149 {
+		t.Fatalf("a full retry window has at most 149 attempts, got %d", attempts)
 	}
 }

@@ -236,13 +236,15 @@ func (s *server) sameOriginAny(r *http.Request) error {
 
 // request is the JSON body of a write.
 type request struct {
-	SendKey string   `json:"send_key"` // idempotency key for answer and reply
-	ID      string   `json:"id"`       // answer, unread: the item
-	Text    string   `json:"text"`     // answer, reply
-	To      string   `json:"to"`       // reply: an item or a node path
-	Prompt  string   `json:"prompt"`   // reply: a prepared message instead of text (velocity-report)
-	Target  string   `json:"target"`   // read: an item or a node path
-	Targets []string `json:"targets"`  // read, unread: several at once
+	Force     bool     `json:"force"`      // deliver: retry even if the agent may already have it
+	FailureID string   `json:"failure_id"` // deliver: the failure shown when the user confirmed
+	SendKey   string   `json:"send_key"`   // idempotency key for answer and reply
+	ID        string   `json:"id"`         // answer, unread: the item
+	Text      string   `json:"text"`       // answer, reply
+	To        string   `json:"to"`         // reply: an item or a node path
+	Prompt    string   `json:"prompt"`     // reply: a prepared message instead of text (velocity-report)
+	Target    string   `json:"target"`     // read: an item or a node path
+	Targets   []string `json:"targets"`    // read, unread: several at once
 	// Behavior: answer, reply: steer, queue or interrupt (empty: default).
 	Behavior string `json:"behavior"`
 	// Notify: answer, reply: {desktop, remote} for the response to this
@@ -410,17 +412,18 @@ func (s *server) apiDeliver(app *App, body request) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	e, err := d.Resolve(body.ID)
+	e, err := deliveryTarget(d, body.ID)
 	if err != nil {
 		return nil, err
 	}
-	if e.Kind == "ask" {
-		e = d.ByID[d.AnswerID(e.ID)]
+	status, err := app.queueRetry(d, e, body.Force, body.FailureID)
+	if err != nil {
+		return nil, err
 	}
-	if e.Kind != "answer" && e.Kind != "reply" {
-		return nil, usagef("nothing to deliver for %s", body.ID)
+	if status == "queued" {
+		s.wakeSendQueue()
 	}
-	return s.queueRetry(app, d, e)
+	return map[string]string{"status": status}, nil
 }
 
 func (s *server) apiPin(app *App, body request) (any, error) {

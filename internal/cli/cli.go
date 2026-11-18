@@ -165,6 +165,7 @@ User side:
                                       node's velocity (internal/prompts; yours in
                                       ~/.config/agent-desk/prompts/ replaces it)
   agent-desk deliver                  retry answers and replies not yet delivered
+  agent-desk deliver --force <id>      retry an unconfirmed send even if the agent already got it
   agent-desk serve [--listen ADDR|unix:PATH] [--allow-host H,...] [--allow-origin URL,...]
                    [--pid-file F] [--config F.json]
                                       the web dashboard (default 127.0.0.1:7740)

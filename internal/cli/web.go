@@ -42,6 +42,7 @@ type Entry struct {
 // Failure is an undelivered mark: why the message did not reach its
 // session, and how to resume that session by hand.
 type Failure struct {
+	ID        string `json:"id"`
 	Error     string `json:"error"`
 	Resume    string `json:"resume,omitempty"`
 	Age       string `json:"age"`
@@ -149,7 +150,7 @@ func entries(d *desk.Desk, thread []store.Event, pushed map[string]string) []Ent
 				if state.RetryAt != "" && host == d.Host {
 					en.Pending = "retrying"
 				}
-				en.Failure = &Failure{Error: state.Error, Resume: state.Resume,
+				en.Failure = &Failure{ID: state.ID, Error: state.Error, Resume: state.Resume,
 					Age: desk.Age(d.Now.Sub(desk.Time(f))), Retrying: state.RetryAt != "", Uncertain: state.Uncertain}
 			}
 		}

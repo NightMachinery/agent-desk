@@ -192,6 +192,7 @@ type sendProgress struct {
 	Deadline  string `json:"deadline,omitempty"`
 	Attempts  int    `json:"attempts,omitempty"`
 	Uncertain bool   `json:"uncertain,omitempty"`
+	Forced    bool   `json:"forced,omitempty"`
 }
 
 func queuedForDelivery(e store.Event) bool { return desk.Meta(e)["send_queue"] == true }
@@ -222,7 +223,7 @@ func (a *App) deliveryState(msg store.Event, kind string, progress sendProgress)
 	}
 	e.Meta = meta(map[string]any{"status": progress.Status, "error": progress.Error, "resume": progress.Resume,
 		"retry_at": progress.RetryAt, "deadline": progress.Deadline, "attempts": progress.Attempts,
-		"uncertain": progress.Uncertain})
+		"uncertain": progress.Uncertain, "forced": progress.Forced})
 	e.Ref = msg.ID
 	return e
 }
@@ -243,33 +244,52 @@ func sendRetryDelay(attempts int) time.Duration {
 	return min(10*time.Minute, 15*time.Second<<min(max(0, attempts-1), 6))
 }
 
-func (s *server) queueRetry(app *App, d *desk.Desk, e store.Event) (any, error) {
-	result := map[string]string{"status": "queued"}
+func deliveryTarget(d *desk.Desk, token string) (store.Event, error) {
+	e, err := d.Resolve(token)
+	if err != nil {
+		return e, err
+	}
+	if e.Kind == "ask" {
+		e = d.ByID[d.AnswerID(e.ID)]
+	}
+	if e.Kind != "answer" && e.Kind != "reply" {
+		return e, usagef("nothing to deliver for %s", token)
+	}
+	return e, nil
+}
+
+func deliveryJobID(e store.Event) string {
+	if e.Kind == "answer" {
+		return e.Ref
+	}
+	return e.ID
+}
+
+func (a *App) queueRetry(d *desk.Desk, e store.Event, force bool, failureID string) (string, error) {
 	if _, ok := d.Delivery(e.ID); ok {
-		result["status"] = "delivered"
-		return result, nil
+		return "delivered", nil
 	}
 	state := deliveryProgress(d, e.ID)
-	if state.Uncertain {
-		return nil, usagef("delivery could not be confirmed. Check its session before sending again")
+	if state.Status != "" {
+		return "queued", nil
 	}
-	only := e.ID
-	if e.Kind == "answer" {
-		only = e.Ref
+	if state.Uncertain && !force {
+		return "", usagef("delivery could not be confirmed. The agent may already have the message")
 	}
-	found := false
-	for _, j := range pending(d, app.Host, only) {
-		found = found || j.msg.ID == e.ID
+	if force && !state.Uncertain {
+		return "", usagef("force is for unconfirmed delivery. Use Retry for a confirmed failure")
 	}
-	if !found {
-		return nil, usagef("%s is not pending on this desk", d.Display(e.ID))
+	if failureID != "" && state.ID != failureID {
+		return "", usagef("the delivery state changed. Check the latest attempt before sending again")
 	}
-	if state.Status == "" {
-		retry := app.deliveryState(e, "delivery-state", sendProgress{Status: "queued", ID: state.ID})
-		if _, err := app.st.AppendDeliveryIfCurrent(retry, state.ID); err != nil {
-			return nil, sendUnavailable{err}
+	for _, j := range pending(d, a.Host, deliveryJobID(e)) {
+		if j.msg.ID == e.ID {
+			retry := a.deliveryState(e, "delivery-state", sendProgress{Status: "queued", Forced: force, ID: state.ID})
+			if _, err := a.st.AppendDeliveryIfCurrent(retry, state.ID); err != nil {
+				return "", sendUnavailable{err}
+			}
+			return "queued", nil
 		}
 	}
-	s.wakeSendQueue()
-	return result, nil
+	return "", usagef("%s is not pending on this desk", d.Display(e.ID))
 }
