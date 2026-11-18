@@ -1,7 +1,6 @@
 <script>
   import { route, href } from '../lib/route.svelte.js';
-  import { kindOf, kindLabel, titleOf } from '../lib/format.js';
-  import { previewLine } from '../lib/md.js';
+  import { kindOf, kindLabel, titleOf, previewLine } from '../lib/format.js';
   import Icon from './Icon.svelte';
   import { desk } from '../lib/desk.svelte.js';
   import { sel, toggle, selecting } from '../lib/select.svelte.js';

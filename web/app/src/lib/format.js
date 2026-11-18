@@ -142,3 +142,15 @@ export function originText(o, path) {
   if (o.source === 'config') return `config default${cls}`;
   return 'built in';
 }
+
+// The first meaningful line of a body, without its markdown markers, for a
+// one-line preview.
+export function previewLine(text) {
+  const line = (text || '').split('\n').find((l) => l.trim()) || '';
+  return line
+    .replace(/^\s{0,3}(#{1,6}\s+|>\s*|[-*+]\s+(\[[ xX]\]\s+)?|\d+[.)]\s+)/, '')
+    .replace(/\*\*(.+?)\*\*|__(.+?)__/g, '$1$2')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+    .trim();
+}

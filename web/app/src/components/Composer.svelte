@@ -1,4 +1,5 @@
 <script>
+  import LazyPanel from './LazyPanel.svelte';
   import { onDestroy, tick, untrack } from 'svelte';
   import { tip } from '../lib/shortcuts.js';
   // A text box that sends on ⌘/Ctrl+Enter, with optional quick replies.
@@ -10,7 +11,6 @@
   import { get, upload } from '../lib/api.js';
   import { clearDraft, loadDraft, saveDraft } from '../lib/drafts.js';
   import Sheet from './Sheet.svelte';
-  import Recordings from './Recordings.svelte';
   import { captureVoice, placeBlock, transcriptBlock, voiceToken, voiceTokens } from '../lib/voice.js';
 
   // compose turns the typed text into what is sent (a question's picks plus
@@ -429,7 +429,7 @@
 </div>
 
 <Sheet bind:open={recordingBin} title="Recordings">
-  {#if recordingBin}<Recordings node={voiceNode} insert={insertRecording} />{/if}
+  {#if recordingBin}<LazyPanel view={import('./Recordings.svelte')} node={voiceNode} insert={insertRecording} />{/if}
 </Sheet>
 
 <Sheet bind:open={missingOpen} title="Recording removed">

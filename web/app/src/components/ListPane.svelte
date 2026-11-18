@@ -1,4 +1,5 @@
 <script>
+  import LazyPanel from './LazyPanel.svelte';
   import CopyIds from './CopyIds.svelte';
   import { tip } from '../lib/shortcuts.js';
   import { route, href, go } from '../lib/route.svelte.js';
@@ -7,7 +8,6 @@
   import { post } from '../lib/api.js';
   import ItemRow from './ItemRow.svelte';
   import TreeNode from './TreeNode.svelte';
-  import NodePanel from './NodePanel.svelte';
   import Deferred from './Deferred.svelte';
   import ScreenStrip from './ScreenStrip.svelte';
   import PushNudge from './PushNudge.svelte';
@@ -167,7 +167,7 @@
     <div class="skeleton short"></div>
   {:else}
     {#if view.node}
-      <div class="phone-node"><NodePanel node={view.node} target={view.target} conversation={view.conversation} stamp={view.stamp} {onchange} compact /></div>
+      <div class="phone-node"><LazyPanel view={import('./NodePanel.svelte')} node={view.node} target={view.target} conversation={view.conversation} stamp={view.stamp} {onchange} compact /></div>
     {/if}
 
     <PushNudge />

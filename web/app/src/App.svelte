@@ -1,4 +1,5 @@
 <script>
+  import LazyPanel from './components/LazyPanel.svelte';
   import { route, go } from './lib/route.svelte.js';
   import { get, watch } from './lib/api.js';
   import { startOutbox } from './lib/outbox.svelte.js';
@@ -11,12 +12,9 @@
   import Keys from './components/Keys.svelte';
   import Sidebar from './components/Sidebar.svelte';
   import ListPane from './components/ListPane.svelte';
-  import Detail from './components/Detail.svelte';
   import ColdCacheDialog from './components/ColdCacheDialog.svelte';
   import { watchCache } from './lib/cache.svelte.js';
-  import NodePanel from './components/NodePanel.svelte';
   import Settings from './components/Settings.svelte';
-  import Recordings from './components/Recordings.svelte';
   import SetEditor from './components/SetEditor.svelte';
   import { setsUi } from './lib/sets.svelte.js';
 
@@ -155,7 +153,7 @@
 
   <aside class="detail" data-pane="detail" class:focused={focused === 'detail'}>
     {#if route.item}
-      <Detail {item} error={itemError} onchange={refresh} />
+      <LazyPanel view={import('./components/Detail.svelte')} {item} error={itemError} onchange={refresh} />
     {:else if route.settings}
       <section class="settings-page">
         <div class="settings-bar">
@@ -166,11 +164,11 @@
         <Settings path={route.path} stamp={view?.stamp} onchange={refresh} />
         <details ontoggle={(event) => (showRecordings = event.currentTarget.open)}>
           <summary>Recordings</summary>
-          {#if showRecordings}<Recordings />{/if}
+          {#if showRecordings}<LazyPanel view={import('./components/Recordings.svelte')} />{/if}
         </details>
       </section>
     {:else if view?.node}
-      <NodePanel node={view.node} target={view.target} conversation={view.conversation} stamp={view.stamp} onchange={refresh} />
+      <LazyPanel view={import('./components/NodePanel.svelte')} node={view.node} target={view.target} conversation={view.conversation} stamp={view.stamp} onchange={refresh} />
     {:else}
       <div class="placeholder">
         <svg viewBox="0 0 32 32" width="40" height="40" aria-hidden="true"
