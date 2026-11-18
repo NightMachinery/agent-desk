@@ -5,8 +5,10 @@
 // directly: no puppeteer, nothing to install beyond Node 22+ and Chrome.
 //
 //   node scripts/shot.mjs URL OUT.png [--width 1360] [--height 860] [--wait 1500] [--timeout 30000]
-//                         [--scale 2] [--transparent] [--js 'code'] [--js-file F]
+//                         [--init-file F] [--slow-phone] [--scale 2] [--transparent] [--js 'code'] [--js-file F]
 //
+// --init-file registers a script before navigation. --slow-phone emulates
+// 2 Mbps down, 1 Mbps up, 80 ms latency and a fourfold CPU slowdown.
 // The code runs as the body of an async function; its return value is printed
 // as JSON, so a check can both show and assert. --timeout bounds the whole
 // run after --wait (default 30 s); raise it for a check that waits on a timer. --width under 600 emulates a
@@ -32,11 +34,15 @@ function usage(msg) {
 
 const args = process.argv.slice(2);
 const pos = [];
-const opt = { width: 1360, height: 860, wait: 1500, timeout: 30000, scale: 2, js: '', transparent: false };
+const opt = { width: 1360, height: 860, wait: 1500, timeout: 30000, scale: 2, js: '', init: '', slowPhone: false, transparent: false };
 for (let i = 0; i < args.length; i++) {
   const a = args[i];
   if (!a.startsWith('--')) {
     pos.push(a);
+    continue;
+  }
+  if (a === '--slow-phone') {
+    opt.slowPhone = true;
     continue;
   }
   if (a === '--transparent') {
@@ -46,6 +52,7 @@ for (let i = 0; i < args.length; i++) {
   const v = args[++i];
   if (v === undefined) usage(`${a} needs a value`);
   if (a === '--js') opt.js = v;
+  else if (a === '--init-file') opt.init = readFileSync(v, 'utf8');
   else if (a === '--js-file') opt.js = readFileSync(v, 'utf8');
   else if (['--width', '--height', '--wait', '--timeout', '--scale'].includes(a)) {
     opt[a.slice(2)] = Number(v);
@@ -132,6 +139,14 @@ try {
   if (mobile) await call('Emulation.setTouchEmulationEnabled', { enabled: true });
   if (opt.transparent) await call('Emulation.setDefaultBackgroundColorOverride', { color: { r: 0, g: 0, b: 0, a: 0 } });
   await call('Page.enable');
+  if (opt.init) await call('Page.addScriptToEvaluateOnNewDocument', { source: opt.init });
+  if (opt.slowPhone) {
+    await call('Network.enable');
+    await call('Network.emulateNetworkConditions', {
+      offline: false, latency: 80, downloadThroughput: 250000, uploadThroughput: 125000, connectionType: 'cellular4g',
+    });
+    await call('Emulation.setCPUThrottlingRate', { rate: 4 });
+  }
   await call('Page.navigate', { url });
   await sleep(opt.wait);
   if (opt.js) {
