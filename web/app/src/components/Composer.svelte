@@ -7,7 +7,7 @@
   // at once and sent with the message; the session gets their paths.
   import { behaviorLabel, behaviorHelp, desktopText, remoteText } from '../lib/format.js';
   import { upload } from '../lib/api.js';
-  import { loadDraft, saveDraft } from '../lib/drafts.js';
+  import { clearDraft, loadDraft, saveDraft } from '../lib/drafts.js';
   import Sheet from './Sheet.svelte';
 
   // compose turns the typed text into what is sent (a question's picks plus
@@ -96,6 +96,7 @@
   async function submit(value = text, behavior = '') {
     if (compose) value = compose(value);
     if ((!value.trim() && !readyFiles.length) || busy || uploading) return;
+    const key = draft;
     busy = true;
     try {
       const opts = {};
@@ -103,9 +104,12 @@
       if (overridden) opts.notify = Object.fromEntries(Object.entries(notify).filter(([, v]) => v));
       if (readyFiles.length) opts.media = readyFiles.map((f) => f.ref);
       if (await send(value, opts)) {
-        text = '';
-        notify = { desktop: '', remote: '' };
-        files = [];
+        clearDraft(key);
+        if (draft === key) {
+          text = '';
+          notify = { desktop: '', remote: '' };
+          files = [];
+        }
       }
     } finally {
       busy = false;

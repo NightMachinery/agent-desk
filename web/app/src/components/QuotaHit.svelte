@@ -14,11 +14,13 @@
   import { toast } from '../lib/toast.svelte.js';
   import { copy, short } from '../lib/format.js';
 
-  let { stamp = '', path = '', collapsed = false, count = $bindable(0) } = $props();
+  let { stamp = '', path = '', collapsed = false, count = $bindable(0), hiddenCount = $bindable(0) } = $props();
   let data = $state({ agents: [], profiles: [] });
   let busy = $state('');
   let menu = $state(''); // the agent whose Replace menu is open
   let showDismissed = $state(false);
+  let revision = 0;
+  let loadSeq = 0;
 
   const inScope = (a) => !path || (a.scopes ?? []).some((sc) => sc === path || sc.startsWith(path + '/'));
   // The card names its desk nodes: several as "N nodes" with the paths in
@@ -26,9 +28,10 @@
   const nodes = (a) => a.nodes ?? [];
   const scoped = $derived((data.agents ?? []).filter(inScope));
   const dismissed = $derived(scoped.filter((a) => a.dismissed).length);
-  const shown = $derived(showDismissed ? scoped : scoped.filter((a) => !a.dismissed));
+  const shown = $derived(scoped.filter((a) => !!a.dismissed === (showDismissed && dismissed > 0)));
   $effect(() => {
     count = scoped.length - dismissed;
+    hiddenCount = dismissed;
   });
 
   const picked = new SvelteSet(); // Paseo ids
@@ -73,10 +76,38 @@
   }
 
   async function load(fresh = false) {
+    const seq = ++loadSeq;
+    const started = revision;
     try {
-      data = await get('quota', { fresh: fresh ? 1 : '' });
+      const result = await get('quota', { fresh: fresh ? 1 : '' });
+      if (seq === loadSeq && started === revision && !busy.startsWith('dismiss:')) data = result;
     } catch {
-      data = { agents: [], profiles: [] };
+      // Keep the last list available while the connection recovers.
+    }
+  }
+
+  function setHidden(ids, hidden) {
+    data.agents = data.agents.map((agent) => ids.has(agent.paseo) ? { ...agent, dismissed: hidden } : agent);
+  }
+
+  async function dismiss(ids, hidden) {
+    if (!ids.length || busy) return;
+    const targets = new Set(ids);
+    const activity = Object.fromEntries(data.agents.filter((a) => targets.has(a.paseo)).map((a) => [a.paseo, a.last_active || '']));
+    busy = 'dismiss:' + ids[0];
+    revision++;
+    setHidden(targets, hidden);
+    try {
+      await post('quota', { action: hidden ? 'dismiss' : 'undismiss', targets: ids, quota_activity: activity });
+      const suffix = ids.length === 1 ? '.' : ` ${ids.length} agents.`;
+      toast((hidden ? 'Dismissed' : 'Restored') + suffix, 'ok', 6000);
+      if (!dismissed) showDismissed = false;
+    } catch (err) {
+      setHidden(targets, !hidden);
+      toast(err.message, 'error', 9000);
+    } finally {
+      revision++;
+      busy = '';
     }
   }
   $effect(() => {
@@ -119,6 +150,9 @@
       <span class="faint">{picked.size} selected</span>
       <button class="btn small" data-cmd="quota-copy-ids" disabled={!picked.size} onclick={copyPicked}
         title="Copy the selected agents' Paseo ids, one per line">Copy Paseo IDs</button>
+      <button class="btn small" disabled={!picked.size || !!busy} onclick={() => dismiss(shownIds.filter((id) => picked.has(id)), !showDismissed)}>
+        {showDismissed ? 'Undismiss selected' : 'Dismiss selected'}
+      </button>
       {#if picked.size && !sel.mode}
         <button class="icon" title="Clear the selection" aria-label="Clear the selection" onclick={() => picked.clear()}>
           <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" /></svg>
@@ -138,11 +172,11 @@
         <div class="tools">
           <CopyIds paseo={a.paseo} keys={false} />
           {#if a.dismissed}
-            <button class="icon" title="Show it again" disabled={!!busy} onclick={() => act(a, 'undismiss', 'Shown again.')}>
+            <button class="icon" title="Show it again" disabled={!!busy} onclick={() => dismiss([a.paseo], false)}>
               <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8a5 5 0 1 0 1.5-3.5M3 2.5V5h2.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
             </button>
           {:else}
-            <button class="icon" data-cmd="quota-dismiss" title="Dismiss: hide it until it runs and stops again" disabled={!!busy} onclick={() => act(a, 'dismiss', 'Dismissed.')}>
+            <button class="icon" data-cmd="quota-dismiss" title="Dismiss: hide it until it runs and stops again" disabled={!!busy} onclick={() => dismiss([a.paseo], true)}>
               <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" /></svg>
             </button>
           {/if}
@@ -178,7 +212,7 @@
               <svg width="10" height="10" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
             </button>
             {#if menu === a.paseo}
-              <div class="menu" role="menu" onclick={(e) => e.stopPropagation()}>
+              <div class="menu" role="menu" tabindex="-1" onclick={(e) => e.stopPropagation()}>
                 <div class="menu-head faint">Replace with a new agent on</div>
                 <button role="menuitem" onclick={() => act(a, 'replace', 'Started a replacement.')}>The default profile</button>
                 {#each data.profiles ?? [] as p (p)}

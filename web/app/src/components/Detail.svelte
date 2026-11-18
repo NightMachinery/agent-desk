@@ -6,6 +6,7 @@
   import { post } from '../lib/api.js';
   import { toast } from '../lib/toast.svelte.js';
   import { clearDraft } from '../lib/drafts.js';
+  import { pendingMessages, queueMessage } from '../lib/outbox.svelte.js';
   import { desk } from '../lib/desk.svelte.js';
   import { agentName, copy, kindLabel, kindOf, sessionOf, short, slotName, titleOf, viaText } from '../lib/format.js';
   import Composer from './Composer.svelte';
@@ -22,6 +23,8 @@
   const e = $derived(it?.event);
   const kind = $derived(it ? kindOf(it) : '');
   const isQuestion = $derived(e?.kind === 'ask');
+  const pending = $derived(pendingMessages([e?.id, it?.display_id, item?.thread_of], item?.thread));
+  const answerQueued = $derived(pending.some((m) => m.kind === 'answer' && !m.blocked));
   const crumbs = $derived(
     item ? item.node.split('/').map((name, i, all) => ({ name, path: all.slice(0, i + 1).join('/') })) : [],
   );
@@ -91,28 +94,13 @@
     }
   }
 
-  function report(res, what) {
-    toast(res.note ? `${what}. ${res.note}` : `${what}.`, res.note && /not delivered|merge/.test(res.note) ? 'info' : 'ok', res.note ? 7000 : 3000);
+  function answer(text, opts = {}) {
+    const queued = queueMessage('answer', { id: e.id, text, ...opts });
+    if (queued) clearDraft('choices:' + it.display_id);
+    return queued;
   }
-
-  async function answer(text, opts = {}) {
-    try {
-      report(await post('answer', { id: it.display_id, text, ...opts }), 'Answer recorded');
-      clearDraft('choices:' + it.display_id);
-      onchange();
-      return true;
-    } catch (err) {
-      toast(err.message, 'error');
-    }
-  }
-  async function reply(text, opts = {}) {
-    try {
-      report(await post('reply', { to: it.display_id, text, ...opts }), 'Message sent');
-      onchange();
-      return true;
-    } catch (err) {
-      toast(err.message, 'error');
-    }
+  function reply(text, opts = {}) {
+    return queueMessage('reply', { to: e.id, text, ...opts });
   }
   async function mark(read) {
     try {
@@ -250,7 +238,7 @@
       </div>
     {/if}
 
-    {#if item.thread.length}
+    {#if item.thread.length || pending.length}
       <div class="thread">
         {#if item.thread_of}
           <div class="thread-of faint">
@@ -260,11 +248,11 @@
         {:else}
           <div class="section-title">Conversation</div>
         {/if}
-        <Thread entries={item.thread} current={item.thread_of ? it.display_id : ''} remoteLabel={item.target?.remote_label} />
+        <Thread entries={item.thread} {pending} current={item.thread_of ? it.display_id : ''} remoteLabel={item.target?.remote_label} />
       </div>
     {/if}
 
-    {#if isQuestion && !item.answered}
+    {#if isQuestion && !item.answered && !answerQueued}
       <section class="act">
         {#if e.meta?.choices}
           <Choices choices={e.meta.choices} draft={'choices:' + it.display_id} bind:lines={choiceLines} bind:count={choiceCount} />

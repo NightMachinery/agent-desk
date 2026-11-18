@@ -12,6 +12,7 @@
   import ScreenStrip from './ScreenStrip.svelte';
   import QuotaHit from './QuotaHit.svelte';
   let quotaCount = $state(0);
+  let quotaHidden = $state(0);
   import { sel, toggleAll, clear, prune, markSelected, pinSelected, selecting } from '../lib/select.svelte.js';
   import { snapshot } from '../lib/nav.svelte.js';
   import { ui, toggleSection } from '../lib/ui.svelte.js';
@@ -186,12 +187,12 @@
       {/each}
     {/if}
 
-    <div class:hidden={!quotaCount}>
+    <div class:hidden={!quotaCount && !quotaHidden}>
       <h2 class="section-title" data-section="quota">
         {@render fold('quota', 'Out of quota')}
         <span class="count">{quotaCount}</span>
       </h2>
-      <QuotaHit stamp={view.stamp} path={route.path} collapsed={!!ui.collapsed.quota} bind:count={quotaCount} />
+      <QuotaHit stamp={view.stamp} path={route.path} collapsed={!!ui.collapsed.quota} bind:count={quotaCount} bind:hiddenCount={quotaHidden} />
     </div>
 
     {#if pinned.length}

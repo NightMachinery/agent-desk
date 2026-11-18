@@ -7,7 +7,9 @@ async function parse(res) {
   } catch {
     /* not JSON */
   }
-  if (!res.ok) throw new Error(body.error || `${res.status} ${res.statusText}`);
+  if (!res.ok) {
+    throw Object.assign(new Error(body.error || `${res.status} ${res.statusText}`), { status: res.status });
+  }
   return body;
 }
 
@@ -16,10 +18,12 @@ export async function get(name, params = {}) {
   return parse(await fetch(`./api/${name}?${qs}`, { headers: { Accept: 'application/json' } }));
 }
 
-export async function post(name, body) {
+/** @param {AbortSignal} [signal] */
+export async function post(name, body, signal) {
   return parse(
     await fetch(`./api/${name}`, {
       method: 'POST',
+      signal,
       headers: { 'Content-Type': 'application/json', 'X-Agent-Desk': '1' },
       body: JSON.stringify(body),
     }),

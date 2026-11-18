@@ -1,14 +1,21 @@
 <script>
   // A conversation: the user's messages and answers with their delivery and
   // response state, and the agents' responses, oldest first.
+  import { untrack } from 'svelte';
   import { href } from '../lib/route.svelte.js';
   import { dispositionText, deliveryTitle, desktopText, remoteText } from '../lib/format.js';
   import Markdown from './Markdown.svelte';
   import Attachments from './Attachments.svelte';
   import { post } from '../lib/api.js';
   import { toast } from '../lib/toast.svelte.js';
+  import { acknowledgeMessages, retryPost } from '../lib/outbox.svelte.js';
 
-  let { entries = [], current = '', remoteLabel = '' } = $props();
+  let { entries = [], pending = [], current = '', remoteLabel = '' } = $props();
+
+  $effect(() => {
+    const currentEntries = entries;
+    untrack(() => acknowledgeMessages(currentEntries));
+  });
 
   $effect(() => {
     if (!current) return;
@@ -31,8 +38,8 @@
   async function retry(id) {
     retrying = id;
     try {
-      await post('deliver', { id });
-      toast('Delivered.', 'ok');
+      const res = await post('deliver', { id });
+      toast(res.status === 'delivered' ? 'Already delivered.' : 'Retry queued.', 'info');
     } catch (e) {
       toast(e.message, 'error');
     } finally {
@@ -60,11 +67,11 @@
             <span class="chip">given in chat</span>
           {:else}
             {#if t.behavior && t.behavior !== 'steer'}<span class="chip">{t.behavior === 'queue' ? 'after its turn' : 'stop and send'}</span>{/if}
-            <span class="chip">sent</span>
             {#if t.delivery}
-              <span class="chip ok" title={deliveryTitle(t.delivery)}>{dispositionText(t.delivery)}</span>
-            {:else if t.pending}
-              <span class="chip {t.failure ? 'blocked' : 'waiting'}">{t.pending}</span>
+              {@const disposition = dispositionText(t.delivery)}
+              <span class="chip ok" title={deliveryTitle(t.delivery)}>{disposition.startsWith('delivered') ? disposition : 'delivered · ' + disposition}</span>
+            {:else if t.pending && !t.failure}
+              <span class="chip waiting">{t.pending}</span>
             {/if}
           {/if}
           {#if t.status === 'responded'}
@@ -78,7 +85,7 @@
         {#if t.delivery?.fallback}<div class="note">Sent as {t.delivery.behavior}: {t.delivery.fallback}</div>{/if}
         {#if t.failure && !t.delivery}
           <div class="failure" data-failure>
-            <div><strong>Not delivered</strong> <span class="faint">({t.failure.age} ago)</span>: {t.failure.error}</div>
+            <div><strong>{t.failure.retrying ? 'Retrying' : t.failure.uncertain ? 'Delivery unconfirmed' : 'Not delivered'}</strong> <span class="faint">({t.failure.age} ago)</span>: {t.failure.error}</div>
             {#if t.failure.resume}
               <div class="resume">
                 <span class="faint">Resume its session by hand:</span>
@@ -86,7 +93,11 @@
                 <button class="btn ghost small" onclick={() => copy(t.failure.resume)}>Copy</button>
               </div>
             {/if}
-            <div><button class="btn small" disabled={retrying === t.display_id} onclick={() => retry(t.display_id)} data-cmd="deliver-retry">{retrying === t.display_id ? 'Retrying…' : 'Retry'}</button></div>
+            {#if t.failure.uncertain}
+              <div>Check the agent’s conversation before sending again.</div>
+            {:else if !t.failure.retrying}
+              <div><button class="btn small" disabled={retrying === t.display_id} onclick={() => retry(t.display_id)} data-cmd="deliver-retry">{retrying === t.display_id ? 'Queuing…' : 'Retry'}</button></div>
+            {/if}
           </div>
         {/if}
         {#if notifyNote(t.notify)}<div class="note">{notifyNote(t.notify)}</div>{/if}
@@ -97,6 +108,30 @@
       {/if}
       {#if t.event.body}<Markdown text={t.event.body} />{/if}
       <Attachments media={t.media} />
+    </li>
+  {/each}
+  {#each pending as message (message.key)}
+    <li class="entry" class:answer={message.kind === 'answer'} class:message={message.kind === 'reply'}>
+      <div class="head"><strong>{message.kind === 'answer' ? 'Your answer' : 'Your message'}</strong></div>
+      {#if message.blocked}
+        <div class="failure">
+          <div><strong>Could not queue</strong>: {message.error}</div>
+          <div>
+            <button class="btn small" onclick={() => retryPost(message.key)}>Retry</button>
+            {#if message.body.text}<button class="btn ghost small" onclick={() => copy(message.body.text)}>Copy text</button>{/if}
+          </div>
+        </div>
+      {:else}
+        <div class="chips"><span class="chip waiting" role="status">{message.error ? 'queued · reconnecting' : 'queued'}</span></div>
+      {/if}
+      {#if message.body.text}
+        <Markdown text={message.body.text} />
+      {:else if message.body.prompt === 'velocity-report'}
+        <div class="note">Request for a velocity report</div>
+      {/if}
+      {#if message.body.media?.length}
+        <div class="note">{message.body.media.map((ref) => ref.name).join(', ')}</div>
+      {/if}
     </li>
   {/each}
 </ol>

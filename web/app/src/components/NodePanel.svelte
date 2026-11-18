@@ -4,6 +4,7 @@
   import { href } from '../lib/route.svelte.js';
   import { post } from '../lib/api.js';
   import { toast } from '../lib/toast.svelte.js';
+  import { pendingMessages, queueMessage } from '../lib/outbox.svelte.js';
   import { agentName, short, stateClass, viaText } from '../lib/format.js';
   import Composer from './Composer.svelte';
   import Markdown from './Markdown.svelte';
@@ -23,31 +24,16 @@
   const label = $derived(node.state === 'active' || node.state === 'quiet' ? `${node.state} ${node.age}` : node.state);
   let writing = $state(false);
 
-  async function reply(text, opts = {}) {
-    try {
-      const res = await post('reply', { to: node.path, text, ...opts });
-      toast(res.note ? `Message sent. ${res.note}` : 'Message sent.', 'ok', res.note ? 7000 : 3000);
-      writing = false;
-      onchange();
-      return true;
-    } catch (err) {
-      toast(err.message, 'error');
-    }
+  const pending = $derived(pendingMessages([node.path], conversation));
+
+  function reply(text, opts = {}) {
+    const queued = queueMessage('reply', { to: node.path, text, ...opts });
+    if (queued) writing = false;
+    return queued;
   }
-  // A prepared message (internal/prompts/velocity-report.md, which the user
-  // may override): an executive report on velocity.
-  let asking = $state(false);
-  async function askVelocity() {
-    asking = true;
-    try {
-      const res = await post('reply', { to: node.path, prompt: 'velocity-report' });
-      toast(res.note ? `Asked for a velocity report. ${res.note}` : 'Asked for a velocity report.', 'ok', res.note ? 7000 : 3000);
-      onchange();
-    } catch (err) {
-      toast(err.message, 'error');
-    } finally {
-      asking = false;
-    }
+  // The prompt is rendered on the server, using the node's current status.
+  function askVelocity() {
+    queueMessage('reply', { to: node.path, prompt: 'velocity-report' });
   }
   async function readAll() {
     try {
@@ -95,7 +81,7 @@
         </a>
         {#if s.name === 'velocity' && target}
           <div class="slot-act">
-            <button data-cmd="velocity-report" class="btn small" disabled={asking} title={tip('Ask the agent for an executive report on its velocity, and whether the work is progressing well', 'velocity-report')} onclick={askVelocity}>Ask for a velocity report</button>
+            <button data-cmd="velocity-report" class="btn small" title={tip('Ask the agent for an executive report on its velocity, and whether the work is progressing well', 'velocity-report')} onclick={askVelocity}>Ask for a velocity report</button>
           </div>
         {/if}
       {/each}
@@ -126,15 +112,15 @@
     </details>
   {/if}
 
-  {#if conversation.length}
-    {#if compact}
+  {#if conversation.length || pending.length}
+    {#if compact && !pending.length}
       <details class="convo">
         <summary>Conversation ({conversation.length})</summary>
-        <Thread entries={conversation} remoteLabel={target?.remote_label} />
+        <Thread entries={conversation} {pending} remoteLabel={target?.remote_label} />
       </details>
     {:else}
       <div class="section-title">Conversation</div>
-      <Thread entries={conversation} remoteLabel={target?.remote_label} />
+      <Thread entries={conversation} {pending} remoteLabel={target?.remote_label} />
     {/if}
   {/if}
 

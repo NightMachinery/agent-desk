@@ -1,6 +1,7 @@
 <script>
   import { route, go } from './lib/route.svelte.js';
   import { get, watch } from './lib/api.js';
+  import { startOutbox } from './lib/outbox.svelte.js';
   import { toasts } from './lib/toast.svelte.js';
   import { desk } from './lib/desk.svelte.js';
   import { untrack } from 'svelte';
@@ -87,6 +88,8 @@
   });
   onLingerEnd(() => loadView());
 
+  $effect(() => untrack(() => startOutbox(refresh)));
+
   let timer;
   $effect(() =>
     watch(
@@ -94,7 +97,10 @@
         clearTimeout(timer);
         timer = setTimeout(refresh, 120);
       },
-      (s) => (live = s),
+      (s) => {
+        if (live === 'reconnecting' && s === 'live') refresh();
+        live = s;
+      },
     ),
   );
 
