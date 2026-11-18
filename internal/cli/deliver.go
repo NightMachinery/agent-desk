@@ -528,17 +528,22 @@ func uncertainPaseo(ctx context.Context, out string, err error) bool {
 	if ctx.Err() != nil || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) || errors.Is(err, exec.ErrWaitDelay) {
 		return true
 	}
-	msg := strings.ToLower(paseoError(out))
+	var exit *exec.ExitError
+	return paseoAcknowledgementLost(paseoError(out)) ||
+		(errors.As(err, &exit) && (exit.ExitCode() < 0 || strings.TrimSpace(out) == ""))
+}
+
+func paseoAcknowledgementLost(message string) bool {
+	msg := strings.ToLower(strings.TrimSpace(message))
 	if strings.HasPrefix(msg, "cannot connect to daemon at ") {
 		return false
 	}
-	for _, text := range []string{"timed out", "timeout", "disconnected", "connection closed", "transport closed", "socket closed", "connection reset"} {
+	for _, text := range []string{"timed out", "timeout", "disconnected", "connection closed", "transport closed", "socket closed", "connection reset", "(signal:"} {
 		if strings.Contains(msg, text) {
 			return true
 		}
 	}
-	var exit *exec.ExitError
-	return errors.As(err, &exit) && (exit.ExitCode() < 0 || strings.TrimSpace(out) == "")
+	return false
 }
 
 // resumeSep leads the resume command at the end of a delivery error.

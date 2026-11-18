@@ -94,7 +94,7 @@
               </div>
             {/if}
             {#if t.failure.uncertain}
-              <div>Check the agent’s conversation before sending again.</div>
+              <div>Look for this message in the agent’s conversation before sending it again.</div>
             {:else if !t.failure.retrying}
               <div><button class="btn small" disabled={retrying === t.display_id} onclick={() => retry(t.display_id)} data-cmd="deliver-retry">{retrying === t.display_id ? 'Queuing…' : 'Retry'}</button></div>
             {/if}

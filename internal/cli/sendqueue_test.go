@@ -205,6 +205,23 @@ func TestServeQueueRetriesUntilDeliveredOrStopped(t *testing.T) {
 	if state := deliveryStates(d)[interrupted]; state.Status != "" || !state.Uncertain {
 		t.Fatalf("interrupted marker did not become terminal: %+v", state)
 	}
+
+	// Desks written before the queue recorded killed sends without a
+	// structured flag. A manual retry must not resend one of those either.
+	legacy := queue("reply-request-005")
+	event, err = st.Get(legacy)
+	must(t, err)
+	must(t, st.Append(s.a.deliveryState(event, "undelivered", sendProgress{Error: "paseo send:  (signal: killed)"})))
+	if e := entry(legacy); e.Failure == nil || !e.Failure.Uncertain {
+		t.Fatalf("old timeout: %+v", e)
+	}
+	if code, _, _ := do(t, hd, "POST", "/api/deliver", fmt.Sprintf(`{"id":%q}`, legacy), dashboard); code != 400 {
+		t.Fatalf("old timeout retry status: %d", code)
+	}
+	s.sendQueueStep()
+	if calls != 5 {
+		t.Fatalf("sent an unconfirmed message again: %d attempts", calls)
+	}
 }
 
 func TestServeQuotaDismissUsesCachedListWithoutRescan(t *testing.T) {

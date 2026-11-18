@@ -193,6 +193,11 @@ func deliveryStates(d *desk.Desk) map[string]sendProgress {
 		}
 		var st sendProgress
 		_ = json.Unmarshal(e.Meta, &st)
+		// Older desks recorded timeouts as ordinary failures. Treat those
+		// existing messages as unconfirmed before offering a retry.
+		if message, ok := strings.CutPrefix(st.Error, "paseo send: "); ok {
+			st.Uncertain = st.Uncertain || paseoAcknowledgementLost(message)
+		}
 		st.ID = e.ID
 		states[e.Ref] = st
 	}
