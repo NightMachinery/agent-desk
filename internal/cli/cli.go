@@ -19,6 +19,7 @@ import (
 	"github.com/NightMachinery/agent-desk/internal/desk"
 	"github.com/NightMachinery/agent-desk/internal/ident"
 	"github.com/NightMachinery/agent-desk/internal/ids"
+	"github.com/NightMachinery/agent-desk/internal/media"
 	"github.com/NightMachinery/agent-desk/internal/render"
 	"github.com/NightMachinery/agent-desk/internal/store"
 )
@@ -109,8 +110,8 @@ Agent side (only coordinators write; workers report to their parent):
   agent-desk screen release | status [--host H]
   agent-desk answer <id> --from-chat 'text'   record an answer given in chat
   agent-desk done --title T [--report FILE]   <<'S' ... S   (agent-done calls this)
-      ask, tell and done take [--attach FILE --caption 'what it shows']...: images
-      and audio, up to 8; the desk keeps a copy
+      ask, tell and done take [--attach FILE --caption 'what it shows']...: any
+      file, up to 8; images, audio and video play in the dashboard
 
 User side:
   agent-desk inbox [<path-prefix>] [--all]    interactive (needs fzf)
@@ -124,6 +125,8 @@ User side:
                                       B: steer (joins the running turn), queue (waits for
                                       the turn to end) or interrupt (cancels it); the
                                       default is the deliver.behavior setting, else steer
+      answer and reply take [--attach FILE [--caption C]]...: the session gets
+      the files' paths
   agent-desk reply <id|path> --prompt velocity-report
                                       send a prepared message: an executive report on the
                                       node's velocity (internal/prompts; yours in
@@ -916,7 +919,7 @@ func (a *App) cmdLink(args []string) error {
 }
 
 func (a *App) cmdAnswer(args []string) error {
-	o, err := parse(args, nil, []string{"from-chat", "behavior", "notify-desktop", "notify-remote"}, 1, -1)
+	o, err := parse(args, nil, append([]string{"from-chat", "behavior", "notify-desktop", "notify-remote"}, attachOpts...), 1, -1)
 	if err != nil {
 		return err
 	}
@@ -950,17 +953,27 @@ func (a *App) cmdAnswer(args []string) error {
 			return usagef("give the answer once: agent-desk answer <id> --from-chat 'text'")
 		}
 		text = o.vals["from-chat"]
-	} else if len(o.pos) == 1 {
+	} else if len(o.pos) == 1 && !o.set["attach"] {
 		if text, err = a.stdinText(); err != nil {
 			return err
 		}
 	}
-	return a.recordAnswer(d, q, text, source, beh, notify)
+	if o.set["attach"] && source == "chat" {
+		return usagef("--attach goes with an answer from you, not one given in chat")
+	}
+	refs, err := a.attachRefs(o, false)
+	if err != nil {
+		return err
+	}
+	return a.recordAnswer(d, q, text, source, beh, notify, refs...)
 }
 
 // recordAnswer appends an answer to question q and prints its display id.
 // notify overrides where the response to it notifies.
-func (a *App) recordAnswer(d *desk.Desk, q store.Event, text, source, behavior string, notify map[string]string) error {
+func (a *App) recordAnswer(d *desk.Desk, q store.Event, text, source, behavior string, notify map[string]string, refs ...media.Ref) error {
+	if strings.TrimSpace(text) == "" && len(refs) > 0 {
+		text = attachedOnly
+	}
 	if strings.TrimSpace(text) == "" {
 		return usagef("answer needs the answer's text")
 	}
@@ -985,6 +998,12 @@ func (a *App) recordAnswer(d *desk.Desk, q store.Event, text, source, behavior s
 		if notify != nil {
 			extra["notify"] = notify
 		}
+	}
+	if len(refs) > 0 {
+		if extra == nil {
+			extra = map[string]any{}
+		}
+		extra["media"] = refs
 	}
 	e := a.event("answer", q.Path, ident.Resolve(a.Env), source, extra)
 	e.Ref, e.Body = q.ID, text

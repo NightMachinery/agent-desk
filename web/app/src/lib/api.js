@@ -26,6 +26,18 @@ export async function post(name, body) {
   );
 }
 
+/** Stores a file the user attaches; returns {ref, view}. */
+export async function upload(file) {
+  const qs = new URLSearchParams({ name: file.name || 'pasted-file' });
+  return parse(
+    await fetch(`./api/upload?${qs}`, {
+      method: 'POST',
+      headers: { 'Content-Type': file.type || 'application/octet-stream', 'X-Agent-Desk': '1' },
+      body: file,
+    }),
+  );
+}
+
 /** Calls onChange whenever the store changes; reports the connection. */
 export function watch(onChange, onStatus) {
   let es;

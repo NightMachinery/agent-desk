@@ -3,9 +3,12 @@ package cli
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -24,6 +27,18 @@ var attachOpts = []string{"attach", "caption"}
 // attach copies the files named by --attach into the desk and records them
 // in extra["media"]. Each --attach needs a --caption after it.
 func (a *App) attach(o opts, extra map[string]any) error {
+	refs, err := a.attachRefs(o, true)
+	if err != nil || len(refs) == 0 {
+		return err
+	}
+	extra["media"] = refs
+	return nil
+}
+
+// attachRefs copies the files named by --attach into the desk. A --caption
+// after an --attach describes it; the user's own (needCaption false) may
+// leave it out, and the file's name stands in.
+func (a *App) attachRefs(o opts, needCaption bool) ([]media.Ref, error) {
 	type pair struct{ file, caption string }
 	var ps []pair
 	for _, kv := range o.seq {
@@ -32,24 +47,27 @@ func (a *App) attach(o opts, extra map[string]any) error {
 			ps = append(ps, pair{file: kv[1]})
 		case "caption":
 			if len(ps) == 0 || ps[len(ps)-1].caption != "" {
-				return usagef("--caption describes the --attach before it: --attach FILE --caption 'what it shows'")
+				return nil, usagef("--caption describes the --attach before it: --attach FILE --caption 'what it shows'")
 			}
 			ps[len(ps)-1].caption = kv[1]
 		}
 	}
 	if len(ps) == 0 {
-		return nil
+		return nil, nil
 	}
 	if len(ps) > media.MaxPerItem {
-		return usagef("at most %d attachments per item, not %d", media.MaxPerItem, len(ps))
+		return nil, usagef("at most %d attachments per item, not %d", media.MaxPerItem, len(ps))
 	}
 	if _, err := a.store(); err != nil {
-		return err
+		return nil, err
 	}
 	var refs []media.Ref
 	for _, p := range ps {
+		if strings.TrimSpace(p.caption) == "" && !needCaption {
+			p.caption = filepath.Base(p.file)
+		}
 		if strings.TrimSpace(p.caption) == "" {
-			return usagef("%s needs a caption: --attach FILE --caption 'what it shows and why it matters'", p.file)
+			return nil, usagef("%s needs a caption: --attach FILE --caption 'what it shows and why it matters'", p.file)
 		}
 		f := p.file
 		if !filepath.IsAbs(f) && a.Env.Cwd != "" {
@@ -57,12 +75,11 @@ func (a *App) attach(o opts, extra map[string]any) error {
 		}
 		r, err := media.Add(a.Home, f, p.caption)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		refs = append(refs, r)
 	}
-	extra["media"] = refs
-	return nil
+	return refs, nil
 }
 
 // keepDays is media_keep_days, else 30; 0 keeps attachments for good.
@@ -196,6 +213,9 @@ func (a *App) mediaViews(d *desk.Desk, e store.Event) []MediaView {
 		switch {
 		case r.Present(a.Home):
 			v.URL, v.Path = "api/media/"+r.File(), r.Path(a.Home)
+			if v.Kind == "file" {
+				v.URL += "?name=" + url.QueryEscape(r.Name)
+			}
 		case days > 0 && collectable(d, e, time.Duration(days)*24*time.Hour):
 			v.Gone = fmt.Sprintf("deleted: the item was read or answered and is over %d days old (media_keep_days)", days)
 		case e.Host != a.Host:
@@ -249,7 +269,16 @@ func (s *server) apiMedia(w http.ResponseWriter, r *http.Request) {
 	h := w.Header()
 	h.Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox")
 	h.Set("X-Content-Type-Options", "nosniff")
-	h.Set("Content-Type", media.TypeOfFile(file))
+	t := media.TypeOfFile(file)
+	h.Set("Content-Type", t)
+	if media.KindOf(t) == "file" {
+		// Never shown in the page: a download, under its own name.
+		name := media.CleanName(r.URL.Query().Get("name"))
+		if r.URL.Query().Get("name") == "" {
+			name = file
+		}
+		h.Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": name}))
+	}
 	h.Set("Cache-Control", "private, max-age=31536000, immutable")
 	http.ServeFile(w, r, p)
 }
@@ -331,11 +360,11 @@ func (a *App) mergeMediaDir(dir string) {
 
 // mergeMediaSSH exchanges, with host, the files each side wants and the
 // other has. It runs after the events are merged both ways, so both want the
-// same files. It is best effort.
-func (a *App) mergeMediaSSH(ctx context.Context, sshBin, host, remote string) {
+// same files. It is best effort, and returns how many files it sent.
+func (a *App) mergeMediaSSH(ctx context.Context, sshBin, host, remote string) (sent int) {
 	want, err := a.wanted()
 	if err != nil || len(want) == 0 {
-		return
+		return 0
 	}
 	run := func(stdin io.Reader, stdout io.Writer, cmd string) error {
 		c := exec.CommandContext(ctx, sshBin, "-o", "BatchMode=yes", host, cmd)
@@ -350,7 +379,7 @@ func (a *App) mergeMediaSSH(ctx context.Context, sshBin, host, remote string) {
 	if err := run(nil, &list, remote+" media list"); err != nil {
 		// An older agent-desk there has no media command.
 		fmt.Fprintf(a.Stderr, "agent-desk: media on %s: %v\n", host, err)
-		return
+		return 0
 	}
 	theirs := map[string]bool{}
 	for _, f := range strings.Fields(list.String()) {
@@ -370,6 +399,8 @@ func (a *App) mergeMediaSSH(ctx context.Context, sshBin, host, remote string) {
 			src.Close()
 			if err != nil {
 				fmt.Fprintf(a.Stderr, "agent-desk: sending %s to %s: %v\n", f, host, err)
+			} else {
+				sent++
 			}
 		case !have && theirs[f]:
 			pr, pw := io.Pipe()
@@ -389,4 +420,61 @@ func (a *App) mergeMediaSSH(ctx context.Context, sshBin, host, remote string) {
 			}
 		}
 	}
+	return sent
+}
+
+// apiUpload stores a file the user attaches in the dashboard, before the
+// answer or message that carries it is sent: POST /api/upload?name=N, the
+// file as the body. It returns the attachment's Ref and how it shows.
+func (s *server) apiUpload(w http.ResponseWriter, r *http.Request) {
+	if err := s.sameOriginAny(r); err != nil {
+		jsonError(w, http.StatusForbidden, err.Error())
+		return
+	}
+	if _, err := s.a.store(); err != nil {
+		jsonError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	q := r.URL.Query()
+	ref, err := media.AddReader(s.a.Home, q.Get("name"), q.Get("caption"), http.MaxBytesReader(w, r.Body, media.MaxAny+1))
+	if err != nil {
+		jsonError(w, http.StatusRequestEntityTooLarge, err.Error())
+		return
+	}
+	d, err := s.a.load()
+	if err != nil {
+		jsonError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	meta, _ := json.Marshal(map[string]any{"media": []media.Ref{ref}})
+	views := s.a.mediaViews(d, store.Event{Meta: meta})
+	writeJSON(w, map[string]any{"ref": ref, "view": views[0]})
+}
+
+// uploaded checks the attachments a dashboard request names: each must be
+// a file stored here (uploaded first); its type and size are taken from the
+// stored file, not from the request.
+func (a *App) uploaded(refs []media.Ref) ([]media.Ref, error) {
+	if len(refs) > media.MaxPerItem {
+		return nil, usagef("at most %d attachments per message, not %d", media.MaxPerItem, len(refs))
+	}
+	out := make([]media.Ref, 0, len(refs))
+	for _, r := range refs {
+		if len(r.SHA256) != 64 || media.TypeOfFile(r.File()) != r.MIME || !media.ValidFile(r.File()) {
+			return nil, usagef("%q is not an uploaded attachment", r.Name)
+		}
+		st, err := os.Stat(r.Path(a.Home))
+		if err != nil {
+			return nil, usagef("%s is not on this host: upload it again", r.Name)
+		}
+		r.Size, r.Name = st.Size(), media.CleanName(r.Name)
+		if r.Caption = strings.TrimSpace(r.Caption); r.Caption == "" {
+			r.Caption = r.Name
+		}
+		if len(r.Caption) > 500 {
+			r.Caption = r.Caption[:500]
+		}
+		out = append(out, r)
+	}
+	return out, nil
 }

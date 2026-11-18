@@ -171,22 +171,33 @@ This files a done report and sets the node's `status` to "Finished." (or
 the run finished. `agent-done` does this for you where it is installed.
 `agent-desk show --mine` shows only the calling session's own node.
 
-**Attachments.** `ask`, `tell` and `done` take images and audio: a plot,
-a screenshot, a voice note. Each `--attach` needs a `--caption` right after
-it, saying what the file shows and why it matters, since the caption is what
-the user reads first and what a terminal shows:
+**Attachments.** `ask`, `tell` and `done` take any file: a plot, a
+screenshot, a voice note, a screen recording, a PDF, a CSV. Each `--attach`
+needs a `--caption` right after it, saying what the file shows and why it
+matters, since the caption is what the user reads first and what a terminal
+shows:
 
     agent-desk tell --title 'Seed 2 diverges' \
       --attach plots/loss.png --caption 'Seed 2 (orange) leaves the others at step 400' <<'R'
     Shard 17 has duplicated rows; seed 2 drew it.
     R
 
-Up to 8 files per item; an image may be 10 MB and an audio file 50 MB. The
-types accepted are png, jpg, gif, webp, svg, heic and avif images, and mp3,
-m4a, aac, ogg, opus, wav, flac and weba audio. The desk copies each file into
-`<store>/media/`, named by its content hash, so the agent may delete its own
-copy. The dashboard shows the images and plays the audio; the inbox, `show`
-and the ledger list each file with its caption and path.
+Up to 8 files per item. Images may be 10 MB, audio 50 MB, video 100 MB and
+anything else 25 MB. The dashboard shows images and plays audio and video
+(mp4, webm, mov); every other file is a download under its own name, never
+opened in the page. A file of a type the desk does not know is kept as
+`application/octet-stream`. The desk copies each file into `<store>/media/`,
+named by its content hash, so the agent may delete its own copy. The inbox,
+`show` and the ledger list each file with its caption and path.
+
+**The user's files.** The answer and message boxes in the dashboard have an
+Attach button, and take pasted or dropped files too. Each file is uploaded
+when it is added and goes out with the answer or message; a message may be
+files alone. From the CLI, `answer` and `reply` take `--attach FILE`, with
+`--caption` optional. The session gets the message followed by the files'
+paths on its machine, one per line with type, size and caption, so the
+agent reads them as files. An answer for a session on another machine waits
+there until its files have arrived with the merge.
 
 The files are not part of the event history: the events hold only a
 reference, and old files are deleted (see Attachments are temporary, below).

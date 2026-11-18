@@ -8,6 +8,7 @@ import (
 
 	"github.com/NightMachinery/agent-desk/internal/desk"
 	"github.com/NightMachinery/agent-desk/internal/ident"
+	"github.com/NightMachinery/agent-desk/internal/media"
 	"github.com/NightMachinery/agent-desk/internal/prompts"
 	"github.com/NightMachinery/agent-desk/internal/settings"
 	"github.com/NightMachinery/agent-desk/internal/store"
@@ -99,7 +100,7 @@ func respondsTo(d *desk.Desk, e store.Event, node string) (string, error) {
 }
 
 func (a *App) cmdReply(args []string) error {
-	o, err := parse(args, nil, []string{"behavior", "notify-desktop", "notify-remote", "prompt"}, 1, -1)
+	o, err := parse(args, nil, append([]string{"behavior", "notify-desktop", "notify-remote", "prompt"}, attachOpts...), 1, -1)
 	if err != nil {
 		return err
 	}
@@ -120,12 +121,16 @@ func (a *App) cmdReply(args []string) error {
 		if text, err = a.replyPrompt(o.pos[0], o.vals["prompt"]); err != nil {
 			return err
 		}
-	case len(o.pos) == 1:
+	case len(o.pos) == 1 && !o.set["attach"]:
 		if text, err = a.stdinText(); err != nil {
 			return err
 		}
 	}
-	_, err = a.recordReply(o.pos[0], text, "cli", beh, notify)
+	refs, err := a.attachRefs(o, false)
+	if err != nil {
+		return err
+	}
+	_, err = a.recordReply(o.pos[0], text, "cli", beh, notify, refs...)
 	return err
 }
 
@@ -150,7 +155,10 @@ func checkNotify(desktop, remote string) (map[string]string, error) {
 
 // recordReply appends a reply and delivers it when its session is on this
 // machine. It returns the reply.
-func (a *App) recordReply(token, text, source, behavior string, notify map[string]string) (store.Event, error) {
+func (a *App) recordReply(token, text, source, behavior string, notify map[string]string, refs ...media.Ref) (store.Event, error) {
+	if strings.TrimSpace(text) == "" && len(refs) > 0 {
+		text = attachedOnly
+	}
 	if strings.TrimSpace(text) == "" {
 		return store.Event{}, usagef("reply needs the message's text")
 	}
@@ -173,6 +181,9 @@ func (a *App) recordReply(token, text, source, behavior string, notify map[strin
 	extra := map[string]any{"to": to, "to_host": host, "behavior": behavior}
 	if notify != nil {
 		extra["notify"] = notify
+	}
+	if len(refs) > 0 {
+		extra["media"] = refs
 	}
 	e := a.event("reply", node, ident.Resolve(a.Env), source, extra)
 	e.Ref, e.Body = about.ID, text

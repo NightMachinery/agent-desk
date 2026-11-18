@@ -15,6 +15,7 @@ import (
 
 	"github.com/NightMachinery/agent-desk/internal/desk"
 	"github.com/NightMachinery/agent-desk/internal/ident"
+	"github.com/NightMachinery/agent-desk/internal/media"
 	"github.com/NightMachinery/agent-desk/internal/store"
 )
 
@@ -195,6 +196,11 @@ func (a *App) deliverOne(d *desk.Desk, j job) (receipt, error) {
 	if j.host != a.Host {
 		return receipt{}, fmt.Errorf("its session is on %s; it is delivered there after the next merge", j.host)
 	}
+	note, missing := a.attachmentNote(j.msg)
+	if missing != "" {
+		return receipt{}, fmt.Errorf("its attachment %s is not on this machine yet; it is delivered after the next merge", missing)
+	}
+	j.text += note
 	command := desk.MetaString(j.about, "on_answer")
 	if command == "" || j.msg.Kind != "answer" {
 		return a.deliverSession(d, j)
@@ -474,8 +480,11 @@ func (a *App) mergeSSH(host string, notify bool) error {
 		remote+" import && { "+remote+" deliver || true; }")
 	push.Stdin, push.Stdout, push.Stderr = &ours, &errb, &errb
 	pushErr := push.Run()
-	if pushErr == nil {
-		a.mergeMediaSSH(ctx, sshBin, host, remote)
+	if pushErr == nil && a.mergeMediaSSH(ctx, sshBin, host, remote) > 0 {
+		// An answer there that carries files waited for them: deliver it now.
+		again := exec.CommandContext(ctx, sshBin, "-o", "BatchMode=yes", host, remote+" deliver")
+		again.Stdout, again.Stderr = &errb, &errb
+		_ = again.Run()
 	}
 	if out := strings.TrimSpace(errb.String()); out != "" {
 		for _, l := range strings.Split(out, "\n") {
@@ -494,4 +503,38 @@ func (a *App) mergeSSH(host string, notify bool) error {
 		return fmt.Errorf("on %s: %v", host, pushErr)
 	}
 	return nil
+}
+
+// attachedOnly is the text of an answer or message that is only files.
+const attachedOnly = "(see the attached files)"
+
+// attachmentNote lists, after a message to a session, the files the user
+// sent with it, by their paths on this machine. missing names the first
+// that is not here yet.
+func (a *App) attachmentNote(msg store.Event) (note, missing string) {
+	refs := media.Of(msg)
+	if len(refs) == 0 {
+		return "", ""
+	}
+	var b strings.Builder
+	b.WriteString("\n\nThe user attached these files; read them from these paths:")
+	for _, r := range refs {
+		if !r.Present(a.Home) {
+			return "", r.Name
+		}
+		fmt.Fprintf(&b, "\n- %s (%s, %s): %s", r.Name, r.MIME, media.Size(r.Size), r.Path(a.Home))
+		if r.Caption != r.Name {
+			fmt.Fprintf(&b, "\n  Caption: %s", r.Caption)
+		}
+	}
+	return b.String(), ""
+}
+
+// attachmentPaths are the paths of msg's files, one per line.
+func (a *App) attachmentPaths(msg store.Event) string {
+	var ps []string
+	for _, r := range media.Of(msg) {
+		ps = append(ps, r.Path(a.Home))
+	}
+	return strings.Join(ps, "\n")
 }

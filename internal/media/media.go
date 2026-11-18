@@ -1,4 +1,6 @@
-// Package media keeps the images and audio agents attach to what they file.
+// Package media keeps the files attached to what agents file and to what
+// the user sends them: images, audio and video, which the dashboard plays,
+// and any other file, which it offers as a download.
 //
 // A file is copied into <desk>/media, named by the SHA-256 of its content
 // plus an extension for its type, so the same file attached twice is stored
@@ -8,6 +10,7 @@
 package media
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -40,25 +43,44 @@ const MaxPerItem = 8
 const (
 	MaxImage = 10 << 20
 	MaxAudio = 50 << 20
+	MaxVideo = 100 << 20
+	MaxFile  = 25 << 20
+	// MaxAny is the largest of them, the most an upload may send.
+	MaxAny = MaxVideo
 )
+
+// Generic is the type of a file of no known type. It is stored as .bin and
+// only ever served as a download.
+const Generic = "application/octet-stream"
 
 // exts maps each accepted type to the extension its stored file gets.
 var exts = map[string]string{
-	"image/png":     ".png",
-	"image/jpeg":    ".jpg",
-	"image/gif":     ".gif",
-	"image/webp":    ".webp",
-	"image/svg+xml": ".svg",
-	"image/heic":    ".heic",
-	"image/avif":    ".avif",
-	"audio/mpeg":    ".mp3",
-	"audio/mp4":     ".m4a",
-	"audio/aac":     ".aac",
-	"audio/ogg":     ".ogg",
-	"audio/opus":    ".opus",
-	"audio/wav":     ".wav",
-	"audio/flac":    ".flac",
-	"audio/webm":    ".weba",
+	"image/png":        ".png",
+	"image/jpeg":       ".jpg",
+	"image/gif":        ".gif",
+	"image/webp":       ".webp",
+	"image/svg+xml":    ".svg",
+	"image/heic":       ".heic",
+	"image/avif":       ".avif",
+	"audio/mpeg":       ".mp3",
+	"audio/mp4":        ".m4a",
+	"audio/aac":        ".aac",
+	"audio/ogg":        ".ogg",
+	"audio/opus":       ".opus",
+	"audio/wav":        ".wav",
+	"audio/flac":       ".flac",
+	"audio/webm":       ".weba",
+	"video/mp4":        ".mp4",
+	"video/webm":       ".webm",
+	"video/quicktime":  ".mov",
+	"application/pdf":  ".pdf",
+	"text/plain":       ".txt",
+	"text/markdown":    ".md",
+	"text/csv":         ".csv",
+	"application/json": ".json",
+	"application/zip":  ".zip",
+	"application/gzip": ".gz",
+	Generic:            ".bin",
 }
 
 // byExt is the type each accepted extension names; it wins over sniffing,
@@ -69,6 +91,10 @@ var byExt = map[string]string{
 	".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".aac": "audio/aac", ".ogg": "audio/ogg",
 	".oga": "audio/ogg", ".opus": "audio/opus", ".wav": "audio/wav", ".flac": "audio/flac",
 	".weba": "audio/webm",
+	".mp4":  "video/mp4", ".m4v": "video/mp4", ".webm": "video/webm", ".mov": "video/quicktime",
+	".pdf": "application/pdf", ".txt": "text/plain", ".log": "text/plain", ".md": "text/markdown",
+	".org": "text/plain", ".csv": "text/csv", ".json": "application/json", ".jsonl": "text/plain",
+	".zip": "application/zip", ".gz": "application/gzip", ".bin": Generic,
 }
 
 var fileRE = regexp.MustCompile(`^[0-9a-f]{64}\.[a-z0-9]{2,5}$`)
@@ -88,8 +114,18 @@ func (r Ref) Present(home string) bool {
 	return err == nil && st.Mode().IsRegular()
 }
 
-// Kind is "image" or "audio".
-func (r Ref) Kind() string { k, _, _ := strings.Cut(r.MIME, "/"); return k }
+// Kind is "image", "audio" or "video", which the dashboard plays, or
+// "file", which it offers as a download.
+func (r Ref) Kind() string { return KindOf(r.MIME) }
+
+// KindOf is the Kind of type mimeType.
+func KindOf(mimeType string) string {
+	switch k, _, _ := strings.Cut(mimeType, "/"); k {
+	case "image", "audio", "video":
+		return k
+	}
+	return "file"
+}
 
 // ValidFile reports whether name has the form of a stored file's name, so
 // that it is safe to join to the media directory.
@@ -97,28 +133,34 @@ func ValidFile(name string) bool { return fileRE.MatchString(name) }
 
 // Limit is the largest file of type mime accepted.
 func Limit(mimeType string) int64 {
-	if strings.HasPrefix(mimeType, "audio/") {
+	switch KindOf(mimeType) {
+	case "image":
+		return MaxImage
+	case "audio":
 		return MaxAudio
+	case "video":
+		return MaxVideo
 	}
-	return MaxImage
+	return MaxFile
 }
 
-// Accepted lists the extensions an attachment may have.
-func Accepted() string {
-	return ".png .jpg .gif .webp .svg .heic .avif (images); .mp3 .m4a .aac .ogg .opus .wav .flac .weba (audio)"
+// Limits says what may be attached, for messages.
+func Limits() string {
+	return fmt.Sprintf("any file: images up to %s, audio %s, video %s, anything else %s",
+		Size(MaxImage), Size(MaxAudio), Size(MaxVideo), Size(MaxFile))
 }
 
-// typeOf names the type of the file at path, from its extension, else from
-// its first bytes. It returns "" for a type that is not accepted.
-func typeOf(path string, head []byte) string {
-	if t, ok := byExt[strings.ToLower(filepath.Ext(path))]; ok {
+// typeOf names the type of a file called name, from its extension, else
+// from its first bytes, else Generic.
+func typeOf(name string, head []byte) string {
+	if t, ok := byExt[strings.ToLower(filepath.Ext(name))]; ok {
 		return t
 	}
 	t, _, _ := mime.ParseMediaType(http.DetectContentType(head))
 	if _, ok := exts[t]; ok {
 		return t
 	}
-	return ""
+	return Generic
 }
 
 // Add copies the file at path into the desk at home and returns its Ref.
@@ -139,26 +181,54 @@ func Add(home, path, caption string) (Ref, error) {
 	if !st.Mode().IsRegular() {
 		return Ref{}, fmt.Errorf("%s is not a regular file", path)
 	}
-	head := make([]byte, 512)
-	n, _ := io.ReadFull(f, head)
-	t := typeOf(path, head[:n])
-	if t == "" {
-		return Ref{}, fmt.Errorf("%s: only images and audio can be attached: %s", path, Accepted())
-	}
-	if max := Limit(t); st.Size() > max {
-		return Ref{}, fmt.Errorf("%s is %s; the limit for %s is %s", path, Size(st.Size()),
-			strings.SplitN(t, "/", 2)[0], Size(max))
-	}
-	if _, err := f.Seek(0, io.SeekStart); err != nil {
-		return Ref{}, err
-	}
-	r := Ref{Name: filepath.Base(path), MIME: t, Caption: caption}
-	sum, size, err := store1(home, "", func(sum string) string { return sum + exts[t] }, f, Limit(t))
+	r, err := AddReader(home, filepath.Base(path), caption, f)
 	if err != nil {
 		return Ref{}, fmt.Errorf("%s: %w", path, err)
 	}
+	return r, nil
+}
+
+// AddReader stores the content of src, a file called name, and returns its
+// Ref. An empty caption becomes the name.
+func AddReader(home, name, caption string, src io.Reader) (Ref, error) {
+	name = CleanName(name)
+	head := make([]byte, 512)
+	n, err := io.ReadFull(src, head)
+	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) && !errors.Is(err, io.EOF) {
+		return Ref{}, err
+	}
+	head = head[:n]
+	t := typeOf(name, head)
+	r := Ref{Name: name, MIME: t, Caption: strings.TrimSpace(caption)}
+	if r.Caption == "" {
+		r.Caption = name
+	}
+	max := Limit(t)
+	sum, size, err := store1(home, "", func(sum string) string { return sum + exts[t] }, io.MultiReader(bytes.NewReader(head), src), max)
+	if err != nil {
+		return Ref{}, fmt.Errorf("%w (the limit for %s is %s)", err, KindOf(t), Size(max))
+	}
 	r.SHA256, r.Size = sum, size
 	return r, nil
+}
+
+// CleanName is a file name safe to show and to offer as a download name:
+// its last path element, without control characters, at most 200 bytes.
+func CleanName(name string) string {
+	name = filepath.Base(strings.ReplaceAll(name, "\\", "/"))
+	name = strings.Map(func(r rune) rune {
+		if r < 0x20 || r == 0x7f || r == '"' {
+			return -1
+		}
+		return r
+	}, name)
+	if len(name) > 200 {
+		name = name[len(name)-200:]
+	}
+	if name == "" || name == "." || name == "/" {
+		name = "file"
+	}
+	return name
 }
 
 // store1 copies src into the media directory under the name file(sum), by
@@ -201,7 +271,7 @@ func Put(home, file string, src io.Reader) error {
 		return fmt.Errorf("%q is not a media file name", file)
 	}
 	want, ext := file[:64], file[64:]
-	var max int64 = MaxImage
+	var max int64
 	if t, ok := byExt[ext]; ok {
 		max = Limit(t)
 	} else {

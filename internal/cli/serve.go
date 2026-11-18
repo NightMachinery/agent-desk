@@ -25,6 +25,7 @@ import (
 
 	"github.com/NightMachinery/agent-desk/internal/desk"
 	"github.com/NightMachinery/agent-desk/internal/ident"
+	"github.com/NightMachinery/agent-desk/internal/media"
 	"github.com/NightMachinery/agent-desk/web"
 )
 
@@ -136,6 +137,7 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("GET /api/prefs", s.apiPrefs)
 	mux.HandleFunc("GET /api/media/{file}", s.apiMedia)
 	mux.HandleFunc("POST /api/pref", s.write(s.apiPref))
+	mux.HandleFunc("POST /api/upload", s.apiUpload)
 	mux.HandleFunc("POST /api/answer", s.write(s.apiAnswer))
 	mux.HandleFunc("POST /api/reply", s.write(s.apiReply))
 	mux.HandleFunc("POST /api/read", s.write(s.apiRead))
@@ -181,11 +183,17 @@ func (s *server) guard(next http.Handler) http.Handler {
 // another origin cannot send without a CORS preflight this server never
 // grants; a browser's Sec-Fetch-Site and Origin must agree as well.
 func (s *server) sameOrigin(r *http.Request) error {
-	if r.Header.Get("X-Agent-Desk") != "1" {
-		return errors.New("missing X-Agent-Desk header")
-	}
 	if ct := r.Header.Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
 		return errors.New("the body must be JSON")
+	}
+	return s.sameOriginAny(r)
+}
+
+// sameOriginAny is sameOrigin for a body of any type (an upload). The
+// custom header alone already forces a cross-site page into a preflight.
+func (s *server) sameOriginAny(r *http.Request) error {
+	if r.Header.Get("X-Agent-Desk") != "1" {
+		return errors.New("missing X-Agent-Desk header")
 	}
 	if site := r.Header.Get("Sec-Fetch-Site"); site != "" && site != "same-origin" && site != "none" {
 		return fmt.Errorf("cross-site request (%s)", site)
@@ -229,6 +237,8 @@ type request struct {
 	// have their own.
 	Action  string `json:"action"`
 	Profile string `json:"profile"` // quota replace: the new agent's provider[/model][@thinking]
+	// Media: answer, reply: files sent with it, as /api/upload returned them.
+	Media []media.Ref `json:"media"`
 }
 
 func (r request) notify() (map[string]string, error) {
@@ -308,7 +318,11 @@ func (s *server) apiAnswer(app *App, body request) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return map[string]string{}, app.recordAnswer(d, q, body.Text, "web", body.Behavior, notify)
+	refs, err := app.uploaded(body.Media)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]string{}, app.recordAnswer(d, q, body.Text, "web", body.Behavior, notify, refs...)
 }
 
 func (s *server) apiReply(app *App, body request) (any, error) {
@@ -325,7 +339,11 @@ func (s *server) apiReply(app *App, body request) (any, error) {
 			return nil, err
 		}
 	}
-	e, err := app.recordReply(body.To, text, "web", body.Behavior, notify)
+	refs, err := app.uploaded(body.Media)
+	if err != nil {
+		return nil, err
+	}
+	e, err := app.recordReply(body.To, text, "web", body.Behavior, notify, refs...)
 	if err != nil {
 		return nil, err
 	}

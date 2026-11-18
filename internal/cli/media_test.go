@@ -26,7 +26,7 @@ func TestMediaAttachServeAndGC(t *testing.T) {
 
 	h.fails(a, "x", "needs a caption", "tell", "--title", "T", "--attach", "plot.png")
 	h.fails(a, "x", "describes the --attach before it", "tell", "--title", "T", "--caption", "c")
-	h.fails(a, "x", "only images and audio", "tell", "--title", "T", "--attach", "notes.txt", "--caption", "c")
+	h.ok(a, "x", "tell", "--title", "Notes", "--attach", "notes.txt", "--caption", "c") // any file now
 	many := []string{"tell", "--title", "T"}
 	for i := 0; i < 9; i++ {
 		many = append(many, "--attach", "plot.png", "--caption", "c")

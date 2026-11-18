@@ -19,7 +19,8 @@ import (
 //
 //   - the answer's text is on its standard input, and AGENT_DESK_QUESTION,
 //     AGENT_DESK_ANSWER (display ids), their event ids, AGENT_DESK_PATH and
-//     AGENT_DESK_TITLE describe it;
+//     AGENT_DESK_TITLE describe it; AGENT_DESK_ATTACHMENTS lists the paths
+//     of the files the user sent with it, one per line;
 //   - it runs in the asker's working directory, under sh -c;
 //   - exit 0 means it handled the answer: nothing reaches the session;
 //   - any other exit passes the answer to the session as usual, with the
@@ -59,7 +60,7 @@ func (a *App) onAnswer(d *desk.Desk, j job, command string) (*onAnswerRun, error
 		"AGENT_DESK_QUESTION="+d.Display(j.about.ID), "AGENT_DESK_QUESTION_ID="+j.about.ID,
 		"AGENT_DESK_ANSWER="+d.Display(j.msg.ID), "AGENT_DESK_ANSWER_ID="+j.msg.ID,
 		"AGENT_DESK_PATH="+j.about.Path, "AGENT_DESK_TITLE="+j.about.Title,
-		"AGENT_DESK_CWD="+cwd,
+		"AGENT_DESK_CWD="+cwd, "AGENT_DESK_ATTACHMENTS="+a.attachmentPaths(j.msg),
 		"sh", "-c", `cd -- "$AGENT_DESK_CWD" || exit 125; exec sh -c "$1"`, "sh", command)
 	r := onAnswerRun{Output: clipText(out, 4000)}
 	if err != nil {
