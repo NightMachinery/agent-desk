@@ -84,6 +84,15 @@ dismiss_command = "cat >> '`+log+`'"
 	if got[len(got)-1].Action != "open" || got[len(got)-1].DisplayID != q {
 		t.Fatalf("open: %+v", got[len(got)-1])
 	}
+	// A click has no terminal: each open, the command's stderr and a
+	// failure are kept in hooks.log.
+	must(t, os.WriteFile(cfg, []byte(`open_command = "echo no browser >&2; exit 3"`), 0o644))
+	h.run(nil, "", "open", q)
+	hl, _ := os.ReadFile(filepath.Join(h.desk, "hooks.log"))
+	if s := string(hl); !strings.Contains(s, " open "+q+"\n") || !strings.Contains(s, "no browser\n") ||
+		!strings.Contains(s, " open "+q+" failed: exit status 3") {
+		t.Fatalf("hooks.log:\n%s", hl)
+	}
 	must(t, os.WriteFile(cfg, []byte(`notify_comand = "typo"`), 0o644))
 	_, errOut, _ := h.run(a, "", "tell", "--notify", "--title", "x")
 	if !strings.Contains(errOut, "unknown key") {

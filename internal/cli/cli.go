@@ -1387,10 +1387,24 @@ func (a *App) cmdMerge(args []string) error {
 // runs. With open_command configured it hands over the item; otherwise,
 // with base_url, it opens the item's page in the browser; otherwise, in a
 // terminal, it opens the inbox scoped to the item's node.
-func (a *App) cmdOpen(args []string) error {
+func (a *App) cmdOpen(args []string) (err error) {
 	o, err := parse(args, nil, nil, 1, 1)
 	if err != nil {
 		return err
+	}
+	// A notification click runs this with no terminal to see it: each try,
+	// what open_command printed to stderr, and how it ended go to hooks.log.
+	if logf, lerr := os.OpenFile(filepath.Join(a.Home, "hooks.log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600); lerr == nil {
+		defer logf.Close()
+		fmt.Fprintf(logf, "%s open %s\n", a.Now().Format(time.RFC3339), o.pos[0])
+		saved := a.Stderr
+		a.Stderr = io.MultiWriter(saved, logf)
+		defer func() {
+			a.Stderr = saved
+			if err != nil {
+				fmt.Fprintf(logf, "%s open %s failed: %v\n", a.Now().Format(time.RFC3339), o.pos[0], err)
+			}
+		}()
 	}
 	d, err := a.load()
 	if err != nil {

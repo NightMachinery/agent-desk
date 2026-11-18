@@ -582,7 +582,9 @@ asks for permission and then subscribes; **Test** sends one at once.
 
 `agent-desk open <id|path>` hands the item to `open_command`; without one it
 opens `url` in the browser when `base_url` is set, and otherwise opens the
-inbox scoped to the item's node.
+inbox scoped to the item's node. A notification click has no terminal to show
+an error, so every `open`, what `open_command` printed to stderr and any
+failure also go to `hooks.log` in the desk directory.
 
 ## Settings
 
