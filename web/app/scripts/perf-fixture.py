@@ -1,4 +1,4 @@
-"""Generate an isolated 7,500-event fixture and inert Paseo records.
+"""Generate an isolated desk with queue, voice and cache history.
 
 Run with the path to a new scratch directory. Import fixture.jsonl using
 the fixture configuration as described in docs/performance.md.
@@ -10,6 +10,7 @@ import pathlib
 import random
 import sys
 import uuid
+import wave
 
 if len(sys.argv) != 2:
     raise SystemExit("usage: python3 web/app/scripts/perf-fixture.py NEW_SCRATCH_DIR")
@@ -87,6 +88,37 @@ for j in range(10000):
             if r.random() < 0.75:
                 add("read", path, ref=t)
 
+# Keep the original list and thread workload, then add completed web sends
+# with retries and recordings. Every fourth recording was used previously.
+audio = root / "desk/media/recordings"
+audio.mkdir(parents=True)
+for i in range(120):
+    path, actor = nodes[i % len(nodes)]
+    rid = f"v-{i:012x}"
+    rec = {"backend": "command", "created": out[-1]["ts"], "bytes": 0}
+    add("recording", path, rec.copy(), ref=rid, level="recording")
+    rec["bytes"] = 3200
+    with wave.open(str(audio / (rid + ".wav")), "wb") as wav:
+        wav.setparams((1, 2, 16000, 0, "NONE", "not compressed"))
+        wav.writeframes(bytes(rec["bytes"]))
+    add("recording", path, rec, ref=rid, level="transcribing")
+    add("recording", path, rec, ref=rid, level="ready", body=text)
+    m = add("reply", path, {"to": actor["from"], "to_host": "fixture-host", "send_queue": True},
+            body=f"[voice {rid} 0:00, transcribing]")
+    add("delivery-state", path, {"status": "attempting"}, ref=m)
+    if i % 3 == 0:
+        add("undelivered", path, {"error": "Fixture retry", "attempts": 1, "retry_at": out[-1]["ts"]}, ref=m)
+        add("delivery-state", path, {"status": "attempting", "attempts": 1}, ref=m)
+    add("delivered", path, {"via": "fixture", "voice_recordings": [rid], "voice_body": text}, ref=m)
+    if i % 4 == 0:
+        add("recording-used", path, ref=rid, body="m-" + m[-4:].lower())
+    if i % 2 == 0:
+        agent = actor["from"]["paseo"]
+        add("cache", "cache/" + agent, {"paseo": agent, "policy": "compact", "set_by": "desk"})
+
+add("pin", nodes[0][0], ref=head)
+add("read", nodes[0][0], ref=head)
+
 (root / "fixture.jsonl").write_text("".join(json.dumps(e) + "\n" for e in out))
 (root / "item-id").write_text(head)
 (root / "session-id").write_text(nodes[0][1]["from"]["session"])
@@ -97,4 +129,8 @@ deliver_command = "true"
 [quota]
 stopped_command = "printf '%s\\\\n' '00000000-0000-4000-8000-0000000003e8'"
 """)
+with (root / "config.toml").open("a") as config:
+    config.write("[keeper]\nsocket = " + json.dumps(str(root.resolve() / "missing.sock")) + "\n")
+    config.write('[voice]\nkeep_days = 0\nstt_backend = "command"\n')
+    config.write("command = " + json.dumps("""cat >/dev/null && echo '{"type":"final","text":"fixture"}'""") + "\n")
 print(f"Generated {len(out)} events for {len(nodes)} nodes.")

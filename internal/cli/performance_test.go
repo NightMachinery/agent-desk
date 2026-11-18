@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -86,6 +87,20 @@ func perfDesk(b *testing.B) (*App, string) {
 			add("tell", path, "")
 		}
 	}
+	for i := range 120 {
+		path := fmt.Sprintf("project-%d/run-%d/coord", i%5, i%60)
+		id := fmt.Sprintf("v-%012x", i)
+		for _, status := range []string{voiceRecording, voiceTranscribing, voiceReady} {
+			add("recording", path, id)
+			e := &events[len(events)-1]
+			e.Level = status
+			e.Meta = meta(map[string]any{"backend": "command", "created": now, "bytes": 3200})
+		}
+		msg := add("reply", path, "")
+		add("delivery-state", path, msg)
+		add("delivered", path, msg)
+		events[len(events)-1].Meta = meta(map[string]any{"voice_recordings": []string{id}})
+	}
 	if err := st.Append(events...); err != nil {
 		b.Fatal(err)
 	}
@@ -108,9 +123,21 @@ func BenchmarkDashboard(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
+	b.Cleanup(func() {
+		if s.voice.store != nil {
+			s.voice.store.Close()
+		}
+	})
 	h := s.routes()
+	rootEvent, err := a.st.Get(root)
+	if err != nil {
+		b.Fatal(err)
+	}
 	for _, run := range []struct{ name, url string }{
 		{"View", "/api/view"},
+		{"Recordings", "/api/recordings"},
+		{"NodeRecordings", "/api/recordings?node=" + rootEvent.Path},
+		{"Cache", "/api/cache"},
 		{"Item", "/api/item?id=" + root},
 	} {
 		b.Run(run.name, func(b *testing.B) {
@@ -133,4 +160,35 @@ func BenchmarkDashboard(b *testing.B) {
 			}
 		}
 	})
+}
+
+// A steady backlog of retries that are not due yet. No transport should run.
+func BenchmarkSendQueueRetryPass(b *testing.B) {
+	a, _ := perfDesk(b)
+	s, err := newServer(a, fstest.MapFS{"index.html": {Data: []byte("<html></html>")}})
+	if err != nil {
+		b.Fatal(err)
+	}
+	a.Exec = func(context.Context, []byte, string, ...string) (string, error) {
+		b.Fatal("unexpected delivery")
+		return "", nil
+	}
+	var events []store.Event
+	for range 120 {
+		msg := a.event("reply", "project-0/run/coord", ident.From{}, "web", map[string]any{
+			"to_host": a.Host, "to": ident.From{Session: "fixture"}, "send_queue": true})
+		msg.Body = "Fixture retry"
+		marker := a.deliveryState(msg, "undelivered", sendProgress{Error: "Fixture retry", Attempts: 1,
+			RetryAt: a.Now().Add(12 * time.Second).Format(time.RFC3339Nano), Deadline: a.Now().Add(time.Hour).Format(time.RFC3339Nano)})
+		events = append(events, msg, marker)
+	}
+	if err := a.st.Append(events...); err != nil {
+		b.Fatal(err)
+	}
+	b.ReportAllocs()
+	for b.Loop() {
+		if delay := s.sendQueueStep(); delay != 12*time.Second {
+			b.Fatalf("unexpected next pass: %s", delay)
+		}
+	}
 }
