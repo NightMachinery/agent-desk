@@ -211,7 +211,7 @@
       </h2>
       {#if !ui.collapsed.responses}
         {#each responses as g (g.project + '/' + g.run)}
-          {@render groupHead(g)}
+          {@render groupHead(g, true)}
           <div class="rows">
             {#each g.items as it (it.event.id)}<ItemRow item={it} base={baseOf(g)} />{/each}
           </div>
@@ -227,7 +227,7 @@
     </h2>
     {#if !ui.collapsed.new}
       {#each fresh as g (g.project + '/' + g.run)}
-        {@render groupHead(g)}
+        {@render groupHead(g, true)}
         <div class="rows">
           {#each g.items as it (it.event.id)}<ItemRow item={it} base={baseOf(g)} />{/each}
         </div>
@@ -280,8 +280,10 @@
   </div>
 {/if}
 
-{#snippet markAll(ids)}
-  <button class="mark-all" data-cmd="mark-all-read" title="Mark all {ids.length} read" aria-label="Mark all {ids.length} read"
+{#snippet markAll(ids, under = '')}
+  <button class="mark-all" class:sub={!!under} data-cmd={under ? undefined : 'mark-all-read'}
+    title={under ? `Mark the ${ids.length} unread in ${under} read` : `Mark all ${ids.length} read`}
+    aria-label={under ? `Mark the ${ids.length} unread in ${under} read` : `Mark all ${ids.length} read`}
     onclick={(e) => { e.stopPropagation(); markAllRead(ids); }}>
     <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 8.5l3 3 6-7M7.5 11.5l.5.5 6.5-8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
   </button>
@@ -294,11 +296,13 @@
   </button>
 {/snippet}
 
-{#snippet groupHead(g)}
+{#snippet groupHead(g, readable = false)}
   {@const ids = g.items.map((it) => it.display_id)}
+  {@const unread = readable && !deep ? g.items.filter((it) => it.unread).map((it) => it.display_id) : []}
   <div class="group-line">
     {#if !deep}<a class="group" href={href({ path: `${g.project}/${g.run}`, item: '' })}>{g.project} <span class="faint">/</span> {g.run}</a>{:else}<span></span>{/if}
     {#if ids.length > 1 && (!deep || selecting())}<button class="pick" onclick={() => toggleAll(ids)}>{allOn(ids) ? 'Deselect' : 'Select'} {ids.length}</button>{/if}
+    {#if unread.length}{@render markAll(unread, `${g.project}/${g.run}`)}{/if}
   </div>
 {/snippet}
 
@@ -432,6 +436,11 @@
   }
   .group-line .pick {
     opacity: 0;
+    margin-left: auto;
+  }
+  /* A group's mark-read sits under its section's, a step quieter. */
+  .mark-all.sub {
+    color: var(--faint);
   }
   .group-line:hover .pick,
   .group-line .pick:focus-visible {
