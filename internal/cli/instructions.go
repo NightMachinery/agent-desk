@@ -34,6 +34,8 @@ var automated = []*regexp.Regexp{
 	regexp.MustCompile(`^Schedule ".*" fired \(id=`),
 	regexp.MustCompile(`^(?i:continue)\.?$`),
 	regexp.MustCompile(`^/compact\b`),
+	// agent-quotas' keeper: cache keepalive pings carry this marker.
+	regexp.MustCompile(`^\[agent-quotas keepalive\]`),
 	regexp.MustCompile(`^/[\w:.-]+$`),
 	regexp.MustCompile(`^<(task-notification|system-reminder|command-name|local-command-stdout)>`),
 	regexp.MustCompile(`^\[Request interrupted`),

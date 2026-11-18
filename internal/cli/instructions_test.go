@@ -36,6 +36,7 @@ func TestInstructionHook(t *testing.T) {
 		`Answer to q-7f3a "Which split?": B`,
 		"Message from the user via agent-desk, about t-k2m9 \"x\": hi",
 		"<task-notification>done</task-notification>",
+		"[agent-quotas keepalive] Automatic cache keepalive, not the user: reply with one word.",
 		"   ",
 	} {
 		hook(p)
