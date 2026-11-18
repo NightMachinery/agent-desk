@@ -153,6 +153,28 @@ func TestResponseSectionAndChat(t *testing.T) {
 			}
 		}
 	}
+	// A message about a chat response, and the agent's response to it, are
+	// that response's conversation, not the node's.
+	h.respond = func(name string, args []string) (string, error) { return `{"status":"sent"}`, nil }
+	m := h.ok(nil, "", "reply", r, "and seed 4?")
+	h.ok(env, "Seed 4 is fine.", "tell", "--re", m)
+	d := h.loadDesk()
+	re, _ := d.Resolve(r)
+	var kinds []string
+	for _, e := range d.Thread(re.ID, "") {
+		kinds = append(kinds, e.Kind)
+	}
+	if strings.Join(kinds, " ") != "reply tell" {
+		t.Fatalf("chat response thread: %v", kinds)
+	}
+	for _, e := range d.Thread("", "example-proj/r1/coord") {
+		if e.Kind != "tell" || e.ID != re.ID {
+			t.Fatalf("node thread holds %s %s", e.Kind, d.Display(e.ID))
+		}
+	}
+	h.ok(nil, "", "read", m)
+	h.ok(nil, "", "read", d.Display(d.ResponsesTo(mustResolve(t, d, m))[0].ID))
+
 	md := h.ok(nil, "", "show", "--format", "md")
 	if !strings.Contains(md, "Responses to you (1)") || !strings.Contains(md, "You asked (chat): Why is seed 2 slow?") {
 		t.Fatalf("show md:\n%s", md)

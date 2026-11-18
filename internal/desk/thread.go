@@ -46,10 +46,15 @@ func inThread(e store.Event) bool {
 }
 
 // Root is the item e's thread hangs from. ok is false for a node thread: a
-// message with no ref, or anything leading back to one.
+// message with no ref, or anything leading back to one. A response to a
+// question asked in chat has no ref either, but it is an item of its own:
+// messages about it hang from it.
 func (d *Desk) Root(e store.Event) (root store.Event, ok bool) {
 	for i := 0; i < 64 && inThread(e); i++ {
 		if e.Ref == "" {
+			if i > 0 && e.Kind == "tell" && MetaString(e, "asked") != "" {
+				return e, true
+			}
 			return store.Event{}, false
 		}
 		next, found := d.ByID[e.Ref]
