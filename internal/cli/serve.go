@@ -151,6 +151,7 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("POST /api/push", s.apiPushAct)
 	mux.HandleFunc("GET /api/quota", s.apiQuota)
 	mux.HandleFunc("POST /api/quota", s.write(s.apiQuotaAct))
+	mux.HandleFunc("GET /api/auto-continue", s.apiAutoContinue)
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, http.StatusNotFound, "no such API")
 	})
@@ -819,9 +820,40 @@ func (s *server) apiQuota(w http.ResponseWriter, r *http.Request) {
 		}
 		c, _ := s.a.config()
 		s.quotaAt = time.Now()
-		s.quotaResp = map[string]any{"agents": qs, "auto_continue": c.Quota.AutoContinueCommand != "", "launch_ready": c.Tasks.LaunchCommand != ""}
+		profiles := c.Quota.Profiles
+		if profiles == nil {
+			profiles = []string{}
+		}
+		s.quotaResp = map[string]any{"agents": qs, "auto_continue": c.Quota.AutoContinueCommand != "",
+			"launch_ready": c.Tasks.LaunchCommand != "", "profiles": profiles}
 	}
 	writeJSON(w, s.quotaResp)
+}
+
+// apiAutoContinue says whether Paseo agent ?paseo= resumes itself when its
+// quota returns: {available, on}. available is false without
+// auto_continue_command.
+func (s *server) apiAutoContinue(w http.ResponseWriter, r *http.Request) {
+	id := r.URL.Query().Get("paseo")
+	s.mu.Lock()
+	c, err := s.a.config()
+	s.mu.Unlock()
+	if err != nil {
+		jsonError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if c.Quota.AutoContinueCommand == "" || id == "" {
+		writeJSON(w, map[string]bool{"available": false, "on": false})
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+	auto, err := s.a.autoContinueList(ctx, c)
+	if err != nil {
+		jsonError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	writeJSON(w, map[string]bool{"available": true, "on": auto[id]})
 }
 
 // apiQuotaAct acts on a stopped agent: auto-continue-on, auto-continue-off,
@@ -831,11 +863,13 @@ func (s *server) apiQuotaAct(app *App, body request) (any, error) {
 	switch body.Action {
 	case "auto-continue-on", "auto-continue-off":
 		return map[string]string{}, app.quotaAutoContinue(body.ID, body.Action == "auto-continue-on")
+	case "dismiss", "undismiss":
+		return map[string]string{}, app.quotaDismiss(body.ID, body.Action == "dismiss")
 	case "ask-parent", "replace":
 		out, err := app.quotaAct(body.Action, body.ID, body.Profile, false)
 		return map[string]string{"note": out}, err
 	}
-	return nil, usagef("quota action is auto-continue-on, auto-continue-off, ask-parent or replace")
+	return nil, usagef("quota action is auto-continue-on, auto-continue-off, dismiss, undismiss, ask-parent or replace")
 }
 
 func (s *server) apiTarget(w http.ResponseWriter, r *http.Request) {

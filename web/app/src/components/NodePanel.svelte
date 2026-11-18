@@ -10,6 +10,7 @@
   import Thread from './Thread.svelte';
   import Sheet from './Sheet.svelte';
   import Settings from './Settings.svelte';
+  import AutoContinue from './AutoContinue.svelte';
 
   let { node, target, conversation = [], stamp = '', onchange, compact = false } = $props();
   let settingsOpen = $state(false);
@@ -81,6 +82,7 @@
       Coordinator: {agentName(target.agent)} <span class="mono">{short(target.paseo || target.session)}</span>
       {#if target.host}· {target.host}{/if}
       <CopyIds paseo={target.paseo} resume={target.resume} keys={false} />
+      {#if target.paseo && !compact}<AutoContinue paseo={target.paseo} />{/if}
     </div>
   {/if}
 

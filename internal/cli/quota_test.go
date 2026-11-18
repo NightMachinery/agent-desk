@@ -37,6 +37,9 @@ func TestQuota(t *testing.T) {
 		return false
 	}
 
+	// The parent joined a desk node: its stopped subagent is shown there.
+	h.ok(map[string]string{"AI_AGENT": "claude-code", "CLAUDE_CODE_SESSION_ID": sessA, "PASEO_AGENT_ID": parent}, "", "join", "r1/coord")
+
 	out := h.ok(env, "", "quota", "list")
 	if !strings.Contains(out, stopped+"  Eval worker") || !strings.Contains(out, "parent Rerun coordinator") ||
 		!strings.Contains(out, "1 subagents") || !strings.Contains(out, "auto-continue on") || strings.Contains(out, "gone") {
@@ -65,4 +68,23 @@ func TestQuota(t *testing.T) {
 	if code, body, _ := do(t, hd, "POST", "/api/quota", `{"action":"auto-continue-off","id":"`+stopped+`"}`, dashboard); code != 200 || !called("sh -c printf AUTO -- off "+stopped) {
 		t.Fatalf("api auto-continue: %d %s", code, body)
 	}
+	if _, body, _ := do(t, hd, "GET", "/api/quota?fresh=1", "", nil); !strings.Contains(body, `"scope":"example-proj/r1/coord"`) {
+		t.Fatalf("scope: %s", body)
+	}
+	if _, body, _ := do(t, hd, "GET", "/api/auto-continue?paseo="+stopped, "", nil); body != `{"available":true,"on":true}`+"\n" {
+		t.Fatalf("api auto-continue state: %q", body)
+	}
+
+	// Dismissed: hidden until it runs again; undismiss shows it.
+	h.ok(env, "", "quota", "dismiss", stopped)
+	if out := h.ok(env, "", "quota", "list"); !strings.Contains(out, "dismissed") {
+		t.Fatalf("dismissed: %s", out)
+	}
+	if code, body, _ := do(t, hd, "POST", "/api/quota", `{"action":"undismiss","id":"`+stopped+`"}`, dashboard); code != 200 {
+		t.Fatalf("api undismiss: %d %s", code, body)
+	}
+	if _, body, _ := do(t, hd, "GET", "/api/quota?fresh=1", "", nil); strings.Contains(body, `"dismissed":true`) {
+		t.Fatalf("undismissed still hidden: %s", body)
+	}
+	h.fails(env, "", "not an agent stopped", "quota", "dismiss", parent)
 }

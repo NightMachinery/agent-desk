@@ -149,6 +149,7 @@ User side:
                                       notify.remote, notify.remote.dest, notify.push
   agent-desk quota list [--format json]   Paseo agents stopped at a usage limit ([quota])
   agent-desk quota auto-continue on|off <paseo-id>
+  agent-desk quota dismiss|undismiss <paseo-id>   hide it from Out of quota until it runs again
   agent-desk quota ask-parent <paseo-id> [--dry-run]   ask its parent to hand its role on
   agent-desk quota replace <paseo-id> [--profile P] [--dry-run]   start an agent to take over
   agent-desk open <id|path>       what a notification click runs (open_command)

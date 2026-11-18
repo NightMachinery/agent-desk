@@ -160,7 +160,7 @@
         {@render fold('quota', 'Out of quota')}
         <span class="count">{quotaCount}</span>
       </h2>
-      {#if !ui.collapsed.quota}<QuotaHit stamp={view.stamp} bind:count={quotaCount} />{/if}
+      <QuotaHit stamp={view.stamp} path={route.path} collapsed={!!ui.collapsed.quota} bind:count={quotaCount} />
     </div>
 
     {#if pinned.length}

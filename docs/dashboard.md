@@ -106,4 +106,13 @@ The API, all JSON:
 - `POST api/pref {scope, class?, key, value}`: sets an override; a null
   `value` removes it. The browser acts as the user, so this works even when
   the server was started from an agent's shell.
+- `GET api/quota?fresh=`: the agents out of quota (each with `paseo`,
+  `title`, `provider`, `last_active`, `parent`, `children`, `node`, `scope`
+  (the node it is filtered under: its own, or its nearest ancestor's),
+  `auto_continue` and `dismissed`), whether `auto_continue` and
+  `launch_ready` are configured, and `profiles` (the Replace menu).
+  `POST api/quota {action, id, profile?}` with `auto-continue-on`,
+  `auto-continue-off`, `ask-parent`, `replace`, `dismiss` or `undismiss`.
+- `GET api/auto-continue?paseo=`: `{available, on}` for one agent, for the
+  node panel's checkbox.
 - `GET api/health`: `ok`.

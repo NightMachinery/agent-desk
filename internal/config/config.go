@@ -261,4 +261,8 @@ type Quota struct {
 	// <id>" as $1 and $2: list prints the ids that resume themselves when
 	// their quota returns; on and off register or unregister one.
 	AutoContinueCommand string `toml:"auto_continue_command"`
+	// Profiles are the choices the dashboard's Replace menu offers, each a
+	// launch_command profile (provider[/model][@thinking]); launch_command's
+	// own default is always offered first.
+	Profiles []string `toml:"profiles"`
 }

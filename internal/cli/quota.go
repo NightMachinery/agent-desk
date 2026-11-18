@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -24,15 +25,20 @@ import (
 
 // QuotaAgent is one stopped agent.
 type QuotaAgent struct {
-	Paseo        string     `json:"paseo"`
-	Title        string     `json:"title"`
-	Provider     string     `json:"provider"`
-	Cwd          string     `json:"cwd"`
-	LastActive   string     `json:"last_active,omitempty"`
-	Parent       *AgentRef  `json:"parent,omitempty"`
-	Children     []AgentRef `json:"children"`
-	Node         string     `json:"node,omitempty"` // its desk node, if it joined one
-	AutoContinue bool       `json:"auto_continue"`
+	Paseo      string     `json:"paseo"`
+	Title      string     `json:"title"`
+	Provider   string     `json:"provider"`
+	Cwd        string     `json:"cwd"`
+	LastActive string     `json:"last_active,omitempty"`
+	Parent     *AgentRef  `json:"parent,omitempty"`
+	Children   []AgentRef `json:"children"`
+	Node       string     `json:"node,omitempty"` // its desk node, if it joined one
+	// Scope is the desk node it works under: its own, else the nearest
+	// ancestor's that joined one. The dashboard shows it in that node's view.
+	Scope        string `json:"scope,omitempty"`
+	AutoContinue bool   `json:"auto_continue"`
+	// Dismissed: the user hid it, and it has not run since.
+	Dismissed bool `json:"dismissed,omitempty"`
 }
 
 // AgentRef names another Paseo agent.
@@ -70,16 +76,8 @@ func (a *App) quotaAgents(ctx context.Context, d *desk.Desk, c config.Config) ([
 	for _, l := range strings.Fields(text) {
 		stopped[l] = true
 	}
-	auto := map[string]bool{}
-	if c.Quota.AutoContinueCommand != "" {
-		if text, err := a.runExt(ctx, nil, "sh", "-c", c.Quota.AutoContinueCommand, "--", "list"); err == nil {
-			for _, l := range strings.Split(text, "\n") {
-				if f := strings.Fields(l); len(f) > 0 {
-					auto[f[0]] = true
-				}
-			}
-		}
-	}
+	auto, _ := a.autoContinueList(ctx, c)
+	hidden := a.quotaDismissed()
 	recs := ident.PaseoRecords(a.paseoHome())
 	byID := map[string]ident.PaseoAgent{}
 	for _, r := range recs {
@@ -101,6 +99,15 @@ func (a *App) quotaAgents(ctx context.Context, d *desk.Desk, c config.Config) ([
 		}
 		q := QuotaAgent{Paseo: id, Title: r.Title, Provider: r.Provider, Cwd: r.Cwd, LastActive: r.LastActive,
 			Children: []AgentRef{}, Node: nodes[id], AutoContinue: auto[id]}
+		if at, ok := hidden[id]; ok && at == r.LastActive {
+			q.Dismissed = true
+		}
+		for x, seen := id, 0; x != "" && seen < 32; x, seen = byID[x].Parent(), seen+1 {
+			if n := nodes[x]; n != "" {
+				q.Scope = n
+				break
+			}
+		}
 		if p := r.Parent(); p != "" {
 			pr := ref(p)
 			q.Parent = &pr
@@ -147,7 +154,7 @@ func promptData(q QuotaAgent) quotaPromptData {
 
 func (a *App) cmdQuota(args []string) error {
 	if len(args) == 0 {
-		return usagef("quota list | auto-continue on|off <paseo-id> | ask-parent <paseo-id> | replace <paseo-id> [--profile P]")
+		return usagef("quota list | auto-continue on|off <paseo-id> | dismiss|undismiss <paseo-id> | ask-parent <paseo-id> | replace <paseo-id> [--profile P]")
 	}
 	switch args[0] {
 	case "list":
@@ -176,6 +183,9 @@ func (a *App) cmdQuota(args []string) error {
 			if q.AutoContinue {
 				extra += ", auto-continue on"
 			}
+			if q.Dismissed {
+				extra += ", dismissed"
+			}
 			fmt.Fprintf(a.Stdout, "%s  %s  (%s%s)\n", q.Paseo, q.Title, q.Provider, extra)
 		}
 		return nil
@@ -188,6 +198,12 @@ func (a *App) cmdQuota(args []string) error {
 			return usagef("quota auto-continue on|off <paseo-id>")
 		}
 		return a.quotaAutoContinue(o.pos[1], o.pos[0] == "on")
+	case "dismiss", "undismiss":
+		o, err := parse(args[1:], nil, nil, 1, 1)
+		if err != nil {
+			return err
+		}
+		return a.quotaDismiss(o.pos[0], args[0] == "dismiss")
 	case "ask-parent", "replace":
 		o, err := parse(args[1:], []string{"dry-run"}, []string{"profile"}, 1, 1)
 		if err != nil {
@@ -214,6 +230,76 @@ func (a *App) quotaLoad() ([]QuotaAgent, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	return a.quotaAgents(ctx, d, c)
+}
+
+// autoContinueList is the ids auto_continue_command lists: those that
+// resume themselves when their quota returns.
+func (a *App) autoContinueList(ctx context.Context, c config.Config) (map[string]bool, error) {
+	auto := map[string]bool{}
+	if c.Quota.AutoContinueCommand == "" {
+		return auto, nil
+	}
+	text, err := a.runExt(ctx, nil, "sh", "-c", c.Quota.AutoContinueCommand, "--", "list")
+	if err != nil {
+		return auto, fmt.Errorf("auto_continue_command list: %v", err)
+	}
+	for _, l := range strings.Split(text, "\n") {
+		if f := strings.Fields(l); len(f) > 0 {
+			auto[f[0]] = true
+		}
+	}
+	return auto, nil
+}
+
+// The dismissed list: <desk>/quota-dismissed.json maps an agent's id to
+// its last activity when the user hid it. It shows again once it has run
+// since (and stopped again).
+func (a *App) quotaDismissedPath() string { return filepath.Join(a.Home, "quota-dismissed.json") }
+
+func (a *App) quotaDismissed() map[string]string {
+	m := map[string]string{}
+	if b, err := os.ReadFile(a.quotaDismissedPath()); err == nil {
+		_ = json.Unmarshal(b, &m)
+	}
+	return m
+}
+
+// quotaDismiss hides stopped agent id (or, with on false, shows it again).
+func (a *App) quotaDismiss(id string, on bool) error {
+	qs, err := a.quotaLoad()
+	if err != nil {
+		return err
+	}
+	m := a.quotaDismissed()
+	if !on {
+		delete(m, id)
+	} else {
+		found := false
+		for _, q := range qs {
+			if q.Paseo == id {
+				m[id], found = q.LastActive, true
+			}
+		}
+		if !found {
+			return fmt.Errorf("%s is not an agent stopped at a usage limit (agent-desk quota list)", id)
+		}
+	}
+	// Forget agents no longer stopped.
+	stopped := map[string]bool{}
+	for _, q := range qs {
+		stopped[q.Paseo] = true
+	}
+	for k := range m {
+		if !stopped[k] {
+			delete(m, k)
+		}
+	}
+	b, _ := json.MarshalIndent(m, "", " ")
+	tmp := a.quotaDismissedPath() + ".tmp"
+	if err := os.WriteFile(tmp, append(b, '\n'), 0o600); err != nil {
+		return err
+	}
+	return os.Rename(tmp, a.quotaDismissedPath())
 }
 
 func (a *App) quotaAutoContinue(id string, on bool) error {
