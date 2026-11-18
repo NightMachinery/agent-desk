@@ -79,6 +79,8 @@ Agent side (only coordinators write; workers report to their parent):
   agent-desk ask --default 'what you will do' --title T <<'Q' ... Q
       ask also takes --choices FILE: multiple-choice questions as JSON,
       {"questions": [{"text": "...", "options": ["...", "..."], "recommended": "B"}]}
+      and --on-answer CMD: run CMD (answer on stdin) when the user answers;
+      exit 0 means it handled the answer, anything else passes it on
   agent-desk tell [--notify] --title T                <<'R' ... R
   agent-desk tell --re <m-id|a-id> [--quiet] [--title T] <<'R' ... R
                                       respond to the user's message or answer
@@ -586,9 +588,12 @@ func (a *App) cmdJoin(args []string) error {
 }
 
 func (a *App) cmdAsk(args []string) error {
-	o, err := parse(args, []string{"blocked"}, append([]string{"default", "title", "project", "choices"}, attachOpts...), 0, 0)
+	o, err := parse(args, []string{"blocked"}, append([]string{"default", "title", "project", "choices", "on-answer"}, attachOpts...), 0, 0)
 	if err != nil {
 		return err
+	}
+	if o.set["on-answer"] && strings.TrimSpace(o.vals["on-answer"]) == "" {
+		return usagef("--on-answer needs the command to run when the user answers")
 	}
 	if o.bools["blocked"] == o.set["default"] {
 		return usagef("ask takes exactly one of --blocked or --default 'what you will do'")
@@ -624,6 +629,9 @@ func (a *App) cmdAsk(args []string) error {
 			return usagef("%s: %v", o.vals["choices"], err)
 		}
 		extra["choices"] = c
+	}
+	if o.set["on-answer"] {
+		extra["on_answer"] = o.vals["on-answer"]
 	}
 	if err := a.attach(o, extra); err != nil {
 		return err
@@ -993,6 +1001,14 @@ func (a *App) recordAnswer(d *desk.Desk, q store.Event, text, source, behavior s
 	if q.Host != a.Host {
 		a.pushTo(q.Host, "asked on "+q.Host)
 		return nil
+	}
+	if desk.MetaString(q, "on_answer") != "" && !a.WaitHooks {
+		if err := a.deliverDetached(); err != nil {
+			return err
+		}
+		fmt.Fprintf(a.Stderr, "agent-desk: %s goes to the command it was asked with; its output is in %s\n",
+			d.Display(q.ID), filepath.Join(a.Home, "hooks.log"))
+		return a.renderWarn()
 	}
 	if _, err := a.deliver(q.ID); err != nil {
 		return err

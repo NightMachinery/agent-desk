@@ -2,7 +2,7 @@
   // A conversation: the user's messages and answers with their delivery and
   // response state, and the agents' responses, oldest first.
   import { href } from '../lib/route.svelte.js';
-  import { dispositionText, desktopText, remoteText } from '../lib/format.js';
+  import { dispositionText, deliveryTitle, desktopText, remoteText } from '../lib/format.js';
   import Markdown from './Markdown.svelte';
   import Attachments from './Attachments.svelte';
 
@@ -45,7 +45,7 @@
             {#if t.behavior && t.behavior !== 'steer'}<span class="chip">{t.behavior === 'queue' ? 'after its turn' : 'stop and send'}</span>{/if}
             <span class="chip">sent</span>
             {#if t.delivery}
-              <span class="chip ok" title={`Delivered ${t.delivery.age} ago via ${t.delivery.via}`}>{dispositionText(t.delivery)}</span>
+              <span class="chip ok" title={deliveryTitle(t.delivery)}>{dispositionText(t.delivery)}</span>
             {:else if t.pending}
               <span class="chip waiting">{t.pending}</span>
             {/if}

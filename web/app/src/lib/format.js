@@ -96,10 +96,19 @@ export function dispositionText(d) {
     out_of_band: 'answered without a turn',
     typed: 'typed into its pane',
     command: 'handed to deliver_command',
+    handled: 'handled by its command',
   };
   let t = d.disposition === 'queued' ? `queued${d.queue_position ? `, position ${d.queue_position}` : ''}` : words[d.disposition] || '';
   if (!t) t = d.via === 'tmux' ? 'typed into its pane' : 'delivered';
   if (d.revived) t += ' · revived the session';
+  if (d.on_answer && d.on_answer.exit !== 0) t += ` · its command exited ${d.on_answer.exit} and passed it on`;
+  return t;
+}
+
+/** The hover text of a delivery chip. */
+export function deliveryTitle(d) {
+  let t = `Delivered ${d.age} ago via ${d.via}`;
+  if (d.on_answer) t += `\nIts on-answer command exited ${d.on_answer.exit}` + (d.on_answer.output ? `:\n${d.on_answer.output}` : '');
   return t;
 }
 

@@ -37,6 +37,8 @@ type harness struct {
 	// calls records the external programs delivery ran; respond answers them.
 	calls   *[]string
 	respond func(name string, args []string) (string, error)
+	// real names the programs that run for real, recorded in calls too.
+	real map[string]bool
 }
 
 func newHarness(t *testing.T) *harness {
@@ -92,7 +94,7 @@ func (h *harness) app(env map[string]string, stdin string) (*App, *bytes.Buffer,
 		Host:      h.host,
 		Home:      h.desk,
 		WaitHooks: true,
-		Exec: func(_ context.Context, stdin []byte, name string, args ...string) (string, error) {
+		Exec: func(ctx context.Context, stdin []byte, name string, args ...string) (string, error) {
 			call := name + " " + strings.Join(args, " ")
 			if stdin != nil {
 				call += " <<< " + string(stdin)
@@ -101,6 +103,9 @@ func (h *harness) app(env map[string]string, stdin string) (*App, *bytes.Buffer,
 			// still answers them.
 			if args[len(args)-1] != "--help" {
 				*h.calls = append(*h.calls, call)
+			}
+			if h.real[name] {
+				return runReal(ctx, stdin, name, args...)
 			}
 			if h.respond != nil {
 				return h.respond(name, args)

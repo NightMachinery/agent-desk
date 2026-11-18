@@ -39,8 +39,9 @@ func (a *App) runExt(ctx context.Context, stdin []byte, name string, args ...str
 // scrubbed names the variables each program must not inherit. paseo send
 // reads the sender from PASEO_AGENT_ID: inherited from an agent's shell, an
 // answer from the user would arrive as a message from that agent, wrapped in
-// an agent-message envelope.
-var scrubbed = map[string][]string{"paseo": {"PASEO_AGENT_ID"}}
+// an agent-message envelope. env starts the on-answer command and the
+// screen banner, which may run paseo themselves.
+var scrubbed = map[string][]string{"paseo": {"PASEO_AGENT_ID"}, "env": {"PASEO_AGENT_ID"}}
 
 // envFor is environ without the variables program name must not see.
 func envFor(name string, environ []string) []string {
@@ -139,6 +140,8 @@ type receipt struct {
 	QueuePosition int
 	Revived       bool
 	Fallback      string // why Behavior differs from the one requested
+	// OnAnswer is what the question's on-answer command did, if it has one.
+	OnAnswer *onAnswerRun
 }
 
 // meta is the receipt as a delivered event's meta.
@@ -155,6 +158,9 @@ func (r receipt) meta() map[string]any {
 	}
 	if r.Fallback != "" {
 		m["fallback"] = r.Fallback
+	}
+	if r.OnAnswer != nil {
+		m["on_answer"] = r.OnAnswer
 	}
 	return m
 }
@@ -182,11 +188,36 @@ func paseoReceipt(out string, r *receipt) {
 	r.Disposition, r.QueuePosition, r.Revived = v.Disposition, v.QueuePosition, v.Revived
 }
 
-// deliverOne types a message into its session, and says how.
+// deliverOne types a message into its session, and says how. An answer to
+// a question asked with --on-answer goes to that command first; the session
+// gets it only when the command passes it on (see onAnswer).
 func (a *App) deliverOne(d *desk.Desk, j job) (receipt, error) {
 	if j.host != a.Host {
 		return receipt{}, fmt.Errorf("its session is on %s; it is delivered there after the next merge", j.host)
 	}
+	command := desk.MetaString(j.about, "on_answer")
+	if command == "" || j.msg.Kind != "answer" {
+		return a.deliverSession(d, j)
+	}
+	run, err := a.onAnswer(d, j, command)
+	if err != nil {
+		return receipt{}, err
+	}
+	if run.Exit == 0 {
+		return receipt{Via: "on-answer", Behavior: j.behavior, Disposition: "handled", OnAnswer: run}, nil
+	}
+	j.text += onAnswerNote(run)
+	r, err := a.deliverSession(d, j)
+	if err != nil {
+		return r, fmt.Errorf("%w (its on-answer command exited %d: %s)", err, run.Exit, clipLine(run.Output, 200))
+	}
+	r.OnAnswer = run
+	return r, nil
+}
+
+// deliverSession types a message into its session: through Paseo, tmux or
+// deliver_command.
+func (a *App) deliverSession(d *desk.Desk, j job) (receipt, error) {
 	beh := j.behavior
 	if beh == "" {
 		beh = "steer"

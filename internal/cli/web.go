@@ -45,7 +45,9 @@ type Delivery struct {
 	QueuePosition int    `json:"queue_position,omitempty"`
 	Revived       bool   `json:"revived,omitempty"`
 	Fallback      string `json:"fallback,omitempty"`
-	Age           string `json:"age"`
+	// OnAnswer is what the question's on-answer command did.
+	OnAnswer *onAnswerRun `json:"on_answer,omitempty"`
+	Age      string       `json:"age"`
 }
 
 func fromTitle(f ident.From) string {
@@ -108,10 +110,11 @@ func entries(d *desk.Desk, thread []store.Event, pushed map[string]string) []Ent
 				Via, Behavior, Disposition, Fallback string
 				QueuePosition                        int `json:"queue_position"`
 				Revived                              bool
+				OnAnswer                             *onAnswerRun `json:"on_answer"`
 			}
 			_ = json.Unmarshal(del.Meta, &r)
 			en.Delivery = &Delivery{Via: r.Via, Behavior: r.Behavior, Disposition: r.Disposition,
-				QueuePosition: r.QueuePosition, Revived: r.Revived, Fallback: r.Fallback,
+				QueuePosition: r.QueuePosition, Revived: r.Revived, Fallback: r.Fallback, OnAnswer: r.OnAnswer,
 				Age: desk.Age(d.Now.Sub(desk.Time(del)))}
 		} else if en.Source != "chat" {
 			switch {

@@ -84,6 +84,39 @@ the picks. The answer arrives as text, one line per question (unanswered ones sa
 
     And rerun the sync tonight.
 
+**A script that acts on the answer itself.** `--on-answer CMD` stores a
+command with the question. The question is still filed from an agent
+session (a script the agent runs, as daily-sync does), but the answer need
+not cost that agent a turn. When the user answers, the desk runs it on the
+machine that asked, before it reaches any session:
+
+    agent-desk ask --blocked --title 'Conflict in notes/private' \
+      --choices /tmp/picks.json \
+      --on-answer 'daily-sync apply-answer notes/private' <<'Q'
+    ...
+    Q
+
+- The answer's text is on its standard input, in the format above.
+- `AGENT_DESK_QUESTION` and `AGENT_DESK_ANSWER` hold the display ids
+  (`q-7f3a`, `a-2c9d`), `AGENT_DESK_QUESTION_ID` and `AGENT_DESK_ANSWER_ID`
+  the event ids, `AGENT_DESK_PATH` and `AGENT_DESK_TITLE` the question's node
+  and title.
+- It runs under `sh -c` in the asker's working directory, for at most 10
+  minutes. The dashboard and the other answer paths do not wait for it: it
+  runs in a background `agent-desk deliver`, whose output goes to
+  `hooks.log` in the desk directory.
+- **Exit 0** means it handled the answer. The answer counts as delivered and
+  no session is woken. The dashboard shows "handled by its command", with the
+  command's last 4,000 bytes of output on hover.
+- **Any other exit** passes the answer to the asking session as usual, with
+  the exit status and output after it. That is the way to hand an agent what
+  the script cannot decide alone (an "Other" answer, say).
+- It runs once per answer. If the session cannot be reached afterwards,
+  `agent-desk deliver` retries the session, not the command.
+- Only the machine that asked runs it, like any delivery. Anyone who can
+  write events into your desk (your own machines, through merge) can file a
+  question with a command, so merge only with machines you trust.
+
 Mention the printed id (`q-7f3a`) when raising the question in chat. When the
 user answers in chat, record it, or the question stays open in the inbox:
 
