@@ -493,7 +493,7 @@ type Node struct {
 	Open     int     `json:"open_questions"`
 	Blocked  int     `json:"blocked"`
 	UnreadN  int     `json:"unread"`
-	Host     string  `json:"host,omitempty"` // when not this machine
+	Host     string  `json:"host,omitempty"`  // when not this machine
 	Paseo    string  `json:"paseo,omitempty"` // its Paseo agent, on this machine
 	Slots    []Slot  `json:"slots,omitempty"`
 	Notes    []Slot  `json:"notes,omitempty"` // slots for agents only

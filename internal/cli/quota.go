@@ -41,7 +41,7 @@ type QuotaAgent struct {
 	// nearest ancestor that holds any. The dashboard lists it in the view of
 	// each of them and of every node above them.
 	Scopes       []string `json:"scopes"`
-	AutoContinue bool   `json:"auto_continue"`
+	AutoContinue bool     `json:"auto_continue"`
 	// Dismissed: the user hid it, and it has not run since.
 	Dismissed bool `json:"dismissed,omitempty"`
 }
@@ -162,7 +162,7 @@ func (a *App) paseoHeld(d *desk.Desk, byID map[string]ident.PaseoAgent) func(id 
 // hold several; Nodes has them all.
 type quotaPromptData struct {
 	ID, Title, Cwd, Parent, Children, Node, Join, Project string
-	Nodes                                                []promptNode
+	Nodes                                                 []promptNode
 }
 
 // promptNode is a desk node in a prompt: its path, and the join arguments
