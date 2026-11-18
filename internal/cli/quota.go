@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"github.com/NightMachinery/agent-desk/internal/desk"
 	"github.com/NightMachinery/agent-desk/internal/ident"
 	"github.com/NightMachinery/agent-desk/internal/prompts"
+	"github.com/NightMachinery/agent-desk/internal/store"
 )
 
 // Out of quota: the Paseo agents stopped at a usage limit ([quota]
@@ -32,10 +34,13 @@ type QuotaAgent struct {
 	LastActive string     `json:"last_active,omitempty"`
 	Parent     *AgentRef  `json:"parent,omitempty"`
 	Children   []AgentRef `json:"children"`
-	Node       string     `json:"node,omitempty"` // its desk node, if it joined one
-	// Scope is the desk node it works under: its own, else the nearest
-	// ancestor's that joined one. The dashboard shows it in that node's view.
-	Scope        string `json:"scope,omitempty"`
+	// Nodes is the desk nodes its session holds, in the order it joined
+	// them (a session may hold several).
+	Nodes []string `json:"nodes"`
+	// Scopes is the desk nodes it works under: its own, else those of its
+	// nearest ancestor that holds any. The dashboard lists it in the view of
+	// each of them and of every node above them.
+	Scopes       []string `json:"scopes"`
 	AutoContinue bool   `json:"auto_continue"`
 	// Dismissed: the user hid it, and it has not run since.
 	Dismissed bool `json:"dismissed,omitempty"`
@@ -84,27 +89,20 @@ func (a *App) quotaAgents(ctx context.Context, d *desk.Desk, c config.Config) ([
 		byID[r.ID] = r
 	}
 	ref := func(id string) AgentRef { return AgentRef{Paseo: id, Title: byID[id].Title, Stopped: stopped[id]} }
-	nodes := map[string]string{}
-	for _, e := range d.Events {
-		if e.Kind == "join" {
-			if p := fromOf(e).Paseo; p != "" {
-				nodes[p] = e.Path
-			}
-		}
-	}
+	nodes := a.paseoHeld(d, byID)
 	for id := range stopped {
 		r, ok := byID[id]
 		if !ok {
 			continue // archived since, or not this daemon's
 		}
 		q := QuotaAgent{Paseo: id, Title: r.Title, Provider: r.Provider, Cwd: r.Cwd, LastActive: r.LastActive,
-			Children: []AgentRef{}, Node: nodes[id], AutoContinue: auto[id]}
+			Children: []AgentRef{}, Nodes: nodes(id), Scopes: []string{}, AutoContinue: auto[id]}
 		if at, ok := hidden[id]; ok && at == r.LastActive {
 			q.Dismissed = true
 		}
 		for x, seen := id, 0; x != "" && seen < 32; x, seen = byID[x].Parent(), seen+1 {
-			if n := nodes[x]; n != "" {
-				q.Scope = n
+			if n := nodes(x); len(n) > 0 {
+				q.Scopes = n
 				break
 			}
 		}
@@ -123,13 +121,58 @@ func (a *App) quotaAgents(ctx context.Context, d *desk.Desk, c config.Config) ([
 	return out, nil
 }
 
-// quotaPromptData fills reassign-role.md and replace-agent.md.
+// paseoHeld returns the desk nodes each Paseo agent's session holds (see
+// held). A Paseo agent's sessions are the native session in its record and
+// any session that joined a node as that agent.
+func (a *App) paseoHeld(d *desk.Desk, byID map[string]ident.PaseoAgent) func(id string) []string {
+	sessions := map[string][]string{}
+	add := func(id, s string) {
+		if s != "" && !slices.Contains(sessions[id], s) {
+			sessions[id] = append(sessions[id], s)
+		}
+	}
+	for id, r := range byID {
+		add(id, r.Persistence.NativeHandle)
+	}
+	for _, e := range d.Events {
+		if e.Kind == "join" {
+			if f := fromOf(e); f.Paseo != "" {
+				add(f.Paseo, f.Session)
+			}
+		}
+	}
+	cache := map[string][]string{}
+	return func(id string) []string {
+		if out, ok := cache[id]; ok {
+			return out
+		}
+		var evs []store.Event
+		for _, s := range sessions[id] {
+			evs = append(evs, a.held(d, ident.From{Session: s})...)
+		}
+		sort.Slice(evs, func(i, j int) bool { return evs[i].ID < evs[j].ID })
+		out := heldPaths(evs)
+		cache[id] = out
+		return out
+	}
+}
+
+// quotaPromptData fills reassign-role.md and replace-agent.md. Node, Join
+// and Project are its first node, for prompts written before an agent could
+// hold several; Nodes has them all.
 type quotaPromptData struct {
 	ID, Title, Cwd, Parent, Children, Node, Join, Project string
+	Nodes                                                []promptNode
+}
+
+// promptNode is a desk node in a prompt: its path, and the join arguments
+// that take it over (agent-desk join <Join> --project <Project>).
+type promptNode struct {
+	Path, Join, Project string
 }
 
 func promptData(q QuotaAgent) quotaPromptData {
-	p := quotaPromptData{ID: q.Paseo, Title: q.Title, Cwd: q.Cwd, Node: q.Node}
+	p := quotaPromptData{ID: q.Paseo, Title: q.Title, Cwd: q.Cwd, Nodes: []promptNode{}}
 	if p.Title == "" {
 		p.Title = "untitled"
 	}
@@ -145,9 +188,12 @@ func promptData(q QuotaAgent) quotaPromptData {
 		kids = append(kids, s)
 	}
 	p.Children = strings.Join(kids, "; ")
-	if q.Node != "" {
-		project, run, rest := desk.Split(q.Node)
-		p.Project, p.Join = project, run+"/"+rest
+	for _, n := range q.Nodes {
+		project, run, rest := desk.Split(n)
+		p.Nodes = append(p.Nodes, promptNode{Path: n, Join: run + "/" + rest, Project: project})
+	}
+	if len(p.Nodes) > 0 {
+		p.Node, p.Join, p.Project = p.Nodes[0].Path, p.Nodes[0].Join, p.Nodes[0].Project
 	}
 	return p
 }
@@ -179,6 +225,13 @@ func (a *App) cmdQuota(args []string) error {
 			}
 			if len(q.Children) > 0 {
 				extra += fmt.Sprintf(", %d subagents", len(q.Children))
+			}
+			switch len(q.Nodes) {
+			case 0:
+			case 1:
+				extra += ", node " + q.Nodes[0]
+			default:
+				extra += ", nodes " + strings.Join(q.Nodes, " ")
 			}
 			if q.AutoContinue {
 				extra += ", auto-continue on"

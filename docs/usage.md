@@ -824,20 +824,24 @@ screen only while its automation truly needs focus or needs you away.
 Under Needs you, the dashboard's **Out of quota** section lists the Paseo
 agents whose last turn stopped at a usage limit, with their provider, when
 they stopped, their parent and subagents (marked when those are out of quota
-too), and their desk node. Under a node, it lists only the agents working
-there: an agent belongs to the node of its own session, or else of its
-nearest Paseo ancestor that has one. For each:
+too), and the desk nodes their session holds (one path, or "N nodes" with
+the paths in the tooltip). Under a node, it lists only the agents working
+there: an agent belongs to every node its own session holds, or else to
+those of its nearest Paseo ancestor that holds any, and it is listed under
+each of them. For each:
 
 - **Auto-continue** registers it to be sent `Continue.` when its own quota
   returns, or unregisters it.
 - **Ask parent to reassign** (only when its parent still has quota) messages
   the parent: pick an account with quota left (the quota-management skill),
-  start a replacement with the same role, recover the stopped agent's partial
-  work, archive it, and look after its subagents.
+  start a replacement with the same role that takes over each of its desk
+  nodes, recover the stopped agent's partial work, archive it, and look after
+  its subagents.
 - **Replace with a new agent** starts an agent through `[tasks]
   launch_command` (with an optional profile) that recovers the stopped
-  agent's work, takes over its desk node, tells its parent and subagents,
-  and archives it.
+  agent's work, takes over each of its desk nodes (`join --takeover`, which
+  also drops them from the stopped session; with several it then writes
+  with `--node`), tells its parent and subagents, and archives it.
   The caret beside Replace picks the profile: the default, the ones listed
   in `[quota] profiles`, or another typed as `provider[/model][@thinking]`.
 - The id icon copies its Paseo id. To copy several, select them (the list's
@@ -860,7 +864,10 @@ The same from a terminal:
 
 The two prompts are `internal/prompts/reassign-role.md` and
 `replace-agent.md` (Go templates); a file of the same name in
-`~/.config/agent-desk/prompts/` replaces either. The list comes from
+`~/.config/agent-desk/prompts/` replaces either. They get `.Nodes`, the
+agent's desk nodes (each with `.Path`, and `.Join` and `.Project` for `join`);
+`.Node`, `.Join` and `.Project` are the first of them, for prompts written
+when an agent held one. The list comes from
 `[quota] stopped_command`, which prints the stopped agents' ids one per line;
 the section reads each agent's details from its Paseo record
 (`$PASEO_HOME`, default `~/.paseo`). `[quota] auto_continue_command` runs

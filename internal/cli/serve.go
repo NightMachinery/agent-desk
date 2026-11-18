@@ -902,8 +902,11 @@ func (s *server) apiQuota(w http.ResponseWriter, r *http.Request) {
 	if len(focus) > 0 {
 		kept := []QuotaAgent{}
 		for _, q := range resp["agents"].([]QuotaAgent) {
-			if q.Scope != "" && desk.InFocus(q.Scope, focus) {
-				kept = append(kept, q)
+			for _, sc := range q.Scopes {
+				if desk.InFocus(sc, focus) {
+					kept = append(kept, q)
+					break
+				}
 			}
 		}
 		resp = maps.Clone(resp)

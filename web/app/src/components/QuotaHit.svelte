@@ -3,7 +3,8 @@
   // stopped_command), with what can be done about each: let it resume when
   // its quota returns, ask its parent to hand its role to an agent with
   // quota, or start a new agent to take over from it. Under a node, only the
-  // agents working there (their own node, or an ancestor's) are listed.
+  // agents working there (any of their own nodes, else an ancestor's) are
+  // listed.
   // Several can be selected (checkboxes in the list's Select mode, or
   // ⌘/Ctrl-click a card) to copy their Paseo ids, one per line.
   import { SvelteSet } from 'svelte/reactivity';
@@ -19,7 +20,10 @@
   let menu = $state(''); // the agent whose Replace menu is open
   let showDismissed = $state(false);
 
-  const inScope = (a) => !path || a.scope === path || (a.scope ?? '').startsWith(path + '/');
+  const inScope = (a) => !path || (a.scopes ?? []).some((sc) => sc === path || sc.startsWith(path + '/'));
+  // The card names its desk nodes: several as "N nodes" with the paths in
+  // the tooltip, one by its path unless it is this page's node.
+  const nodes = (a) => a.nodes ?? [];
   const scoped = $derived((data.agents ?? []).filter(inScope));
   const dismissed = $derived(scoped.filter((a) => a.dismissed).length);
   const shown = $derived(showDismissed ? scoped : scoped.filter((a) => !a.dismissed));
@@ -149,7 +153,8 @@
         {#if a.last_active}<span>stopped {ago(a.last_active)}</span>{/if}
         {#if a.parent}<span>parent {a.parent.title || short(a.parent.paseo)}{#if a.parent.stopped}&nbsp;(out of quota too){/if}</span>{/if}
         {#if a.children.length}<span>{a.children.length} subagent{a.children.length > 1 ? 's' : ''}{#if a.children.some((c) => c.stopped)}, {a.children.filter((c) => c.stopped).length} out of quota{/if}</span>{/if}
-        {#if a.node && a.node !== path}<span class="mono">{a.node}</span>{/if}
+        {#if nodes(a).length > 1}<span class="nodes" title={nodes(a).join('\n')}>{nodes(a).length} nodes</span>
+        {:else if nodes(a).length && nodes(a)[0] !== path}<span class="mono">{nodes(a)[0]}</span>{/if}
       </div>
       <div class="acts">
         {#if data.auto_continue}
@@ -279,6 +284,10 @@
     flex-wrap: wrap;
     gap: 0 6px;
     font-size: 12.5px;
+  }
+  .meta .nodes {
+    cursor: help;
+    text-decoration: underline dotted;
   }
   .meta span + span::before {
     content: '·';

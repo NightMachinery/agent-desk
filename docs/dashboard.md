@@ -116,12 +116,14 @@ The API, all JSON:
   `value` removes it. The browser acts as the user, so this works even when
   the server was started from an agent's shell.
 - `GET api/quota?fresh=`: the agents out of quota (each with `paseo`,
-  `title`, `provider`, `last_active`, `parent`, `children`, `node`, `scope`
-  (the node it is filtered under: its own, or its nearest ancestor's),
-  `auto_continue` and `dismissed`), whether `auto_continue` and
+  `title`, `provider`, `last_active`, `parent`, `children`, `nodes` (every
+  desk node its session holds, in join order; a session may hold several),
+  `scopes` (the nodes it is filtered under: its own, else its nearest
+  ancestor's), `auto_continue` and `dismissed`), whether `auto_continue` and
   `launch_ready` are configured, and `profiles` (the Replace menu). Under a
-  focus only the agents whose `scope` is inside it are listed, unless
-  `unfocused=1`.
+  focus only the agents with a scope inside it are listed, unless
+  `unfocused=1`. (`nodes` and `scopes` are lists since agents could hold
+  several nodes; they replace the single `node` and `scope`.)
   `POST api/quota {action, id, profile?}` with `auto-continue-on`,
   `auto-continue-off`, `ask-parent`, `replace`, `dismiss` or `undismiss`.
 - `GET api/auto-continue?paseo=`: `{available, on}` for one agent, for the
