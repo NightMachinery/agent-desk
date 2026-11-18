@@ -36,6 +36,7 @@ const DefaultListen = "127.0.0.1:7740"
 
 // server is the web dashboard: a JSON API over the store and the built page.
 type server struct {
+	voice       voiceHub
 	a           *App
 	mu          sync.Mutex // protects the shared App used by reads
 	writeMu     sync.Mutex // serialises read-modify-write actions
@@ -167,6 +168,7 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("GET /api/quota", s.apiQuota)
 	mux.HandleFunc("POST /api/quota", s.action(s.apiQuotaAct))
 	mux.HandleFunc("GET /api/auto-continue", s.apiAutoContinue)
+	s.voiceRoutes(mux)
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, http.StatusNotFound, "no such API")
 	})

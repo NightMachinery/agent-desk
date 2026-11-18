@@ -39,6 +39,7 @@ type Config struct {
 	MediaKeepDays *int `toml:"media_keep_days"`
 	// Tasks configures launching deferred tasks and the quota nudge ([tasks]).
 	Tasks Tasks `toml:"tasks"`
+	Voice Voice `toml:"voice"`
 	// Screen configures the screen lock, which an agent takes before it
 	// drives this machine's GUI ([screen]).
 	Screen Screen `toml:"screen"`
@@ -81,6 +82,9 @@ func Load(path string) (Config, error) {
 		if len(k) == 0 || k[0] != "defaults" {
 			return Config{}, fmt.Errorf("%s: unknown key %q", path, k.String())
 		}
+	}
+	if err := c.Voice.check(); err != nil {
+		return Config{}, fmt.Errorf("%s: %w", path, err)
 	}
 	if c.Defaults, err = defaults(c.RawDefaults); err != nil {
 		return Config{}, fmt.Errorf("%s: %w", path, err)
@@ -265,4 +269,37 @@ type Quota struct {
 	// launch_command profile (provider[/model][@thinking]); launch_command's
 	// own default is always offered first.
 	Profiles []string `toml:"profiles"`
+}
+
+// Voice configures dashboard recording and transcription.
+type Voice struct {
+	STTBackend  string `toml:"stt_backend"`
+	KeepDays    *int   `toml:"keep_days"`
+	Command     string `toml:"command"`
+	HandySocket string `toml:"handy_socket"`
+}
+
+func (v Voice) Backend() string {
+	if v.STTBackend == "" {
+		return "paseo"
+	}
+	return v.STTBackend
+}
+
+func (v Voice) Days() int { return intOr(v.KeepDays, 7) }
+
+func (v Voice) check() error {
+	switch v.Backend() {
+	case "paseo", "handy":
+	case "command":
+		if v.Command == "" {
+			return errors.New("[voice] command is required when stt_backend is command")
+		}
+	default:
+		return fmt.Errorf("[voice] unknown stt_backend %q", v.STTBackend)
+	}
+	if v.Days() < 0 {
+		return errors.New("[voice] keep_days must be 0 or greater")
+	}
+	return nil
 }

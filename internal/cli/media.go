@@ -138,14 +138,25 @@ func (a *App) cmdGC(args []string) error {
 			return usagef("--days takes a whole number of days, 1 or more")
 		}
 	}
-	if days <= 0 {
-		fmt.Fprintln(a.Stdout, "media_keep_days is 0: attachments are kept for good")
-		return nil
-	}
-	n, freed, err := a.gc(days, o.bools["dry-run"])
+	cfg, err := a.config()
 	if err != nil {
 		return err
 	}
+	var n int
+	var freed int64
+	if days > 0 {
+		n, freed, err = a.gc(days, o.bools["dry-run"])
+		if err != nil {
+			return err
+		}
+	} else {
+		fmt.Fprintln(a.Stdout, "media_keep_days is 0: attachments are kept for good")
+	}
+	count, bytes, err := a.gcVoice(cfg.Voice.Days(), o.bools["dry-run"])
+	if err != nil {
+		return err
+	}
+	n, freed = n+count, freed+bytes
 	verb := "deleted"
 	if o.bools["dry-run"] {
 		verb = "would delete"
