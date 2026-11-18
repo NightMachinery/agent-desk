@@ -115,6 +115,7 @@ func TestKeeperAbsent(t *testing.T) {
 	t.Cleanup(func() { _ = os.Remove(dir) })
 	writeConfig(t, h, fmt.Sprintf("[keeper]\nsocket = %q\n", filepath.Join(dir, "socket")))
 	s, hd := testServer(t, h)
+	s.refreshCache()
 	code, body, _ := do(t, hd, "GET", "/api/cache", "", nil)
 	if code != http.StatusOK || !strings.Contains(body, `"available":false`) || !strings.Contains(body, "agent-quotas is not running") {
 		t.Fatalf("cache status: %d %s", code, body)
@@ -143,6 +144,7 @@ func TestColdCacheDialogData(t *testing.T) {
 		writeJSON(w, keeper.List{Enabled: true, Agents: []keeper.Agent{{ID: queuedAgent, Big: true, CacheExpiresAt: &expiry}}})
 	})
 	s, hd := testServer(t, h)
+	s.refreshCache()
 	for _, target := range []struct{ kind, id string }{{"answer", q}, {"reply", note}, {"reply", "example-proj/r1/coord"}} {
 		path := "/api/cache?" + url.Values{"kind": {target.kind}, "target": {target.id}}.Encode()
 		code, body, _ := do(t, hd, "GET", path, "", nil)
@@ -345,10 +347,9 @@ func TestPaseoSendTakesKeeperLock(t *testing.T) {
 
 func TestSlowKeeperNeverBlocksReads(t *testing.T) {
 	h, _, _ := queueFixture(t)
-	old := cacheFirstWait
-	cacheFirstWait = 50 * time.Millisecond
-	t.Cleanup(func() { cacheFirstWait = old })
 	release := make(chan struct{})
+	unblock := sync.OnceFunc(func() { close(release) })
+	defer unblock()
 	var lists atomic.Int32
 	fakeKeeper(t, h, func(w http.ResponseWriter, r *http.Request) {
 		lists.Add(1)
@@ -363,7 +364,7 @@ func TestSlowKeeperNeverBlocksReads(t *testing.T) {
 	}
 	// A second read while the refresh runs starts no second keeper request.
 	do(t, hd, "GET", "/api/cache", "", nil)
-	close(release)
+	unblock()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
 		_, body, _ = do(t, hd, "GET", "/api/cache", "", nil)

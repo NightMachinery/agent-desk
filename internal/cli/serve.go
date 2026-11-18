@@ -36,22 +36,22 @@ const DefaultListen = "127.0.0.1:7740"
 
 // server is the web dashboard: a JSON API over the store and the built page.
 type server struct {
-	voice       voiceHub
-	a           *App
-	mu          sync.Mutex // protects the shared App used by reads
-	writeMu     sync.Mutex // serialises read-modify-write actions
-	sendMu      sync.Mutex // protects queued post-commit effects
-	sendEffects [][]store.Event
-	cacheMu     sync.Mutex
-	cacheAt     time.Time
-	cacheList   cacheResponse
-	cacheDone   chan struct{}   // closed when the running refresh ends
-	compacting  map[string]bool // one keeper request in flight per agent
-	sendWake    chan struct{}
-	ui          fs.FS
-	index       []byte
-	csp         string
-	hosts       map[string]bool // Host header names accepted; nil accepts any
+	voice           voiceHub
+	a               *App
+	mu              sync.Mutex // protects the shared App used by reads
+	writeMu         sync.Mutex // serialises read-modify-write actions
+	sendMu          sync.Mutex // protects queued post-commit effects
+	sendEffects     [][]store.Event
+	cacheMu         sync.Mutex
+	cacheAt         time.Time
+	cacheList       cacheResponse
+	cacheRefreshing bool
+	compacting      map[string]bool // one keeper request in flight per agent
+	sendWake        chan struct{}
+	ui              fs.FS
+	index           []byte
+	csp             string
+	hosts           map[string]bool // Host header names accepted; nil accepts any
 	// origins are the dashboard's public origins (scheme://host[:port]),
 	// where a proxy that rewrites Host serves it.
 	origins map[string]bool
@@ -1324,6 +1324,7 @@ func (a *App) cmdServe(args []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	go s.sweepScreen(ctx, time.Minute)
+	s.cacheSnapshot() // start the first keeper read before a browser opens the desk
 	go s.runSendQueue(ctx)
 	go func() {
 		<-ctx.Done()

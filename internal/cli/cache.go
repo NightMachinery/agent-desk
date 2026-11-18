@@ -23,9 +23,6 @@ const (
 	cacheRefreshTimeout = 30 * time.Second
 )
 
-// cacheFirstWait bounds how long the first read waits for the keeper.
-var cacheFirstWait = 2 * time.Second
-
 var cacheAgentID = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 
 func (a *App) keeperClient() (keeper.Client, error) {
@@ -70,37 +67,22 @@ type cacheResponse struct {
 	Agents    map[string]cacheStatus `json:"agents,omitempty"`
 }
 
-// cacheSnapshot never waits long on the keeper, whose reads can take
-// seconds: it returns the last result at once and refreshes it in the
-// background once it is older than cacheStatusTTL. Only the first call waits,
-// and only briefly.
-func (s *server) cacheSnapshot(ctx context.Context) cacheResponse {
-	s.cacheMu.Lock()
-	have, fresh := !s.cacheAt.IsZero(), time.Since(s.cacheAt) < cacheStatusTTL
-	result, done := s.cacheList, s.cacheDone
-	if !fresh && done == nil {
-		done = make(chan struct{})
-		s.cacheDone = done
-		go s.refreshCache(done)
-	}
-	s.cacheMu.Unlock()
-	if have || done == nil {
-		return result
-	}
-	select {
-	case <-done:
-	case <-ctx.Done():
-	case <-time.After(cacheFirstWait):
-	}
+// cacheSnapshot serves the last completed refresh, or a loading response on
+// startup. Slow keeper reads never hold a dashboard request open.
+func (s *server) cacheSnapshot() cacheResponse {
 	s.cacheMu.Lock()
 	defer s.cacheMu.Unlock()
+	if time.Since(s.cacheAt) >= cacheStatusTTL && !s.cacheRefreshing {
+		s.cacheRefreshing = true
+		go s.refreshCache()
+	}
 	if s.cacheAt.IsZero() {
 		return cacheResponse{Message: "Cache status loading"}
 	}
 	return s.cacheList
 }
 
-func (s *server) refreshCache(done chan struct{}) {
+func (s *server) refreshCache() {
 	ctx, cancel := context.WithTimeout(context.Background(), cacheRefreshTimeout)
 	defer cancel()
 	result := cacheResponse{Message: "Cache status unavailable"}
@@ -120,15 +102,14 @@ func (s *server) refreshCache(done chan struct{}) {
 		}
 	}
 	s.cacheMu.Lock()
-	s.cacheList, s.cacheAt, s.cacheDone = result, time.Now(), nil
+	s.cacheList, s.cacheAt, s.cacheRefreshing = result, time.Now(), false
 	s.cacheMu.Unlock()
-	close(done)
 }
 
 func (s *server) apiCache(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	if q.Get("target") == "" {
-		writeJSON(w, s.cacheSnapshot(r.Context()))
+		writeJSON(w, s.cacheSnapshot())
 		return
 	}
 	// Resolve again on send, especially for a question whose original
@@ -159,7 +140,7 @@ func (s *server) apiCache(w http.ResponseWriter, r *http.Request) {
 	if id == "" || host != a.Host {
 		return
 	}
-	status := s.cacheSnapshot(r.Context())
+	status := s.cacheSnapshot()
 	agent, ok := status.Agents[strings.ToLower(id)]
 	if ok {
 		result.Cold = (keeper.Agent{Big: agent.Big, CacheExpiresAt: agent.ExpiresAt}).Cold(a.Now())
