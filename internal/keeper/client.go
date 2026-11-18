@@ -18,7 +18,7 @@ import (
 var ErrUnavailable = errors.New("agent-quotas is not running")
 
 const (
-	readTimeout = 3 * time.Second
+	readTimeout = 15 * time.Second // keeper reads can take several seconds
 	// listTimeout is longer: the list is read in the background, and the
 	// keeper can take several seconds to build it.
 	listTimeout = 30 * time.Second

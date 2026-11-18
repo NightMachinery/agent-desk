@@ -156,7 +156,7 @@ The API, all JSON:
 - `GET api/cache`: cache policies and estimated expiry for local agents,
   read separately from the page view. The server answers from its last
   keeper snapshot at once and refreshes it in the background when it is
-  older than 15 seconds (keeper reads can take several seconds); only the
+  older than a minute (keeper reads can take seconds); only the
   first read after start waits, up to 2 seconds, and otherwise says
   "Cache status loading". Sends reuse each agent's lock path from the
   snapshot instead of asking the keeper again.

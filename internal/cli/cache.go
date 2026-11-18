@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	cacheStatusTTL      = 15 * time.Second
+	cacheStatusTTL      = time.Minute
 	cacheRefreshTimeout = 30 * time.Second
 )
 
