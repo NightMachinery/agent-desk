@@ -125,9 +125,10 @@ func (a *App) screenTake(args []string) error {
 		if st.Hold == nil && (len(st.Requests) == 0 || (has && st.Requests[0].ID == req.ID)) {
 			// Free, and nobody asked before this session: granted if the
 			// user is away.
-			idle, known := a.userIdle(c)
+			idle, known := a.userAway(c, d)
 			if known && idle >= time.Duration(c.Screen.Idle())*time.Minute {
-				evs := []store.Event{a.screenGrant(from, from.Session, reason, hold, "auto", req.ID)}
+				g := a.screenGrant(from, from.Session, reason, hold, "auto", req.ID, d.Now.Add(-idle))
+				evs := []store.Event{g}
 				if has {
 					evs = append(evs, a.readMark(req, from, "screen")) // out of Needs you
 				}
@@ -168,10 +169,15 @@ func (a *App) screenTake(args []string) error {
 }
 
 // screenGrant is a grant to session.
-func (a *App) screenGrant(from ident.From, holder, reason string, hold time.Duration, by, request string) store.Event {
+// awaySince, for an automatic grant, is when the user was last at the
+// machine.
+func (a *App) screenGrant(from ident.From, holder, reason string, hold time.Duration, by, request string, awaySince ...time.Time) store.Event {
 	m := map[string]any{
 		"action": "grant", "holder": holder, "reason": reason, "by": by,
 		"until": a.Now().Add(hold).UTC().Format(time.RFC3339),
+	}
+	if len(awaySince) > 0 {
+		m["away_since"] = awaySince[0].UTC().Format(time.RFC3339)
 	}
 	if request != "" {
 		m["request"] = request
@@ -279,7 +285,7 @@ func (a *App) screenStatus(args []string) error {
 		fmt.Fprintf(a.Stdout, "Asking: %s %s\n", d.Display(q.ID), q.Title)
 	}
 	if c, err := a.config(); err == nil && host == a.Host {
-		if idle, ok := a.userIdle(c); ok {
+		if idle, ok := a.userAway(c, d); ok {
 			fmt.Fprintf(a.Stdout, "The user has been idle %s (granted without asking from %d minutes).\n", humanDur(idle), c.Screen.Idle())
 		}
 	}
@@ -311,7 +317,33 @@ func (a *App) screenDecide(token string, grant bool, source string) error {
 // a grant, unless the answer says no.
 var screenNo = regexp.MustCompile(`(?i)^\s*(no|deny|denied|not now|don'?t|do not)\b`)
 
-func (a *App) screenDecision(q store.Event, answer string) (store.Event, bool) {
+// screenSweep grants the oldest request for this machine's screen once the
+// screen is free and the user has been away long enough, so an agent that
+// asked while the user was here need not ask again: it hears the grant as
+// the answer to its request. The dashboard's server runs it every minute.
+func (a *App) screenSweep() error {
+	c, err := a.config()
+	if err != nil {
+		return err
+	}
+	d, err := a.load()
+	if err != nil {
+		return err
+	}
+	st := d.Screen(a.Host)
+	if st.Hold != nil || len(st.Requests) == 0 {
+		return nil
+	}
+	away, ok := a.userAway(c, d)
+	if !ok || away < time.Duration(c.Screen.Idle())*time.Minute {
+		return nil
+	}
+	text := fmt.Sprintf("Approved automatically: the user has been away %s, so the screen is yours. "+
+		"Run `agent-desk screen take` again to put up the banner, and release it as soon as you are done.", humanDur(away))
+	return a.recordAnswer(d, st.Requests[0], text, "auto", "", nil)
+}
+
+func (a *App) screenDecision(q store.Event, answer, source string) (store.Event, bool) {
 	sm, ok := desk.Meta(q)["screen"].(map[string]any)
 	if !ok {
 		return store.Event{}, false
@@ -329,10 +361,21 @@ func (a *App) screenDecision(q store.Event, answer string) (store.Event, bool) {
 		hold = screenDefault
 	}
 	reason, _ := sm["reason"].(string)
-	e := a.event("screen", path, from, "answer", map[string]any{
+	m := map[string]any{
 		"action": "grant", "holder": sessionOf(q), "reason": reason, "by": "user", "request": q.ID,
 		"until": a.Now().Add(hold).UTC().Format(time.RFC3339),
-	})
+	}
+	if source == "auto" {
+		m["by"] = "auto"
+		if c, err := a.config(); err == nil {
+			if d, err := a.load(); err == nil {
+				if away, ok := a.userAway(c, d); ok {
+					m["away_since"] = a.Now().Add(-away).UTC().Format(time.RFC3339)
+				}
+			}
+		}
+	}
+	e := a.event("screen", path, from, "answer", m)
 	e.Ref = q.ID
 	return e, true
 }
@@ -375,8 +418,24 @@ func screenDeniedReq(d *desk.Desk, id string) (string, bool) {
 	return "", false
 }
 
-// userIdle is how long the user has not touched this machine, and whether
-// it is known.
+// userAway is how long the user has been away from this machine. Input
+// while an agent held the screen was the agent's, not the user's: an agent
+// that held the screen and asks again a minute later finds the user as long
+// away as when it was first granted, not freshly back.
+func (a *App) userAway(c config.Config, d *desk.Desk) (time.Duration, bool) {
+	idle, ok := a.userIdle(c)
+	if !ok {
+		return 0, false
+	}
+	last := d.Now.Add(-idle)
+	if user, held := d.ScreenUserLast(a.Host, last, time.Duration(c.Screen.Idle())*time.Minute); held && user.Before(last) {
+		return d.Now.Sub(user), true
+	}
+	return idle, true
+}
+
+// userIdle is how long nobody has touched this machine (the user, or an
+// agent driving it), and whether it is known.
 func (a *App) userIdle(c config.Config) (time.Duration, bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

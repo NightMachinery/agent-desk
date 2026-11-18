@@ -1062,7 +1062,7 @@ func (a *App) recordAnswer(d *desk.Desk, q store.Event, text, source, behavior s
 	e := a.event("answer", q.Path, ident.Resolve(a.Env), source, extra)
 	e.Ref, e.Body = q.ID, text
 	evs := []store.Event{e}
-	if se, ok := a.screenDecision(q, text); ok {
+	if se, ok := a.screenDecision(q, text, source); ok {
 		evs = append(evs, se) // an answer to a screen request grants or denies it
 	}
 	if err := a.commit(evs, e.ID); err != nil {

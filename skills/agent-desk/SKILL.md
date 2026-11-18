@@ -269,9 +269,11 @@ it the moment you are done:
     agent-desk screen take --reason 'Clicking through the settings app' [--for 20m] [--wait]
     agent-desk screen release
 
-It is yours at once when the user has been idle 30 minutes. Otherwise the
-user gets a request in Needs you, and `take` exits 3; `--wait` blocks until
-they approve (the answer also reaches you as a message: run `take` again).
+It is yours at once when the user has been idle 30 minutes (your own
+clicks while you held it do not count as theirs). Otherwise the user gets a
+request in Needs you, and `take` exits 3; `--wait` blocks until they approve
+or until the desk grants it because they stayed away 30 minutes (the answer
+also reaches you as a message: run `take` again).
 While you hold it a banner tells the user to keep off the keyboard. Do not
 take it for work that runs headless, in the background or without focus,
 such as a headless browser's screenshots: that does not disturb the user.

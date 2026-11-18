@@ -1237,6 +1237,7 @@ func (a *App) cmdServe(args []string) error {
 	srv := &http.Server{Handler: s.routes(), ReadHeaderTimeout: 10 * time.Second}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	go s.sweepScreen(ctx, time.Minute)
 	go func() {
 		<-ctx.Done()
 		sctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -1248,4 +1249,27 @@ func (a *App) cmdServe(args []string) error {
 		return err
 	}
 	return nil
+}
+
+// sweepScreen grants a waiting request for the screen once the user has
+// been away long enough (screenSweep), every interval until ctx ends.
+func (s *server) sweepScreen(ctx context.Context, every time.Duration) {
+	t := time.NewTicker(every)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+		s.mu.Lock()
+		app, _, errb := s.userApp()
+		if err := app.screenSweep(); err != nil {
+			fmt.Fprintf(s.logger, "agent-desk: screen sweep: %v\n", err)
+		}
+		s.mu.Unlock()
+		if n := strings.TrimSpace(errb.String()); n != "" {
+			fmt.Fprintln(s.logger, n)
+		}
+	}
 }

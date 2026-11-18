@@ -122,3 +122,72 @@ func sessionOfEvent(e store.Event) string {
 	_ = json.Unmarshal(e.Meta, &m)
 	return m.From.Session
 }
+
+// ScreenGrace is how long after an agent's hold runs out the machine's
+// input is still taken to be the agent's: it may still be clicking as its
+// time ends. After the agent releases the screen, input is the user's at
+// once.
+const ScreenGrace = 2 * time.Minute
+
+// ScreenUserLast is for input seen at t on host's screen: if t falls while
+// an agent held the screen (from a grant to its release or expiry, plus
+// ScreenGrace when it ran out; back-to-back holds count as one), the input was the agent's,
+// and userLast is when the user last touched the machine before that hold.
+// An automatic grant records it (meta.away_since); an older one without it
+// was given after at least idle of absence; a grant by the user is taken as
+// the user's last touch.
+func (d *Desk) ScreenUserLast(host string, t time.Time, idle time.Duration) (userLast time.Time, ok bool) {
+	type window struct {
+		start, end, user time.Time
+		released         bool
+	}
+	var ws []window
+	path := ScreenPath(host)
+	grace := func(w window) time.Duration {
+		if w.released {
+			return 0
+		}
+		return ScreenGrace
+	}
+	for _, e := range d.Events {
+		if e.Kind != "screen" || e.Path != path {
+			continue
+		}
+		var m struct {
+			screenMeta
+			AwaySince string `json:"away_since"`
+		}
+		_ = json.Unmarshal(e.Meta, &m)
+		at := Time(e)
+		switch m.Action {
+		case "grant":
+			until, err := time.Parse(time.RFC3339, m.Until)
+			if err != nil {
+				continue
+			}
+			if n := len(ws); n > 0 && !at.After(ws[n-1].end.Add(grace(ws[n-1]))) {
+				ws[n-1].end, ws[n-1].released = until, false // renewed, or handed on: one stretch of agent input
+				continue
+			}
+			user := at
+			if m.By == "auto" {
+				user = at.Add(-idle)
+				if s, err := time.Parse(time.RFC3339, m.AwaySince); err == nil {
+					user = s
+				}
+			}
+			ws = append(ws, window{start: at, end: until, user: user})
+		case "release":
+			if n := len(ws); n > 0 && at.Before(ws[n-1].end) {
+				ws[n-1].end, ws[n-1].released = at, true
+			}
+		}
+	}
+	for i := len(ws) - 1; i >= 0; i-- {
+		w := ws[i]
+		if !t.Before(w.start) && (t.Before(w.end) || (!w.released && !t.After(w.end.Add(ScreenGrace)))) {
+			return w.user, true
+		}
+	}
+	return time.Time{}, false
+}

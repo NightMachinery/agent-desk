@@ -3,6 +3,9 @@ package cli
 import (
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/NightMachinery/agent-desk/internal/desk"
 )
 
 // The screen lock: granted at once when the user is idle long enough,
@@ -59,7 +62,7 @@ func TestScreen(t *testing.T) {
 		t.Fatalf("release: %s", out)
 	}
 	h.fails(a, "", "do not hold", "screen", "release")
-	idle = "12"
+	idle = "1" // touched after A let go: the user's input
 	if _, _, code := h.run(b, "", "screen", "take", "--reason", "Recording a screencast"); code != ScreenWaiting {
 		t.Fatalf("B took it while the user was active: %d", code)
 	}
@@ -87,7 +90,7 @@ func TestScreen(t *testing.T) {
 	h.fails(nil, "", "not a request for the screen", "screen", "grant", strings.Fields(h.ok(a, "x", "tell", "--title", "t"))[0])
 
 	// The dashboard: the view lists screens; approve and take back.
-	idle = "5"
+	idle = "1"
 	if _, _, code := h.run(b, "", "screen", "take", "--reason", "Testing the menu bar"); code != ScreenWaiting {
 		t.Fatalf("B again: %d", code)
 	}
@@ -114,5 +117,64 @@ func TestScreen(t *testing.T) {
 	}
 	if out := h.ok(nil, "", "screen", "status"); !strings.Contains(out, "is free") {
 		t.Fatalf("after take-back: %s", out)
+	}
+}
+
+// Input while an agent holds the screen is the agent's: an agent granted
+// the screen because the user was away, asking again just after its hold
+// ran out, finds the user still away, though its own clicks reset the
+// machine's idle time.
+func TestScreenAgentInputIsNotTheUser(t *testing.T) {
+	h := newHarness(t)
+	writeConfig(t, h, "[screen]\nidle_command = 'printf IDLE'\nbanner_on = 'printf ON'\nbanner_off = 'printf OFF'\n")
+	idle := "4000"
+	h.respond = func(name string, args []string) (string, error) {
+		if name == "sh" && len(args) == 2 && args[1] == "printf IDLE" {
+			return idle + "\n", nil
+		}
+		return "", nil
+	}
+	a := h.as(sessA)
+	if out := h.ok(a, "", "screen", "take", "--reason", "Filling a form", "--for", "5m"); !strings.Contains(out, "is yours") {
+		t.Fatalf("take: %s", out)
+	}
+	// The hold runs out; the agent clicked 30 s before it did.
+	h.now = h.now.Add(5*time.Minute + 20*time.Second)
+	idle = "50"
+	out := h.ok(a, "", "screen", "take", "--reason", "Submitting the form", "--for", "3m")
+	if !strings.Contains(out, "away 1 h") || !strings.Contains(out, "is yours") {
+		t.Fatalf("second take: %s", out)
+	}
+	if out := h.ok(nil, "", "screen", "status"); !strings.Contains(out, "idle 1 h") {
+		t.Fatalf("status: %s", out)
+	}
+
+	// Released, then the machine is touched: that is the user.
+	h.ok(a, "", "screen", "release")
+	idle = "1"
+	if _, _, code := h.run(a, "", "screen", "take", "--reason", "One more click"); code != ScreenWaiting {
+		t.Fatalf("taken while the user was back: %d", code)
+	}
+
+	// The request waits; once the user has been away long enough, the
+	// server's sweep grants it and answers the request.
+	app, _, _ := h.app(nil, "")
+	must(t, app.screenSweep())
+	if st := h.loadDesk().Screen(h.host); st.Hold != nil || len(st.Requests) != 1 {
+		t.Fatalf("granted while the user is here: %+v", st)
+	}
+	idle = "2000"
+	app, _, _ = h.app(nil, "")
+	must(t, app.screenSweep())
+	d := h.loadDesk()
+	st := d.Screen(h.host)
+	if st.Hold == nil || st.Hold.By != "auto" || st.Hold.Reason != "One more click" || len(st.Requests) != 0 {
+		t.Fatalf("after the sweep: %+v", st)
+	}
+	if desk.MetaString(st.Hold.Event, "away_since") == "" {
+		t.Fatalf("no away_since: %s", st.Hold.Event.Meta)
+	}
+	if out := h.ok(a, "", "screen", "take", "--reason", "One more click"); !strings.Contains(out, "is yours") {
+		t.Fatalf("take after the sweep: %s", out)
 	}
 }
