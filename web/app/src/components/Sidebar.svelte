@@ -1,8 +1,12 @@
 <script>
   import { route, href } from '../lib/route.svelte.js';
   import { stateClass } from '../lib/format.js';
+  import { editSets, focusOn } from '../lib/sets.svelte.js';
 
-  let { view, live } = $props();
+  let { view, live, onchange } = $props();
+
+  const sets = $derived(view?.sets ?? []);
+  const focus = $derived(view?.focus?.name ?? '');
 
   const projects = $derived(view?.view?.runs ?? []);
   const open = $derived(projects.reduce((n, p) => n + p.open_questions, 0));
@@ -23,7 +27,27 @@
     {#if unread}<span class="count" title="Unread">{unread}</span>{/if}
   </a>
 
-  <div class="label">Projects</div>
+  <div class="label split">
+    <span>Focus</span>
+    <button class="edit" onclick={() => editSets(focus)} title="Create or change project sets">{sets.length ? 'Edit sets' : 'New set'}</button>
+  </div>
+  {#if sets.length}
+    <button class="scope set" class:on={!focus} onclick={() => focus && focusOn('', onchange)} aria-pressed={!focus}>
+      <span class="ring" class:off={true}></span>
+      <span class="name">All projects</span>
+    </button>
+    {#each sets as s (s.name)}
+      <button class="scope set" class:on={focus === s.name} onclick={() => focus !== s.name && focusOn(s.name, onchange)} aria-pressed={focus === s.name} title={s.prefixes.join(', ')}>
+        <span class="ring"></span>
+        <span class="name">{s.name}</span>
+        <span class="faint n">{s.prefixes.length}</span>
+      </button>
+    {/each}
+  {:else}
+    <p class="faint none">Group projects into a set to focus on them; the rest stays quiet.</p>
+  {/if}
+
+  <div class="label">{focus ? `Projects in ${focus}` : 'Projects'}</div>
   {#each projects as p (p.path)}
     <a class="scope" class:on={current === p.name && !route.session} href={href({ path: p.path, item: '', session: '' })}>
       <span class="state {stateClass(p.state)}" title={p.state}></span>
@@ -93,6 +117,54 @@
     letter-spacing: 0.06em;
     text-transform: uppercase;
     color: var(--faint);
+  }
+  .split {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .edit {
+    border: 0;
+    background: none;
+    padding: 0;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--muted);
+  }
+  .edit:hover {
+    color: var(--text);
+  }
+  button.scope {
+    width: 100%;
+    border: 0;
+    background: none;
+    text-align: left;
+    font: inherit;
+    cursor: pointer;
+  }
+  .scope.set.on {
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+  .ring {
+    width: 10px;
+    height: 10px;
+    flex: none;
+    border-radius: 50%;
+    border: 2px solid currentColor;
+    opacity: 0.55;
+  }
+  .set.on .ring {
+    opacity: 1;
+    box-shadow: inset 0 0 0 2px var(--panel), inset 0 0 0 5px currentColor;
+  }
+  .ring.off {
+    border-style: dashed;
+  }
+  .n {
+    font-size: 12px;
   }
   .scope {
     display: flex;

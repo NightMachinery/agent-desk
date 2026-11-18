@@ -13,6 +13,8 @@
   import Detail from './components/Detail.svelte';
   import NodePanel from './components/NodePanel.svelte';
   import Settings from './components/Settings.svelte';
+  import SetEditor from './components/SetEditor.svelte';
+  import { setsUi } from './lib/sets.svelte.js';
 
   let view = $state(null);
   let globalView = $state(null);
@@ -98,9 +100,10 @@
     return () => document.removeEventListener('visibilitychange', onVisible);
   });
 
-  // Close the drawer whenever the view changes.
+  // Close the drawer whenever the view changes, or the set editor opens
+  // over it.
   $effect(() => {
-    route.path, route.session, route.host;
+    route.path, route.session, route.host, setsUi.open;
     drawer = false;
   });
 
@@ -123,14 +126,14 @@
 
 <div class="shell" class:has-item={!!route.item || route.settings}>
   <div class="side" class:open={drawer} data-pane="side" class:focused={focused === 'side'}>
-    <Sidebar view={globalView} {live} />
+    <Sidebar view={globalView} {live} onchange={refresh} />
   </div>
   {#if drawer}
     <button class="scrim" aria-label="Close menu" onclick={() => (drawer = false)}></button>
   {/if}
 
   <main class="list" data-pane="list" class:focused={focused === 'list'}>
-    <ListPane {view} {error} onmenu={() => (drawer = true)} onchange={refresh} />
+    <ListPane {view} {error} focus={globalView?.focus} onmenu={() => (drawer = true)} onchange={refresh} />
   </main>
 
   <aside class="detail" data-pane="detail" class:focused={focused === 'detail'}>
@@ -166,6 +169,8 @@
 </div>
 
 <Keys />
+
+<SetEditor sets={globalView?.sets ?? []} paths={globalView?.paths ?? []} onchange={refresh} />
 
 <div class="toasts" aria-live="polite">
   {#each toasts as t (t.id)}

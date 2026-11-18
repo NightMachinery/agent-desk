@@ -16,7 +16,10 @@
   import { snapshot } from '../lib/nav.svelte.js';
   import { ui, toggleSection } from '../lib/ui.svelte.js';
 
-  let { view, error, onmenu, onchange } = $props();
+  import { focusOn, editSets, hiddenText } from '../lib/sets.svelte.js';
+
+  let { view, error, focus = null, onmenu, onchange } = $props();
+  const hidden = $derived(hiddenText(focus?.hidden));
 
   // The server lists oldest first. Recent first (the default) puts each
   // group's newest item on top, and the groups of the project with the newest
@@ -135,6 +138,22 @@
     </a>
     <button data-cmd="select-mode" title={tip('Select items', 'select-mode')} class="btn small" class:on={selecting()} onclick={() => (selecting() ? clear() : (sel.mode = true))}>{selecting() ? 'Done' : 'Select'}</button>
   </div>
+  {#if focus}
+    <div class="focusbar">
+      <span class="ring" aria-hidden="true"></span>
+      <div class="who">
+        <span>Focus: {focus.name}</span>
+        {#if hidden}
+          <span class="chip {focus.hidden.needs_you ? 'waiting' : ''}" title="Items outside the focus that need you; they are kept, unread, and do not notify">{hidden}</span>
+        {/if}
+      </div>
+      <div class="faint prefixes" title={focus.prefixes.join(', ')}>{focus.prefixes.join(' · ')}</div>
+      <div class="actions">
+        <button class="btn small ghost" onclick={() => editSets(focus.name)}>Edit</button>
+        <button class="btn small" onclick={() => focusOn('', onchange)} title="Show everything again, and notify for everything">Leave focus</button>
+      </div>
+    </div>
+  {/if}
   {#if route.session}
     {@const s = view?.session}
     <div class="session">
@@ -399,9 +418,58 @@
   .who {
     font-weight: 600;
   }
-  .actions {
+  .focusbar {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas: 'ring who actions' '. prefixes actions';
+    align-items: center;
+    column-gap: 10px;
+    row-gap: 1px;
+    margin-top: 10px;
+    padding: 8px 10px 8px 12px;
+    border-radius: 10px;
+    background: var(--accent-soft);
+    font-size: 13px;
+  }
+  .focusbar .ring {
+    grid-area: ring;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid var(--accent);
+    box-shadow: inset 0 0 0 2px var(--accent-soft), inset 0 0 0 6px var(--accent);
+  }
+  .focusbar .who {
+    grid-area: who;
     display: flex;
-    gap: 6px;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px 8px;
+    color: var(--accent);
+  }
+  .focusbar .actions {
+    grid-area: actions;
+  }
+  .prefixes {
+    grid-area: prefixes;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
+  }
+  .focusbar .chip:not(.waiting) {
+    background: var(--panel);
+  }
+  /* A phone: the buttons go below, under the text they act on. */
+  @media (max-width: 520px) {
+    .focusbar {
+      grid-template-columns: auto minmax(0, 1fr);
+      grid-template-areas: 'ring who' '. prefixes' '. actions';
+    }
+    .focusbar .actions {
+      margin-top: 6px;
+      justify-self: end;
+    }
   }
   .body {
     padding: 4px 18px 60px;
