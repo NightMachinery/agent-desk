@@ -912,7 +912,7 @@ func (s *server) apiQuota(w http.ResponseWriter, r *http.Request) {
 		focus = d.FocusPrefixes()
 	}
 	s.mu.Lock()
-	app := *s.a
+	c, configErr := s.a.config()
 	s.mu.Unlock()
 	s.quotaMu.Lock()
 	defer s.quotaMu.Unlock()
@@ -923,14 +923,13 @@ func (s *server) apiQuota(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-		c, err := app.config()
-		if err != nil {
-			jsonError(w, http.StatusInternalServerError, err.Error())
+		if configErr != nil {
+			jsonError(w, http.StatusInternalServerError, configErr.Error())
 			return
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Minute)
 		defer cancel()
-		qs, err := app.quotaAgents(ctx, d, c)
+		qs, err := s.a.quotaAgents(ctx, d, c)
 		if err != nil {
 			jsonError(w, http.StatusInternalServerError, err.Error())
 			return
