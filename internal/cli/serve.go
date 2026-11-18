@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
@@ -11,6 +12,7 @@ import (
 	"io"
 	"io/fs"
 	"maps"
+	"mime"
 	"net"
 	"net/http"
 	"net/url"
@@ -19,6 +21,7 @@ import (
 	"path"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -52,6 +55,7 @@ type server struct {
 	index           []byte
 	csp             string
 	hosts           map[string]bool // Host header names accepted; nil accepts any
+	gzipAssets      sync.Map        // path to compressed bytes for immutable scripts and styles
 	// origins are the dashboard's public origins (scheme://host[:port]),
 	// where a proxy that rewrites Host serves it.
 	origins map[string]bool
@@ -1181,6 +1185,35 @@ func (s *server) apiStream(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// gzipAccepted chooses an explicitly accepted coding for a static asset.
+// Clients commonly send a list of bare tokens. Honor a zero quality or an
+// explicit preference for the identity representation as well.
+func gzipAccepted(values []string) bool {
+	var compressed, identity float64
+	for _, value := range values {
+		for token := range strings.SplitSeq(value, ",") {
+			coding, params, err := mime.ParseMediaType(strings.TrimSpace(token))
+			if err != nil {
+				continue
+			}
+			q := 1.0
+			if weight, ok := params["q"]; ok {
+				q, err = strconv.ParseFloat(weight, 64)
+				if err != nil || !(q >= 0 && q <= 1) {
+					continue
+				}
+			}
+			switch coding {
+			case "gzip":
+				compressed = q
+			case "identity":
+				identity = q
+			}
+		}
+	}
+	return compressed > 0 && compressed >= identity
+}
+
 // static serves the page and its assets. Vite names every asset by its
 // content hash, so they are cached for good; index.html never is.
 func (s *server) static(w http.ResponseWriter, r *http.Request) {
@@ -1210,6 +1243,21 @@ func (s *server) static(w http.ResponseWriter, r *http.Request) {
 	}
 	if strings.HasPrefix(p, "assets/") {
 		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		if ext := path.Ext(p); ext == ".js" || ext == ".css" {
+			w.Header().Add("Vary", "Accept-Encoding")
+			if r.Header.Get("Range") == "" && gzipAccepted(r.Header.Values("Accept-Encoding")) {
+				compressed, ok := s.gzipAssets.Load(p)
+				if !ok {
+					var buf bytes.Buffer
+					zw := gzip.NewWriter(&buf)
+					_, _ = zw.Write(b)
+					_ = zw.Close()
+					compressed, _ = s.gzipAssets.LoadOrStore(p, buf.Bytes())
+				}
+				b = compressed.([]byte)
+				w.Header().Set("Content-Encoding", "gzip")
+			}
+		}
 	} else {
 		w.Header().Set("Cache-Control", "no-cache")
 	}

@@ -2,6 +2,8 @@ package cli
 
 import (
 	"bufio"
+	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -43,6 +45,39 @@ func do(t *testing.T, hd http.Handler, method, target, body string, hdr map[stri
 
 var dashboard = map[string]string{"X-Agent-Desk": "1", "Content-Type": "application/json",
 	"Sec-Fetch-Site": "same-origin", "Origin": "http://example.com"}
+
+func TestCompressedDashboardAsset(t *testing.T) {
+	_, hd := testServer(t, newHarness(t))
+	const asset = "/assets/app-1a2b.js"
+	code, plain, _ := do(t, hd, "GET", asset, "", nil)
+	if code != 200 {
+		t.Fatal(code)
+	}
+	for _, accept := range []string{"gzip, deflate, br", "GZip;q=0.8"} {
+		code, body, h := do(t, hd, "GET", asset, "", map[string]string{"Accept-Encoding": accept})
+		if code != 200 || h.Get("Content-Encoding") != "gzip" || h.Get("Vary") != "Accept-Encoding" || !strings.Contains(h.Get("Content-Type"), "javascript") {
+			t.Fatalf("compressed response: %d %v", code, h)
+		}
+		reader, err := gzip.NewReader(bytes.NewBufferString(body))
+		must(t, err)
+		data, err := io.ReadAll(reader)
+		must(t, err)
+		must(t, reader.Close())
+		if string(data) != plain {
+			t.Fatalf("decoded asset: %q", data)
+		}
+	}
+	for _, accept := range []string{"br", "gzip;q=0", "gzip;q=0.5, identity;q=1"} {
+		_, body, h := do(t, hd, "GET", asset, "", map[string]string{"Accept-Encoding": accept})
+		if body != plain || h.Get("Content-Encoding") != "" || h.Get("Vary") != "Accept-Encoding" {
+			t.Fatalf("identity response: %v", h)
+		}
+	}
+	code, body, h := do(t, hd, "GET", asset, "", map[string]string{"Accept-Encoding": "gzip", "Range": "bytes=0-2"})
+	if code != 206 || h.Get("Content-Encoding") != "" || body != plain[:3] {
+		t.Fatalf("range response: %d %v %q", code, h, body)
+	}
+}
 
 func TestServe(t *testing.T) {
 	h := newHarness(t)
