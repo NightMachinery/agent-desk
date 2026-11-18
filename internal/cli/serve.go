@@ -1325,14 +1325,27 @@ func (s *server) sweepScreen(ctx context.Context, every time.Duration) {
 			return
 		case <-t.C:
 		}
-		s.writeMu.Lock()
-		app, _, errb := s.userApp()
-		if err := app.screenSweep(); err != nil {
+		if err := s.sweepScreenOnce(); err != nil {
 			fmt.Fprintf(s.logger, "agent-desk: screen sweep: %v\n", err)
 		}
-		s.writeMu.Unlock()
+	}
+}
+
+func (s *server) sweepScreenOnce() error {
+	app, _, errb := s.userApp()
+	defer func() {
 		if n := strings.TrimSpace(errb.String()); n != "" {
 			fmt.Fprintln(s.logger, n)
 		}
+	}()
+	events, count, err := app.screenSweep()
+	if err != nil || len(events) == 0 {
+		return err
 	}
+	events[0] = markQueued(events[0], "", "")
+	recorded, err := app.st.AppendScreenSweep(events, count)
+	if err == nil && recorded {
+		s.sendCommitted(events)
+	}
+	return err
 }

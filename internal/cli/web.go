@@ -138,7 +138,7 @@ func entries(d *desk.Desk, thread []store.Event, pushed map[string]string) []Ent
 				en.Pending = "waiting for a merge to " + host
 			case e.Kind == "answer" && answer != "" && answer != e.ID:
 				en.Pending = "superseded by a newer answer"
-			case queuedByWeb(e) || state.Status != "":
+			case queuedForDelivery(e) || state.Status != "":
 				en.Pending = "queued"
 			default:
 				en.Pending = "not delivered yet"

@@ -317,30 +317,45 @@ func (a *App) screenDecide(token string, grant bool, source string) error {
 // a grant, unless the answer says no.
 var screenNo = regexp.MustCompile(`(?i)^\s*(no|deny|denied|not now|don'?t|do not)\b`)
 
-// screenSweep grants the oldest request for this machine's screen once the
-// screen is free and the user has been away long enough, so an agent that
-// asked while the user was here need not ask again: it hears the grant as
-// the answer to its request. The dashboard's server runs it every minute.
-func (a *App) screenSweep() error {
+// screenSweep prepares an automatic answer to the oldest waiting request.
+// The server checks the screen path again when it commits the grant, since
+// sampling the user's idle time may take a while.
+func (a *App) screenSweep() ([]store.Event, int, error) {
 	c, err := a.config()
 	if err != nil {
-		return err
+		return nil, 0, err
 	}
 	d, err := a.load()
 	if err != nil {
-		return err
+		return nil, 0, err
 	}
 	st := d.Screen(a.Host)
 	if st.Hold != nil || len(st.Requests) == 0 {
-		return nil
+		return nil, 0, nil
 	}
 	away, ok := a.userAway(c, d)
 	if !ok || away < time.Duration(c.Screen.Idle())*time.Minute {
-		return nil
+		return nil, 0, nil
 	}
 	text := fmt.Sprintf("Approved automatically: the user has been away %s, so the screen is yours. "+
 		"Run `agent-desk screen take` again to put up the banner, and release it as soon as you are done.", humanDur(away))
-	return a.recordAnswer(d, st.Requests[0], text, "auto", "", nil)
+	q := st.Requests[0]
+	events, err := a.answerEvents(d, q, text, "auto", "", nil)
+	if err != nil {
+		return nil, 0, err
+	}
+	count := 0
+	for _, event := range d.Events {
+		if event.Path == q.Path {
+			count++
+		}
+	}
+	if len(events) > 1 {
+		grant := desk.Meta(events[1])
+		grant["away_since"] = d.Now.Add(-away).UTC().Format(time.RFC3339)
+		events[1].Meta = meta(grant)
+	}
+	return events, count, nil
 }
 
 func (a *App) screenDecision(q store.Event, answer, source string) (store.Event, bool) {
@@ -367,13 +382,6 @@ func (a *App) screenDecision(q store.Event, answer, source string) (store.Event,
 	}
 	if source == "auto" {
 		m["by"] = "auto"
-		if c, err := a.config(); err == nil {
-			if d, err := a.load(); err == nil {
-				if away, ok := a.userAway(c, d); ok {
-					m["away_since"] = a.Now().Add(-away).UTC().Format(time.RFC3339)
-				}
-			}
-		}
 	}
 	e := a.event("screen", path, from, "answer", m)
 	e.Ref = q.ID

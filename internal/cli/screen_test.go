@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -158,14 +160,14 @@ func TestScreenAgentInputIsNotTheUser(t *testing.T) {
 
 	// The request waits; once the user has been away long enough, the
 	// server's sweep grants it and answers the request.
-	app, _, _ := h.app(nil, "")
-	must(t, app.screenSweep())
+	srv, _ := testServer(t, h)
+	must(t, srv.sweepScreenOnce())
 	if st := h.loadDesk().Screen(h.host); st.Hold != nil || len(st.Requests) != 1 {
 		t.Fatalf("granted while the user is here: %+v", st)
 	}
 	idle = "2000"
-	app, _, _ = h.app(nil, "")
-	must(t, app.screenSweep())
+	srv, _ = testServer(t, h)
+	must(t, srv.sweepScreenOnce())
 	d := h.loadDesk()
 	st := d.Screen(h.host)
 	if st.Hold == nil || st.Hold.By != "auto" || st.Hold.Reason != "One more click" || len(st.Requests) != 0 {
@@ -174,7 +176,76 @@ func TestScreenAgentInputIsNotTheUser(t *testing.T) {
 	if desk.MetaString(st.Hold.Event, "away_since") == "" {
 		t.Fatalf("no away_since: %s", st.Hold.Event.Meta)
 	}
+	answer := d.ByID[d.AnswerID(st.Hold.Event.Ref)]
+	if !queuedForDelivery(answer) {
+		t.Fatalf("automatic answer was not queued: %+v", answer)
+	}
+	select {
+	case <-srv.sendWake:
+	default:
+		t.Fatal("automatic answer did not wake the delivery worker")
+	}
 	if out := h.ok(a, "", "screen", "take", "--reason", "One more click"); !strings.Contains(out, "is yours") {
 		t.Fatalf("take after the sweep: %s", out)
+	}
+}
+
+func TestScreenSweepDoesNotBlockWritesOrOverrideDenial(t *testing.T) {
+	h, _, note := queueFixture(t)
+	writeConfig(t, h, "[screen]\nidle_command = 'printf IDLE'\n")
+	h.respond = func(_ string, _ []string) (string, error) { return "1", nil }
+	if _, _, code := h.run(h.as(sessA), "", "screen", "take", "--reason", "Fixture screen request"); code != ScreenWaiting {
+		t.Fatalf("screen take: %d", code)
+	}
+	d := h.loadDesk()
+	question := d.Screen(h.host).Requests[0]
+	s, hd := testServer(t, h)
+	probing := make(chan struct{})
+	resume := make(chan struct{})
+	s.a.Exec = func(_ context.Context, _ []byte, name string, args ...string) (string, error) {
+		if name == "sh" && len(args) == 2 && args[1] == "printf IDLE" {
+			close(probing)
+			<-resume
+			return "2000", nil
+		}
+		return "", nil
+	}
+	probeDone := make(chan error, 1)
+	go func() { probeDone <- s.sweepScreenOnce() }()
+	defer close(resume)
+	select {
+	case <-probing:
+	case <-time.After(3 * time.Second):
+		t.Fatal("idle probe did not start")
+	}
+	writes := make(chan string, 1)
+	go func() {
+		code, body, _ := do(t, hd, "POST", "/api/read", fmt.Sprintf(`{"target":%q}`, note), dashboard)
+		if code != 200 {
+			writes <- body
+			return
+		}
+		code, body, _ = do(t, hd, "POST", "/api/answer", fmt.Sprintf(`{"id":%q,"text":"No, keep off the screen."}`, question.ID), dashboard)
+		if code != 200 {
+			writes <- body
+			return
+		}
+		writes <- ""
+	}()
+	select {
+	case err := <-writes:
+		if err != "" {
+			t.Fatalf("write during idle probe: %s", err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("writes waited for the idle probe")
+	}
+	resume <- struct{}{}
+	must(t, <-probeDone)
+	if answers := kinds(h, "answer"); len(answers) != 1 || answers[0].Body != "No, keep off the screen." {
+		t.Fatalf("sweep overrode a newer decision: %+v", answers)
+	}
+	if hold := h.loadDesk().Screen(h.host).Hold; hold != nil {
+		t.Fatalf("sweep granted a denied request: %+v", hold)
 	}
 }

@@ -56,13 +56,7 @@ func (s *server) enqueue(app *App, kind string, body request, prepare func() ([]
 	if err != nil {
 		return nil, err
 	}
-	msg := evs[0]
-	m := desk.Meta(msg)
-	m["send_queue"] = true
-	if key != "" {
-		m["send_key"], m["send_request"] = key, fingerprint
-	}
-	msg.Meta = meta(m)
+	msg := markQueued(evs[0], key, fingerprint)
 	evs[0] = msg
 	inserted := true
 	if key != "" {
@@ -74,12 +68,29 @@ func (s *server) enqueue(app *App, kind string, body request, prepare func() ([]
 		return nil, sendUnavailable{err}
 	}
 	if inserted {
-		s.sendMu.Lock()
-		s.sendEffects = append(s.sendEffects, evs)
-		s.sendMu.Unlock()
+		s.sendCommitted(evs)
+	} else {
+		s.wakeSendQueue()
 	}
-	s.wakeSendQueue()
 	return result(msg)
+}
+
+func markQueued(msg store.Event, key, fingerprint string) store.Event {
+	m := desk.Meta(msg)
+	m["send_queue"] = true
+	if key != "" {
+		m["send_key"], m["send_request"] = key, fingerprint
+	}
+	msg.Meta = meta(m)
+	return msg
+}
+
+// sendCommitted gives committed sends their post-commit effects, then wakes delivery.
+func (s *server) sendCommitted(events []store.Event) {
+	s.sendMu.Lock()
+	s.sendEffects = append(s.sendEffects, events)
+	s.sendMu.Unlock()
+	s.wakeSendQueue()
 }
 
 // Only events sharing the shortest suffix affect the display token.
@@ -183,7 +194,7 @@ type sendProgress struct {
 	Uncertain bool   `json:"uncertain,omitempty"`
 }
 
-func queuedByWeb(e store.Event) bool { return desk.Meta(e)["send_queue"] == true }
+func queuedForDelivery(e store.Event) bool { return desk.Meta(e)["send_queue"] == true }
 
 func deliveryProgress(d *desk.Desk, id string) sendProgress {
 	e, ok := d.DeliveryProgress(id)

@@ -288,6 +288,27 @@ func (s *Store) AppendWebSend(key string, events []Event) (Event, bool, error) {
 	return msg, true, tx.Commit()
 }
 
+// AppendScreenSweep records the automatic answer and grant together if the
+// screen path still has the same events the idle check was based on.
+func (s *Store) AppendScreenSweep(events []Event, expectedCount int) (bool, error) {
+	tx, err := s.DB.Begin()
+	if err != nil {
+		return false, err
+	}
+	defer tx.Rollback()
+	var count int
+	if err := tx.QueryRow("SELECT count(*) FROM events WHERE path = ?", events[0].Path).Scan(&count); err != nil {
+		return false, err
+	}
+	if count != expectedCount {
+		return false, nil
+	}
+	if err := appendEvents(tx, events); err != nil {
+		return false, err
+	}
+	return true, tx.Commit()
+}
+
 // AppendDeliveryIfCurrent records a retry or an attempt only if the action
 // it follows is still current. This closes the race between the HTTP retry
 // path and a delivery process that already read the queue.

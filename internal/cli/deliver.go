@@ -413,7 +413,7 @@ func (a *App) deliverPending(only string, webOnly bool) (failed int, changed boo
 	}
 	for _, j := range pending(d, a.Host, only) {
 		state := deliveryProgress(d, j.msg.ID)
-		automatic := queuedByWeb(j.msg) || state.Deadline != "" || state.Status == "queued"
+		automatic := queuedForDelivery(j.msg) || state.Deadline != "" || state.Status == "queued"
 		if webOnly && !automatic {
 			continue
 		}
