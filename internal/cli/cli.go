@@ -102,6 +102,11 @@ const usage = `agent-desk: a desk where agents file questions and state for the 
 
 Agent side (only coordinators write; workers report to their parent):
   agent-desk join <run>/<role>[/<role>...] [--takeover] [--project P]
+                                      adds a node to those this session holds
+  agent-desk leave <node>...          drop a node this session holds
+      while a session holds several nodes, every write (ask, tell, set, clear,
+      link, done, task add) needs --node PATH: a held node, full or relative
+      to its project (run/role)
   agent-desk ask --blocked --title T                  <<'Q' ... Q
   agent-desk ask --default 'what you will do' --title T <<'Q' ... Q
       ask also takes --choices FILE: multiple-choice questions as JSON,
@@ -113,7 +118,7 @@ Agent side (only coordinators write; workers report to their parent):
                                       respond to the user's message or answer
   agent-desk tell --re-chat 'what the user asked' [--quiet] [--title T] <<'R' ... R
                                       file your answer to a question asked in chat
-  agent-desk whoami                   this session's node, or exit 1
+  agent-desk whoami                   this session's nodes, one per line, or exit 1
   agent-desk instructions [<path-prefix>] [--since 2d] [--format json]
                                       the user's messages to this run, word for word
   agent-desk hook prompt --agent claude|codex   the UserPromptSubmit hook that records them
@@ -273,6 +278,8 @@ func (a *App) run(args []string) error {
 		return a.cmdFocus(rest)
 	case "whoami":
 		return a.cmdWhoami(rest)
+	case "leave":
+		return a.cmdLeave(rest)
 	case "hook":
 		return a.cmdHook(rest)
 	case "instructions":
@@ -502,25 +509,25 @@ func (a *App) render() error {
 	return render.All(a.Home, a.load)
 }
 
-// writer resolves the node this session writes to, auto-joining
-// <project>/adhoc/<slug> when a session with no parent never joined. The
-// returned join event, if any, must be committed with the write.
-func (a *App) writer(d *desk.Desk, project string) (ident.From, string, *store.Event, error) {
+// writer resolves the node this session writes to: the --node value (a
+// node it holds), else the one node it holds, auto-joining
+// <project>/adhoc/<slug> when a session with no parent holds none. With
+// several held and no --node it refuses: a write must never land on a node
+// the agent did not mean. The returned join event, if any, must be
+// committed with the write.
+func (a *App) writer(d *desk.Desk, project, nodeArg, cmd string) (ident.From, string, *store.Event, error) {
 	from := ident.Resolve(a.Env)
 	if from.Session == "" {
 		return from, "", nil, errors.New("cannot tell which agent session this is: none of " +
 			"CLAUDE_CODE_SESSION_ID, CODEX_THREAD_ID, CODEX_SESSION_ID or ANTIGRAVITY_CONVERSATION_ID is set. " +
 			"Only agent sessions write to the desk")
 	}
-	bound, found := a.binding(d, from)
-	if found {
-		owner, _ := nodeOwner(d, bound.Path)
-		if sessionOf(owner) != from.Session {
-			return from, "", nil, fmt.Errorf("node %s was taken over by another session (%s %s, %s); "+
-				"this session no longer writes there. Join another node, or report to whoever took it over",
-				bound.Path, agentOfEvent(owner), shortID(sessionOf(owner)), owner.TS)
-		}
-		return from, bound.Path, nil, nil
+	node, err := a.myNode(d, from, nodeArg, cmd)
+	if err != nil || node != "" {
+		return from, node, nil, err
+	}
+	if err := a.takenOver(d, from); err != nil {
+		return from, "", nil, err
 	}
 	if from.Parent != "" {
 		return from, "", nil, fmt.Errorf("this session has a parent agent (%s): workers report to their parent; "+
@@ -534,24 +541,12 @@ func (a *App) writer(d *desk.Desk, project string) (ident.From, string, *store.E
 	if slug == "" {
 		slug = shortID(from.Session)
 	}
-	node := project + "/adhoc/" + slug
-	if owner, ok := nodeOwner(d, node); ok && sessionOf(owner) != from.Session {
+	node = project + "/adhoc/" + slug
+	if owner, ok := nodeHolder(d, node); ok && sessionOf(owner) != from.Session {
 		node = project + "/adhoc/" + shortID(from.Session)
 	}
 	j := a.event("join", node, from, "cli", map[string]any{"auto": true})
 	return from, node, &j, nil
-}
-
-// binding is this session's latest join on this host.
-func (a *App) binding(d *desk.Desk, from ident.From) (store.Event, bool) {
-	var bound store.Event
-	found := false
-	for _, e := range d.Events {
-		if e.Kind == "join" && e.Host == a.Host && from.Session != "" && sessionOf(e) == from.Session {
-			bound, found = e, true
-		}
-	}
-	return bound, found
 }
 
 func shortID(s string) string {
@@ -563,13 +558,14 @@ func shortID(s string) string {
 	return s
 }
 
-// agentWrite writes events built for this session's node.
-func (a *App) agentWrite(project string, build func(from ident.From, node string, d *desk.Desk) ([]store.Event, error)) error {
+// agentWrite writes events built for this session's node; nodeArg is the
+// command's --node value and cmd its name, for the refusal.
+func (a *App) agentWrite(project, nodeArg, cmd string, build func(from ident.From, node string, d *desk.Desk) ([]store.Event, error)) error {
 	d, err := a.load()
 	if err != nil {
 		return err
 	}
-	from, node, join, err := a.writer(d, project)
+	from, node, join, err := a.writer(d, project, nodeArg, cmd)
 	if err != nil {
 		return err
 	}
@@ -620,7 +616,7 @@ func (a *App) cmdJoin(args []string) error {
 			return fmt.Errorf("no coordinator has joined %s; a nested coordinator sits under its parent's node", parent)
 		}
 	}
-	if owner, ok := nodeOwner(d, node); ok && sessionOf(owner) != from.Session && !o.bools["takeover"] {
+	if owner, ok := nodeHolder(d, node); ok && sessionOf(owner) != from.Session && !o.bools["takeover"] {
 		return fmt.Errorf("%s is bound to another session (%s %s, joined %s); if you are replacing that "+
 			"coordinator, add --takeover", node, agentOfEvent(owner), shortID(sessionOf(owner)), owner.TS)
 	}
@@ -632,7 +628,7 @@ func (a *App) cmdJoin(args []string) error {
 }
 
 func (a *App) cmdAsk(args []string) error {
-	o, err := parse(args, []string{"blocked"}, append([]string{"default", "title", "project", "choices", "on-answer"}, attachOpts...), 0, 0)
+	o, err := parse(args, []string{"blocked"}, append([]string{"default", "title", "project", "node", "choices", "on-answer"}, attachOpts...), 0, 0)
 	if err != nil {
 		return err
 	}
@@ -680,7 +676,7 @@ func (a *App) cmdAsk(args []string) error {
 	if err := a.attach(o, extra); err != nil {
 		return err
 	}
-	return a.agentWrite(o.vals["project"], func(from ident.From, node string, _ *desk.Desk) ([]store.Event, error) {
+	return a.agentWrite(o.vals["project"], o.vals["node"], "ask", func(from ident.From, node string, _ *desk.Desk) ([]store.Event, error) {
 		e := a.event("ask", node, from, "cli", extra)
 		e.Level, e.Title, e.Body = level, title, body
 		return []store.Event{e}, nil
@@ -688,7 +684,7 @@ func (a *App) cmdAsk(args []string) error {
 }
 
 func (a *App) cmdTell(args []string) error {
-	o, err := parse(args, []string{"notify", "quiet"}, append([]string{"title", "project", "re", "re-chat"}, attachOpts...), 0, 0)
+	o, err := parse(args, []string{"notify", "quiet"}, append([]string{"title", "project", "node", "re", "re-chat"}, attachOpts...), 0, 0)
 	if err != nil {
 		return err
 	}
@@ -728,7 +724,7 @@ func (a *App) cmdTell(args []string) error {
 	if err := a.attach(o, extra); err != nil {
 		return err
 	}
-	return a.agentWrite(o.vals["project"], func(from ident.From, node string, d *desk.Desk) ([]store.Event, error) {
+	return a.agentWrite(o.vals["project"], o.vals["node"], "tell", func(from ident.From, node string, d *desk.Desk) ([]store.Event, error) {
 		if asked != "" {
 			extra["asked"] = asked
 		}
@@ -776,7 +772,7 @@ func (a *App) cmdPin(args []string, unpin bool) error {
 			return err
 		}
 		switch e.Kind {
-		case "read", "delivered", "undelivered", "pin", "pref", "notified", "retracted", "join", "projectset", "focus":
+		case "read", "delivered", "undelivered", "pin", "pref", "notified", "retracted", "join", "leave", "projectset", "focus":
 			return fmt.Errorf("%s is a %s mark; pin the item itself", d.Display(e.ID), e.Kind)
 		}
 		k := d.PinKey(e)
@@ -816,7 +812,8 @@ func clipLine(s string, n int) string {
 	return line
 }
 
-// cmdWhoami prints the node the calling session writes to.
+// cmdWhoami prints the nodes the calling session holds, one per line, in
+// the order it joined them.
 func (a *App) cmdWhoami(args []string) error {
 	if _, err := parse(args, nil, nil, 0, 0); err != nil {
 		return err
@@ -829,14 +826,16 @@ func (a *App) cmdWhoami(args []string) error {
 	if from.Session == "" {
 		return errors.New("not an agent session")
 	}
-	bound, ok := a.binding(d, from)
-	if !ok {
+	held := a.held(d, from)
+	if len(held) == 0 {
+		if err := a.takenOver(d, from); err != nil {
+			return err
+		}
 		return errors.New("this session has not joined a node")
 	}
-	if owner, _ := nodeOwner(d, bound.Path); sessionOf(owner) != from.Session {
-		return fmt.Errorf("this session joined %s, but another session took it over", bound.Path)
+	for _, j := range held {
+		fmt.Fprintln(a.Stdout, j.Path)
 	}
-	fmt.Fprintln(a.Stdout, bound.Path)
 	return nil
 }
 
@@ -865,7 +864,7 @@ const (
 )
 
 func (a *App) cmdSet(args []string) error {
-	o, err := parse(args, nil, []string{"project", "for"}, 1, -1)
+	o, err := parse(args, nil, []string{"project", "node", "for"}, 1, -1)
 	if err != nil {
 		return err
 	}
@@ -916,7 +915,7 @@ func (a *App) cmdSet(args []string) error {
 	if agents {
 		extra = map[string]any{"audience": "agents"}
 	}
-	return a.agentWrite(o.vals["project"], func(from ident.From, node string, _ *desk.Desk) ([]store.Event, error) {
+	return a.agentWrite(o.vals["project"], o.vals["node"], "set", func(from ident.From, node string, _ *desk.Desk) ([]store.Event, error) {
 		e := a.event("set", node+"/"+name, from, "cli", extra)
 		e.Body = text
 		return []store.Event{e}, nil
@@ -924,20 +923,20 @@ func (a *App) cmdSet(args []string) error {
 }
 
 func (a *App) cmdClear(args []string) error {
-	o, err := parse(args, nil, []string{"project"}, 1, 1)
+	o, err := parse(args, nil, []string{"project", "node"}, 1, 1)
 	if err != nil {
 		return err
 	}
 	if err := slotArg(o.pos[0]); err != nil {
 		return err
 	}
-	return a.agentWrite(o.vals["project"], func(from ident.From, node string, _ *desk.Desk) ([]store.Event, error) {
+	return a.agentWrite(o.vals["project"], o.vals["node"], "clear", func(from ident.From, node string, _ *desk.Desk) ([]store.Event, error) {
 		return []store.Event{a.event("clear", node+"/"+o.pos[0], from, "cli", nil)}, nil
 	})
 }
 
 func (a *App) cmdLink(args []string) error {
-	o, err := parse(args, nil, []string{"project"}, 2, 2)
+	o, err := parse(args, nil, []string{"project", "node"}, 2, 2)
 	if err != nil {
 		return err
 	}
@@ -954,7 +953,7 @@ func (a *App) cmdLink(args []string) error {
 	} else if st.IsDir() {
 		return fmt.Errorf("%s is a directory; link a file", file)
 	}
-	return a.agentWrite(o.vals["project"], func(from ident.From, node string, _ *desk.Desk) ([]store.Event, error) {
+	return a.agentWrite(o.vals["project"], o.vals["node"], "link", func(from ident.From, node string, _ *desk.Desk) ([]store.Event, error) {
 		return []store.Event{a.event("link", node+"/"+name, from, "cli", map[string]any{"file": file})}, nil
 	})
 }
@@ -1252,9 +1251,12 @@ func (a *App) cmdUnread(args []string) error {
 // --- reading -----------------------------------------------------------------
 
 func (a *App) cmdShow(args []string) error {
-	o, err := parse(args, []string{"all", "mine", "unfocused"}, []string{"format", "host", "session"}, 0, 1)
+	o, err := parse(args, []string{"all", "mine", "unfocused"}, []string{"format", "host", "session", "node"}, 0, 1)
 	if err != nil {
 		return err
+	}
+	if o.set["node"] && !o.bools["mine"] {
+		return usagef("--node goes with --mine; to show any node, give its path")
 	}
 	d, err := a.load()
 	if err != nil {
@@ -1268,11 +1270,14 @@ func (a *App) cmdShow(args []string) error {
 		if len(o.pos) == 1 {
 			return usagef("give a path or --mine, not both")
 		}
-		bound, ok := a.binding(d, ident.Resolve(a.Env))
-		if !ok {
+		node, err := a.myNode(d, ident.Resolve(a.Env), o.vals["node"], "show --mine")
+		if err != nil {
+			return err
+		}
+		if node == "" {
 			return errors.New("this session has not joined a node")
 		}
-		f.Prefix, f.Dismissed = bound.Path, true
+		f.Prefix, f.Dismissed = node, true
 	} else if !o.bools["unfocused"] {
 		// The user's view follows the focus; an agent's own view (--mine)
 		// never does.
@@ -1315,7 +1320,7 @@ func (a *App) cmdSearch(args []string) error {
 	needle := strings.ToLower(strings.Join(o.pos, " "))
 	var hits []store.Event
 	for _, e := range d.Events {
-		if desk.IsMark(e.Kind) || e.Kind == "join" || e.Kind == "delivered" {
+		if desk.IsMark(e.Kind) || e.Kind == "join" || e.Kind == "leave" || e.Kind == "delivered" {
 			continue
 		}
 		if o.vals["host"] != "" && e.Host != o.vals["host"] {
@@ -1501,7 +1506,7 @@ func (a *App) cmdOpen(args []string) (err error) {
 // cmdDone files a finished session's summary and report path, and sets its
 // status slot to say so, in one transaction.
 func (a *App) cmdDone(args []string) error {
-	o, err := parse(args, nil, append([]string{"title", "report", "project"}, attachOpts...), 0, 0)
+	o, err := parse(args, nil, append([]string{"title", "report", "project", "node"}, attachOpts...), 0, 0)
 	if err != nil {
 		return err
 	}
@@ -1523,7 +1528,7 @@ func (a *App) cmdDone(args []string) error {
 	if err := a.attach(o, extra); err != nil {
 		return err
 	}
-	return a.agentWrite(o.vals["project"], func(from ident.From, node string, _ *desk.Desk) ([]store.Event, error) {
+	return a.agentWrite(o.vals["project"], o.vals["node"], "done", func(from ident.From, node string, _ *desk.Desk) ([]store.Event, error) {
 		e := a.event("done", node, from, "cli", extra)
 		e.Title, e.Body = title, body
 		status := "Finished."

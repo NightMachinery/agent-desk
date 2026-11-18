@@ -94,7 +94,8 @@ dismiss_command = "cat >> '`+log+`'"
 		t.Fatalf("hooks.log:\n%s", hl)
 	}
 	must(t, os.WriteFile(cfg, []byte(`notify_comand = "typo"`), 0o644))
-	_, errOut, _ := h.run(a, "", "tell", "--notify", "--title", "x")
+	// The imports made the session hold r2 and r3 too.
+	_, errOut, _ := h.run(a, "", "tell", "--notify", "--title", "x", "--node", "r1/coord")
 	if !strings.Contains(errOut, "unknown key") {
 		t.Fatalf("a config typo must be reported: %q", errOut)
 	}

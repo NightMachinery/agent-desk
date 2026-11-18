@@ -44,6 +44,8 @@ func Letter(kind string) string {
 		return "l"
 	case "join":
 		return "j"
+	case "leave":
+		return "o"
 	case "read":
 		return "r"
 	case "delivered":

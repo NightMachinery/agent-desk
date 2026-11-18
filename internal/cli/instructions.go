@@ -13,6 +13,7 @@ import (
 
 	"github.com/NightMachinery/agent-desk/internal/desk"
 	"github.com/NightMachinery/agent-desk/internal/ident"
+	"github.com/NightMachinery/agent-desk/internal/ids"
 	"github.com/NightMachinery/agent-desk/internal/store"
 )
 
@@ -127,12 +128,9 @@ func (a *App) hookPrompt(agent string) error {
 	if err != nil {
 		return err
 	}
-	bound, ok := a.binding(d, from)
-	if !ok {
+	held := a.held(d, from)
+	if len(held) == 0 {
 		return nil // only sessions on the desk keep their instructions
-	}
-	if owner, _ := nodeOwner(d, bound.Path); sessionOf(owner) != from.Session {
-		return nil
 	}
 	text := strings.TrimSpace(in.Prompt)
 	extraMeta := map[string]any{}
@@ -140,11 +138,21 @@ func (a *App) hookPrompt(agent string) error {
 		text = strings.ToValidUTF8(text[:MaxInstruction], "") + "\n[cut: longer than 256 KiB]"
 		extraMeta["cut"] = true
 	}
-	e := a.event("instruction", bound.Path, from, "hook", extraMeta)
-	e.Body = text
-	e.Title = clipLine(text, 80)
+	// The prompt may concern any node the session holds, so each keeps a
+	// copy; the copies share one id under meta.prompt, and listings show it
+	// once.
+	if len(held) > 1 {
+		extraMeta["prompt"] = ids.New(a.Now())
+	}
+	var evs []store.Event
+	for _, j := range held {
+		e := a.event("instruction", j.Path, from, "hook", extraMeta)
+		e.Body = text
+		e.Title = clipLine(text, 80)
+		evs = append(evs, e)
+	}
 	// No render and no announcement: instructions appear in neither.
-	return st.Append(e)
+	return st.Append(evs...)
 }
 
 // hookEnv is the environment as the hook sees it, with the session named by
@@ -177,9 +185,12 @@ func (a *App) hookEnv(agent string, in hookInput) ident.Env {
 // cmdInstructions prints the user's recorded messages, oldest first: by
 // default those to this session's run.
 func (a *App) cmdInstructions(args []string) error {
-	o, err := parse(args, nil, []string{"since", "format", "host"}, 0, 1)
+	o, err := parse(args, nil, []string{"since", "format", "host", "node"}, 0, 1)
 	if err != nil {
 		return err
+	}
+	if len(o.pos) == 1 && o.set["node"] {
+		return usagef("give a path prefix or --node, not both")
 	}
 	d, err := a.load()
 	if err != nil {
@@ -189,12 +200,14 @@ func (a *App) cmdInstructions(args []string) error {
 	if len(o.pos) == 1 {
 		prefix = strings.Trim(o.pos[0], "/")
 	} else {
-		from := ident.Resolve(a.Env)
-		bound, ok := a.binding(d, from)
-		if !ok {
+		node, err := a.myNode(d, ident.Resolve(a.Env), o.vals["node"], "instructions")
+		if err != nil {
+			return err
+		}
+		if node == "" {
 			return usagef("give a path prefix (project/run): this session has not joined a node")
 		}
-		p, r, _ := desk.Split(bound.Path)
+		p, r, _ := desk.Split(node)
 		prefix = p + "/" + r
 	}
 	var since time.Time
@@ -204,9 +217,16 @@ func (a *App) cmdInstructions(args []string) error {
 		}
 	}
 	var out []store.Event
+	copies := map[string]bool{}
 	for _, e := range d.Events {
 		if e.Kind != "instruction" || !desk.Under(e.Path, prefix) {
 			continue
+		}
+		if p := desk.MetaString(e, "prompt"); p != "" {
+			if copies[p] {
+				continue // the same prompt, kept for another node the session held
+			}
+			copies[p] = true
 		}
 		if h := o.vals["host"]; h != "" && e.Host != h {
 			continue
@@ -275,13 +295,18 @@ func (a *App) cmdGet(args []string) error {
 	if err != nil {
 		return err
 	}
+	// Any node by its full path; this session's own by default, or one it
+	// holds named relative to its project.
 	node := strings.Trim(o.vals["node"], "/")
-	if node == "" {
-		bound, ok := a.binding(d, ident.Resolve(a.Env))
-		if !ok {
-			return usagef("give --node PATH: this session has not joined a node")
-		}
-		node = bound.Path
+	mine, err := a.myNode(d, ident.Resolve(a.Env), node, "get")
+	switch {
+	case err == nil && mine != "":
+		node = mine
+	case node != "" && strings.Count(node, "/") >= 2:
+	case err != nil:
+		return err
+	default:
+		return usagef("give --node PATH: this session has not joined a node")
 	}
 	for _, s := range d.Slots() {
 		if s.Path != node+"/"+name {

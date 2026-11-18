@@ -539,6 +539,7 @@ func (d *Desk) Tree(f Filter) []*Node {
 
 	scope := Filter{Prefix: f.Prefix, Host: f.Host, Focus: f.Focus}
 	lastJoin := map[string]string{}
+	joiner := map[string]string{} // node -> session of its latest join
 	hosts := map[string]string{}
 	for _, e := range d.Events {
 		if !scope.Keep(e) || IsMark(e.Kind) {
@@ -556,11 +557,18 @@ func (d *Desk) Tree(f Filter) []*Node {
 		switch e.Kind {
 		case "join":
 			lastJoin[node] = e.ID
+			joiner[node] = sessionOf(e)
 			n.joined = true
 			n.finished = false
 			n.paseo = ""
 			if e.Host == d.Host {
 				n.paseo = paseoOf(e)
+			}
+		case "leave":
+			// The session that held the node works elsewhere now: its
+			// Paseo agent no longer speaks for this node's state.
+			if sessionOf(e) == joiner[node] {
+				n.paseo = ""
 			}
 		case "done":
 			if e.ID > lastJoin[node] {
@@ -647,6 +655,17 @@ func anyChild(n *Node, state string) bool {
 		}
 	}
 	return false
+}
+
+// sessionOf is the agent session in an event's meta.from, if any.
+func sessionOf(e store.Event) string {
+	var m struct {
+		From struct {
+			Session string `json:"session"`
+		} `json:"from"`
+	}
+	_ = json.Unmarshal(e.Meta, &m)
+	return m.From.Session
 }
 
 // paseoOf is the Paseo agent id in a join's meta.from, if any.

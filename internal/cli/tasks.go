@@ -100,15 +100,23 @@ func (a *App) taskAdd(args []string) error {
 		e.Title, e.Body = title, brief
 		return e
 	}
-	if node := strings.Trim(o.vals["node"], "/"); node != "" {
-		// Filed by the user, or for another node.
-		if strings.Count(node, "/") < 2 {
-			return usagef("--node is a full node path: project/run/role")
-		}
+	nodeArg := strings.Trim(o.vals["node"], "/")
+	if nodeArg != "" {
+		// A node this session holds (also relative to its project), else
+		// filed by the user, or for another node, by its full path.
 		from := ident.Resolve(a.Env)
-		return a.commit1(build(from, node))
+		d, err := a.load()
+		if err != nil {
+			return err
+		}
+		if _, err := pickHeld(heldPaths(a.held(d, from)), nodeArg); err != nil {
+			if strings.Count(nodeArg, "/") < 2 {
+				return usagef("--node is a full node path: project/run/role, or a node this session holds")
+			}
+			return a.commit1(build(from, nodeArg))
+		}
 	}
-	return a.agentWrite(o.vals["project"], func(from ident.From, node string, _ *desk.Desk) ([]store.Event, error) {
+	return a.agentWrite(o.vals["project"], nodeArg, "task add", func(from ident.From, node string, _ *desk.Desk) ([]store.Event, error) {
 		return []store.Event{build(from, node)}, nil
 	})
 }
