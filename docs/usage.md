@@ -486,9 +486,10 @@ m-4c2d", and its page shows the conversation it belongs to. The Send button
 uses your `deliver.behavior` setting; the menu beside it offers the others,
 greys out one the session cannot do and says why, and asks before "Stop and
 send" (interrupt). "Notify me" beside it changes, for this message only,
-where its response notifies you. When the session has finished (a done
-report, or an archived Paseo agent) the composer says that sending revives
-it. The Notify chip on a node opens its settings, and Settings in the sidebar
+where its response notifies you. When the session has finished (its Paseo
+agent is archived, or a session Paseo does not know filed a done report) the
+composer says that sending revives it. A done report from a live Paseo agent
+is a milestone, not an end. The Notify chip on a node opens its settings, and Settings in the sidebar
 opens the global ones: one control per setting with where its value comes
 from ("inherited from example-proj"), for all kinds of event or one, and
 "Reset to inherited" where an override stands. To act on many items at once, press Select (or long-press a row on a

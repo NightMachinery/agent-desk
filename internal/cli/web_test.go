@@ -122,11 +122,23 @@ func TestServeThreads(t *testing.T) {
 		t.Fatalf("interrupt default: %d %s", code, body)
 	}
 
-	// A done report, or an archived Paseo agent, means sending revives it.
-	h.ok(env, "", "done", "--title", "Finished")
+	// A done report from a live Paseo agent is a milestone: not finished.
+	// From a session Paseo does not know, or once the Paseo agent is
+	// archived, sending revives it.
+	h.ok(env, "", "done", "--title", "Milestone")
 	_, hd = testServer(t, h)
 	v = viewResponse{}
 	_, body, _ = do(t, hd, "GET", "/api/view?path=example-proj/r1/coord", "", nil)
+	must(t, json.Unmarshal([]byte(body), &v))
+	if v.Target == nil || v.Target.Finished != "" {
+		t.Fatalf("a live Paseo agent's milestone: %+v", v.Target)
+	}
+	plain := h.as(sessB)
+	h.ok(plain, "", "join", "r2/coord")
+	h.ok(plain, "", "done", "--title", "Finished")
+	_, hd = testServer(t, h)
+	v = viewResponse{}
+	_, body, _ = do(t, hd, "GET", "/api/view?path=example-proj/r2/coord", "", nil)
 	must(t, json.Unmarshal([]byte(body), &v))
 	if v.Target == nil || v.Target.Finished != "done" {
 		t.Fatalf("finished: %+v", v.Target)

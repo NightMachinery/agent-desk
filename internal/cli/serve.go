@@ -800,8 +800,9 @@ type Target struct {
 	// Notify is where the response to a message would notify:
 	// {desktop, remote}, resolved for class response at the node.
 	Notify map[string]string `json:"notify,omitempty"`
-	// Finished: done (the node has a done report since it joined) or
-	// archived (its Paseo agent is); sending revives the session.
+	// Finished: archived (its Paseo agent is), or done (a session Paseo
+	// does not know has filed a done report since it joined); sending
+	// revives the session.
 	Finished string `json:"finished,omitempty"`
 	// Pushed: the host is in ssh_hosts, so a message is pushed there at once.
 	Pushed bool `json:"pushed,omitempty"`

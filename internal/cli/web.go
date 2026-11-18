@@ -165,8 +165,14 @@ func (a *App) finished(d *desk.Desk, t *Target) string {
 		if home == "" {
 			home = a.Env.Home + "/.paseo"
 		}
-		if rec, ok := ident.PaseoRecord(home, t.Paseo); ok && rec.ArchivedAt != nil {
-			return "archived"
+		if rec, ok := ident.PaseoRecord(home, t.Paseo); ok {
+			if rec.ArchivedAt != nil {
+				return "archived"
+			}
+			// Paseo knows the agent and it is not archived: it is running or
+			// waits for a message. A done report from it marks a milestone
+			// (coordinators file one per milestone), not the end of the session.
+			return ""
 		}
 	}
 	owner, _ := nodeOwner(d, t.Node)
