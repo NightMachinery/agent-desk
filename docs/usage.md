@@ -313,7 +313,8 @@ next merge.
   (`waiting on you`, `active 10m`, `quiet 4d`, `finished`) and how many open
   questions and unread items lie beneath it. Only the way to something that
   needs you is unfolded; everything else is one line, an agent's line carrying
-  its status.
+  its status. A Paseo agent is `active` while it is running; anything else is
+  `active` for an hour after its last event, then `quiet`.
 
 The preview of an item shows its conversation under it: your messages and
 answers, what happened to each (`joined the running turn`, `queued`,

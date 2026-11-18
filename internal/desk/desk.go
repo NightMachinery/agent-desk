@@ -15,8 +15,9 @@ import (
 	"github.com/NightMachinery/agent-desk/internal/store"
 )
 
-// QuietAfter is how long without events makes an active run quiet.
-const QuietAfter = 72 * time.Hour
+// QuietAfter is how long without events makes a node quiet, when nothing
+// better says whether its agent is working.
+const QuietAfter = time.Hour
 
 // States, most urgent first.
 const (
@@ -52,6 +53,11 @@ type Desk struct {
 	marked    map[string]bool // events whose latest read mark stands
 	pins      []string        // pin keys, most recently pinned first
 	slots     []store.Event   // slot_current minus clears
+
+	// Live maps a Paseo agent id on this machine to its status ("running",
+	// "idle", "error", or "archived"); nil when unknown. An agent node whose
+	// session is one of them takes its state from it rather than from time.
+	Live map[string]string
 }
 
 // Load reads the store.
@@ -494,6 +500,7 @@ type Node struct {
 	last     time.Time
 	finished bool // this agent node has a done after its latest join
 	joined   bool
+	paseo    string // the Paseo agent of its latest join, on this machine
 }
 
 // Status is the node's status slot text, if any.
@@ -548,6 +555,10 @@ func (d *Desk) Tree(f Filter) []*Node {
 			lastJoin[node] = e.ID
 			n.joined = true
 			n.finished = false
+			n.paseo = ""
+			if e.Host == d.Host {
+				n.paseo = paseoOf(e)
+			}
 		case "done":
 			if e.ID > lastJoin[node] {
 				n.finished = true
@@ -623,6 +634,26 @@ func (d *Desk) Tree(f Filter) []*Node {
 	return root.Children
 }
 
+func anyChild(n *Node, state string) bool {
+	for _, c := range n.Children {
+		if c.State == state {
+			return true
+		}
+	}
+	return false
+}
+
+// paseoOf is the Paseo agent id in a join's meta.from, if any.
+func paseoOf(e store.Event) string {
+	var m struct {
+		From struct {
+			Paseo string `json:"paseo"`
+		} `json:"from"`
+	}
+	_ = json.Unmarshal(e.Meta, &m)
+	return m.From.Paseo
+}
+
 func parentOf(path string) string {
 	if i := strings.LastIndex(path, "/"); i >= 0 {
 		return path[:i]
@@ -638,6 +669,16 @@ func (d *Desk) settle(n *Node, f Filter) {
 	if age > QuietAfter {
 		live = Quiet
 	}
+	if s, ok := d.Live[n.paseo]; ok && n.paseo != "" && !n.finished {
+		switch s {
+		case "running":
+			live = Active
+		case "archived":
+			n.finished = true
+		default:
+			live = Quiet
+		}
+	}
 	switch {
 	case n.Blocked > 0:
 		n.State = Waiting
@@ -652,9 +693,15 @@ func (d *Desk) settle(n *Node, f Filter) {
 				}
 			}
 		}
-		if roots > 0 && roots == done {
+		switch {
+		case roots > 0 && roots == done:
 			n.State = Finished
-		} else {
+		case anyChild(n, Active):
+			n.State = Active
+		case len(n.Children) > 0 && !anyChild(n, Waiting):
+			// Its agents say whether it is working, not its age.
+			n.State = Quiet
+		default:
 			n.State = live
 		}
 	case n.Depth >= 3 && n.finished:
@@ -672,6 +719,9 @@ func (d *Desk) settle(n *Node, f Filter) {
 		n.State, n.Age = pick.State, pick.Age
 	default:
 		n.State = live
+		if n.State == Quiet && anyChild(n, Active) {
+			n.State = Active // a subagent is working
+		}
 	}
 
 	// Read slots are hidden; status shows while the node is live.

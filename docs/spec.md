@@ -310,9 +310,12 @@ Four views, in this order:
    coordinator is hidden entirely.
 4. **History**: search over the ledger.
 
-Run state, computed: `waiting on you` (open blocked question), `finished`
-(`done` from the root coordinator), otherwise `active` with the age of its
-last event; older than 3 days shows as `quiet`.
+Node state, computed: `waiting on you` (open blocked question), `finished`
+(`done` from the root coordinator, or its Paseo agent archived), otherwise
+`active` or `quiet` with the age of its last event. An agent whose session is
+a Paseo agent on this machine is `active` exactly while Paseo says it is
+running. Any other node is `active` for an hour after its last event, then
+`quiet`. A run or agent with agents under it is `active` while one of them is.
 
 ### Using the hierarchy
 

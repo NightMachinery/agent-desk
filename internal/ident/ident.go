@@ -133,6 +133,31 @@ func PaseoRecords(paseoHome string) []PaseoAgent {
 	return out
 }
 
+// PaseoStatuses maps every stored Paseo agent to its last status, or to
+// "archived".
+func PaseoStatuses(paseoHome string) map[string]string {
+	out := map[string]string{}
+	for _, pat := range []string{filepath.Join(paseoHome, "agents", "*.json"), filepath.Join(paseoHome, "agents", "*", "*.json")} {
+		files, _ := filepath.Glob(pat)
+		for _, f := range files {
+			var rec struct {
+				ID         string  `json:"id"`
+				ArchivedAt *string `json:"archivedAt"`
+				LastStatus string  `json:"lastStatus"`
+			}
+			b, err := os.ReadFile(f)
+			if err != nil || json.Unmarshal(b, &rec) != nil || rec.ID == "" {
+				continue
+			}
+			if rec.ArchivedAt != nil {
+				rec.LastStatus = "archived"
+			}
+			out[rec.ID] = rec.LastStatus
+		}
+	}
+	return out
+}
+
 // PaseoRecord reads the stored record of a Paseo agent.
 func PaseoRecord(paseoHome, uuid string) (paseoRecord, bool) {
 	var rec paseoRecord

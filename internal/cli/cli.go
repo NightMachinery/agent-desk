@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/NightMachinery/agent-desk/internal/config"
@@ -43,6 +44,28 @@ type App struct {
 
 	st  *store.Store
 	cfg *config.Config
+}
+
+// liveTTL bounds how stale the Paseo statuses behind node states may be.
+const liveTTL = 10 * time.Second
+
+// liveCache keeps the Paseo statuses read last, shared by every App (the
+// server copies its App per request).
+var liveCache struct {
+	sync.Mutex
+	home string
+	at   time.Time
+	m    map[string]string
+}
+
+func (a *App) paseoLive() map[string]string {
+	liveCache.Lock()
+	defer liveCache.Unlock()
+	home, now := a.paseoHome(), time.Now()
+	if liveCache.m == nil || liveCache.home != home || now.Sub(liveCache.at) > liveTTL {
+		liveCache.m, liveCache.home, liveCache.at = ident.PaseoStatuses(home), home, now
+	}
+	return liveCache.m
 }
 
 // New returns an App for the real environment.
@@ -211,7 +234,11 @@ func (a *App) load() (*desk.Desk, error) {
 	if err != nil {
 		return nil, err
 	}
-	return desk.Load(st, a.Host, a.Now())
+	d, err := desk.Load(st, a.Host, a.Now())
+	if err == nil {
+		d.Live = a.paseoLive()
+	}
+	return d, err
 }
 
 func (a *App) run(args []string) error {
