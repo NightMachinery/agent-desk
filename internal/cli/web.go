@@ -254,8 +254,8 @@ func prefsView(d *desk.Desk, r *settings.Resolver, path, class string) PrefsView
 }
 
 func (s *server) apiPrefs(w http.ResponseWriter, r *http.Request) {
-	d, ok := s.load(w)
-	if !ok {
+	d, _ := s.load(w)
+	if d == nil {
 		return
 	}
 	q := r.URL.Query()

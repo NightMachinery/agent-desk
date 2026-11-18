@@ -52,6 +52,11 @@ type server struct {
 	quotaMu   sync.Mutex
 	quotaAt   time.Time
 	quotaResp map[string]any
+	// The cached desk contains only store-derived state. Each request gets
+	// its own time and live statuses.
+	readMu    sync.Mutex
+	readDesk  *desk.Desk
+	readStamp string
 	poll      time.Duration // how often the live stream looks for new events
 	stamp     func() (string, error)
 	logger    io.Writer
@@ -99,13 +104,16 @@ func newServer(a *App, ui fs.FS) (*server, error) {
 	}
 	s.index = index
 	s.csp = contentSecurityPolicy(index)
+	st, err := a.store()
+	if err != nil {
+		return nil, err
+	}
 	s.stamp = func() (string, error) {
-		st, err := a.store()
-		if err != nil {
-			return "", err
-		}
 		var n, max int64
-		err = st.DB.QueryRow("SELECT count(*), coalesce(max(rowid), 0) FROM events").Scan(&n, &max)
+		// Separate subqueries let SQLite use its fast COUNT and MAX
+		// paths, while keeping the two values in the same read snapshot.
+		err := st.DB.QueryRow(`SELECT (SELECT count(*) FROM events),
+			coalesce((SELECT max(rowid) FROM events), 0)`).Scan(&n, &max)
 		return fmt.Sprintf("%d.%d", n, max), err
 	}
 	return s, nil
@@ -481,16 +489,37 @@ func jsonError(w http.ResponseWriter, code int, msg string) {
 	json.NewEncoder(w).Encode(map[string]string{"error": msg})
 }
 
-// load reads the desk for a GET.
-func (s *server) load(w http.ResponseWriter) (*desk.Desk, bool) {
-	s.mu.Lock()
-	d, err := s.a.load()
-	s.mu.Unlock()
+// storedDesk returns the immutable event data for the current store stamp.
+func (s *server) storedDesk() (*desk.Desk, string, error) {
+	s.readMu.Lock()
+	defer s.readMu.Unlock()
+	stamp, stampErr := s.stamp()
+	if stampErr == nil && s.readDesk != nil && s.readStamp == stamp {
+		return s.readDesk, stamp, nil
+	}
+
+	// Sample the stamp before reading. If a writer commits during Load,
+	// the next request sees a new stamp and reloads.
+	d, err := desk.Load(s.a.st, s.a.Host, time.Time{})
+	if stampErr != nil {
+		return d, "", err
+	}
+	if err == nil {
+		s.readDesk, s.readStamp = d, stamp
+	}
+	return d, stamp, err
+}
+
+// load reads the desk for a GET, with time and live status for this request.
+func (s *server) load(w http.ResponseWriter) (*desk.Desk, string) {
+	stored, stamp, err := s.storedDesk()
 	if err != nil {
 		jsonError(w, http.StatusInternalServerError, err.Error())
-		return nil, false
+		return nil, ""
 	}
-	return d, true
+	d := *stored
+	d.Now, d.Live = s.a.Now(), s.a.paseoLive()
+	return &d, stamp
 }
 
 // Session describes one agent session, for the session filter's header.
@@ -582,11 +611,10 @@ type viewFilter struct {
 
 func (s *server) apiView(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
-	d, ok := s.load(w)
-	if !ok {
+	d, stamp := s.load(w)
+	if d == nil {
 		return
 	}
-	stamp, _ := s.stamp()
 	f := desk.Filter{
 		Prefix:  strings.Trim(q.Get("path"), "/"),
 		Host:    q.Get("host"),
@@ -874,23 +902,39 @@ func targetOf(d *desk.Desk, token string) (Target, error) {
 func (s *server) apiQuota(w http.ResponseWriter, r *http.Request) {
 	// Under a focus, only the agents working inside it are listed. The desk
 	// is read before taking quotaMu: a quota action holds mu, then quotaMu.
+	var d *desk.Desk
 	var focus []string
 	if r.URL.Query().Get("unfocused") != "1" {
-		d, ok := s.load(w)
-		if !ok {
+		d, _ = s.load(w)
+		if d == nil {
 			return
 		}
 		focus = d.FocusPrefixes()
 	}
+	s.mu.Lock()
+	app := *s.a
+	s.mu.Unlock()
 	s.quotaMu.Lock()
 	defer s.quotaMu.Unlock()
 	if r.URL.Query().Get("fresh") != "" || time.Since(s.quotaAt) >= 30*time.Second || s.quotaResp == nil {
-		qs, err := s.a.quotaLoad()
+		if d == nil {
+			d, _ = s.load(w)
+			if d == nil {
+				return
+			}
+		}
+		c, err := app.config()
 		if err != nil {
 			jsonError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		c, _ := s.a.config()
+		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Minute)
+		defer cancel()
+		qs, err := app.quotaAgents(ctx, d, c)
+		if err != nil {
+			jsonError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
 		s.quotaAt = time.Now()
 		profiles := c.Quota.Profiles
 		if profiles == nil {
@@ -959,8 +1003,8 @@ func (s *server) apiQuotaAct(app *App, body request) (any, error) {
 }
 
 func (s *server) apiTarget(w http.ResponseWriter, r *http.Request) {
-	d, ok := s.load(w)
-	if !ok {
+	d, _ := s.load(w)
+	if d == nil {
 		return
 	}
 	t, err := targetOf(d, r.URL.Query().Get("to"))
@@ -996,8 +1040,8 @@ type itemResponse struct {
 }
 
 func (s *server) apiItem(w http.ResponseWriter, r *http.Request) {
-	d, ok := s.load(w)
-	if !ok {
+	d, _ := s.load(w)
+	if d == nil {
 		return
 	}
 	e, err := d.Resolve(r.URL.Query().Get("id"))

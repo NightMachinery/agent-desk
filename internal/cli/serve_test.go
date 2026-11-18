@@ -10,6 +10,8 @@ import (
 	"testing"
 	"testing/fstest"
 	"time"
+
+	"github.com/NightMachinery/agent-desk/internal/ids"
 )
 
 func testServer(t *testing.T, h *harness) (*server, http.Handler) {
@@ -344,5 +346,37 @@ func TestSearchRunsBySession(t *testing.T) {
 		if strings.Contains(body, `"path":"`+other+`"`) {
 			t.Fatalf("q=%s also kept %s", q, other)
 		}
+	}
+}
+
+func TestServeReadSnapshot(t *testing.T) {
+	h := newHarness(t)
+	h.ok(h.as(sessA), "", "join", "r1/coord")
+	s, _ := testServer(t, h)
+	clock := h.now
+	s.a.Now = func() time.Time { return clock }
+	first, stamp := s.load(httptest.NewRecorder())
+	if first == nil || len(first.Events) != 1 {
+		t.Fatalf("first snapshot = %#v", first)
+	}
+
+	clock = clock.Add(time.Hour)
+	second, nextStamp := s.load(httptest.NewRecorder())
+	if second == nil || nextStamp != stamp || &second.Events[0] != &first.Events[0] || second.Now != clock || first.Now == clock {
+		t.Fatalf("unchanged store should reuse data and refresh the request time")
+	}
+
+	// Another CLI process can import an event older than the current
+	// newest ULID. It still needs to invalidate the cached snapshot.
+	b, _, _ := h.app(nil, "")
+	st, err := b.store()
+	must(t, err)
+	defer st.Close()
+	old := first.Events[0]
+	old.ID = ids.New(h.now.Add(-time.Hour))
+	must(t, st.Append(old))
+	third, nextStamp := s.load(httptest.NewRecorder())
+	if third == nil || nextStamp == stamp || len(third.Events) != 2 || third.Events[0].ID != old.ID {
+		t.Fatalf("external append did not invalidate the snapshot")
 	}
 }
