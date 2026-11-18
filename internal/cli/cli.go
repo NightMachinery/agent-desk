@@ -724,7 +724,17 @@ func (a *App) cmdTell(args []string) error {
 	if err := a.attach(o, extra); err != nil {
 		return err
 	}
-	return a.agentWrite(o.vals["project"], o.vals["node"], "tell", func(from ident.From, node string, d *desk.Desk) ([]store.Event, error) {
+	nodeArg := o.vals["node"]
+	if re != "" && nodeArg == "" {
+		// The message or answer responded to names its node: when this
+		// session holds it, that is the node, however many it holds.
+		if node, err := a.reNode(re); err != nil {
+			return err
+		} else if node != "" {
+			nodeArg = node
+		}
+	}
+	return a.agentWrite(o.vals["project"], nodeArg, "tell", func(from ident.From, node string, d *desk.Desk) ([]store.Event, error) {
 		if asked != "" {
 			extra["asked"] = asked
 		}

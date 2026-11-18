@@ -207,3 +207,26 @@ func (a *App) cmdLeave(args []string) error {
 	}
 	return nil
 }
+
+// reNode is the node of the message or answer a tell --re responds to, when
+// this session holds it, else "".
+func (a *App) reNode(re string) (string, error) {
+	d, err := a.load()
+	if err != nil {
+		return "", err
+	}
+	e, err := d.Resolve(re)
+	if err != nil {
+		return "", err
+	}
+	node := e.Path
+	if e.Kind == "answer" {
+		node = desk.NodeOf(d.ByID[e.Ref])
+	}
+	for _, p := range heldPaths(a.held(d, ident.Resolve(a.Env))) {
+		if p == node {
+			return p, nil
+		}
+	}
+	return "", nil
+}

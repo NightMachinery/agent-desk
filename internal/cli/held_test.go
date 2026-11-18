@@ -157,6 +157,12 @@ func TestHeldNodeDelivery(t *testing.T) {
 	h.ok(nil, "", "reply", "example-proj/r2/coord", "About the second run")
 	q := h.ok(env, "ctx", "ask", "--blocked", "--title", "Which seed?", "--node", "r2/coord")
 	h.ok(nil, "", "answer", q, "seed 3")
+	// The response needs no --node: the message names its node.
+	m := strings.TrimSpace(strings.SplitN(strings.SplitN((*h.calls)[0], "Message ", 2)[1], " ", 2)[0])
+	h.ok(env, "On it.", "tell", "--re", m)
+	if evs := h.eventsAt("tell", "example-proj/r2/coord"); len(evs) != 1 {
+		t.Fatalf("tell --re to the second node: %+v", evs)
+	}
 	c := *h.calls
 	if len(c) != 2 || !strings.Contains(c[0], uuid+" Message") || !strings.Contains(c[0], "to example-proj/r2/coord: About the second run") ||
 		!strings.Contains(c[1], uuid) || !strings.Contains(c[1], "seed 3") {
