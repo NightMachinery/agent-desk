@@ -136,7 +136,7 @@ func TestColdCacheDialogData(t *testing.T) {
 	expiry := float64(h.now.Unix()) - 0.5
 	var lists atomic.Int32
 	fakeKeeper(t, h, func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet || r.URL.Path != "/v1/agents" || r.URL.Query().Get("all") != "1" {
+		if r.Method != http.MethodGet || r.URL.Path != "/v1/agents" || r.URL.Query().Has("all") {
 			t.Errorf("unexpected keeper request: %s %s", r.Method, r.URL)
 		}
 		lists.Add(1)

@@ -106,7 +106,7 @@ func (s *server) refreshCache(done chan struct{}) {
 	result := cacheResponse{Message: "Cache status unavailable"}
 	app, _, _ := s.userApp()
 	if client, err := app.keeperClient(); err == nil {
-		if doc, err := client.Agents(ctx, true); err == nil {
+		if doc, err := client.Agents(ctx, false); err == nil {
 			result = cacheResponse{Available: true, Enabled: doc.Enabled, Agents: make(map[string]cacheStatus, len(doc.Agents))}
 			for _, a := range doc.Agents {
 				result.Agents[a.ID] = cacheState(a)
