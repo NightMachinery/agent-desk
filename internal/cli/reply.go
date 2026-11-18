@@ -153,9 +153,8 @@ func checkNotify(desktop, remote string) (map[string]string, error) {
 	return m, nil
 }
 
-// recordReply appends a reply and delivers it when its session is on this
-// machine. It returns the reply.
-func (a *App) recordReply(token, text, source, behavior string, notify map[string]string, refs ...media.Ref) (store.Event, error) {
+// replyEvent prepares a reply to an item or node.
+func (a *App) replyEvent(token, text, source, behavior string, notify map[string]string, refs ...media.Ref) (store.Event, error) {
 	if strings.TrimSpace(text) == "" && len(refs) > 0 {
 		text = attachedOnly
 	}
@@ -187,6 +186,16 @@ func (a *App) recordReply(token, text, source, behavior string, notify map[strin
 	}
 	e := a.event("reply", node, ident.Resolve(a.Env), source, extra)
 	e.Ref, e.Body = about.ID, text
+	return e, nil
+}
+
+// recordReply appends a reply and delivers it for the CLI.
+func (a *App) recordReply(token, text, source, behavior string, notify map[string]string, refs ...media.Ref) (store.Event, error) {
+	e, err := a.replyEvent(token, text, source, behavior, notify, refs...)
+	if err != nil {
+		return e, err
+	}
+	_, host := toOf(e)
 	if err := a.commit1(e); err != nil {
 		return e, err
 	}

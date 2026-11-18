@@ -19,7 +19,7 @@ func TestServeThreads(t *testing.T) {
 	h.ok(env, "", "join", "r1/coord")
 	tl := h.ok(env, "Live.", "tell", "--title", "Deploy finished")
 	h.respond = func(name string, args []string) (string, error) { return `{"disposition":"steered"}`, nil }
-	_, hd := testServer(t, h)
+	s, hd := testServer(t, h)
 
 	code, body, _ := do(t, hd, "POST", "/api/reply",
 		`{"to":"`+tl+`","text":"check the feed","notify":{"remote":"always"}}`, dashboard)
@@ -32,6 +32,7 @@ func TestServeThreads(t *testing.T) {
 	if code, body, _ = do(t, hd, "POST", "/api/reply", `{"to":"`+tl+`","text":"x","notify":{"remote":"loud"}}`, dashboard); code != 400 {
 		t.Fatalf("bad notify: %d %s", code, body)
 	}
+	s.sendQueueStep()
 	r1 := h.ok(env, "Done.", "tell", "--re", m1)
 	m2 := h.ok(nil, "", "reply", "example-proj/r1/coord", "and the node?")
 

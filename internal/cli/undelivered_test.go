@@ -38,7 +38,7 @@ func TestDeliveryFailureIsKept(t *testing.T) {
 	}
 
 	// The dashboard shows it beside the answer.
-	_, hd := testServer(t, h)
+	s, hd := testServer(t, h)
 	item := func() Entry {
 		t.Helper()
 		_, body, _ := do(t, hd, "GET", "/api/item?id="+q, "", nil)
@@ -75,14 +75,19 @@ func TestDeliveryFailureIsKept(t *testing.T) {
 	if code, _, _ := do(t, hd, "POST", "/api/deliver", `{"id":"`+q+`"}`, nil); code != 403 {
 		t.Fatalf("a cross-site retry was not refused: %d", code)
 	}
-	if code, body, _ := do(t, hd, "POST", "/api/deliver", `{"id":"`+q+`"}`, dashboard); code != 422 || !strings.Contains(body, "exit status 2") {
-		t.Fatalf("failed retry: %d %s", code, body)
+	if code, body, _ := do(t, hd, "POST", "/api/deliver", `{"id":"`+q+`"}`, dashboard); code != 200 || !strings.Contains(body, "queued") {
+		t.Fatalf("queue retry: %d %s", code, body)
+	}
+	s.sendQueueStep()
+	if e := item(); e.Failure == nil || !e.Failure.Retrying || !strings.Contains(e.Failure.Error, "exit status 2") {
+		t.Fatalf("failed retry: %+v", e)
 	}
 	h.respond = func(string, []string) (string, error) { return `{"status":"sent","disposition":"turn_started"}`, nil }
 	ans := item().ID
 	if code, body, _ := do(t, hd, "POST", "/api/deliver", `{"id":"`+ans+`"}`, dashboard); code != 200 {
 		t.Fatalf("retry: %d %s", code, body)
 	}
+	s.sendQueueStep()
 	if e := item(); e.Failure != nil || e.Delivery == nil {
 		t.Fatalf("after delivery: %+v", e)
 	}

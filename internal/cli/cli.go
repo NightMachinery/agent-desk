@@ -1028,14 +1028,13 @@ func (a *App) cmdAnswer(args []string) error {
 	return a.recordAnswer(d, q, text, source, beh, notify, refs...)
 }
 
-// recordAnswer appends an answer to question q and prints its display id.
-// notify overrides where the response to it notifies.
-func (a *App) recordAnswer(d *desk.Desk, q store.Event, text, source, behavior string, notify map[string]string, refs ...media.Ref) error {
+// answerEvents prepares an answer and any associated screen decision.
+func (a *App) answerEvents(d *desk.Desk, q store.Event, text, source, behavior string, notify map[string]string, refs ...media.Ref) ([]store.Event, error) {
 	if strings.TrimSpace(text) == "" && len(refs) > 0 {
 		text = attachedOnly
 	}
 	if strings.TrimSpace(text) == "" {
-		return usagef("answer needs the answer's text")
+		return nil, usagef("answer needs the answer's text")
 	}
 	for _, x := range d.Questions {
 		if x.ID == q.ID && !x.Open() {
@@ -1047,11 +1046,11 @@ func (a *App) recordAnswer(d *desk.Desk, q store.Event, text, source, behavior s
 	if source != "chat" {
 		b, err := checkBehavior(behavior)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if b == "" {
 			if b, err = a.defaultBehavior(d, q.Path); err != nil {
-				return err
+				return nil, err
 			}
 		}
 		extra = map[string]any{"behavior": b}
@@ -1071,6 +1070,16 @@ func (a *App) recordAnswer(d *desk.Desk, q store.Event, text, source, behavior s
 	if se, ok := a.screenDecision(q, text, source); ok {
 		evs = append(evs, se) // an answer to a screen request grants or denies it
 	}
+	return evs, nil
+}
+
+// recordAnswer appends an answer and delivers it for the CLI and bridges.
+func (a *App) recordAnswer(d *desk.Desk, q store.Event, text, source, behavior string, notify map[string]string, refs ...media.Ref) error {
+	evs, err := a.answerEvents(d, q, text, source, behavior, notify, refs...)
+	if err != nil {
+		return err
+	}
+	e := evs[0]
 	if err := a.commit(evs, e.ID); err != nil {
 		return err
 	}

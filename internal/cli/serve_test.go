@@ -53,7 +53,7 @@ func TestServe(t *testing.T) {
 	q := h.ok(env, "A or B.\nI recommend B.", "ask", "--blocked", "--title", "Which split?")
 	tl := h.ok(env, "Live.", "tell", "--title", "Deploy finished")
 	h.respond = func(name string, args []string) (string, error) { return "queued", nil }
-	_, hd := testServer(t, h)
+	s, hd := testServer(t, h)
 
 	if code, body, _ := do(t, hd, "GET", "/api/health", "", nil); code != 200 || body != "ok\n" {
 		t.Fatalf("health: %d %q", code, body)
@@ -123,11 +123,12 @@ func TestServe(t *testing.T) {
 		}
 	}
 
-	// Answer from the dashboard: recorded and typed into the session.
+	// The write returns a queued receipt. A worker pass types the answer.
 	code, body, _ := do(t, hd, "POST", "/api/answer", `{"id":"`+q+`","text":"B"}`, dashboard)
 	if code != 200 || !strings.Contains(body, `"id":"a-`) {
 		t.Fatalf("answer: %d %s", code, body)
 	}
+	s.sendQueueStep()
 	if c := *h.calls; len(c) != 1 || !strings.Contains(c[0], `Answer to `+q+` "Which split?": B`) {
 		t.Fatalf("answer delivery: %q", c)
 	}
@@ -136,6 +137,7 @@ func TestServe(t *testing.T) {
 	if code != 200 || !strings.Contains(body, `"id":"m-`) {
 		t.Fatalf("reply: %d %s", code, body)
 	}
+	s.sendQueueStep()
 	code, body, _ = do(t, hd, "GET", "/api/item?id="+q, "", nil)
 	var it itemResponse
 	must(t, json.Unmarshal([]byte(body), &it))

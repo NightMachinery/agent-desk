@@ -42,9 +42,11 @@ type Entry struct {
 // Failure is an undelivered mark: why the message did not reach its
 // session, and how to resume that session by hand.
 type Failure struct {
-	Error  string `json:"error"`
-	Resume string `json:"resume,omitempty"`
-	Age    string `json:"age"`
+	Error     string `json:"error"`
+	Resume    string `json:"resume,omitempty"`
+	Age       string `json:"age"`
+	Retrying  bool   `json:"retrying,omitempty"`
+	Uncertain bool   `json:"uncertain,omitempty"`
 }
 
 // Delivery is a delivered mark's receipt.
@@ -74,6 +76,14 @@ func fromTitle(f ident.From) string {
 // response state. pushed names the hosts in ssh_hosts.
 func entries(d *desk.Desk, thread []store.Event, pushed map[string]string) []Entry {
 	out := []Entry{}
+	if len(thread) == 0 {
+		return out
+	}
+	states := deliveryStates(d)
+	answers := map[string]string{}
+	for _, q := range d.Questions {
+		answers[q.ID] = q.AnswerID
+	}
 	for _, e := range thread {
 		if e.Kind == "delivered" {
 			continue
@@ -132,13 +142,21 @@ func entries(d *desk.Desk, thread []store.Event, pushed map[string]string) []Ent
 				en.Pending = "sent to " + host + "; its delivery shows here after the next merge"
 			case host != "" && host != d.Host:
 				en.Pending = "waiting for a merge to " + host
+			case e.Kind == "answer" && answers[e.Ref] != "" && answers[e.Ref] != e.ID:
+				en.Pending = "superseded by a newer answer"
+			case queuedByWeb(e) || states[e.ID].Status != "":
+				en.Pending = "queued"
 			default:
 				en.Pending = "not delivered yet"
 			}
-			if f, ok := d.DeliveryFailure(e.ID); ok {
+			if state := states[e.ID]; state.Error != "" && en.Pending != "superseded by a newer answer" {
+				f, _ := d.DeliveryFailure(e.ID)
 				en.Pending = "not delivered"
-				en.Failure = &Failure{Error: desk.MetaString(f, "error"), Resume: desk.MetaString(f, "resume"),
-					Age: desk.Age(d.Now.Sub(desk.Time(f)))}
+				if state.RetryAt != "" && host == d.Host {
+					en.Pending = "retrying"
+				}
+				en.Failure = &Failure{Error: state.Error, Resume: state.Resume,
+					Age: desk.Age(d.Now.Sub(desk.Time(f))), Retrying: state.RetryAt != "", Uncertain: state.Uncertain}
 			}
 		}
 		switch {

@@ -65,6 +65,7 @@ next:
 
 func runReal(ctx context.Context, stdin []byte, name string, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.WaitDelay = 2 * time.Second
 	cmd.Env = envFor(name, os.Environ())
 	if stdin != nil {
 		cmd.Stdin = bytes.NewReader(stdin)
@@ -105,16 +106,18 @@ func (a *App) typeIntoPane(ctx context.Context, pane, text string) error {
 	// -p pastes with bracketed-paste markers when the program asked for
 	// them, so a multi-line answer arrives as one message.
 	if out, err := a.runExt(ctx, nil, "tmux", "paste-buffer", "-p", "-d", "-b", buf, "-t", pane); err != nil {
-		return fmt.Errorf("tmux paste-buffer: %v: %s", err, out)
+		return fmt.Errorf("%w: tmux paste-buffer: %v: %s", errDeliveryUncertain, err, out)
 	}
 	time.Sleep(300 * time.Millisecond) // let the program take the paste before Enter
 	if out, err := a.runExt(ctx, nil, "tmux", "send-keys", "-t", pane, "Enter"); err != nil {
-		return fmt.Errorf("tmux send-keys: %v: %s", err, out)
+		return fmt.Errorf("%w: tmux send-keys: %v: %s", errDeliveryUncertain, err, out)
 	}
 	return nil
 }
 
 var errUnreachable = errors.New("unreachable")
+
+var errDeliveryUncertain = errors.New("delivery could not be confirmed")
 
 // job is one message to type into a session: an answer to the question it
 // asked, or a reply from the user.
@@ -254,19 +257,20 @@ func (a *App) deliverSession(d *desk.Desk, j job) (receipt, error) {
 			return a.runExt(ctx, nil, "paseo", "send", "--no-wait", "--json", "--behavior", b, f.Paseo, text)
 		}
 		out, err := send(use)
-		if err != nil && use == "queue" && fallback == "" {
-			// A daemon without the queue refuses the send and delivers
-			// nothing, so steering after it cannot deliver twice.
-			if out2, err2 := send("steer"); err2 == nil {
-				out, err, use, fallback = out2, nil, "steer", "queue unsupported by the Paseo daemon"
-			}
+		if err != nil && use == "queue" && fallback == "" && queueRefused(out) {
+			out, err = send("steer")
+			use, fallback = "steer", "queue unsupported by the Paseo daemon"
 		}
 		if err == nil {
 			r := receipt{Via: "paseo", Behavior: use, Fallback: fallback}
 			paseoReceipt(out, &r)
 			return r, nil
 		}
-		reasons = append(reasons, fmt.Sprintf("paseo send: %s (%v)", paseoError(out), err))
+		reason := fmt.Sprintf("paseo send: %s (%v)", paseoError(out), err)
+		if uncertainPaseo(ctx, out, err) {
+			return receipt{}, fmt.Errorf("%w: %s", errDeliveryUncertain, reason)
+		}
+		reasons = append(reasons, reason)
 	}
 	if f.Paseo == "" && f.TmuxPane != "" {
 		use, fallback := beh, ""
@@ -284,6 +288,9 @@ func (a *App) deliverSession(d *desk.Desk, j job) (receipt, error) {
 		if err == nil {
 			return receipt{Via: "tmux", Behavior: use, Disposition: "typed", Fallback: fallback}, nil
 		}
+		if errors.Is(err, errDeliveryUncertain) {
+			return receipt{}, err
+		}
 		reasons = append(reasons, err.Error())
 	}
 	c, err := a.config()
@@ -300,20 +307,24 @@ func (a *App) deliverSession(d *desk.Desk, j job) (receipt, error) {
 		p.Behavior = beh
 		msgCopy := j.msg
 		p.Cause = &msgCopy
-		var out bytes.Buffer
-		saved := a.Stdout
-		a.Stdout = &out
-		err := a.runHook(c.DeliverCommand, p, true)
-		a.Stdout = saved
+		in, err := json.Marshal(p)
+		if err != nil {
+			return receipt{}, err
+		}
+		out, err := runReal(ctx, in, "env", "AGENT_DESK_HOME="+a.Home, "sh", "-c", c.DeliverCommand)
 		if err == nil {
 			r := receipt{Via: "command", Behavior: beh, Disposition: "command"}
 			var v struct {
 				Disposition string `json:"disposition"`
 			}
-			if line := strings.TrimSpace(out.String()); line != "" && json.Unmarshal([]byte(line), &v) == nil && v.Disposition != "" {
+			if line := strings.TrimSpace(out); line != "" && json.Unmarshal([]byte(line), &v) == nil && v.Disposition != "" {
 				r.Disposition = v.Disposition
 			}
 			return r, nil
+		}
+		var exit *exec.ExitError
+		if ctx.Err() != nil || errors.As(err, &exit) || errors.Is(err, exec.ErrWaitDelay) {
+			return receipt{}, fmt.Errorf("%w: deliver_command: %v", errDeliveryUncertain, err)
 		}
 		reasons = append(reasons, fmt.Sprintf("deliver_command: %v", err))
 	}
@@ -329,7 +340,11 @@ func (a *App) deliverSession(d *desk.Desk, j job) (receipt, error) {
 
 // deliverLock serialises deliveries, so two runs never type one answer twice.
 func (a *App) deliverLock() (func(), error) {
-	f, err := os.OpenFile(filepath.Join(a.Home, "deliver.lock"), os.O_CREATE|os.O_RDWR, 0o600)
+	return a.deskLock("deliver.lock")
+}
+
+func (a *App) deskLock(name string) (func(), error) {
+	f, err := os.OpenFile(filepath.Join(a.Home, name), os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return nil, err
 	}
@@ -377,61 +392,153 @@ func pending(d *desk.Desk, host string, only string) []job {
 	return out
 }
 
-// deliver sends pending answers (all, or only question `only`), appending
-// a delivered event for each. It reports per answer on stderr and returns
-// how many it could not deliver.
+// deliver keeps synchronous CLI and merge delivery on the same flock as the server.
 func (a *App) deliver(only string) (int, error) {
+	failed, _, _, err := a.deliverPending(only, false)
+	return failed, err
+}
+
+// deliverPending runs the jobs due now. It returns whether it wrote delivery
+// state and when the next automatically retryable job is due.
+func (a *App) deliverPending(only string, webOnly bool) (failed int, changed bool, next time.Time, err error) {
 	unlock, err := a.deliverLock()
 	if err != nil {
-		return 0, err
+		return 0, false, next, err
 	}
 	defer unlock()
-	d, err := a.load()
+	st, err := a.store()
 	if err != nil {
-		return 0, err
+		return 0, false, next, err
 	}
-	failed := 0
+	d, err := desk.Load(st, a.Host, a.Now())
+	if err != nil {
+		return 0, false, next, err
+	}
+	states := deliveryStates(d)
 	for _, j := range pending(d, a.Host, only) {
+		state := states[j.msg.ID]
+		automatic := queuedByWeb(j.msg) || state.Deadline != "" || state.Status == "queued"
+		if webOnly && !automatic {
+			continue
+		}
+		if state.Uncertain {
+			continue
+		}
+		now := a.Now()
+		switch {
+		case state.Status == "attempting":
+			// The flock is ours. The previous holder left no acknowledgement.
+			state = sendProgress{ID: state.ID, Error: "The previous send ended without an acknowledgement.", Uncertain: true}
+			if err := st.Append(a.deliveryState(j.msg, "undelivered", state)); err != nil {
+				return failed, changed, next, err
+			}
+			failed++
+			changed = true
+			continue
+		case automatic && state.Error != "" && state.RetryAt == "":
+			continue
+		case state.RetryAt != "" && now.Before(parseSendTime(state.RetryAt)):
+			next = earlierSend(next, parseSendTime(state.RetryAt))
+			continue
+		case state.Deadline != "" && !now.Before(parseSendTime(state.Deadline)):
+			state.RetryAt = ""
+			expired := a.deliveryState(j.msg, "undelivered", state)
+			recorded, err := st.AppendDeliveryIfCurrent(expired, state.ID)
+			if err != nil {
+				return failed, changed, next, err
+			}
+			if !recorded {
+				next = earlierSend(next, now)
+			}
+			changed = changed || recorded
+			continue
+		}
+		if automatic {
+			if state.Deadline == "" {
+				state.Deadline = now.Add(sendRetryWindow).Format(time.RFC3339Nano)
+			}
+			attempt := state
+			attempt.Status = "attempting"
+			marker := a.deliveryState(j.msg, "delivery-state", attempt)
+			recorded, err := st.AppendDeliveryIfCurrent(marker, state.ID)
+			if err != nil {
+				return failed, changed, next, err
+			}
+			if !recorded {
+				next = earlierSend(next, now)
+				continue
+			}
+			state.ID = marker.ID
+		}
 		dest := j.msg.Path
 		if j.about.ID != "" {
 			dest = d.Display(j.about.ID)
 		}
-		st, err := a.store()
-		if err != nil {
-			return failed, err
-		}
-		r, err := a.deliverOne(d, j)
-		if err != nil {
-			failed++
-			fmt.Fprintf(a.Stderr, "agent-desk: %s not delivered: %v. `agent-desk deliver` retries.\n",
-				d.Display(j.msg.ID), err)
-			reason, resume, _ := strings.Cut(err.Error(), resumeSep)
-			reason = strings.TrimPrefix(reason, errUnreachable.Error()+": ")
-			a.deliverLog(d.Display(j.msg.ID), dest, "failed", reason)
-			// The reason is kept on the desk, where the dashboard shows it
-			// beside the message; a retry failing the same way adds nothing.
-			if last, ok := d.DeliveryFailure(j.msg.ID); !ok || desk.MetaString(last, "error") != reason {
-				m := map[string]any{"error": reason}
-				if resume != "" {
-					m["resume"] = resume
-				}
-				e := a.event("undelivered", j.msg.Path, ident.Resolve(a.Env), "cli", m)
-				e.Ref = j.msg.ID
-				if err := st.Append(e); err != nil {
-					return failed, err
-				}
+		id := d.Display(j.msg.ID)
+		r, sendErr := a.deliverOne(d, j)
+		if sendErr == nil {
+			e := a.event("delivered", j.msg.Path, ident.Resolve(a.Env), "cli", r.meta())
+			e.Ref = j.msg.ID
+			if err := st.Append(e); err != nil {
+				return failed, changed, next, err
 			}
+			a.deliverLog(id, dest, "delivered", strings.TrimSpace(r.Via+" "+r.Disposition))
+			fmt.Fprintf(a.Stderr, "agent-desk: %s delivered to %s via %s\n", id, dest, r.Via)
+			changed = true
 			continue
 		}
-		e := a.event("delivered", j.msg.Path, ident.Resolve(a.Env), "cli", r.meta())
-		e.Ref = j.msg.ID
-		if err := st.Append(e); err != nil {
-			return failed, err
+		failed++
+		reason, resume, _ := strings.Cut(sendErr.Error(), resumeSep)
+		reason = strings.TrimPrefix(reason, errUnreachable.Error()+": ")
+		a.deliverLog(id, dest, "failed", reason)
+		uncertain := errors.Is(sendErr, errDeliveryUncertain)
+		if uncertain {
+			fmt.Fprintf(a.Stderr, "agent-desk: %s: %v. Check its session before sending again.\n", id, sendErr)
+		} else if automatic {
+			fmt.Fprintf(a.Stderr, "agent-desk: %s not delivered: %v.\n", id, sendErr)
+		} else {
+			fmt.Fprintf(a.Stderr, "agent-desk: %s not delivered: %v. `agent-desk deliver` retries.\n", id, sendErr)
 		}
-		a.deliverLog(d.Display(j.msg.ID), dest, "delivered", strings.TrimSpace(r.Via+" "+r.Disposition))
-		fmt.Fprintf(a.Stderr, "agent-desk: %s delivered to %s via %s\n", d.Display(j.msg.ID), dest, r.Via)
+		failure := sendProgress{ID: state.ID, Error: reason, Resume: resume, Uncertain: uncertain, Deadline: state.Deadline}
+		if automatic && !uncertain {
+			failure.Attempts = state.Attempts + 1
+			retryAt := a.Now().Add(sendRetryDelay(failure.Attempts))
+			if retryAt.Before(parseSendTime(state.Deadline)) {
+				failure.RetryAt = retryAt.Format(time.RFC3339Nano)
+				next = earlierSend(next, retryAt)
+			}
+		}
+		if automatic || state.Error != reason || state.Uncertain != uncertain {
+			if err := st.Append(a.deliveryState(j.msg, "undelivered", failure)); err != nil {
+				return failed, changed, next, err
+			}
+			changed = true
+		}
 	}
-	return failed, nil
+	return failed, changed, next, nil
+}
+
+func queueRefused(out string) bool {
+	msg := strings.ToLower(strings.TrimSpace(paseoError(out)))
+	return msg == "unsupported behavior" ||
+		strings.Contains(msg, "update the paseo host to queue messages until the running turn ends")
+}
+
+func uncertainPaseo(ctx context.Context, out string, err error) bool {
+	if ctx.Err() != nil || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) || errors.Is(err, exec.ErrWaitDelay) {
+		return true
+	}
+	msg := strings.ToLower(paseoError(out))
+	if strings.HasPrefix(msg, "cannot connect to daemon at ") {
+		return false
+	}
+	for _, text := range []string{"timed out", "timeout", "disconnected", "connection closed", "transport closed", "socket closed", "connection reset"} {
+		if strings.Contains(msg, text) {
+			return true
+		}
+	}
+	var exit *exec.ExitError
+	return errors.As(err, &exit) && (exit.ExitCode() < 0 || strings.TrimSpace(out) == "")
 }
 
 // resumeSep leads the resume command at the end of a delivery error.

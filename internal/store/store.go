@@ -34,7 +34,7 @@ type Event struct {
 }
 
 // Kinds lists every event kind the store accepts.
-var Kinds = []string{"join", "leave", "ask", "answer", "delivered", "undelivered", "tell", "done", "set", "clear", "link", "read", "reply", "pin", "pref", "notified", "retracted", "instruction", "task", "taskstate", "screen", "projectset", "focus"}
+var Kinds = []string{"join", "leave", "ask", "answer", "delivered", "undelivered", "delivery-state", "tell", "done", "set", "clear", "link", "read", "reply", "pin", "pref", "notified", "retracted", "instruction", "task", "taskstate", "screen", "projectset", "focus"}
 
 func validKind(k string) bool {
 	for _, x := range Kinds {
@@ -62,6 +62,8 @@ CREATE TABLE IF NOT EXISTS events (
 CREATE INDEX IF NOT EXISTS events_kind ON events(kind);
 CREATE INDEX IF NOT EXISTS events_path ON events(path);
 CREATE INDEX IF NOT EXISTS events_ref  ON events(ref);
+CREATE INDEX IF NOT EXISTS events_web_send ON events(host, json_extract(meta, '$.send_key'))
+WHERE kind IN ('answer','reply') AND json_valid(meta);
 
 -- Both slot_current and unread look up the latest slot event for a path.
 CREATE INDEX IF NOT EXISTS events_slot_latest ON events(path, id)
@@ -230,6 +232,13 @@ func (s *Store) Append(events ...Event) error {
 		return err
 	}
 	defer tx.Rollback()
+	if err := appendEvents(tx, events); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func appendEvents(tx *sql.Tx, events []Event) error {
 	for _, e := range events {
 		if err := Validate(e); err != nil {
 			return err
@@ -239,7 +248,70 @@ func (s *Store) Append(events ...Event) error {
 			return err
 		}
 	}
-	return tx.Commit()
+	return nil
+}
+
+// WebSend finds the event recorded for a browser request key on this host.
+func (s *Store) WebSend(host, key string) (Event, error) {
+	events, err := s.Query("events", webSendWhere, host, key)
+	if err != nil || len(events) == 0 {
+		return Event{}, err
+	}
+	return events[0], nil
+}
+
+const webSendWhere = "kind IN ('answer','reply') AND json_valid(meta) AND host = ? AND json_extract(meta, '$.send_key') = ?"
+
+// AppendWebSend records a message and its companion events once, even with
+// multiple dashboard processes. An existing request returns its original event.
+func (s *Store) AppendWebSend(key string, events []Event) (Event, bool, error) {
+	msg := events[0]
+	tx, err := s.DB.Begin()
+	if err != nil {
+		return Event{}, false, err
+	}
+	defer tx.Rollback()
+	rows, err := tx.Query("SELECT "+cols+" FROM events WHERE "+webSendWhere+" ORDER BY id LIMIT 1", msg.Host, key)
+	if err != nil {
+		return Event{}, false, err
+	}
+	found, err := scanEvents(rows)
+	if err != nil {
+		return Event{}, false, err
+	}
+	if len(found) > 0 {
+		return found[0], false, nil
+	}
+	if err := appendEvents(tx, events); err != nil {
+		return Event{}, false, err
+	}
+	return msg, true, tx.Commit()
+}
+
+// AppendDeliveryIfCurrent records a retry or an attempt only if the action
+// it follows is still current. This closes the race between the HTTP retry
+// path and a delivery process that already read the queue.
+func (s *Store) AppendDeliveryIfCurrent(event Event, previous string) (bool, error) {
+	tx, err := s.DB.Begin()
+	if err != nil {
+		return false, err
+	}
+	defer tx.Rollback()
+	const stateSQL = `SELECT id FROM events
+WHERE ref = ? AND kind IN ('delivery-state', 'undelivered', 'delivered')
+ORDER BY kind = 'delivered' DESC, id DESC LIMIT 1`
+	var last string
+	err = tx.QueryRow(stateSQL, event.Ref).Scan(&last)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return false, err
+	}
+	if last != previous {
+		return false, nil
+	}
+	if err := appendEvents(tx, []Event{event}); err != nil {
+		return false, err
+	}
+	return true, tx.Commit()
 }
 
 const cols = `id, ts, host, kind, path, coalesce(ref, ''), coalesce(level, ''),

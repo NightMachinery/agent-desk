@@ -27,6 +27,7 @@ import (
 	"github.com/NightMachinery/agent-desk/internal/desk"
 	"github.com/NightMachinery/agent-desk/internal/ident"
 	"github.com/NightMachinery/agent-desk/internal/media"
+	"github.com/NightMachinery/agent-desk/internal/store"
 	"github.com/NightMachinery/agent-desk/web"
 )
 
@@ -35,12 +36,16 @@ const DefaultListen = "127.0.0.1:7740"
 
 // server is the web dashboard: a JSON API over the store and the built page.
 type server struct {
-	a     *App
-	mu    sync.Mutex // one action at a time, as from one terminal
-	ui    fs.FS
-	index []byte
-	csp   string
-	hosts map[string]bool // Host header names accepted; nil accepts any
+	a           *App
+	mu          sync.Mutex // protects the shared App used by reads
+	writeMu     sync.Mutex // serialises read-modify-write actions
+	sendMu      sync.Mutex // protects queued post-commit effects
+	sendEffects [][]store.Event
+	sendWake    chan struct{}
+	ui          fs.FS
+	index       []byte
+	csp         string
+	hosts       map[string]bool // Host header names accepted; nil accepts any
 	// origins are the dashboard's public origins (scheme://host[:port]),
 	// where a proxy that rewrites Host serves it.
 	origins map[string]bool
@@ -97,7 +102,10 @@ var agentVars = map[string]bool{
 }
 
 func newServer(a *App, ui fs.FS) (*server, error) {
-	s := &server{a: a, ui: ui, poll: time.Second, logger: a.Stderr}
+	if _, err := a.store(); err != nil {
+		return nil, err
+	}
+	s := &server{a: a, ui: ui, poll: time.Second, logger: a.Stderr, sendWake: make(chan struct{}, 1)}
 	index, err := fs.ReadFile(ui, "index.html")
 	if err != nil {
 		return nil, fmt.Errorf("the dashboard is not built: %w", err)
@@ -147,10 +155,10 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("GET /api/media/{file}", s.apiMedia)
 	mux.HandleFunc("POST /api/pref", s.write(s.apiPref))
 	mux.HandleFunc("POST /api/upload", s.apiUpload)
-	mux.HandleFunc("POST /api/answer", s.write(s.apiAnswer))
-	mux.HandleFunc("POST /api/reply", s.write(s.apiReply))
+	mux.HandleFunc("POST /api/answer", s.action(s.apiAnswer))
+	mux.HandleFunc("POST /api/reply", s.action(s.apiReply))
 	mux.HandleFunc("POST /api/read", s.write(s.apiRead))
-	mux.HandleFunc("POST /api/deliver", s.write(s.apiDeliver))
+	mux.HandleFunc("POST /api/deliver", s.action(s.apiDeliver))
 	mux.HandleFunc("POST /api/pin", s.write(s.apiPin))
 	mux.HandleFunc("POST /api/unpin", s.write(s.apiUnpin))
 	mux.HandleFunc("POST /api/unread", s.write(s.apiUnread))
@@ -160,7 +168,7 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("GET /api/push", s.apiPush)
 	mux.HandleFunc("POST /api/push", s.apiPushAct)
 	mux.HandleFunc("GET /api/quota", s.apiQuota)
-	mux.HandleFunc("POST /api/quota", s.write(s.apiQuotaAct))
+	mux.HandleFunc("POST /api/quota", s.action(s.apiQuotaAct))
 	mux.HandleFunc("GET /api/auto-continue", s.apiAutoContinue)
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, http.StatusNotFound, "no such API")
@@ -231,12 +239,13 @@ func (s *server) sameOriginAny(r *http.Request) error {
 
 // request is the JSON body of a write.
 type request struct {
-	ID      string   `json:"id"`      // answer, unread: the item
-	Text    string   `json:"text"`    // answer, reply
-	To      string   `json:"to"`      // reply: an item or a node path
-	Prompt  string   `json:"prompt"`  // reply: a prepared message instead of text (velocity-report)
-	Target  string   `json:"target"`  // read: an item or a node path
-	Targets []string `json:"targets"` // read, unread: several at once
+	SendKey string   `json:"send_key"` // idempotency key for answer and reply
+	ID      string   `json:"id"`       // answer, unread: the item
+	Text    string   `json:"text"`     // answer, reply
+	To      string   `json:"to"`       // reply: an item or a node path
+	Prompt  string   `json:"prompt"`   // reply: a prepared message instead of text (velocity-report)
+	Target  string   `json:"target"`   // read: an item or a node path
+	Targets []string `json:"targets"`  // read, unread: several at once
 	// Behavior: answer, reply: steer, queue or interrupt (empty: default).
 	Behavior string `json:"behavior"`
 	// Notify: answer, reply: {desktop, remote} for the response to this
@@ -249,8 +258,9 @@ type request struct {
 	Value *string `json:"value"`
 	// task: start, done, drop, defer, reopen or launch; screen and quota
 	// have their own.
-	Action  string `json:"action"`
-	Profile string `json:"profile"` // quota replace: the new agent's provider[/model][@thinking]
+	Action        string            `json:"action"`
+	Profile       string            `json:"profile"`        // quota replace: the new agent's provider[/model][@thinking]
+	QuotaActivity map[string]string `json:"quota_activity"` // last activity of each selected quota agent
 	// sets: define, delete or focus a project set by Name (focus with an
 	// empty Name turns it off); define takes Prefixes.
 	Name     string   `json:"name"`
@@ -266,6 +276,14 @@ func (r request) notify() (map[string]string, error) {
 type writeFunc func(app *App, body request) (any, error)
 
 func (s *server) write(f writeFunc) http.HandlerFunc {
+	return s.action(func(app *App, body request) (any, error) {
+		s.writeMu.Lock()
+		defer s.writeMu.Unlock()
+		return f(app, body)
+	})
+}
+
+func (s *server) action(f writeFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if err := s.sameOrigin(r); err != nil {
 			jsonError(w, http.StatusForbidden, err.Error())
@@ -276,14 +294,16 @@ func (s *server) write(f writeFunc) http.HandlerFunc {
 			jsonError(w, http.StatusBadRequest, "bad JSON: "+err.Error())
 			return
 		}
-		s.mu.Lock()
 		app, out, errb := s.userApp()
 		res, err := f(app, body)
-		s.mu.Unlock()
 		if err != nil {
 			code := http.StatusUnprocessableEntity
 			var u usageError
-			if errors.As(err, &u) {
+			var unavailable sendUnavailable
+			switch {
+			case errors.As(err, &unavailable):
+				code = http.StatusServiceUnavailable
+			case errors.As(err, &u):
 				code = http.StatusBadRequest
 			}
 			jsonError(w, code, err.Error())
@@ -307,8 +327,10 @@ func (s *server) write(f writeFunc) http.HandlerFunc {
 // userApp is the App an action in the browser runs as.
 func (s *server) userApp() (*App, *bytes.Buffer, *bytes.Buffer) {
 	var out, errb bytes.Buffer
-	app := *s.a
-	get := s.a.Env.Getenv
+	base := s.a
+	app := App{Env: base.Env, Now: base.Now, Host: base.Host, Home: base.Home,
+		WaitHooks: base.WaitHooks, Exec: base.Exec, HTTP: base.HTTP, st: base.st}
+	get := base.Env.Getenv
 	app.Env.Getenv = func(k string) string {
 		if agentVars[k] || get == nil {
 			return ""
@@ -321,6 +343,12 @@ func (s *server) userApp() (*App, *bytes.Buffer, *bytes.Buffer) {
 }
 
 func (s *server) apiAnswer(app *App, body request) (any, error) {
+	return s.enqueue(app, "answer", body, func() ([]store.Event, error) {
+		return answerFromRequest(app, body)
+	})
+}
+
+func answerFromRequest(app *App, body request) ([]store.Event, error) {
 	d, err := app.load()
 	if err != nil {
 		return nil, err
@@ -340,10 +368,16 @@ func (s *server) apiAnswer(app *App, body request) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return map[string]string{}, app.recordAnswer(d, q, body.Text, "web", body.Behavior, notify, refs...)
+	return app.answerEvents(d, q, body.Text, "web", body.Behavior, notify, refs...)
 }
 
 func (s *server) apiReply(app *App, body request) (any, error) {
+	return s.enqueue(app, "reply", body, func() ([]store.Event, error) {
+		return replyFromRequest(app, body)
+	})
+}
+
+func replyFromRequest(app *App, body request) ([]store.Event, error) {
 	notify, err := body.notify()
 	if err != nil {
 		return nil, err
@@ -361,15 +395,11 @@ func (s *server) apiReply(app *App, body request) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	e, err := app.recordReply(body.To, text, "web", body.Behavior, notify, refs...)
+	e, err := app.replyEvent(body.To, text, "web", body.Behavior, notify, refs...)
 	if err != nil {
 		return nil, err
 	}
-	d, err := app.load()
-	if err != nil {
-		return nil, err
-	}
-	return map[string]string{"id": d.Display(e.ID)}, nil
+	return []store.Event{e}, nil
 }
 
 func (s *server) apiRead(app *App, body request) (any, error) {
@@ -387,30 +417,18 @@ func (s *server) apiDeliver(app *App, body request) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	only, msg := e.ID, e.ID
-	switch e.Kind {
-	case "answer":
-		only = e.Ref
-	case "ask":
+	if e.Kind == "ask" {
 		for _, q := range d.Questions {
 			if q.ID == e.ID {
-				msg = q.AnswerID
+				e = d.ByID[q.AnswerID]
+				break
 			}
 		}
-	case "reply":
-	default:
-		return nil, usagef("%s is not an answer, a question or a reply: nothing to deliver", d.Display(e.ID))
 	}
-	if failed, err := app.deliver(only); err != nil {
-		return nil, err
-	} else if failed > 0 {
-		d, _ = app.load()
-		if f, ok := d.DeliveryFailure(msg); ok {
-			return nil, fmt.Errorf("not delivered: %s", desk.MetaString(f, "error"))
-		}
-		return nil, errors.New("not delivered")
+	if e.Kind != "answer" && e.Kind != "reply" {
+		return nil, usagef("nothing to deliver for %s", body.ID)
 	}
-	return map[string]string{}, nil
+	return s.queueRetry(app, d, e)
 }
 
 func (s *server) apiPin(app *App, body request) (any, error) {
@@ -901,7 +919,7 @@ func targetOf(d *desk.Desk, token string) (Target, error) {
 // ?fresh=1 reads again).
 func (s *server) apiQuota(w http.ResponseWriter, r *http.Request) {
 	// Under a focus, only the agents working inside it are listed. The desk
-	// is read before taking quotaMu: a quota action holds mu, then quotaMu.
+	// is read before taking quotaMu.
 	var d *desk.Desk
 	var focus []string
 	if r.URL.Query().Get("unfocused") != "1" {
@@ -942,20 +960,21 @@ func (s *server) apiQuota(w http.ResponseWriter, r *http.Request) {
 		s.quotaResp = map[string]any{"agents": qs, "auto_continue": c.Quota.AutoContinueCommand != "",
 			"launch_ready": c.Tasks.LaunchCommand != "", "profiles": profiles}
 	}
-	resp := s.quotaResp
-	if len(focus) > 0 {
-		kept := []QuotaAgent{}
-		for _, q := range resp["agents"].([]QuotaAgent) {
-			for _, sc := range q.Scopes {
-				if desk.InFocus(sc, focus) {
-					kept = append(kept, q)
-					break
-				}
-			}
+	resp := maps.Clone(s.quotaResp)
+	hidden := s.a.quotaDismissed()
+	kept := []QuotaAgent{}
+	for _, q := range resp["agents"].([]QuotaAgent) {
+		inFocus := len(focus) == 0
+		for _, sc := range q.Scopes {
+			inFocus = inFocus || desk.InFocus(sc, focus)
 		}
-		resp = maps.Clone(resp)
-		resp["agents"] = kept
+		if inFocus {
+			at, ok := hidden[q.Paseo]
+			q.Dismissed = ok && at == q.LastActive
+			kept = append(kept, q)
+		}
 	}
+	resp["agents"] = kept
 	writeJSON(w, resp)
 }
 
@@ -988,17 +1007,24 @@ func (s *server) apiAutoContinue(w http.ResponseWriter, r *http.Request) {
 // apiQuotaAct acts on a stopped agent: auto-continue-on, auto-continue-off,
 // ask-parent or replace (with an optional profile).
 func (s *server) apiQuotaAct(app *App, body request) (any, error) {
-	defer func() { s.quotaMu.Lock(); s.quotaAt = time.Time{}; s.quotaMu.Unlock() }()
 	switch body.Action {
 	case "auto-continue-on", "auto-continue-off":
+		defer s.expireQuota()
 		return map[string]string{}, app.quotaAutoContinue(body.ID, body.Action == "auto-continue-on")
 	case "dismiss", "undismiss":
-		return map[string]string{}, app.quotaDismiss(body.ID, body.Action == "dismiss")
+		return map[string]string{}, app.quotaSetDismissed(body.list(body.ID), body.Action == "dismiss", nil, body.QuotaActivity)
 	case "ask-parent", "replace":
+		defer s.expireQuota()
 		out, err := app.quotaAct(body.Action, body.ID, body.Profile, false)
 		return map[string]string{"note": out}, err
 	}
 	return nil, usagef("quota action is auto-continue-on, auto-continue-off, dismiss, undismiss, ask-parent or replace")
+}
+
+func (s *server) expireQuota() {
+	s.quotaMu.Lock()
+	s.quotaAt = time.Time{}
+	s.quotaMu.Unlock()
 }
 
 func (s *server) apiTarget(w http.ResponseWriter, r *http.Request) {
@@ -1282,6 +1308,7 @@ func (a *App) cmdServe(args []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	go s.sweepScreen(ctx, time.Minute)
+	go s.runSendQueue(ctx)
 	go func() {
 		<-ctx.Done()
 		sctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -1306,12 +1333,12 @@ func (s *server) sweepScreen(ctx context.Context, every time.Duration) {
 			return
 		case <-t.C:
 		}
-		s.mu.Lock()
+		s.writeMu.Lock()
 		app, _, errb := s.userApp()
 		if err := app.screenSweep(); err != nil {
 			fmt.Fprintf(s.logger, "agent-desk: screen sweep: %v\n", err)
 		}
-		s.mu.Unlock()
+		s.writeMu.Unlock()
 		if n := strings.TrimSpace(errb.String()); n != "" {
 			fmt.Fprintln(s.logger, n)
 		}

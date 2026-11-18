@@ -24,7 +24,7 @@ func TestAttachAnyFileAndUserUploads(t *testing.T) {
 	tl := h.ok(env, "Two files.", "tell", "--title", "Files", "--attach", "report.pdf", "--caption", "the report",
 		"--attach", "blob.xyz", "--caption", "raw data")
 
-	_, hd := testServer(t, h)
+	s, hd := testServer(t, h)
 	code, body, _ := do(t, hd, "GET", "/api/item?id="+tl, "", nil)
 	if code != 200 {
 		t.Fatalf("item: %d %s", code, body)
@@ -72,6 +72,7 @@ func TestAttachAnyFileAndUserUploads(t *testing.T) {
 	if code != 200 {
 		t.Fatalf("reply: %d %s", code, body)
 	}
+	s.sendQueueStep()
 	var sent string
 	for _, c := range *h.calls {
 		if strings.HasPrefix(c, "paseo send") {

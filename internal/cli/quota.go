@@ -319,35 +319,51 @@ func (a *App) quotaDismissed() map[string]string {
 
 // quotaDismiss hides stopped agent id (or, with on false, shows it again).
 func (a *App) quotaDismiss(id string, on bool) error {
+	if !on {
+		return a.quotaSetDismissed([]string{id}, false, nil, nil)
+	}
 	qs, err := a.quotaLoad()
 	if err != nil {
 		return err
 	}
-	m := a.quotaDismissed()
-	if !on {
-		delete(m, id)
-	} else {
-		found := false
-		for _, q := range qs {
-			if q.Paseo == id {
-				m[id], found = q.LastActive, true
-			}
+	stopped := map[string]string{}
+	for _, q := range qs {
+		stopped[q.Paseo] = q.LastActive
+	}
+	return a.quotaSetDismissed([]string{id}, true, stopped, nil)
+}
+
+// quotaSetDismissed writes the whole selection atomically. The dashboard
+// already displayed the stopped agents, so it only needs their own records.
+func (a *App) quotaSetDismissed(ids []string, on bool, stopped, displayed map[string]string) error {
+	if len(ids) == 0 || slices.Contains(ids, "") {
+		return usagef("choose an agent to dismiss or show again")
+	}
+	unlock, err := a.deskLock("quota-dismissed.lock")
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	hidden := a.quotaDismissed()
+	for _, id := range ids {
+		if !on {
+			delete(hidden, id)
+			continue
+		}
+		at, found := stopped[id]
+		if stopped == nil {
+			rec, ok := ident.PaseoRecord(a.paseoHome(), id)
+			at, found = rec.LastActive, ok && rec.ID == id && rec.ArchivedAt == nil
 		}
 		if !found {
 			return fmt.Errorf("%s is not an agent stopped at a usage limit (agent-desk quota list)", id)
 		}
-	}
-	// Forget agents no longer stopped.
-	stopped := map[string]bool{}
-	for _, q := range qs {
-		stopped[q.Paseo] = true
-	}
-	for k := range m {
-		if !stopped[k] {
-			delete(m, k)
+		if snapshot, ok := displayed[id]; ok {
+			at = snapshot
 		}
+		hidden[id] = at
 	}
-	b, _ := json.MarshalIndent(m, "", " ")
+	b, _ := json.MarshalIndent(hidden, "", " ")
 	tmp := a.quotaDismissedPath() + ".tmp"
 	if err := os.WriteFile(tmp, append(b, '\n'), 0o600); err != nil {
 		return err
