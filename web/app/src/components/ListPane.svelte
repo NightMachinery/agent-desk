@@ -9,6 +9,8 @@
   import NodePanel from './NodePanel.svelte';
   import Deferred from './Deferred.svelte';
   import ScreenStrip from './ScreenStrip.svelte';
+  import QuotaHit from './QuotaHit.svelte';
+  let quotaCount = $state(0);
   import { sel, toggleAll, clear, prune, markSelected, pinSelected, selecting } from '../lib/select.svelte.js';
   import { snapshot } from '../lib/nav.svelte.js';
   import { ui, toggleSection } from '../lib/ui.svelte.js';
@@ -153,6 +155,14 @@
       {/each}
     {/if}
 
+    <div class:hidden={!quotaCount}>
+      <h2 class="section-title" data-section="quota">
+        {@render fold('quota', 'Out of quota')}
+        <span class="count">{quotaCount}</span>
+      </h2>
+      {#if !ui.collapsed.quota}<QuotaHit stamp={view.stamp} bind:count={quotaCount} />{/if}
+    </div>
+
     {#if pinned.length}
       <h2 class="section-title" data-section="pinned">
         {@render fold('pinned', 'Pinned')}
@@ -257,6 +267,9 @@
 {/snippet}
 
 <style>
+  .hidden {
+    display: none;
+  }
   header {
     position: sticky;
     top: 0;

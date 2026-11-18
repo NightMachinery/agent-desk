@@ -39,6 +39,7 @@ export const cmdKeys = {
   'fold-new': 'z a',
   'fold-runs': 'z a',
   'fold-deferred': 'z a',
+  'fold-quota': 'z a',
 };
 
 /** A tooltip that teaches the key: "Pin to the top (p)". */

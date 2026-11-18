@@ -638,6 +638,41 @@ screen, with `AGENT_DESK_REASON` and `AGENT_DESK_SECONDS` set, and
 such as a banner across the screen. Each grant tells the agent to hold the
 screen only while its automation truly needs focus or needs you away.
 
+## Agents out of quota
+
+Under Needs you, the dashboard's **Out of quota** section lists the Paseo
+agents whose last turn stopped at a usage limit, with their provider, when
+they stopped, their parent and subagents (marked when those are out of quota
+too), and their desk node. For each:
+
+- **Auto-continue** registers it to be sent `Continue.` when its own quota
+  returns, or unregisters it.
+- **Ask parent to reassign** (only when its parent still has quota) messages
+  the parent: pick an account with quota left (the quota-management skill),
+  start a replacement with the same role, recover the stopped agent's partial
+  work, archive it, and look after its subagents.
+- **Replace with a new agent** starts an agent through `[tasks]
+  launch_command` (with an optional profile) that recovers the stopped
+  agent's work, takes over its desk node, tells its parent and subagents,
+  and archives it.
+- The id icon copies its Paseo id.
+
+The same from a terminal:
+
+    agent-desk quota list [--format json]
+    agent-desk quota auto-continue on|off <paseo-id>
+    agent-desk quota ask-parent <paseo-id> [--dry-run]     # --dry-run prints the prompt
+    agent-desk quota replace <paseo-id> [--profile claude/opus@high] [--dry-run]
+
+The two prompts are `internal/prompts/reassign-role.md` and
+`replace-agent.md` (Go templates); a file of the same name in
+`~/.config/agent-desk/prompts/` replaces either. The list comes from
+`[quota] stopped_command`, which prints the stopped agents' ids one per line;
+the section reads each agent's details from its Paseo record
+(`$PASEO_HOME`, default `~/.paseo`). `[quota] auto_continue_command` runs
+under sh with `list`, `on ID` or `off ID`; `list` prints the registered ids.
+Without `stopped_command` the section stays hidden.
+
 ## Notes for agents only
 
 `agent-desk set --for agents <slot>` writes a slot only agents read: run

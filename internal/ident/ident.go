@@ -96,14 +96,41 @@ func firstGlob(pattern string) string {
 	return m[0]
 }
 
+// PaseoAgent is the part of a stored Paseo agent record agent-desk reads.
+type PaseoAgent = paseoRecord
+
 type paseoRecord struct {
 	ID          string            `json:"id"`
 	Title       string            `json:"title"`
 	Labels      map[string]string `json:"labels"`
 	ArchivedAt  *string           `json:"archivedAt"`
+	Provider    string            `json:"provider"`
+	Cwd         string            `json:"cwd"`
+	LastStatus  string            `json:"lastStatus"`
+	LastActive  string            `json:"lastActivityAt"`
 	Persistence struct {
 		NativeHandle string `json:"nativeHandle"`
 	} `json:"persistence"`
+}
+
+// Parent is the Paseo agent that started this one, if any.
+func (r paseoRecord) Parent() string { return r.Labels["paseo.parent-agent-id"] }
+
+// PaseoRecords reads every stored agent record that is not archived.
+func PaseoRecords(paseoHome string) []PaseoAgent {
+	var out []PaseoAgent
+	for _, pat := range []string{filepath.Join(paseoHome, "agents", "*.json"), filepath.Join(paseoHome, "agents", "*", "*.json")} {
+		files, _ := filepath.Glob(pat)
+		for _, f := range files {
+			var rec paseoRecord
+			b, err := os.ReadFile(f)
+			if err != nil || json.Unmarshal(b, &rec) != nil || rec.ID == "" || rec.ArchivedAt != nil {
+				continue
+			}
+			out = append(out, rec)
+		}
+	}
+	return out
 }
 
 // PaseoRecord reads the stored record of a Paseo agent.

@@ -547,6 +547,11 @@ One atomic commit group each. Stop after each phase and run its check.
    also checks the `Host` header against DNS rebinding. `serve --listen`
    takes `HOST:PORT` or `unix:PATH`; `GET /api/health` answers `ok`.
 8. **Later, each needing the user's go-ahead:**
+   - Agents out of quota (asked by the user 2026-11-17): a dashboard section
+     below Needs you from `[quota] stopped_command`, with auto-continue,
+     ask the parent to reassign, replace with a new agent (prompts in
+     internal/prompts, overridable), and copy Paseo id. Built 2026-11-18
+     (docs/usage.md, "Agents out of quota").
    - The screen lock (asked by the user 2026-11-17): one per machine, kind
      `screen` at `_desk/screen/<host>`; granted unasked only after the user
      has been idle 30 minutes, approved on the desk at any time otherwise;

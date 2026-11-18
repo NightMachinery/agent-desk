@@ -1,0 +1,299 @@
+package cli
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"path/filepath"
+	"sort"
+	"strings"
+	"time"
+
+	"github.com/NightMachinery/agent-desk/internal/config"
+	"github.com/NightMachinery/agent-desk/internal/desk"
+	"github.com/NightMachinery/agent-desk/internal/ident"
+	"github.com/NightMachinery/agent-desk/internal/prompts"
+)
+
+// Out of quota: the Paseo agents stopped at a usage limit ([quota]
+// stopped_command lists them), with what the user can do about each: let it
+// resume itself when its quota returns (auto-continue), ask its parent to
+// hand its role to an agent with quota left, or start a new agent that
+// takes over from it.
+
+// QuotaAgent is one stopped agent.
+type QuotaAgent struct {
+	Paseo        string     `json:"paseo"`
+	Title        string     `json:"title"`
+	Provider     string     `json:"provider"`
+	Cwd          string     `json:"cwd"`
+	LastActive   string     `json:"last_active,omitempty"`
+	Parent       *AgentRef  `json:"parent,omitempty"`
+	Children     []AgentRef `json:"children"`
+	Node         string     `json:"node,omitempty"` // its desk node, if it joined one
+	AutoContinue bool       `json:"auto_continue"`
+}
+
+// AgentRef names another Paseo agent.
+type AgentRef struct {
+	Paseo   string `json:"paseo"`
+	Title   string `json:"title"`
+	Stopped bool   `json:"stopped,omitempty"` // also out of quota
+}
+
+func (r AgentRef) String() string {
+	if r.Title == "" {
+		return r.Paseo
+	}
+	return fmt.Sprintf("%s (%s)", r.Title, r.Paseo)
+}
+
+func (a *App) paseoHome() string {
+	if h := a.Env.Getenv("PASEO_HOME"); h != "" {
+		return h
+	}
+	return filepath.Join(a.Env.Home, ".paseo")
+}
+
+// quotaAgents lists the stopped agents, newest activity first.
+func (a *App) quotaAgents(ctx context.Context, d *desk.Desk, c config.Config) ([]QuotaAgent, error) {
+	out := []QuotaAgent{}
+	if c.Quota.StoppedCommand == "" {
+		return out, nil
+	}
+	text, err := a.runExt(ctx, nil, "sh", "-c", c.Quota.StoppedCommand)
+	if err != nil {
+		return nil, fmt.Errorf("stopped_command: %v", err)
+	}
+	stopped := map[string]bool{}
+	for _, l := range strings.Fields(text) {
+		stopped[l] = true
+	}
+	auto := map[string]bool{}
+	if c.Quota.AutoContinueCommand != "" {
+		if text, err := a.runExt(ctx, nil, "sh", "-c", c.Quota.AutoContinueCommand, "--", "list"); err == nil {
+			for _, l := range strings.Split(text, "\n") {
+				if f := strings.Fields(l); len(f) > 0 {
+					auto[f[0]] = true
+				}
+			}
+		}
+	}
+	recs := ident.PaseoRecords(a.paseoHome())
+	byID := map[string]ident.PaseoAgent{}
+	for _, r := range recs {
+		byID[r.ID] = r
+	}
+	ref := func(id string) AgentRef { return AgentRef{Paseo: id, Title: byID[id].Title, Stopped: stopped[id]} }
+	nodes := map[string]string{}
+	for _, e := range d.Events {
+		if e.Kind == "join" {
+			if p := fromOf(e).Paseo; p != "" {
+				nodes[p] = e.Path
+			}
+		}
+	}
+	for id := range stopped {
+		r, ok := byID[id]
+		if !ok {
+			continue // archived since, or not this daemon's
+		}
+		q := QuotaAgent{Paseo: id, Title: r.Title, Provider: r.Provider, Cwd: r.Cwd, LastActive: r.LastActive,
+			Children: []AgentRef{}, Node: nodes[id], AutoContinue: auto[id]}
+		if p := r.Parent(); p != "" {
+			pr := ref(p)
+			q.Parent = &pr
+		}
+		for _, x := range recs {
+			if x.Parent() == id {
+				q.Children = append(q.Children, ref(x.ID))
+			}
+		}
+		out = append(out, q)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].LastActive > out[j].LastActive })
+	return out, nil
+}
+
+// quotaPromptData fills reassign-role.md and replace-agent.md.
+type quotaPromptData struct {
+	ID, Title, Cwd, Parent, Children, Node, Join, Project string
+}
+
+func promptData(q QuotaAgent) quotaPromptData {
+	p := quotaPromptData{ID: q.Paseo, Title: q.Title, Cwd: q.Cwd, Node: q.Node}
+	if p.Title == "" {
+		p.Title = "untitled"
+	}
+	if q.Parent != nil {
+		p.Parent = q.Parent.String()
+	}
+	var kids []string
+	for _, c := range q.Children {
+		s := c.String()
+		if c.Stopped {
+			s += ", also out of quota"
+		}
+		kids = append(kids, s)
+	}
+	p.Children = strings.Join(kids, "; ")
+	if q.Node != "" {
+		project, run, rest := desk.Split(q.Node)
+		p.Project, p.Join = project, run+"/"+rest
+	}
+	return p
+}
+
+func (a *App) cmdQuota(args []string) error {
+	if len(args) == 0 {
+		return usagef("quota list | auto-continue on|off <paseo-id> | ask-parent <paseo-id> | replace <paseo-id> [--profile P]")
+	}
+	switch args[0] {
+	case "list":
+		o, err := parse(args[1:], nil, []string{"format"}, 0, 0)
+		if err != nil {
+			return err
+		}
+		qs, err := a.quotaLoad()
+		if err != nil {
+			return err
+		}
+		if o.vals["format"] == "json" {
+			return json.NewEncoder(a.Stdout).Encode(qs)
+		}
+		if len(qs) == 0 {
+			fmt.Fprintln(a.Stdout, "(no agent is stopped at a usage limit)")
+		}
+		for _, q := range qs {
+			extra := ""
+			if q.Parent != nil {
+				extra += ", parent " + q.Parent.String()
+			}
+			if len(q.Children) > 0 {
+				extra += fmt.Sprintf(", %d subagents", len(q.Children))
+			}
+			if q.AutoContinue {
+				extra += ", auto-continue on"
+			}
+			fmt.Fprintf(a.Stdout, "%s  %s  (%s%s)\n", q.Paseo, q.Title, q.Provider, extra)
+		}
+		return nil
+	case "auto-continue":
+		o, err := parse(args[1:], nil, nil, 2, 2)
+		if err != nil {
+			return err
+		}
+		if o.pos[0] != "on" && o.pos[0] != "off" {
+			return usagef("quota auto-continue on|off <paseo-id>")
+		}
+		return a.quotaAutoContinue(o.pos[1], o.pos[0] == "on")
+	case "ask-parent", "replace":
+		o, err := parse(args[1:], []string{"dry-run"}, []string{"profile"}, 1, 1)
+		if err != nil {
+			return err
+		}
+		out, err := a.quotaAct(args[0], o.pos[0], o.vals["profile"], o.bools["dry-run"])
+		if out != "" {
+			fmt.Fprintln(a.Stdout, out)
+		}
+		return err
+	}
+	return usagef("unknown quota command %q", args[0])
+}
+
+func (a *App) quotaLoad() ([]QuotaAgent, error) {
+	c, err := a.config()
+	if err != nil {
+		return nil, err
+	}
+	d, err := a.load()
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	return a.quotaAgents(ctx, d, c)
+}
+
+func (a *App) quotaAutoContinue(id string, on bool) error {
+	c, err := a.config()
+	if err != nil {
+		return err
+	}
+	if c.Quota.AutoContinueCommand == "" {
+		return errors.New("no auto_continue_command in [quota] of " + config.Path(a.Env.Getenv, a.Env.Home))
+	}
+	verb := "off"
+	if on {
+		verb = "on"
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	out, err := a.runExt(ctx, nil, "sh", "-c", c.Quota.AutoContinueCommand, "--", verb, id)
+	if err != nil {
+		return fmt.Errorf("auto-continue %s: %v: %s", verb, err, clipLine(out, 300))
+	}
+	fmt.Fprintf(a.Stdout, "Auto-continue %s for %s.\n", verb, id)
+	return nil
+}
+
+// quotaAct asks the parent of stopped agent id to reassign its role
+// (ask-parent), or starts a new agent to take over from it (replace). It
+// returns what it did; with dryRun, the prompt it would send.
+func (a *App) quotaAct(action, id, profile string, dryRun bool) (string, error) {
+	qs, err := a.quotaLoad()
+	if err != nil {
+		return "", err
+	}
+	var q *QuotaAgent
+	for i := range qs {
+		if qs[i].Paseo == id {
+			q = &qs[i]
+		}
+	}
+	if q == nil {
+		return "", fmt.Errorf("%s is not an agent stopped at a usage limit (agent-desk quota list)", id)
+	}
+	data := promptData(*q)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	switch action {
+	case "ask-parent":
+		if q.Parent == nil {
+			return "", fmt.Errorf("%s has no parent agent: replace it instead", id)
+		}
+		text, err := prompts.Render(a.promptsDir(), "reassign-role.md", data)
+		if err != nil || dryRun {
+			return text, err
+		}
+		if q.Parent.Stopped {
+			return "", fmt.Errorf("its parent %s is out of quota too", q.Parent)
+		}
+		out, err := a.runExt(ctx, nil, "paseo", "send", "--no-wait", "--json", q.Parent.Paseo, text)
+		if err != nil {
+			return "", fmt.Errorf("paseo send to %s: %v: %s", q.Parent.Paseo, err, clipLine(out, 300))
+		}
+		return "Asked " + q.Parent.String() + " to hand its role to an agent with quota.", nil
+	case "replace":
+		text, err := prompts.Render(a.promptsDir(), "replace-agent.md", data)
+		if err != nil || dryRun {
+			return text, err
+		}
+		c, err := a.config()
+		if err != nil {
+			return "", err
+		}
+		if c.Tasks.LaunchCommand == "" {
+			return "", errors.New("no launch_command in [tasks]: it starts the replacement (see docs/usage.md)")
+		}
+		p := LaunchPayload{ID: "replace-" + short8(id), Display: "replace", Title: q.Title, Cwd: q.Cwd, Profile: profile, Prompt: text}
+		in, _ := json.Marshal(p)
+		out, err := a.runExt(ctx, in, "sh", "-c", c.Tasks.LaunchCommand)
+		if err != nil {
+			return "", fmt.Errorf("launch_command: %v: %s", err, clipLine(out, 300))
+		}
+		return "Started " + lastLine(out) + " to take over from " + id + ".", nil
+	}
+	return "", usagef("quota action is ask-parent or replace")
+}

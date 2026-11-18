@@ -139,6 +139,10 @@ User side:
   agent-desk pref show [<path>] [--class C] [--format json]
                                       settings: deliver.behavior, notify.desktop,
                                       notify.remote, notify.remote.dest
+  agent-desk quota list [--format json]   Paseo agents stopped at a usage limit ([quota])
+  agent-desk quota auto-continue on|off <paseo-id>
+  agent-desk quota ask-parent <paseo-id> [--dry-run]   ask its parent to hand its role on
+  agent-desk quota replace <paseo-id> [--profile P] [--dry-run]   start an agent to take over
   agent-desk open <id|path>       what a notification click runs (open_command)
   agent-desk export | import [--notify] | snapshot <file> | render
   agent-desk merge <file>|ssh:<host> [--notify]
@@ -231,6 +235,8 @@ func (a *App) run(args []string) error {
 		return a.cmdTask(rest)
 	case "screen":
 		return a.cmdScreen(rest)
+	case "quota":
+		return a.cmdQuota(rest)
 	case "get":
 		return a.cmdGet(rest)
 	case "pin":

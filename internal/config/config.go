@@ -42,6 +42,8 @@ type Config struct {
 	// Screen configures the screen lock, which an agent takes before it
 	// drives this machine's GUI ([screen]).
 	Screen Screen `toml:"screen"`
+	// Quota configures the "Out of quota" section ([quota]).
+	Quota Quota `toml:"quota"`
 	// Instructions configures the prompt hook that records the user's
 	// messages ([instructions]).
 	Instructions Instructions `toml:"instructions"`
@@ -237,3 +239,14 @@ type Screen struct {
 
 // Idle is IdleMinutes or its default.
 func (s Screen) Idle() int { return intOr(s.IdleMinutes, 30) }
+
+// Quota is the [quota] table: Paseo agents stopped at a usage limit.
+type Quota struct {
+	// StoppedCommand prints the Paseo agent ids stopped at a usage limit,
+	// one per line.
+	StoppedCommand string `toml:"stopped_command"`
+	// AutoContinueCommand runs under sh with "list", "on <id>" or "off
+	// <id>" as $1 and $2: list prints the ids that resume themselves when
+	// their quota returns; on and off register or unregister one.
+	AutoContinueCommand string `toml:"auto_continue_command"`
+}

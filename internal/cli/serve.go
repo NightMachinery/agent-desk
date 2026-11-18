@@ -45,6 +45,11 @@ type server struct {
 	// forwarded trusts X-Forwarded-Host: set on a unix socket, which only
 	// its owner, the proxy in front, can reach.
 	forwarded bool
+	// quota caches the stopped agents for a little while: listing them
+	// reads every agent's last turn.
+	quotaMu   sync.Mutex
+	quotaAt   time.Time
+	quotaResp map[string]any
 	poll      time.Duration // how often the live stream looks for new events
 	stamp     func() (string, error)
 	logger    io.Writer
@@ -139,6 +144,8 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("POST /api/unread", s.write(s.apiUnread))
 	mux.HandleFunc("POST /api/task", s.write(s.apiTask))
 	mux.HandleFunc("POST /api/screen", s.write(s.apiScreen))
+	mux.HandleFunc("GET /api/quota", s.apiQuota)
+	mux.HandleFunc("POST /api/quota", s.write(s.apiQuotaAct))
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, http.StatusNotFound, "no such API")
 	})
@@ -218,8 +225,10 @@ type request struct {
 	Class string  `json:"class"`
 	Key   string  `json:"key"`
 	Value *string `json:"value"`
-	// task: start, done, drop, defer, reopen or launch.
-	Action string `json:"action"`
+	// task: start, done, drop, defer, reopen or launch; screen and quota
+	// have their own.
+	Action  string `json:"action"`
+	Profile string `json:"profile"` // quota replace: the new agent's provider[/model][@thinking]
 }
 
 func (r request) notify() (map[string]string, error) {
@@ -737,6 +746,38 @@ func targetOf(d *desk.Desk, token string) (Target, error) {
 		t.Via = "none"
 	}
 	return t, nil
+}
+
+// apiQuota lists the agents stopped at a usage limit (cached 30 s;
+// ?fresh=1 reads again).
+func (s *server) apiQuota(w http.ResponseWriter, r *http.Request) {
+	s.quotaMu.Lock()
+	defer s.quotaMu.Unlock()
+	if r.URL.Query().Get("fresh") != "" || time.Since(s.quotaAt) >= 30*time.Second || s.quotaResp == nil {
+		qs, err := s.a.quotaLoad()
+		if err != nil {
+			jsonError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		c, _ := s.a.config()
+		s.quotaAt = time.Now()
+		s.quotaResp = map[string]any{"agents": qs, "auto_continue": c.Quota.AutoContinueCommand != "", "launch_ready": c.Tasks.LaunchCommand != ""}
+	}
+	writeJSON(w, s.quotaResp)
+}
+
+// apiQuotaAct acts on a stopped agent: auto-continue-on, auto-continue-off,
+// ask-parent or replace (with an optional profile).
+func (s *server) apiQuotaAct(app *App, body request) (any, error) {
+	defer func() { s.quotaMu.Lock(); s.quotaAt = time.Time{}; s.quotaMu.Unlock() }()
+	switch body.Action {
+	case "auto-continue-on", "auto-continue-off":
+		return map[string]string{}, app.quotaAutoContinue(body.ID, body.Action == "auto-continue-on")
+	case "ask-parent", "replace":
+		out, err := app.quotaAct(body.Action, body.ID, body.Profile, false)
+		return map[string]string{"note": out}, err
+	}
+	return nil, usagef("quota action is auto-continue-on, auto-continue-off, ask-parent or replace")
 }
 
 func (s *server) apiTarget(w http.ResponseWriter, r *http.Request) {
