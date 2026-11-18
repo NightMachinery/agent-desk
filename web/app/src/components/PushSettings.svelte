@@ -100,8 +100,10 @@
       <span class="faint">{subscribed ? 'On' : blocked ? 'Notifications are blocked for this site in the browser' : 'Off'}</span>
     </div>
     <div class="faint note">
-      Notifications arrive even while the app is closed, and go away once the item is answered or read anywhere. Which kinds are
-      pushed is the “Push to subscribed devices” setting above (built in: blocked questions). {info.off ? 'Pushing is turned off in the config ([push] off).' : ''}
+      Turn this on once on each phone or browser that should get the desk's notifications; allowing notifications in the phone's
+      settings alone is not enough. Which items are pushed is the “When to push” setting above, the same for every device (built
+      in: blocked questions). Notifications arrive even while the app is closed, and go away once the item is answered, read or
+      dismissed anywhere. {info.off ? 'Pushing is turned off in the config ([push] off).' : ''}
     </div>
     {#if info.devices.length}
       <ul class="devices">

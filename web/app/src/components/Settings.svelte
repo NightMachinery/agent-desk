@@ -32,7 +32,7 @@
     'notify.desktop': 'Desktop notification',
     'notify.remote': 'Phone notification',
     'notify.remote.dest': 'Phone destination',
-    'notify.push': 'Push to subscribed devices',
+    'notify.push': 'When to push (to every device with push turned on)',
   };
 
   async function load() {
