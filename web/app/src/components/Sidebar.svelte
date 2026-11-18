@@ -1,12 +1,15 @@
 <script>
   import { route, href } from '../lib/route.svelte.js';
   import { stateClass } from '../lib/format.js';
-  import { editSets, focusOn } from '../lib/sets.svelte.js';
+  import { editSets, focusOn, hiddenText } from '../lib/sets.svelte.js';
 
   let { view, live, onchange } = $props();
 
   const sets = $derived(view?.sets ?? []);
   const focus = $derived(view?.focus?.name ?? '');
+  // What the focus hides that needs you, shown on "All projects".
+  const hid = $derived(view?.focus?.hidden ?? null);
+  const hidCount = $derived((hid?.needs_you ?? 0) + (hid?.unread ?? 0));
 
   const projects = $derived(view?.view?.runs ?? []);
   const open = $derived(projects.reduce((n, p) => n + p.open_questions, 0));
@@ -29,12 +32,19 @@
 
   <div class="label split">
     <span>Focus</span>
-    <button class="edit" onclick={() => editSets(focus)} title="Create or change project sets">{sets.length ? 'Edit sets' : 'New set'}</button>
+    <button class="edit" data-cmd="edit-sets" onclick={() => editSets(focus || sets[0]?.name || '')}
+      title={focus ? `Edit ${focus} and the other project sets` : sets.length ? 'Edit project sets' : 'Create a project set'}
+      aria-label={sets.length ? 'Edit project sets' : 'Create a project set'}>
+      <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" /><circle cx="12" cy="12" r="3" /></svg>
+    </button>
   </div>
   {#if sets.length}
     <button class="scope set" class:on={!focus} onclick={() => focus && focusOn('', onchange)} aria-pressed={!focus}>
       <span class="ring" class:off={true}></span>
       <span class="name">All projects</span>
+      {#if focus && hidCount}
+        <span class="count" class:hot={hid.needs_you} title={`${hiddenText(hid)}. Kept unread, and they do not notify; click to show everything.`}>{hidCount}</span>
+      {/if}
     </button>
     {#each sets as s (s.name)}
       <button class="scope set" class:on={focus === s.name} onclick={() => focus !== s.name && focusOn(s.name, onchange)} aria-pressed={focus === s.name} title={s.prefixes.join(', ')}>
@@ -124,16 +134,20 @@
     justify-content: space-between;
   }
   .edit {
+    display: inline-grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    margin: -5px -6px -5px 0;
     border: 0;
+    border-radius: 6px;
     background: none;
     padding: 0;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0;
-    text-transform: none;
     color: var(--muted);
+    cursor: pointer;
   }
   .edit:hover {
+    background: var(--sunken);
     color: var(--text);
   }
   button.scope {

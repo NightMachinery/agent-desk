@@ -4,10 +4,14 @@
   // its quota returns, ask its parent to hand its role to an agent with
   // quota, or start a new agent to take over from it. Under a node, only the
   // agents working there (their own node, or an ancestor's) are listed.
+  // Several can be selected (checkboxes in the list's Select mode, or
+  // ⌘/Ctrl-click a card) to copy their Paseo ids, one per line.
+  import { SvelteSet } from 'svelte/reactivity';
   import CopyIds from './CopyIds.svelte';
+  import { sel } from '../lib/select.svelte.js';
   import { get, post } from '../lib/api.js';
   import { toast } from '../lib/toast.svelte.js';
-  import { short } from '../lib/format.js';
+  import { copy, short } from '../lib/format.js';
 
   let { stamp = '', path = '', collapsed = false, count = $bindable(0) } = $props();
   let data = $state({ agents: [], profiles: [] });
@@ -22,6 +26,47 @@
   $effect(() => {
     count = scoped.length - dismissed;
   });
+
+  const picked = new SvelteSet(); // Paseo ids
+  let anchor = '';
+  const picking = $derived(sel.mode || picked.size > 0);
+  const shownIds = $derived(shown.map((a) => a.paseo));
+  const allPicked = $derived(shownIds.length > 0 && shownIds.every((x) => picked.has(x)));
+  // Leaving the list's Select mode clears these too; agents that leave the
+  // list leave the selection.
+  let wasMode = false;
+  $effect(() => {
+    if (wasMode && !sel.mode) picked.clear();
+    wasMode = sel.mode;
+  });
+  $effect(() => {
+    for (const x of [...picked]) if (!shownIds.includes(x)) picked.delete(x);
+  });
+  function pick(id, shift = false) {
+    const a = shownIds.indexOf(anchor);
+    const b = shownIds.indexOf(id);
+    if (shift && a >= 0 && b >= 0) {
+      const on = !picked.has(id) || picked.has(anchor);
+      for (const x of shownIds.slice(Math.min(a, b), Math.max(a, b) + 1)) on ? picked.add(x) : picked.delete(x);
+    } else if (picked.has(id)) picked.delete(id);
+    else picked.add(id);
+    anchor = id;
+  }
+  function pickAll() {
+    if (allPicked) picked.clear();
+    else shownIds.forEach((x) => picked.add(x));
+  }
+  async function copyPicked() {
+    const ids = shownIds.filter((x) => picked.has(x));
+    if (await copy(ids.join('\n'))) toast(`Copied ${ids.length} Paseo id${ids.length === 1 ? '' : 's'}, one per line.`, 'ok');
+    else toast('Could not copy: the browser refused the clipboard.', 'error');
+  }
+  function cardClick(e, a) {
+    if (!(e.metaKey || e.ctrlKey || (picking && e.shiftKey))) return;
+    if (e.target.closest('button, a, input, label, .menu')) return;
+    e.preventDefault();
+    pick(a.paseo, e.shiftKey);
+  }
 
   async function load(fresh = false) {
     try {
@@ -64,9 +109,27 @@
 <svelte:window onclick={() => (menu = '')} />
 
 <div class="rows" class:hidden={collapsed}>
+  {#if picking && shown.length}
+    <div class="selbar">
+      <button class="btn small ghost" onclick={pickAll}>{allPicked ? 'Deselect all' : 'Select all'}</button>
+      <span class="faint">{picked.size} selected</span>
+      <button class="btn small" data-cmd="quota-copy-ids" disabled={!picked.size} onclick={copyPicked}
+        title="Copy the selected agents' Paseo ids, one per line">Copy Paseo IDs</button>
+      {#if picked.size && !sel.mode}
+        <button class="icon" title="Clear the selection" aria-label="Clear the selection" onclick={() => picked.clear()}>
+          <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" /></svg>
+        </button>
+      {/if}
+    </div>
+  {/if}
   {#each shown as a (a.paseo)}
-    <div class="q" class:faded={a.dismissed}>
+    <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+    <div class="q" class:faded={a.dismissed} class:picked={picked.has(a.paseo)} onclick={(e) => cardClick(e, a)}>
       <div class="top">
+        {#if picking}
+          <input type="checkbox" class="pickbox" checked={picked.has(a.paseo)} aria-label={`Select ${a.title || short(a.paseo)}`}
+            onclick={(e) => pick(a.paseo, e.shiftKey)} />
+        {/if}
         <strong class="title" title={a.title}>{a.title || short(a.paseo)}</strong>
         <div class="tools">
           <CopyIds paseo={a.paseo} keys={false} />
@@ -153,6 +216,29 @@
   }
   .q.faded {
     opacity: 0.6;
+  }
+  .q.picked {
+    background: var(--accent-soft);
+  }
+  .pickbox {
+    flex: none;
+    margin: 0;
+    width: 15px;
+    height: 15px;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+  .selbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+  }
+  .selbar .btn:first-child {
+    margin-left: -6px;
+  }
+  .selbar [data-cmd='quota-copy-ids'] {
+    margin-left: auto;
   }
   .top {
     display: flex;

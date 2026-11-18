@@ -133,7 +133,7 @@
   {/if}
 
   <main class="list" data-pane="list" class:focused={focused === 'list'}>
-    <ListPane {view} {error} focus={globalView?.focus} onmenu={() => (drawer = true)} onchange={refresh} />
+    <ListPane {view} {error} onmenu={() => (drawer = true)} onchange={refresh} />
   </main>
 
   <aside class="detail" data-pane="detail" class:focused={focused === 'detail'}>

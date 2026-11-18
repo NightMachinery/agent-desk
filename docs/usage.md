@@ -411,9 +411,10 @@ them when Emacs is installed.
     agent-desk serve --config config.json     # listen, pid_file, allow_hosts, origin, title, device, color from a supervisor's JSON
 
 The sidebar's Focus list switches the focus between your project sets (see
-Project sets and the focus); Edit sets creates or changes one by ticking
-projects, or some of a project's runs. While a set is focused, the bar under
-the search names it, says how much it hides that needs you, and has Leave
+Project sets and the focus); the gear beside Focus edits the focused set (or
+the first one), and creates others, by ticking projects or some of a
+project's runs. While a set is focused, "All projects" counts what the focus
+hides that needs you (hover it for the breakdown); clicking it leaves the
 focus.
 
 The same sections as the inbox, on a desktop in three panes and on a phone
@@ -807,7 +808,10 @@ nearest Paseo ancestor that has one. For each:
   and archives it.
   The caret beside Replace picks the profile: the default, the ones listed
   in `[quota] profiles`, or another typed as `provider[/model][@thinking]`.
-- The id icon copies its Paseo id.
+- The id icon copies its Paseo id. To copy several, select them (the list's
+  Select mode shows a checkbox on each; ⌘/Ctrl-click a card also selects it,
+  and shift-click a range), then **Copy Paseo IDs** copies the selected ids,
+  one per line.
 - **×** dismisses it: hidden until it runs and stops again. "Show N
   dismissed" brings dismissed ones back into view, each with an undo.
 
