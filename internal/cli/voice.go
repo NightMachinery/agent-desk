@@ -123,7 +123,8 @@ func (s *server) apiRecordings(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, 500, err.Error())
 		return
 	}
-	recs, err := listRecordings(st, r.URL.Query().Get("node"), s.a.Host)
+	node := r.URL.Query().Get("node")
+	recs, err := listRecordings(st, node, s.a.Host)
 	if err != nil {
 		jsonError(w, 500, err.Error())
 		return
@@ -137,7 +138,13 @@ func (s *server) apiRecordings(w http.ResponseWriter, r *http.Request) {
 	for _, e := range used {
 		messages[e.Ref] = append(messages[e.Ref], e.Body)
 	}
-	deliveries, err := st.Query("events", "kind = 'delivered' AND json_type(meta, '$.voice_recordings') = 'array'")
+	where := "kind = 'delivered' AND json_type(meta, '$.voice_recordings') = 'array'"
+	var args []any
+	if node != "" {
+		where += " AND path = ?"
+		args = append(args, node)
+	}
+	deliveries, err := st.Query("events", where, args...)
 	if err != nil {
 		jsonError(w, 500, err.Error())
 		return

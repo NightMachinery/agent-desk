@@ -15,6 +15,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/NightMachinery/agent-desk/internal/ids"
+
 	_ "modernc.org/sqlite"
 )
 
@@ -45,6 +47,10 @@ func validKind(k string) bool {
 	return false
 }
 
+// SQLite matches expression indexes by their literal expression. Four is
+// ids.MinSuffix, the shortest suffix that can appear in a display ID.
+const displaySuffix = "substr(id, -4)"
+
 const schema = `
 CREATE TABLE IF NOT EXISTS events (
   id    TEXT PRIMARY KEY,
@@ -59,6 +65,7 @@ CREATE TABLE IF NOT EXISTS events (
   meta  TEXT NOT NULL
 ) STRICT;
 
+CREATE INDEX IF NOT EXISTS events_display_suffix ON events(` + displaySuffix + `);
 CREATE INDEX IF NOT EXISTS events_kind ON events(kind);
 CREATE INDEX IF NOT EXISTS events_path ON events(path);
 CREATE INDEX IF NOT EXISTS events_ref  ON events(ref);
@@ -387,6 +394,28 @@ func (s *Store) Get(id string) (Event, error) {
 		return Event{}, fmt.Errorf("no event %s", id)
 	}
 	return evs[0], nil
+}
+
+// DisplayID resolves collisions against all event kinds using the suffix index.
+func (s *Store) DisplayID(e Event) (string, error) {
+	suffix := e.ID[len(e.ID)-ids.MinSuffix:]
+	rows, err := s.DB.Query("SELECT id FROM events WHERE "+displaySuffix+" = ?", suffix)
+	if err != nil {
+		return "", err
+	}
+	defer rows.Close()
+	var peers []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return "", err
+		}
+		peers = append(peers, id)
+	}
+	if err := rows.Err(); err != nil {
+		return "", err
+	}
+	return ids.NewTable(peers).Display(e.ID, e.Kind), nil
 }
 
 // IDs returns every event id.

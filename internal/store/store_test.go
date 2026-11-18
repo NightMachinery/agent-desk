@@ -5,6 +5,28 @@ import (
 	"testing"
 )
 
+func TestDisplayIDSuffixCollision(t *testing.T) {
+	s, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	first := Event{ID: "01H000000000000000000ABCDE", TS: "2026-01-01T00:00:00Z", Host: "h", Path: "p/r/c", Kind: "reply", Meta: []byte("{}")}
+	second := first
+	second.ID, second.Kind = "01H000000000000000000FBCDE", "tell"
+	if err := s.Append(first, second); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		event Event
+		want  string
+	}{{first, "m-abcde"}, {second, "t-fbcde"}} {
+		if got, err := s.DisplayID(tc.event); err != nil || got != tc.want {
+			t.Fatalf("DisplayID = %q, %v; want %q", got, err, tc.want)
+		}
+	}
+}
+
 func TestLocalFSAccepted(t *testing.T) {
 	dir := t.TempDir()
 	if err := checkLocalFS(dir); err != nil {

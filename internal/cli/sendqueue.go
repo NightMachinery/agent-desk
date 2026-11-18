@@ -112,26 +112,13 @@ func (s *server) sendCommitted(events []store.Event) {
 	s.wakeSendQueue()
 }
 
-// Only events sharing the shortest suffix affect the display token.
+// A committed send can still be addressed by its full ID if the lookup fails.
 func sendDisplayID(st *store.Store, e store.Event) string {
-	suffix := e.ID[len(e.ID)-ids.MinSuffix:]
-	rows, err := st.DB.Query("SELECT id FROM events WHERE substr(id, -?) = ?", ids.MinSuffix, suffix)
+	id, err := st.DisplayID(e)
 	if err != nil {
 		return e.ID
 	}
-	defer rows.Close()
-	var peers []string
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			return e.ID
-		}
-		peers = append(peers, id)
-	}
-	if rows.Err() != nil {
-		return e.ID
-	}
-	return ids.NewTable(peers).Display(e.ID, e.Kind)
+	return id
 }
 
 func (s *server) wakeSendQueue() {

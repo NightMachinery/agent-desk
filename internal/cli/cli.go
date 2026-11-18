@@ -498,11 +498,15 @@ func (a *App) commit(evs []store.Event, show string) error {
 	case "":
 		fmt.Fprintln(a.Stdout, "ok")
 	default:
-		d, err := a.load()
+		e, err := st.Get(show)
 		if err != nil {
 			return err
 		}
-		fmt.Fprintln(a.Stdout, d.Display(show))
+		display, err := st.DisplayID(e)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintln(a.Stdout, display)
 	}
 	if err := a.render(); err != nil {
 		fmt.Fprintf(a.Stderr, "agent-desk: warning: rendering failed: %v\n", err)
