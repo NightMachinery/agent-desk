@@ -247,11 +247,14 @@ type Filter struct {
 	// are read: the dashboard holds a row the user just read in place for a
 	// while, instead of pulling it from under the cursor.
 	Linger map[string]bool
+	// Focus keeps only what is under one of these prefixes (and the desk's
+	// own items): the focused project set's. Empty keeps everything.
+	Focus []string
 }
 
 func (f Filter) Keep(e store.Event) bool {
 	return Under(e.Path, f.Prefix) && (f.Host == "" || e.Host == f.Host) &&
-		(f.Session == "" || IsSession(e, f.Session))
+		(f.Session == "" || IsSession(e, f.Session)) && InFocus(e.Path, f.Focus)
 }
 
 // IsSession reports whether event e was written by session id, given as its
@@ -534,7 +537,7 @@ func (d *Desk) Tree(f Filter) []*Node {
 		return n
 	}
 
-	scope := Filter{Prefix: f.Prefix, Host: f.Host}
+	scope := Filter{Prefix: f.Prefix, Host: f.Host, Focus: f.Focus}
 	lastJoin := map[string]string{}
 	hosts := map[string]string{}
 	for _, e := range d.Events {
@@ -589,7 +592,7 @@ func (d *Desk) Tree(f Filter) []*Node {
 	// still blocked on it.
 	// The counts follow the session filter too; the shape of the tree does
 	// not, so the session's place in it stays visible.
-	counted := Filter{Prefix: f.Prefix, Host: f.Host, Session: f.Session}
+	counted := Filter{Prefix: f.Prefix, Host: f.Host, Session: f.Session, Focus: f.Focus}
 	for _, q := range d.Questions {
 		if !q.Open() || !counted.Keep(q.Event) {
 			continue

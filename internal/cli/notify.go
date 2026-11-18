@@ -198,10 +198,12 @@ func (a *App) takeBacks(d *desk.Desk, c config.Config) []Notice {
 }
 
 // raisable reports whether e may raise notifications here: still needing
-// the user, and for an imported event, recent and written elsewhere (one
-// written here was announced when it was written).
+// the user, inside the focus when a project set is focused, and for an
+// imported event, recent and written elsewhere (one written here was
+// announced when it was written). An event outside the focus stays unread
+// on the desk; turning the focus off later does not raise it.
 func (a *App) raisable(d *desk.Desk, e store.Event, imported, force bool) bool {
-	if desk.ClassOf(e) == "" {
+	if desk.ClassOf(e) == "" || !desk.InFocus(e.Path, d.FocusPrefixes()) {
 		return false
 	}
 	if _, closed := closer(d, e); closed {

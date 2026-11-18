@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"maps"
 	"net"
 	"net/http"
 	"net/url"
@@ -147,6 +148,7 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("POST /api/unread", s.write(s.apiUnread))
 	mux.HandleFunc("POST /api/task", s.write(s.apiTask))
 	mux.HandleFunc("POST /api/screen", s.write(s.apiScreen))
+	mux.HandleFunc("POST /api/sets", s.write(s.apiSets))
 	mux.HandleFunc("GET /api/push", s.apiPush)
 	mux.HandleFunc("POST /api/push", s.apiPushAct)
 	mux.HandleFunc("GET /api/quota", s.apiQuota)
@@ -241,6 +243,10 @@ type request struct {
 	// have their own.
 	Action  string `json:"action"`
 	Profile string `json:"profile"` // quota replace: the new agent's provider[/model][@thinking]
+	// sets: define, delete or focus a project set by Name (focus with an
+	// empty Name turns it off); define takes Prefixes.
+	Name     string   `json:"name"`
+	Prefixes []string `json:"prefixes"`
 	// Media: answer, reply: files sent with it, as /api/upload returned them.
 	Media []media.Ref `json:"media"`
 }
@@ -433,6 +439,10 @@ func (s *server) apiScreen(app *App, body request) (any, error) {
 
 // apiTask changes tasks' state, or launches them; the response's "out" is
 // what launch printed.
+func (s *server) apiSets(app *App, body request) (any, error) {
+	return map[string]string{}, app.setsRequest(body.Action, body.Name, body.Prefixes)
+}
+
 func (s *server) apiTask(app *App, body request) (any, error) {
 	switch body.Action {
 	case "start", "done", "drop", "defer", "reopen", "launch":
@@ -515,6 +525,14 @@ type viewResponse struct {
 	Launch   launchInfo  `json:"launch"`
 	// Screens are the machines whose screen an agent holds or asks for.
 	Screens []screenInfo `json:"screens"`
+	// Sets are the project sets; Focus is the focused one and what it
+	// hides, or null. Unfocused is set when ?unfocused=1 ignored the focus.
+	Sets      []SetInfo       `json:"sets"`
+	Focus     *desk.FocusView `json:"focus"`
+	Unfocused bool            `json:"unfocused,omitempty"`
+	// Paths are what a set can be made of: every project, each followed by
+	// its runs.
+	Paths []string `json:"paths"`
 }
 
 type screenInfo struct {
@@ -575,6 +593,10 @@ func (s *server) apiView(w http.ResponseWriter, r *http.Request) {
 		Session: q.Get("session"),
 		All:     q.Get("all") == "1" || q.Get("all") == "true",
 	}
+	unfocused := q.Get("unfocused") == "1"
+	if !unfocused {
+		f.Focus = d.FocusPrefixes()
+	}
 	if l := q.Get("linger"); l != "" {
 		f.Linger = map[string]bool{}
 		for i, id := range strings.Split(l, ",") {
@@ -600,6 +622,8 @@ func (s *server) apiView(w http.ResponseWriter, r *http.Request) {
 	resp := viewResponse{
 		Host: d.Host, Stamp: stamp, Path: f.Prefix, View: v,
 		Filter: viewFilter{Host: f.Host, Session: f.Session, All: f.All, Query: query},
+		Sets:   setInfos(d), Focus: focusInfo(d, f), Unfocused: unfocused && len(d.FocusPrefixes()) > 0,
+		Paths: setPaths(d),
 	}
 	projects, hosts := map[string]bool{}, map[string]bool{}
 	for _, e := range d.Events {
@@ -611,7 +635,7 @@ func (s *server) apiView(w http.ResponseWriter, r *http.Request) {
 	resp.Deferred = []desk.Task{}
 	resp.Screens = screens(d)
 	lq := strings.ToLower(query)
-	for _, t := range d.Tasks(desk.Filter{Prefix: f.Prefix, Host: f.Host}) {
+	for _, t := range d.Tasks(desk.Filter{Prefix: f.Prefix, Host: f.Host, Focus: f.Focus}) {
 		if t.State == desk.TaskDeferred && (lq == "" || strings.Contains(strings.ToLower(t.Event.Title+"\n"+t.Event.Body), lq)) {
 			resp.Deferred = append(resp.Deferred, t)
 		}
@@ -642,6 +666,43 @@ func (s *server) apiView(w http.ResponseWriter, r *http.Request) {
 		resp.Session = sessionInfo(d, f.Session)
 	}
 	writeJSON(w, resp)
+}
+
+// setPaths are the projects, each followed by its runs, in name order: what
+// the set editor offers. The desk's own paths are left out.
+func setPaths(d *desk.Desk) []string {
+	runs := map[string]map[string]bool{}
+	for _, e := range d.Events {
+		if desk.IsMark(e.Kind) {
+			continue
+		}
+		p, r, _ := desk.Split(desk.NodeOf(e))
+		if p == "" || p == desk.SystemPrefix {
+			continue
+		}
+		if runs[p] == nil {
+			runs[p] = map[string]bool{}
+		}
+		if r != "" {
+			runs[p][r] = true
+		}
+	}
+	out := []string{}
+	for _, p := range sortedKeys(mapKeys(runs)) {
+		out = append(out, p)
+		for _, r := range sortedKeys(runs[p]) {
+			out = append(out, p+"/"+r)
+		}
+	}
+	return out
+}
+
+func mapKeys[V any](m map[string]V) map[string]bool {
+	out := make(map[string]bool, len(m))
+	for k := range m {
+		out[k] = true
+	}
+	return out
 }
 
 func sortedKeys(m map[string]bool) []string {
@@ -810,6 +871,16 @@ func targetOf(d *desk.Desk, token string) (Target, error) {
 // apiQuota lists the agents stopped at a usage limit (cached 30 s;
 // ?fresh=1 reads again).
 func (s *server) apiQuota(w http.ResponseWriter, r *http.Request) {
+	// Under a focus, only the agents working inside it are listed. The desk
+	// is read before taking quotaMu: a quota action holds mu, then quotaMu.
+	var focus []string
+	if r.URL.Query().Get("unfocused") != "1" {
+		d, ok := s.load(w)
+		if !ok {
+			return
+		}
+		focus = d.FocusPrefixes()
+	}
 	s.quotaMu.Lock()
 	defer s.quotaMu.Unlock()
 	if r.URL.Query().Get("fresh") != "" || time.Since(s.quotaAt) >= 30*time.Second || s.quotaResp == nil {
@@ -827,7 +898,18 @@ func (s *server) apiQuota(w http.ResponseWriter, r *http.Request) {
 		s.quotaResp = map[string]any{"agents": qs, "auto_continue": c.Quota.AutoContinueCommand != "",
 			"launch_ready": c.Tasks.LaunchCommand != "", "profiles": profiles}
 	}
-	writeJSON(w, s.quotaResp)
+	resp := s.quotaResp
+	if len(focus) > 0 {
+		kept := []QuotaAgent{}
+		for _, q := range resp["agents"].([]QuotaAgent) {
+			if q.Scope != "" && desk.InFocus(q.Scope, focus) {
+				kept = append(kept, q)
+			}
+		}
+		resp = maps.Clone(resp)
+		resp["agents"] = kept
+	}
+	writeJSON(w, resp)
 }
 
 // apiAutoContinue says whether Paseo agent ?paseo= resumes itself when its

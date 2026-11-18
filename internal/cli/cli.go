@@ -141,7 +141,7 @@ Agent side (only coordinators write; workers report to their parent):
 
 User side:
   agent-desk inbox [<path-prefix>] [--all]    interactive (needs fzf)
-  agent-desk show [<path-prefix>|--mine] [--all] [--host H] [--session S] [--format org|md|json]
+  agent-desk show [<path-prefix>|--mine] [--all] [--unfocused] [--host H] [--session S] [--format org|md|json]
   agent-desk screen grant|deny <q-id>   hand an agent the screen, or refuse it
   agent-desk answer <id> [--behavior B] [--notify-desktop V] [--notify-remote V] 'text'
                                       record, then type it into the asking session
@@ -170,6 +170,12 @@ User side:
   agent-desk pref show [<path>] [--class C] [--format json]
                                       settings: deliver.behavior, notify.desktop,
                                       notify.remote, notify.remote.dest, notify.push
+  agent-desk sets [--format json]     project sets; * marks the focused one
+  agent-desk sets define NAME PREFIX...   create or replace a set of path prefixes
+  agent-desk sets delete NAME
+  agent-desk focus [NAME|off] [--format json]
+                                      show only a set's items, and notify only for them;
+                                      no argument prints the focus
   agent-desk quota list [--format json]   Paseo agents stopped at a usage limit ([quota])
   agent-desk quota auto-continue on|off <paseo-id>
   agent-desk quota dismiss|undismiss <paseo-id>   hide it from Out of quota until it runs again
@@ -261,6 +267,10 @@ func (a *App) run(args []string) error {
 		return a.cmdSet(rest)
 	case "pref":
 		return a.cmdPref(rest)
+	case "sets":
+		return a.cmdSets(rest)
+	case "focus":
+		return a.cmdFocus(rest)
 	case "whoami":
 		return a.cmdWhoami(rest)
 	case "hook":
@@ -766,7 +776,7 @@ func (a *App) cmdPin(args []string, unpin bool) error {
 			return err
 		}
 		switch e.Kind {
-		case "read", "delivered", "undelivered", "pin", "pref", "notified", "retracted", "join":
+		case "read", "delivered", "undelivered", "pin", "pref", "notified", "retracted", "join", "projectset", "focus":
 			return fmt.Errorf("%s is a %s mark; pin the item itself", d.Display(e.ID), e.Kind)
 		}
 		k := d.PinKey(e)
@@ -1242,7 +1252,7 @@ func (a *App) cmdUnread(args []string) error {
 // --- reading -----------------------------------------------------------------
 
 func (a *App) cmdShow(args []string) error {
-	o, err := parse(args, []string{"all", "mine"}, []string{"format", "host", "session"}, 0, 1)
+	o, err := parse(args, []string{"all", "mine", "unfocused"}, []string{"format", "host", "session"}, 0, 1)
 	if err != nil {
 		return err
 	}
@@ -1263,10 +1273,22 @@ func (a *App) cmdShow(args []string) error {
 			return errors.New("this session has not joined a node")
 		}
 		f.Prefix, f.Dismissed = bound.Path, true
+	} else if !o.bools["unfocused"] {
+		// The user's view follows the focus; an agent's own view (--mine)
+		// never does.
+		f.Focus = d.FocusPrefixes()
 	}
 	v := d.Build(f)
 	if o.bools["mine"] {
 		v.Awaiting = d.AwaitingGroups(f.Prefix)
+	}
+	if fi := focusInfo(d, f); fi != nil && len(f.Focus) > 0 {
+		v.Focus = fi
+		note := "agent-desk: focus " + fi.Name + " (" + strings.Join(fi.Prefixes, ", ") + ")"
+		if fi.Hidden.Total() > 0 {
+			note += "; " + hiddenText(fi.Hidden)
+		}
+		fmt.Fprintln(a.Stderr, note+"; --unfocused shows everything")
 	}
 	switch o.vals["format"] {
 	case "", "org":

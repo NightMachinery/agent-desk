@@ -180,12 +180,12 @@ func ClassOf(e store.Event) string {
 }
 
 // IsMark reports whether kind is bookkeeping about other events (a read,
-// a pin, a setting, a notification raised or taken back) rather than
-// something an agent or the user said. Delivered marks count as activity
-// and are not included.
+// a pin, a setting, a project set or the focus, a notification raised or
+// taken back) rather than something an agent or the user said. Delivered
+// marks count as activity and are not included.
 func IsMark(kind string) bool {
 	switch kind {
-	case "read", "pin", "pref", "notified", "retracted", "undelivered":
+	case "read", "pin", "pref", "notified", "retracted", "undelivered", "projectset", "focus":
 		return true
 	}
 	return false

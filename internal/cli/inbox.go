@@ -53,8 +53,9 @@ func (a *App) saveState(st inboxState) error {
 	return os.WriteFile(p, b, 0o600)
 }
 
-func (st inboxState) filter() desk.Filter {
-	return desk.Filter{Prefix: st.Prefix, Host: st.Host, All: st.All}
+// filter is the inbox's view of d: its scope, under the focus.
+func (st inboxState) filter(d *desk.Desk) desk.Filter {
+	return desk.Filter{Prefix: st.Prefix, Host: st.Host, All: st.All, Focus: d.FocusPrefixes()}
 }
 
 // --- colours -----------------------------------------------------------------
@@ -92,7 +93,7 @@ func stateColour(s string) string {
 type line struct{ key, text string }
 
 func (a *App) inboxLines(d *desk.Desk, st inboxState) []line {
-	f := st.filter()
+	f := st.filter(d)
 	var out []line
 	add := func(key, text string) { out = append(out, line{key, text}) }
 
@@ -558,7 +559,7 @@ func (a *App) inboxAct(d *desk.Desk, st inboxState, action, key string) error {
 		path := strings.TrimPrefix(key, "node:")
 		switch action {
 		case "enter":
-			n := desk.Find(d.Tree(st.filter()), path)
+			n := desk.Find(d.Tree(st.filter(d)), path)
 			if n == nil {
 				return nil
 			}

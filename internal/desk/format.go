@@ -21,6 +21,15 @@ type View struct {
 	// Awaiting: the user's messages to this node that wait for its response.
 	// Filled only for an agent's own view (show --mine).
 	Awaiting []Group `json:"awaiting,omitempty"`
+	// Focus: the focused project set the view is limited to, if any.
+	Focus *FocusView `json:"focus,omitempty"`
+}
+
+// FocusView names the focus a view is limited to and what it hides.
+type FocusView struct {
+	Name     string   `json:"name"`
+	Prefixes []string `json:"prefixes"`
+	Hidden   Hidden   `json:"hidden"`
 }
 
 // AwaitingGroups groups the messages for node path that wait for a response.
