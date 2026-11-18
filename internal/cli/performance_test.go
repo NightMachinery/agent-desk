@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -21,6 +22,12 @@ import (
 // with AGENT_DESK_BENCH_FIXTURE, never by opening a real desk.
 func perfDesk(b *testing.B) (*App, string) {
 	b.Helper()
+	// A target lookup probes "paseo send --help" on its first use.
+	bin := b.TempDir()
+	if err := os.WriteFile(filepath.Join(bin, "paseo"), []byte("#!/bin/sh\nexit 0\n"), 0o700); err != nil {
+		b.Fatal(err)
+	}
+	b.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	now := time.Now()
 	home := b.TempDir()
 	a := &App{Host: "fixture-host", Home: b.TempDir(), Now: func() time.Time { return now },
@@ -142,6 +149,11 @@ func BenchmarkDashboard(b *testing.B) {
 	} {
 		b.Run(run.name, func(b *testing.B) {
 			req := httptest.NewRequest(http.MethodGet, run.url, nil)
+			warm := httptest.NewRecorder()
+			h.ServeHTTP(warm, req)
+			if warm.Code != http.StatusOK {
+				b.Fatalf("%s: %d %s", run.url, warm.Code, warm.Body.String())
+			}
 			b.ReportAllocs()
 			for b.Loop() {
 				w := httptest.NewRecorder()
