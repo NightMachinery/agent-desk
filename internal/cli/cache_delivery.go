@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -153,16 +155,36 @@ func keeperRejected(err error) bool {
 	return errors.As(err, &failure)
 }
 
-// keeperLock checks the keeper's current registration before sending. Opening
-// an existing lock only avoids creating keeper state for an ordinary send.
+// lockPaths remembers each agent's keeper lock file from earlier keeper
+// reads, so a send does not wait on a slow keeper read to find it.
+var lockPaths sync.Map
+
+func rememberLockPath(id, path string) {
+	id = strings.ToLower(id)
+	if path == "" {
+		lockPaths.Delete(id)
+	} else {
+		lockPaths.Store(id, path)
+	}
+}
+
+// keeperLock takes the keeper's per-agent lock before sending. Opening an
+// existing lock only avoids creating keeper state for an ordinary send.
 func (a *App) keeperLock(ctx context.Context, id string) (func(), error) {
 	noop := func() {}
+	if path, ok := lockPaths.Load(strings.ToLower(id)); ok {
+		return existingFlock(ctx, path.(string))
+	}
 	client, err := a.keeperClient()
 	if err != nil {
 		return noop, nil
 	}
 	agent, err := client.Agent(ctx, id)
-	if err != nil || agent.LockPath == "" {
+	if err != nil {
+		return noop, nil
+	}
+	rememberLockPath(id, agent.LockPath)
+	if agent.LockPath == "" {
 		return noop, nil
 	}
 	return existingFlock(ctx, agent.LockPath)

@@ -18,7 +18,13 @@ import (
 	"github.com/NightMachinery/agent-desk/internal/store"
 )
 
-const cacheStatusTTL = 5 * time.Second
+const (
+	cacheStatusTTL      = 15 * time.Second
+	cacheRefreshTimeout = 30 * time.Second
+)
+
+// cacheFirstWait bounds how long the first read waits for the keeper.
+var cacheFirstWait = 2 * time.Second
 
 var cacheAgentID = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 
@@ -64,12 +70,39 @@ type cacheResponse struct {
 	Agents    map[string]cacheStatus `json:"agents,omitempty"`
 }
 
+// cacheSnapshot never waits long on the keeper, whose reads can take
+// seconds: it returns the last result at once and refreshes it in the
+// background once it is older than cacheStatusTTL. Only the first call waits,
+// and only briefly.
 func (s *server) cacheSnapshot(ctx context.Context) cacheResponse {
 	s.cacheMu.Lock()
-	defer s.cacheMu.Unlock()
-	if time.Since(s.cacheAt) < cacheStatusTTL {
-		return s.cacheList
+	have, fresh := !s.cacheAt.IsZero(), time.Since(s.cacheAt) < cacheStatusTTL
+	result, done := s.cacheList, s.cacheDone
+	if !fresh && done == nil {
+		done = make(chan struct{})
+		s.cacheDone = done
+		go s.refreshCache(done)
 	}
+	s.cacheMu.Unlock()
+	if have || done == nil {
+		return result
+	}
+	select {
+	case <-done:
+	case <-ctx.Done():
+	case <-time.After(cacheFirstWait):
+	}
+	s.cacheMu.Lock()
+	defer s.cacheMu.Unlock()
+	if s.cacheAt.IsZero() {
+		return cacheResponse{Message: "Cache status loading"}
+	}
+	return s.cacheList
+}
+
+func (s *server) refreshCache(done chan struct{}) {
+	ctx, cancel := context.WithTimeout(context.Background(), cacheRefreshTimeout)
+	defer cancel()
 	result := cacheResponse{Message: "Cache status unavailable"}
 	app, _, _ := s.userApp()
 	if client, err := app.keeperClient(); err == nil {
@@ -77,6 +110,7 @@ func (s *server) cacheSnapshot(ctx context.Context) cacheResponse {
 			result = cacheResponse{Available: true, Enabled: doc.Enabled, Agents: make(map[string]cacheStatus, len(doc.Agents))}
 			for _, a := range doc.Agents {
 				result.Agents[a.ID] = cacheState(a)
+				rememberLockPath(a.ID, a.LockPath)
 			}
 			if !doc.Enabled {
 				result.Message = "The agent-quotas keeper is disabled"
@@ -85,10 +119,10 @@ func (s *server) cacheSnapshot(ctx context.Context) cacheResponse {
 			result.Message = err.Error()
 		}
 	}
-	if ctx.Err() == nil {
-		s.cacheList, s.cacheAt = result, time.Now()
-	}
-	return result
+	s.cacheMu.Lock()
+	s.cacheList, s.cacheAt, s.cacheDone = result, time.Now(), nil
+	s.cacheMu.Unlock()
+	close(done)
 }
 
 func (s *server) apiCache(w http.ResponseWriter, r *http.Request) {
@@ -138,8 +172,20 @@ func (s *server) apiCachePolicy(a *App, body request) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Show the change at once and let the next read refresh the rest.
 	s.cacheMu.Lock()
-	s.cacheAt = time.Time{}
+	if s.cacheList.Agents != nil && agent.ID != "" {
+		// Copy: earlier snapshots share the map and may still be encoding.
+		agents := make(map[string]cacheStatus, len(s.cacheList.Agents)+1)
+		for id, status := range s.cacheList.Agents {
+			agents[id] = status
+		}
+		agents[agent.ID] = cacheState(agent)
+		s.cacheList.Agents = agents
+	}
+	if !s.cacheAt.IsZero() {
+		s.cacheAt = time.Now().Add(-cacheStatusTTL)
+	}
 	s.cacheMu.Unlock()
 	return cacheState(agent), nil
 }

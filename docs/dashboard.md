@@ -154,7 +154,12 @@ The API, all JSON:
 - `GET api/auto-continue?paseo=`: `{available, on}` for one agent, for the
   node panel's checkbox.
 - `GET api/cache`: cache policies and estimated expiry for local agents,
-  read separately from the page view and cached for five seconds.
+  read separately from the page view. The server answers from its last
+  keeper snapshot at once and refreshes it in the background when it is
+  older than 15 seconds (keeper reads can take several seconds); only the
+  first read after start waits, up to 2 seconds, and otherwise says
+  "Cache status loading". Sends reuse each agent's lock path from the
+  snapshot instead of asking the keeper again.
   `GET api/cache?kind=answer|reply&target=...` resolves the actual recipient
   and returns `{cold, enabled}` for the pre-send dialog.
   `POST api/cache {id, action, warm_hours?}` changes the keeper's policy and

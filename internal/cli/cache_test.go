@@ -25,6 +25,8 @@ import (
 
 func fakeKeeper(t *testing.T, h *harness, handler http.HandlerFunc) {
 	t.Helper()
+	lockPaths.Clear()
+	t.Cleanup(lockPaths.Clear)
 	// macOS Unix socket addresses have a tight length limit.
 	dir, err := os.MkdirTemp("/tmp", "desk-keeper-")
 	must(t, err)
@@ -339,4 +341,54 @@ func TestPaseoSendTakesKeeperLock(t *testing.T) {
 	<-done
 	must(t, syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB))
 	must(t, syscall.Flock(int(f.Fd()), syscall.LOCK_UN))
+}
+
+func TestSlowKeeperNeverBlocksReads(t *testing.T) {
+	h, _, _ := queueFixture(t)
+	old := cacheFirstWait
+	cacheFirstWait = 50 * time.Millisecond
+	t.Cleanup(func() { cacheFirstWait = old })
+	release := make(chan struct{})
+	var lists atomic.Int32
+	fakeKeeper(t, h, func(w http.ResponseWriter, r *http.Request) {
+		lists.Add(1)
+		<-release
+		writeJSON(w, keeper.List{Enabled: true, Agents: []keeper.Agent{{ID: queuedAgent, LockPath: "/nonexistent/kw.lock"}}})
+	})
+	s, hd := testServer(t, h)
+	start := time.Now()
+	_, body, _ := do(t, hd, "GET", "/api/cache", "", nil)
+	if !strings.Contains(body, "loading") || time.Since(start) > time.Second {
+		t.Fatalf("first read with a slow keeper: %s after %v", body, time.Since(start))
+	}
+	// A second read while the refresh runs starts no second keeper request.
+	do(t, hd, "GET", "/api/cache", "", nil)
+	close(release)
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		_, body, _ = do(t, hd, "GET", "/api/cache", "", nil)
+		if strings.Contains(body, queuedAgent) || time.Now().After(deadline) {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if !strings.Contains(body, queuedAgent) {
+		t.Fatalf("refreshed read: %s", body)
+	}
+	if n := lists.Load(); n != 1 {
+		t.Fatalf("keeper list fetched %d times, want 1", n)
+	}
+	if path, ok := lockPaths.Load(queuedAgent); !ok || path != "/nonexistent/kw.lock" {
+		t.Fatalf("lock path not remembered: %v", path)
+	}
+	lockPaths.Delete(queuedAgent)
+	// A stale snapshot is served at once while a new refresh runs.
+	s.cacheMu.Lock()
+	s.cacheAt = time.Now().Add(-2 * cacheStatusTTL)
+	s.cacheMu.Unlock()
+	start = time.Now()
+	_, body, _ = do(t, hd, "GET", "/api/cache", "", nil)
+	if !strings.Contains(body, queuedAgent) || time.Since(start) > time.Second {
+		t.Fatalf("stale read: %s after %v", body, time.Since(start))
+	}
 }

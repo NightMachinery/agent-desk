@@ -17,7 +17,12 @@ import (
 
 var ErrUnavailable = errors.New("agent-quotas is not running")
 
-const readTimeout = 3 * time.Second
+const (
+	readTimeout = 3 * time.Second
+	// listTimeout is longer: the list is read in the background, and the
+	// keeper can take several seconds to build it.
+	listTimeout = 30 * time.Second
+)
 
 type Client struct {
 	Socket string
@@ -76,7 +81,7 @@ func (c Client) Agents(ctx context.Context, all bool) (List, error) {
 	if all {
 		q.Set("all", "1")
 	}
-	err := c.request(ctx, readTimeout, http.MethodGet, "", q, nil, &result)
+	err := c.request(ctx, listTimeout, http.MethodGet, "", q, nil, &result)
 	return result, err
 }
 

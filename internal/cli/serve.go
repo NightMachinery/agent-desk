@@ -45,6 +45,7 @@ type server struct {
 	cacheMu     sync.Mutex
 	cacheAt     time.Time
 	cacheList   cacheResponse
+	cacheDone   chan struct{}   // closed when the running refresh ends
 	compacting  map[string]bool // one keeper request in flight per agent
 	sendWake    chan struct{}
 	ui          fs.FS
