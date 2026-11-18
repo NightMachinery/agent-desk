@@ -6,10 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/NightMachinery/agent-desk/internal/desk"
@@ -104,28 +102,4 @@ func clipText(s string, n int) string {
 		return s
 	}
 	return "…" + s[len(s)-n:]
-}
-
-// deliverDetached starts `agent-desk deliver` in the background, its output
-// in hooks.log: an on-answer command may take minutes, and whoever recorded
-// the answer (the dashboard, Emacs, a chat bridge) should not wait for it.
-func (a *App) deliverDetached() error {
-	exe, err := os.Executable()
-	if err != nil {
-		return err
-	}
-	logf, err := os.OpenFile(filepath.Join(a.Home, "hooks.log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
-	if err != nil {
-		return err
-	}
-	defer logf.Close()
-	fmt.Fprintf(logf, "%s deliver (on-answer)\n", time.Now().Format(time.RFC3339))
-	cmd := exec.Command(exe, "deliver")
-	cmd.Env = append(os.Environ(), "AGENT_DESK_HOME="+a.Home)
-	cmd.Stdout, cmd.Stderr = logf, logf
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	if err := cmd.Start(); err != nil {
-		return err
-	}
-	return cmd.Process.Release()
 }

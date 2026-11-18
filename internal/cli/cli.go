@@ -1003,7 +1003,9 @@ func (a *App) recordAnswer(d *desk.Desk, q store.Event, text, source, behavior s
 		return nil
 	}
 	if desk.MetaString(q, "on_answer") != "" && !a.WaitHooks {
-		if err := a.deliverDetached(); err != nil {
+		// The command may take minutes: whoever recorded the answer (the
+		// dashboard, Emacs, a chat bridge) does not wait for it.
+		if err := a.spawn([]string{"deliver"}); err != nil {
 			return err
 		}
 		fmt.Fprintf(a.Stderr, "agent-desk: %s goes to the command it was asked with; its output is in %s\n",
