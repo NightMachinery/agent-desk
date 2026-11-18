@@ -444,7 +444,10 @@ opens the global ones: one control per setting with where its value comes
 from ("inherited from example-proj"), for all kinds of event or one, and
 "Reset to inherited" where an override stands. To act on many items at once, press Select (or long-press a row on a
 phone, or cmd-click one on a desktop), then tap rows, shift-click a range or
-use "Select all" per section or group, and mark them read or unread. It
+use "Select all" per section or group, and mark them read or unread. The
+double check on the New and Responses headings marks that whole section read
+in one click, with Undo in the toast; Needs you has none, because reading a
+question there dismisses it. It
 updates live. Bodies, slots, messages and linked `.md` files render as
 Markdown; raw HTML shows as text, and images are not loaded. A single line
 break inside a sentence flows as a soft wrap, so hard-wrapped text reads

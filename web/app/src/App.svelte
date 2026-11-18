@@ -169,7 +169,12 @@
 
 <div class="toasts" aria-live="polite">
   {#each toasts as t (t.id)}
-    <div class="toast {t.kind}">{t.text}</div>
+    <div class="toast {t.kind}">
+      <span>{t.text}</span>
+      {#if t.action}
+        <button class="toast-act" onclick={() => { const i = toasts.findIndex((x) => x.id === t.id); if (i >= 0) toasts.splice(i, 1); t.action.run(); }}>{t.action.label}</button>
+      {/if}
+    </div>
   {/each}
 </div>
 
@@ -260,6 +265,25 @@
     font-size: 13px;
     white-space: pre-wrap;
     animation: rise 0.18s ease-out;
+  }
+  .toast {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .toast > span {
+    flex: 1;
+  }
+  .toast-act {
+    flex: none;
+    border: 1px solid currentColor;
+    border-radius: 7px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-weight: 600;
+    padding: 3px 10px;
+    cursor: pointer;
   }
   .toast.error {
     background: var(--blocked);

@@ -4,6 +4,7 @@
   import { route, href, go } from '../lib/route.svelte.js';
   import { agentName, copy, short } from '../lib/format.js';
   import { toast } from '../lib/toast.svelte.js';
+  import { post } from '../lib/api.js';
   import ItemRow from './ItemRow.svelte';
   import TreeNode from './TreeNode.svelte';
   import NodePanel from './NodePanel.svelte';
@@ -40,6 +41,31 @@
   const freshIds = $derived(idsOf(fresh));
   const responseIds = $derived(idsOf(responses));
   const pinnedIds = $derived(pinned.map((it) => it.display_id));
+  const unreadOf = (gs) => gs.flatMap((g) => g.items.filter((it) => it.unread).map((it) => it.display_id));
+  const freshUnread = $derived(unreadOf(fresh));
+  const responseUnread = $derived(unreadOf(responses));
+
+  // Marks a whole section read, with Undo. Not offered on Needs you: reading
+  // a question there dismisses it, too much for one unguarded click.
+  async function markAllRead(targets) {
+    try {
+      await post('read', { targets });
+      toast(`${targets.length} ${targets.length === 1 ? 'item' : 'items'} marked read.`, 'ok', 7000, {
+        label: 'Undo',
+        run: async () => {
+          try {
+            await post('unread', { targets });
+            onchange?.();
+          } catch (err) {
+            toast(err.message, 'error');
+          }
+        },
+      });
+      onchange?.();
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  }
   // Folded sections drop out of j/k and previous/next.
   const shown = (name, ids) => (ui.collapsed[name] ? [] : ids);
   const allIds = $derived([
@@ -180,6 +206,7 @@
         {@render fold('responses', 'Responses to you')}
         <span class="count response">{count(responses)}</span>
         {#if responseIds.length > 1 && !ui.collapsed.responses}<button class="pick" onclick={() => toggleAll(responseIds)}>{allOn(responseIds) ? 'Deselect' : 'Select all'}</button>{/if}
+        {#if responseUnread.length}{@render markAll(responseUnread)}{/if}
       </h2>
       {#if !ui.collapsed.responses}
         {#each responses as g (g.project + '/' + g.run)}
@@ -195,6 +222,7 @@
       {@render fold('new', route.all ? 'Notices and slots' : 'New')}
       {#if count(fresh)}<span class="count">{count(fresh)}</span>{/if}
       {#if freshIds.length > 1 && !ui.collapsed.new}<button class="pick" onclick={() => toggleAll(freshIds)}>{allOn(freshIds) ? 'Deselect' : 'Select all'}</button>{/if}
+      {#if freshUnread.length}{@render markAll(freshUnread)}{/if}
     </h2>
     {#if !ui.collapsed.new}
       {#each fresh as g (g.project + '/' + g.run)}
@@ -250,6 +278,13 @@
     >
   </div>
 {/if}
+
+{#snippet markAll(ids)}
+  <button class="mark-all" data-cmd="mark-all-read" title="Mark all {ids.length} read" aria-label="Mark all {ids.length} read"
+    onclick={(e) => { e.stopPropagation(); markAllRead(ids); }}>
+    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 8.5l3 3 6-7M7.5 11.5l.5.5 6.5-8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+  </button>
+{/snippet}
 
 {#snippet fold(name, label)}
   <button class="fold" data-cmd={'fold-' + name} aria-expanded={!ui.collapsed[name]} onclick={() => toggleSection(name)} title={tip(ui.collapsed[name] ? 'Show this section' : 'Fold this section', 'fold-' + name)}>
@@ -404,6 +439,25 @@
   .group-line:hover .pick,
   .group-line .pick:focus-visible {
     opacity: 1;
+  }
+  .mark-all {
+    margin-left: auto;
+    display: inline-grid;
+    place-items: center;
+    width: 26px;
+    height: 24px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .pick + .mark-all {
+    margin-left: 2px;
+  }
+  .mark-all:hover {
+    background: var(--panel);
+    color: var(--text);
   }
   .pick {
     margin-left: auto;
