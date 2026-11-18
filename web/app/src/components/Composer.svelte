@@ -7,11 +7,15 @@
   // at once and sent with the message; the session gets their paths.
   import { behaviorLabel, behaviorHelp, desktopText, remoteText } from '../lib/format.js';
   import { upload } from '../lib/api.js';
+  import { loadDraft, saveDraft } from '../lib/drafts.js';
   import Sheet from './Sheet.svelte';
 
   // compose turns the typed text into what is sent (a question's picks plus
-  // the text); ready allows sending with the box empty.
-  let { id = undefined, label, placeholder, send, hint = '', quick = [], sendLabel = 'Send', target = null, compose = null, ready = false } = $props();
+  // the text); ready allows sending with the box empty. draft names the box
+  // (e.g. "reply:t-k2m9"): its text is saved until sent, and a new name
+  // starts from that box's own draft, with no files or notify overrides
+  // carried over from the last one.
+  let { draft = '', id = undefined, label, placeholder, send, hint = '', quick = [], sendLabel = 'Send', target = null, compose = null, ready = false } = $props();
   let text = $state('');
   let busy = $state(false);
   let menu = $state(false);
@@ -23,6 +27,19 @@
   let picker = $state();
   let dragging = $state(false);
   let seq = 0;
+  let draftOf = null; // the box whose text is in the field
+  $effect(() => {
+    const k = draft;
+    const t = text;
+    if (k !== draftOf) {
+      draftOf = k;
+      text = loadDraft(k) ?? '';
+      files = [];
+      notify = { desktop: '', remote: '' };
+      return;
+    }
+    saveDraft(k, t, !t.trim());
+  });
   const uploading = $derived(files.some((f) => f.status === 'uploading'));
   const readyFiles = $derived(files.filter((f) => f.status === 'ready'));
 

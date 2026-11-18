@@ -434,7 +434,9 @@ first (`?sort=old`; recent first is the default) and an open item
 (`?item=q-7f3a`). From it you answer questions (with one-click "take your
 recommendation" or "go with the default"), message the agent behind any item
 or any coordinator, dismiss a question without answering it, and mark things
-read.
+read. What you type is kept as a draft for that item and that box (your
+picks too), in the browser's storage: switching items or reloading loses
+nothing, and it is dropped when you send it or after 30 days.
 
 An item shows its conversation under it: your messages and answers, each
 with what happened to it ("joined the running turn", "queued, position 2",

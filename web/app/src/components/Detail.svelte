@@ -5,6 +5,7 @@
   import { route, href, go } from '../lib/route.svelte.js';
   import { post } from '../lib/api.js';
   import { toast } from '../lib/toast.svelte.js';
+  import { clearDraft } from '../lib/drafts.js';
   import { desk } from '../lib/desk.svelte.js';
   import { agentName, copy, kindLabel, kindOf, sessionOf, short, slotName, titleOf, viaText } from '../lib/format.js';
   import Composer from './Composer.svelte';
@@ -97,6 +98,7 @@
   async function answer(text, opts = {}) {
     try {
       report(await post('answer', { id: it.display_id, text, ...opts }), 'Answer recorded');
+      clearDraft('choices:' + it.display_id);
       onchange();
       return true;
     } catch (err) {
@@ -265,10 +267,11 @@
     {#if isQuestion && !item.answered}
       <section class="act">
         {#if e.meta?.choices}
-          <Choices choices={e.meta.choices} bind:lines={choiceLines} bind:count={choiceCount} />
+          <Choices choices={e.meta.choices} draft={'choices:' + it.display_id} bind:lines={choiceLines} bind:count={choiceCount} />
         {/if}
         <Composer
           id="answer-box"
+          draft={'answer:' + it.display_id}
           label={e.meta?.choices ? 'A message with your answers (optional)' : 'Answer'}
           placeholder={e.meta?.choices ? 'Anything that is not about one question…' : 'Type your answer…'}
           compose={e.meta?.choices ? (t) => choiceLines + (t.trim() ? '\n\n' + t.trim() : '') : null}
@@ -286,6 +289,7 @@
       <section class="act">
         <Composer
           id="reply-box"
+          draft={'reply:' + it.display_id}
           label={`Message ${agentName(item.target.agent)}`}
           placeholder={isQuestion && !item.answered ? 'Or say something else to the agent…' : 'Say something to the agent that wrote this…'}
           hint={isQuestion && !item.answered ? '' : viaText(item.target)}

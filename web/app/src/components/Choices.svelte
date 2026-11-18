@@ -6,14 +6,26 @@
   // "(no answer)"); the answer box below sends it with any general message.
   import Markdown from './Markdown.svelte';
   import { tip } from '../lib/shortcuts.js';
+  import { loadDraft, saveDraft } from '../lib/drafts.js';
 
-  let { choices, lines = $bindable(''), count = $bindable(0) } = $props();
+  // draft names the question ("choices:q-7f3a"): picks and notes are saved
+  // until sent, and another question starts from its own.
+  let { choices, draft = '', lines = $bindable(''), count = $bindable(0) } = $props();
 
   const qs = $derived(choices?.questions ?? []);
   // Per question: the picked keys and the text field.
   let ans = $state([]);
+  let ansOf = null; // the question whose picks are in ans
   $effect(() => {
-    if (ans.length !== qs.length) ans = qs.map(() => ({ picked: [], text: '' }));
+    const k = draft + '#' + qs.length;
+    const now = $state.snapshot(ans);
+    if (k !== ansOf) {
+      ansOf = k;
+      const d = loadDraft(draft);
+      ans = Array.isArray(d) && d.length === qs.length ? d : qs.map(() => ({ picked: [], text: '' }));
+      return;
+    }
+    saveDraft(draft, now, now.every((a) => !a.picked.length && !a.text.trim()));
   });
 
   function pick(i, key) {
