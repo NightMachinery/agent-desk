@@ -278,6 +278,12 @@ func (s *Store) Query(from, where string, args ...any) ([]Event, error) {
 // All returns every event, oldest first.
 func (s *Store) All() ([]Event, error) { return s.Query("events", "") }
 
+// Membership returns joins and leaves in event order. Include other hosts:
+// a join imported from another host can take over a node.
+func (s *Store) Membership() ([]Event, error) {
+	return s.Query("events", "kind IN ('join', 'leave')")
+}
+
 // Get returns one event by its full id.
 func (s *Store) Get(id string) (Event, error) {
 	evs, err := s.Query("events", "id = ?", id)

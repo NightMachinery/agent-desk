@@ -18,8 +18,8 @@ import (
 // drops it too.
 
 // leftAfter reports whether session left node after the event id.
-func leftAfter(d *desk.Desk, node, session, id string) bool {
-	for _, e := range d.Events {
+func leftAfter(events []store.Event, node, session, id string) bool {
+	for _, e := range events {
 		if e.Kind == "leave" && e.Path == node && e.ID > id && sessionOf(e) == session {
 			return true
 		}
@@ -31,7 +31,7 @@ func leftAfter(d *desk.Desk, node, session, id string) bool {
 // left it. A node nobody holds is free to join without --takeover.
 func nodeHolder(d *desk.Desk, node string) (store.Event, bool) {
 	owner, ok := nodeOwner(d, node)
-	if !ok || leftAfter(d, node, sessionOf(owner), owner.ID) {
+	if !ok || leftAfter(d.Events, node, sessionOf(owner), owner.ID) {
 		return store.Event{}, false
 	}
 	return owner, true
@@ -40,12 +40,16 @@ func nodeHolder(d *desk.Desk, node string) (store.Event, bool) {
 // held is the nodes this session holds, in the order it joined them, with
 // the join that holds each.
 func (a *App) held(d *desk.Desk, from ident.From) []store.Event {
+	return a.heldFrom(d.Events, from)
+}
+
+func (a *App) heldFrom(events []store.Event, from ident.From) []store.Event {
 	if from.Session == "" {
 		return nil
 	}
 	owner := map[string]store.Event{}
 	left := map[string]string{} // node -> this session's latest leave
-	for _, e := range d.Events {
+	for _, e := range events {
 		switch e.Kind {
 		case "join":
 			owner[e.Path] = e
@@ -140,18 +144,18 @@ func (a *App) myNode(d *desk.Desk, from ident.From, nodeArg, cmd string) (string
 
 // takenOver explains why a session that joined nodes holds none of them,
 // when another session took over the one it joined last.
-func (a *App) takenOver(d *desk.Desk, from ident.From) error {
+func (a *App) takenOver(events []store.Event, from ident.From) error {
 	var last store.Event
 	found := false
-	for _, e := range d.Events {
+	for _, e := range events {
 		if e.Kind == "join" && e.Host == a.Host && sessionOf(e) == from.Session {
 			last, found = e, true
 		}
 	}
-	if !found || leftAfter(d, last.Path, from.Session, last.ID) {
+	if !found || leftAfter(events, last.Path, from.Session, last.ID) {
 		return nil
 	}
-	owner, _ := nodeOwner(d, last.Path)
+	owner, _ := nodeOwnerFrom(events, last.Path)
 	if sessionOf(owner) == from.Session {
 		return nil
 	}

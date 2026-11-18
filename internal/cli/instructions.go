@@ -124,11 +124,11 @@ func (a *App) hookPrompt(agent string) error {
 	if err != nil {
 		return err
 	}
-	d, err := a.load()
+	events, err := st.Membership()
 	if err != nil {
 		return err
 	}
-	held := a.held(d, from)
+	held := a.heldFrom(events, from)
 	if len(held) == 0 {
 		return nil // only sessions on the desk keep their instructions
 	}

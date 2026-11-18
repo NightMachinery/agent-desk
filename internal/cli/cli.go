@@ -464,14 +464,16 @@ func agentOfEvent(e store.Event) string {
 
 // nodeOwner returns the latest join at a node, if any.
 func nodeOwner(d *desk.Desk, node string) (store.Event, bool) {
-	var last store.Event
-	found := false
-	for _, e := range d.Events {
-		if e.Kind == "join" && e.Path == node {
-			last, found = e, true
+	return nodeOwnerFrom(d.Events, node)
+}
+
+func nodeOwnerFrom(events []store.Event, node string) (store.Event, bool) {
+	for i := len(events) - 1; i >= 0; i-- {
+		if e := events[i]; e.Kind == "join" && e.Path == node {
+			return e, true
 		}
 	}
-	return last, found
+	return store.Event{}, false
 }
 
 // commit appends events in one transaction, prints the display id of the
@@ -530,7 +532,7 @@ func (a *App) writer(d *desk.Desk, project, nodeArg, cmd string) (ident.From, st
 	if err != nil || node != "" {
 		return from, node, nil, err
 	}
-	if err := a.takenOver(d, from); err != nil {
+	if err := a.takenOver(d.Events, from); err != nil {
 		return from, "", nil, err
 	}
 	if from.Parent != "" {
@@ -832,7 +834,7 @@ func (a *App) cmdWhoami(args []string) error {
 	if _, err := parse(args, nil, nil, 0, 0); err != nil {
 		return err
 	}
-	d, err := a.load()
+	st, err := a.store()
 	if err != nil {
 		return err
 	}
@@ -840,9 +842,13 @@ func (a *App) cmdWhoami(args []string) error {
 	if from.Session == "" {
 		return errors.New("not an agent session")
 	}
-	held := a.held(d, from)
+	events, err := st.Membership()
+	if err != nil {
+		return err
+	}
+	held := a.heldFrom(events, from)
 	if len(held) == 0 {
-		if err := a.takenOver(d, from); err != nil {
+		if err := a.takenOver(events, from); err != nil {
 			return err
 		}
 		return errors.New("this session has not joined a node")
