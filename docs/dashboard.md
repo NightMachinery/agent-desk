@@ -91,7 +91,7 @@ The API, all JSON:
   went to), the `behavior` asked for, `delivery` (the receipt: `via`,
   `behavior`, `disposition`, `queue_position`, `revived`, `fallback`) or a
   `pending` reason with, after a failed attempt, `failure` (`error`,
-  `resume`, `age`, `retrying`, `uncertain`), `status` (`responded`, `awaiting`, `no_response` after 15
+  `id`, `resume`, `age`, `retrying`, `uncertain`), `status` (`responded`, `awaiting`, `no_response` after 15
   minutes, or `cleared` by a read) with the `responses`' ids, and `notify`,
   its per-message routing. A response has `by` (its agent) and `re`.
 - A target has `via`, `behaviors` (each `supported`, or not and `why`),
@@ -113,7 +113,19 @@ The API, all JSON:
   `to` is an item id or node path. `notify` is `{desktop, remote}` for the
   response to this message.
 - `POST api/deliver {id}` queues a delivery retry for an answer, its
-  question, or a reply. A retry after an unconfirmed send is refused.
+  question, or a reply. For an unconfirmed send, the dashboard asks the user
+  to confirm the duplicate risk, then sends `force: true` and the
+  displayed `failure_id`. The retry resets the delay and records that
+  the user forced it.
+- The queue writes an attempt marker before calling the transport. A
+  failure writes another event with the next retry time. An always-failing
+  transport with instant responses and uninterrupted service can make 149
+  attempts within the 24-hour window, up to 298 delivery events per message.
+  If the desk resumes after a retry window expires, one final marker
+  closes the window without starting the missed attempt.
+- The automatic screen sweep queues its answer and commits the grant in
+  the same transaction. The commit checks whether the screen changed
+  during the idle probe.
 - `POST api/read {target}` or `{targets: [...]}` accepts ids and paths.
   An open question named by id is dismissed. `api/unread` accepts `{id}`
   or `{targets: [...]}`, and `api/pin` and `api/unpin` accept `{id}`.

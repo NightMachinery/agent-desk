@@ -345,6 +345,8 @@ request returns the existing message.
 The desk retries a confirmed delivery failure after 15 seconds, doubles the
 delay after each failure up to 10 minutes, and stops within 24 hours of the
 first attempt. The conversation shows **retrying** with the last error.
+The desk stops early if the message has no transport or its recorded tmux
+pane is confirmed dead or replaced and there is no delivery command.
 After retries stop, **Retry** starts a new window. A successful delivery
 shows how it reached the agent, including whether the agent itself queued
 it until its turn ended. For a session on another machine, the conversation
@@ -353,8 +355,10 @@ shows when it is waiting for a merge.
 If the transport may already have accepted a message, the desk shows
 **delivery unconfirmed**. This can happen on a timeout, a lost connection
 during send, an interrupted desk process, or a custom command that exits
-with an error after it starts. Check the agent's conversation before
-sending again.
+with an error after it starts. Check the agent's conversation for the
+message. **Send again anyway** asks for confirmation because the agent
+could receive it twice. At a terminal, `agent-desk deliver --force <id>`
+makes the same explicit choice for one answer, question, or reply.
 
 ### The inbox
 
