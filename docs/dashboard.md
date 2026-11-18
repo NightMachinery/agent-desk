@@ -111,7 +111,12 @@ The API, all JSON:
   random `send_key` with the outgoing message before the first request.
   Replaying the same body with that key returns the original event id.
   `to` is an item id or node path. `notify` is `{desktop, remote}` for the
-  response to this message.
+  response to this message. With `after_compaction: true`, a local Paseo
+  send waits for the keeper to finish compaction. The queue persists the
+  keeper's compaction ID and long-polls it outside the delivery lock. A
+  failed or canceled compaction releases the send and adds a thread note.
+  Paseo delivery holds the keeper's existing per-agent flock around
+  `paseo send`.
 - `POST api/deliver {id}` queues a delivery retry for an answer, its
   question, or a reply. For an unconfirmed send, the dashboard asks the user
   to confirm the duplicate risk, then sends `force: true` and the
@@ -148,6 +153,13 @@ The API, all JSON:
   Dismissal flags are applied to every quota response, including cached lists.
 - `GET api/auto-continue?paseo=`: `{available, on}` for one agent, for the
   node panel's checkbox.
+- `GET api/cache`: cache policies and estimated expiry for local agents,
+  read separately from the page view and cached for five seconds.
+  `GET api/cache?kind=answer|reply&target=...` resolves the actual recipient
+  and returns `{cold, enabled}` for the pre-send dialog.
+  `POST api/cache {id, action, warm_hours?}` changes the keeper's policy and
+  records a `cache` event in the desk ledger. The action accepts `off`,
+  `compact`, `warm` and `standby`.
 - `GET api/health`: `ok`.
 
 ## Voice recordings

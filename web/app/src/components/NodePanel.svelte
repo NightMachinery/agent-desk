@@ -1,7 +1,7 @@
 <script>
   import { tip } from '../lib/shortcuts.js';
   import CopyIds from './CopyIds.svelte';
-  import { href } from '../lib/route.svelte.js';
+  import { href, route } from '../lib/route.svelte.js';
   import { post } from '../lib/api.js';
   import { toast } from '../lib/toast.svelte.js';
   import { pendingMessages, queueMessage } from '../lib/outbox.svelte.js';
@@ -13,6 +13,9 @@
   import Sheet from './Sheet.svelte';
   import Settings from './Settings.svelte';
   import AutoContinue from './AutoContinue.svelte';
+  import CacheControl from './CacheControl.svelte';
+  import { chooseSendCache } from '../lib/cache.svelte.js';
+  import { desk } from '../lib/desk.svelte.js';
 
   let { node, target, conversation = [], stamp = '', onchange, compact = false } = $props();
   let settingsOpen = $state(false);
@@ -25,17 +28,26 @@
   const label = $derived(node.state === 'active' || node.state === 'quiet' ? `${node.state} ${node.age}` : node.state);
   let writing = $state(false);
   let conversationOpen = $state(false);
-  let wasWaitingForVoice = false;
+  let wasWaitingForDelivery = false;
   $effect(() => {
-    const waiting = conversation.some((entry) => entry.voice_failure || entry.pending === 'waiting for transcription');
-    if (compact && waiting && !wasWaitingForVoice) conversationOpen = true;
-    wasWaitingForVoice = waiting;
+    const waiting = conversation.some((entry) => entry.voice_failure || ['waiting for transcription', 'waiting for compaction'].includes(entry.pending));
+    if (compact && waiting && !wasWaitingForDelivery) conversationOpen = true;
+    wasWaitingForDelivery = waiting;
   });
 
   const pending = $derived(pendingMessages([node.path], conversation));
 
-  function reply(text, opts = {}) {
-    const queued = queueMessage('reply', { to: node.path, text, ...opts });
+  async function queueReply(body) {
+    const to = node.path;
+    const page = route.path;
+    const choice = await chooseSendCache('reply', to);
+    if (choice === 'cancel' || route.path !== page) return false;
+    const queued = queueMessage('reply', { to, ...body, ...(choice === 'compact' && { after_compaction: true }) });
+    if (queued && choice === 'compact') conversationOpen = true;
+    return queued;
+  }
+  async function reply(text, opts = {}) {
+    const queued = await queueReply({ text, ...opts });
     if (queued) {
       writing = false;
       if (voiceTokens(text).length) conversationOpen = true;
@@ -44,7 +56,7 @@
   }
   // The prompt is rendered on the server, using the node's current status.
   function askVelocity() {
-    queueMessage('reply', { to: node.path, prompt: 'velocity-report' });
+    queueReply({ prompt: 'velocity-report' });
   }
   async function readAll() {
     try {
@@ -80,6 +92,7 @@
       {#if target.host}· {target.host}{/if}
       <CopyIds paseo={target.paseo} resume={target.resume} keys={false} />
       {#if target.paseo && !compact}<AutoContinue paseo={target.paseo} />{/if}
+      {#if target.paseo && target.host === desk.host}<CacheControl paseo={target.paseo} showUnavailable={!compact} />{/if}
     </div>
   {/if}
 

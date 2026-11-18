@@ -9,6 +9,7 @@
   // ⌘/Ctrl-click a card) to copy their Paseo ids, one per line.
   import { SvelteSet } from 'svelte/reactivity';
   import CopyIds from './CopyIds.svelte';
+  import CacheControl from './CacheControl.svelte';
   import { sel } from '../lib/select.svelte.js';
   import { get, post } from '../lib/api.js';
   import { toast } from '../lib/toast.svelte.js';
@@ -70,7 +71,7 @@
   }
   function cardClick(e, a) {
     if (!(e.metaKey || e.ctrlKey || (picking && e.shiftKey))) return;
-    if (e.target.closest('button, a, input, label, .menu')) return;
+    if (e.target.closest('button, a, input, label, select, .menu')) return;
     e.preventDefault();
     pick(a.paseo, e.shiftKey);
   }
@@ -198,6 +199,7 @@
             Auto-continue
           </label>
         {/if}
+        <CacheControl paseo={a.paseo} />
         <div class="btns">
         {#if a.parent && !a.parent.stopped}
           <button class="btn small" disabled={!!busy} title="Message its parent: archive it and give its role to a new subagent on an account with quota left, recovering its partial work and minding its own subagents (prompt: reassign-role.md)"

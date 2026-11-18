@@ -13,9 +13,10 @@ async function parse(res) {
   return body;
 }
 
-export async function get(name, params = {}) {
+/** @param {AbortSignal} [signal] */
+export async function get(name, params = {}, signal) {
   const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v !== '' && v != null && v !== false));
-  return parse(await fetch(`./api/${name}?${qs}`, { headers: { Accept: 'application/json' } }));
+  return parse(await fetch(`./api/${name}?${qs}`, { signal, headers: { Accept: 'application/json' } }));
 }
 
 /** @param {AbortSignal} [signal] */

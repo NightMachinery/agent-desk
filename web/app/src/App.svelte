@@ -12,6 +12,8 @@
   import Sidebar from './components/Sidebar.svelte';
   import ListPane from './components/ListPane.svelte';
   import Detail from './components/Detail.svelte';
+  import ColdCacheDialog from './components/ColdCacheDialog.svelte';
+  import { watchCache } from './lib/cache.svelte.js';
   import NodePanel from './components/NodePanel.svelte';
   import Settings from './components/Settings.svelte';
   import Recordings from './components/Recordings.svelte';
@@ -91,6 +93,7 @@
   onLingerEnd(() => loadView());
 
   $effect(() => untrack(() => startOutbox(refresh)));
+  $effect(() => watchCache());
 
   let timer;
   $effect(() =>
@@ -133,6 +136,8 @@
     return keys.used ? pane() : '';
   });
 </script>
+
+<ColdCacheDialog />
 
 <svelte:window {onkeydown} />
 

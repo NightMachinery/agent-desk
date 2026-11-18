@@ -104,6 +104,7 @@
           {/if}
         </div>
         {#if t.delivery?.fallback}<div class="note">Sent as {t.delivery.behavior}: {t.delivery.fallback}</div>{/if}
+        {#if t.compaction_note}<div class="note">{t.compaction_note}</div>{/if}
         {#if t.voice_failure && !t.delivery}
           <div class="failure" data-failure>
             <div><strong>Transcription failed</strong> · {t.voice_failure.error}</div>

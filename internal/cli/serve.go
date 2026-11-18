@@ -42,6 +42,10 @@ type server struct {
 	writeMu     sync.Mutex // serialises read-modify-write actions
 	sendMu      sync.Mutex // protects queued post-commit effects
 	sendEffects [][]store.Event
+	cacheMu     sync.Mutex
+	cacheAt     time.Time
+	cacheList   cacheResponse
+	compacting  map[string]bool // one keeper request in flight per agent
 	sendWake    chan struct{}
 	ui          fs.FS
 	index       []byte
@@ -169,6 +173,8 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("POST /api/quota", s.action(s.apiQuotaAct))
 	mux.HandleFunc("GET /api/auto-continue", s.apiAutoContinue)
 	s.voiceRoutes(mux)
+	mux.HandleFunc("GET /api/cache", s.apiCache)
+	mux.HandleFunc("POST /api/cache", s.action(s.apiCachePolicy))
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, http.StatusNotFound, "no such API")
 	})
@@ -238,15 +244,17 @@ func (s *server) sameOriginAny(r *http.Request) error {
 
 // request is the JSON body of a write.
 type request struct {
-	Force     bool     `json:"force"`      // deliver: retry even if the agent may already have it
-	FailureID string   `json:"failure_id"` // deliver: the failure shown when the user confirmed
-	SendKey   string   `json:"send_key"`   // idempotency key for answer and reply
-	ID        string   `json:"id"`         // answer, unread: the item
-	Text      string   `json:"text"`       // answer, reply
-	To        string   `json:"to"`         // reply: an item or a node path
-	Prompt    string   `json:"prompt"`     // reply: a prepared message instead of text (velocity-report)
-	Target    string   `json:"target"`     // read: an item or a node path
-	Targets   []string `json:"targets"`    // read, unread: several at once
+	Force           bool     `json:"force"`      // deliver: retry even if the agent may already have it
+	FailureID       string   `json:"failure_id"` // deliver: the failure shown when the user confirmed
+	SendKey         string   `json:"send_key"`   // idempotency key for answer and reply
+	ID              string   `json:"id"`         // answer, unread: the item
+	Text            string   `json:"text"`       // answer, reply
+	To              string   `json:"to"`         // reply: an item or a node path
+	Prompt          string   `json:"prompt"`     // reply: a prepared message instead of text (velocity-report)
+	Target          string   `json:"target"`     // read: an item or a node path
+	Targets         []string `json:"targets"`    // read, unread: several at once
+	AfterCompaction bool     `json:"after_compaction,omitempty"`
+	WarmHours       float64  `json:"warm_hours,omitempty"`
 	// Behavior: answer, reply: steer, queue or interrupt (empty: default).
 	Behavior string `json:"behavior"`
 	// Notify: answer, reply: {desktop, remote} for the response to this

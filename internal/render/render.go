@@ -58,7 +58,7 @@ func All(dir string, load func() (*desk.Desk, error)) error {
 		}
 	}
 
-	// The ledger lists questions, notices and done reports by month. A
+	// The ledger lists questions, notices, done reports and cache changes by month. A
 	// conversation hangs under its root item as child headings; a message
 	// whose root is not listed (a node's own thread, or a slot) is a heading
 	// of its own, with its responses under it.
@@ -69,7 +69,7 @@ func All(dir string, load func() (*desk.Desk, error)) error {
 	}
 	for _, e := range d.Events {
 		switch {
-		case e.Kind == "ask" || e.Kind == "done":
+		case e.Kind == "ask" || e.Kind == "done" || e.Kind == "cache":
 		case e.Kind == "tell" && e.Ref == "":
 		case e.Kind == "reply":
 			if root, ok := d.Root(e); ok && listed(root) {

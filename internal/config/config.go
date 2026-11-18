@@ -45,6 +45,10 @@ type Config struct {
 	Screen Screen `toml:"screen"`
 	// Push configures Web Push to the installed dashboard ([push]).
 	Push Push `toml:"push"`
+	// Keeper names the optional agent-quotas socket ([keeper]).
+	Keeper struct {
+		Socket string `toml:"socket"`
+	} `toml:"keeper"`
 	// Quota configures the "Out of quota" section ([quota]).
 	Quota Quota `toml:"quota"`
 	// Instructions configures the prompt hook that records the user's

@@ -71,6 +71,11 @@ func (s *server) enqueue(app *App, kind string, body request, prepare func() ([]
 		m["voice_recordings"] = body.VoiceRecordings
 		msg.Meta = meta(m)
 	}
+	if body.AfterCompaction && localPaseoSend(st, app.Host, msg) {
+		m := desk.Meta(msg)
+		m["after_compaction"] = true
+		msg.Meta = meta(m)
+	}
 	evs[0] = msg
 	inserted := true
 	if key != "" {
@@ -151,14 +156,21 @@ func (s *server) runSendQueue(ctx context.Context) {
 		if ctx.Err() != nil {
 			return
 		}
-		delay = s.sendQueueStep()
+		delay = s.sendQueueStepContext(ctx)
 	}
 }
 
 // sendQueueStep also scans on startup and while idle, picking up pending
 // deliveries in a merged store even when there was no local HTTP request.
 func (s *server) sendQueueStep() time.Duration {
+	return s.sendQueueStepContext(context.Background())
+}
+
+func (s *server) sendQueueStepContext(ctx context.Context) time.Duration {
 	app, _, errb := s.userApp()
+	app.compactForSend = func(j job, state sendProgress) {
+		s.startCompaction(ctx, j, state)
+	}
 	s.sendMu.Lock()
 	effects := s.sendEffects
 	s.sendEffects = nil
@@ -198,18 +210,22 @@ func (s *server) sendQueueStep() time.Duration {
 }
 
 type sendProgress struct {
-	ID             string   `json:"-"`
-	Status         string   `json:"status,omitempty"`
-	Error          string   `json:"error,omitempty"`
-	Resume         string   `json:"resume,omitempty"`
-	RetryAt        string   `json:"retry_at,omitempty"`
-	Deadline       string   `json:"deadline,omitempty"`
-	Attempts       int      `json:"attempts,omitempty"`
-	Uncertain      bool     `json:"uncertain,omitempty"`
-	Forced         bool     `json:"forced,omitempty"`
-	VoiceRecording string   `json:"voice_recording,omitempty"`
-	VoiceRetryable bool     `json:"voice_retryable,omitempty"`
-	VoiceOmitted   []string `json:"voice_omitted,omitempty"`
+	ID                    string   `json:"-"`
+	Status                string   `json:"status,omitempty"`
+	Error                 string   `json:"error,omitempty"`
+	Resume                string   `json:"resume,omitempty"`
+	RetryAt               string   `json:"retry_at,omitempty"`
+	Deadline              string   `json:"deadline,omitempty"`
+	Attempts              int      `json:"attempts,omitempty"`
+	Uncertain             bool     `json:"uncertain,omitempty"`
+	Forced                bool     `json:"forced,omitempty"`
+	VoiceRecording        string   `json:"voice_recording,omitempty"`
+	VoiceRetryable        bool     `json:"voice_retryable,omitempty"`
+	VoiceOmitted          []string `json:"voice_omitted,omitempty"`
+	CompactionRequestedAt float64  `json:"compaction_requested_at,omitempty"`
+	CompactionID          string   `json:"compaction_id,omitempty"`
+	CompactionDone        bool     `json:"compaction_done,omitempty"`
+	CompactionNote        string   `json:"compaction_note,omitempty"`
 }
 
 func (p sendProgress) blockedOnVoice() bool {
@@ -245,7 +261,8 @@ func (a *App) deliveryState(msg store.Event, kind string, progress sendProgress)
 	e.Meta = meta(map[string]any{"status": progress.Status, "error": progress.Error, "resume": progress.Resume,
 		"retry_at": progress.RetryAt, "deadline": progress.Deadline, "attempts": progress.Attempts,
 		"uncertain": progress.Uncertain, "forced": progress.Forced, "voice_recording": progress.VoiceRecording,
-		"voice_retryable": progress.VoiceRetryable, "voice_omitted": progress.VoiceOmitted})
+		"voice_retryable": progress.VoiceRetryable, "voice_omitted": progress.VoiceOmitted,
+		"compaction_requested_at": progress.CompactionRequestedAt, "compaction_id": progress.CompactionID, "compaction_done": progress.CompactionDone, "compaction_note": progress.CompactionNote})
 	e.Ref = msg.ID
 	return e
 }
@@ -306,7 +323,8 @@ func (a *App) queueRetry(d *desk.Desk, e store.Event, force bool, failureID stri
 	}
 	for _, j := range pending(d, a.Host, deliveryJobID(e)) {
 		if j.msg.ID == e.ID {
-			retry := a.deliveryState(e, "delivery-state", sendProgress{Status: "queued", Forced: force, ID: state.ID, VoiceOmitted: state.VoiceOmitted})
+			retry := a.deliveryState(e, "delivery-state", sendProgress{Status: "queued", Forced: force, ID: state.ID, VoiceOmitted: state.VoiceOmitted,
+				CompactionDone: state.CompactionDone, CompactionNote: state.CompactionNote})
 			if _, err := a.st.AppendDeliveryIfCurrent(retry, state.ID); err != nil {
 				return "", sendUnavailable{err}
 			}
@@ -345,7 +363,8 @@ func (a *App) queueWithoutVoice(d *desk.Desk, msg store.Event, failureID string)
 		return "", usagef("Transcription state changed. Check the latest message status.")
 	}
 	omitted := append(slices.Clone(state.VoiceOmitted), blocked.id)
-	marker := a.deliveryState(msg, "delivery-state", sendProgress{Status: "queued", ID: state.ID, VoiceOmitted: omitted})
+	marker := a.deliveryState(msg, "delivery-state", sendProgress{Status: "queued", ID: state.ID, VoiceOmitted: omitted,
+		CompactionDone: state.CompactionDone, CompactionNote: state.CompactionNote})
 	recorded, err := a.st.AppendDeliveryIfCurrent(marker, state.ID)
 	if err != nil {
 		return "", sendUnavailable{err}

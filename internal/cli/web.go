@@ -26,7 +26,8 @@ type Entry struct {
 	Behavior string    `json:"behavior,omitempty"`
 	Delivery *Delivery `json:"delivery,omitempty"`
 	// Pending says why an undelivered message has not gone out yet.
-	Pending string `json:"pending,omitempty"`
+	Pending        string `json:"pending,omitempty"`
+	CompactionNote string `json:"compaction_note,omitempty"`
 	// Failure is why the latest attempt to deliver it failed.
 	Failure      *Failure      `json:"failure,omitempty"`
 	VoiceFailure *VoiceFailure `json:"voice_failure,omitempty"`
@@ -128,6 +129,7 @@ func entries(d *desk.Desk, thread []store.Event, pushed map[string]string) []Ent
 		}
 		del, delivered := d.Delivery(e.ID)
 		if delivered {
+			en.CompactionNote = desk.MetaString(del, "compaction_note")
 			var r struct {
 				Via, Behavior, Disposition, Fallback string
 				QueuePosition                        int `json:"queue_position"`
@@ -143,6 +145,7 @@ func entries(d *desk.Desk, thread []store.Event, pushed map[string]string) []Ent
 				Age: desk.Age(d.Now.Sub(desk.Time(del)))}
 		} else if en.Source != "chat" {
 			state := deliveryProgress(d, e.ID)
+			en.CompactionNote = state.CompactionNote
 			answer := d.AnswerID(e.Ref)
 			switch {
 			case host != "" && host != d.Host && pushed[host] != "":
@@ -157,6 +160,8 @@ func entries(d *desk.Desk, thread []store.Event, pushed map[string]string) []Ent
 				en.Pending = "transcription failed"
 				en.VoiceFailure = &VoiceFailure{ID: state.ID, Recording: state.VoiceRecording, Error: state.Error,
 					Retryable: state.VoiceRetryable}
+			case state.Status == waitingCompaction:
+				en.Pending = "waiting for compaction"
 			case queuedForDelivery(e) || state.Status != "":
 				en.Pending = "queued"
 			default:

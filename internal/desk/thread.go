@@ -238,7 +238,7 @@ func ClassOf(e store.Event) string {
 // marks count as activity and are not included.
 func IsMark(kind string) bool {
 	switch kind {
-	case "read", "pin", "pref", "notified", "retracted", "undelivered", "projectset", "focus":
+	case "read", "pin", "pref", "notified", "retracted", "undelivered", "projectset", "focus", "cache":
 		return true
 	}
 	return false

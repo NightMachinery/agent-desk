@@ -5,6 +5,7 @@
   import { route, href, go } from '../lib/route.svelte.js';
   import { post } from '../lib/api.js';
   import { toast } from '../lib/toast.svelte.js';
+  import { chooseSendCache } from '../lib/cache.svelte.js';
   import { clearDraft } from '../lib/drafts.js';
   import { pendingMessages, queueMessage } from '../lib/outbox.svelte.js';
   import { desk } from '../lib/desk.svelte.js';
@@ -120,16 +121,24 @@
     });
   }
 
-  function answer(text, opts = {}) {
-    const queued = queueMessage('answer', { id: e.id, text, ...opts }, e.id, { quiet: true });
+  async function answer(text, opts = {}) {
+    const { id } = e;
+    const page = route.item;
+    const choice = await chooseSendCache('answer', id);
+    if (choice === 'cancel' || route.item !== page) return false;
+    const queued = queueMessage('answer', { id, text, ...opts, ...(choice === 'compact' && { after_compaction: true }) }, id, { quiet: true });
     if (queued) {
       clearDraft('choices:' + it.display_id);
       moveOn(`Answer to ${it.display_id} queued.`);
     }
     return queued;
   }
-  function reply(text, opts = {}) {
-    return queueMessage('reply', { to: e.id, text, ...opts });
+  async function reply(text, opts = {}) {
+    const to = e.id;
+    const page = route.item;
+    const choice = await chooseSendCache('reply', to);
+    if (choice === 'cancel' || route.item !== page) return false;
+    return queueMessage('reply', { to, text, ...opts, ...(choice === 'compact' && { after_compaction: true }) });
   }
   async function mark(read) {
     try {

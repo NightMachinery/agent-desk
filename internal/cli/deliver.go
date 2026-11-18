@@ -256,6 +256,17 @@ func (a *App) deliverOne(d *desk.Desk, j job, omitted []string, begin func() err
 	if err := begin(); err != nil {
 		return receipt{}, err
 	}
+	withPaseoLock := func(ctx context.Context, send func()) error {
+		lockCtx, stop := context.WithTimeout(ctx, 6*time.Second)
+		unlock, err := a.keeperLock(lockCtx, j.to.Paseo)
+		stop()
+		if err != nil {
+			return err
+		}
+		defer unlock()
+		send()
+		return nil
+	}
 	note, missing := a.attachmentNote(j.msg)
 	if missing != "" {
 		return receipt{}, fmt.Errorf("its attachment %s is not on this machine yet; it is delivered after the next merge", missing)
@@ -263,7 +274,7 @@ func (a *App) deliverOne(d *desk.Desk, j job, omitted []string, begin func() err
 	j.text += note
 	command := desk.MetaString(j.about, "on_answer")
 	if command == "" || j.msg.Kind != "answer" {
-		return a.deliverSession(d, j)
+		return a.deliverSession(d, j, withPaseoLock)
 	}
 	run, err := a.onAnswer(d, j, command)
 	if err != nil {
@@ -273,7 +284,7 @@ func (a *App) deliverOne(d *desk.Desk, j job, omitted []string, begin func() err
 		return receipt{Via: "on-answer", Behavior: j.behavior, Disposition: "handled", OnAnswer: run}, nil
 	}
 	j.text += onAnswerNote(run)
-	r, err := a.deliverSession(d, j)
+	r, err := a.deliverSession(d, j, withPaseoLock)
 	if err != nil {
 		return r, fmt.Errorf("%w (its on-answer command exited %d: %s)", err, run.Exit, clipLine(run.Output, 200))
 	}
@@ -283,7 +294,7 @@ func (a *App) deliverOne(d *desk.Desk, j job, omitted []string, begin func() err
 
 // deliverSession types a message into its session: through Paseo, tmux or
 // deliver_command.
-func (a *App) deliverSession(d *desk.Desk, j job) (receipt, error) {
+func (a *App) deliverSession(d *desk.Desk, j job, withPaseoLock func(context.Context, func()) error) (receipt, error) {
 	beh := j.behavior
 	if beh == "" {
 		beh = "steer"
@@ -314,10 +325,16 @@ func (a *App) deliverSession(d *desk.Desk, j job) (receipt, error) {
 		send := func(b string) (string, error) {
 			return a.runExt(ctx, nil, "paseo", "send", "--no-wait", "--json", "--behavior", b, f.Paseo, text)
 		}
-		out, err := send(use)
-		if err != nil && use == "queue" && fallback == "" && queueRefused(out) {
-			out, err = send("steer")
-			use, fallback = "steer", "queue unsupported by the Paseo daemon"
+		var out string
+		var err error
+		if lockErr := withPaseoLock(ctx, func() {
+			out, err = send(use)
+			if err != nil && use == "queue" && fallback == "" && queueRefused(out) {
+				out, err = send("steer")
+				use, fallback = "steer", "queue unsupported by the Paseo daemon"
+			}
+		}); lockErr != nil {
+			return receipt{}, fmt.Errorf("keeper delivery lock: %w", lockErr)
 		}
 		if err == nil {
 			r := receipt{Via: "paseo", Behavior: use, Fallback: fallback}
@@ -488,12 +505,18 @@ func (a *App) deliverPending(only string, webOnly bool) (failed int, changed boo
 		case state.Status == "attempting":
 			// The flock is ours. The previous holder left no acknowledgement.
 			state = sendProgress{ID: state.ID, Error: "The previous send ended without an acknowledgement.",
-				Uncertain: true, VoiceOmitted: state.VoiceOmitted}
+				Uncertain: true, VoiceOmitted: state.VoiceOmitted,
+				CompactionDone: state.CompactionDone, CompactionNote: state.CompactionNote}
 			if err := st.Append(a.deliveryState(j.msg, "undelivered", state)); err != nil {
 				return failed, changed, next, err
 			}
 			failed++
 			changed = true
+			continue
+		case state.Status == waitingCompaction:
+			if a.compactForSend != nil {
+				a.compactForSend(j, state)
+			}
 			continue
 		case automatic && !state.blockedOnVoice() && state.Error != "" && state.RetryAt == "":
 			continue
@@ -516,6 +539,24 @@ func (a *App) deliverPending(only string, webOnly bool) (failed int, changed boo
 		var beginErr error
 		var began, stateChanged bool
 		begin := func() error {
+			if needsCompaction(j) && !state.CompactionDone {
+				if a.compactForSend != nil {
+					waiting := sendProgress{ID: state.ID, Status: waitingCompaction, VoiceOmitted: state.VoiceOmitted}
+					marker := a.deliveryState(j.msg, "delivery-state", waiting)
+					recorded, err := st.AppendDeliveryIfCurrent(marker, state.ID)
+					if err != nil {
+						beginErr = err
+						return err
+					}
+					if !recorded {
+						stateChanged = true
+						return errWaitingForCompaction
+					}
+					waiting.ID, changed = marker.ID, true
+					a.compactForSend(j, waiting)
+				}
+				return errWaitingForCompaction
+			}
 			began = true
 			if !automatic {
 				return nil
@@ -555,6 +596,9 @@ func (a *App) deliverPending(only string, webOnly bool) (failed int, changed boo
 			next = earlierSend(next, now)
 			continue
 		}
+		if errors.Is(sendErr, errWaitingForCompaction) {
+			continue
+		}
 		var voice *voiceBlocked
 		if errors.As(sendErr, &voice) {
 			status, reason := sendVoiceWaiting, ""
@@ -566,7 +610,8 @@ func (a *App) deliverPending(only string, webOnly bool) (failed int, changed boo
 				continue
 			}
 			waiting := sendProgress{ID: state.ID, Status: status, Error: reason,
-				VoiceRecording: voice.id, VoiceRetryable: voice.retryable, VoiceOmitted: state.VoiceOmitted}
+				VoiceRecording: voice.id, VoiceRetryable: voice.retryable, VoiceOmitted: state.VoiceOmitted,
+				CompactionDone: state.CompactionDone, CompactionNote: state.CompactionNote}
 			recorded, err := st.AppendDeliveryIfCurrent(a.deliveryState(j.msg, "delivery-state", waiting), state.ID)
 			if err != nil {
 				return failed, changed, next, err
@@ -582,7 +627,11 @@ func (a *App) deliverPending(only string, webOnly bool) (failed int, changed boo
 			return failed, changed, next, sendErr
 		}
 		if sendErr == nil {
-			e := a.event("delivered", j.msg.Path, ident.Resolve(a.Env), "cli", r.meta())
+			metadata := r.meta()
+			if state.CompactionNote != "" {
+				metadata["compaction_note"] = state.CompactionNote
+			}
+			e := a.event("delivered", j.msg.Path, ident.Resolve(a.Env), "cli", metadata)
 			e.Ref = j.msg.ID
 			if err := st.Append(e); err != nil {
 				return failed, changed, next, err
@@ -604,7 +653,8 @@ func (a *App) deliverPending(only string, webOnly bool) (failed int, changed boo
 		} else {
 			fmt.Fprintf(a.Stderr, "agent-desk: %s not delivered: %v. `agent-desk deliver` retries.\n", id, sendErr)
 		}
-		failure := sendProgress{ID: state.ID, Error: reason, Resume: resume, Uncertain: uncertain, Deadline: state.Deadline, VoiceOmitted: state.VoiceOmitted}
+		failure := sendProgress{ID: state.ID, Error: reason, Resume: resume, Uncertain: uncertain, Deadline: state.Deadline, VoiceOmitted: state.VoiceOmitted,
+			CompactionDone: state.CompactionDone, CompactionNote: state.CompactionNote}
 		var permanent permanentDeliveryError
 		if automatic && !uncertain && !errors.As(sendErr, &permanent) {
 			failure.Attempts = state.Attempts + 1

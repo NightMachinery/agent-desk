@@ -47,7 +47,10 @@ marks and pins items from the rendered org files. A [Paseo plugin](paseo-plugin/
 shows what waits on you inside Paseo, and is one command to disable. From the desk you can message any agent; the message reaches its
 session (steered into the running turn, or queued until it ends), and the
 agent's response comes back to the desk as part of the conversation. The
-dashboard queues sends immediately and retries delivery in the background.
+dashboard queues sends and retries delivery in the background. When
+agent-quotas is available, the desk shows local Paseo agents'
+[prompt cache policies](docs/usage.md#paseo-prompt-cache) and warns before
+sending to a large context whose cache has probably expired.
 Settings (`agent-desk pref`, or the dashboard) choose how messages are
 delivered and where you are notified, per project, run or agent.
 

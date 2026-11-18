@@ -926,6 +926,47 @@ several agents together.
     [quota]
     profiles = ['codex/gpt-6.1-terra@high', 'claude/opus@high']   # the Replace menu
 
+## Paseo prompt cache
+
+When agent-quotas is available, each local Paseo agent has a cache policy
+control in its node panel, run-tree row and Out of quota row. A **cold**
+label means the keeper estimates that a context above its size threshold has
+expired.
+
+- **Off** leaves the agent's cache alone.
+- **Compact** compacts a large context once before its cache expires.
+- **Warm** uses keepalive turns up to the idle limit (six hours by default).
+  A large context is compacted before the keeper starts pinging. When the idle
+  limit is reached, the display says **dormant**, and the next real turn can
+  rearm warming.
+- **Standby** switches permanently from warm to compact until you change the
+  policy again. It is available through the CLI.
+
+    agent-desk cache
+    agent-desk cache warm --warm-hours 3
+    agent-desk cache off <paseo-id>
+    agent-desk standby [<paseo-id>]
+
+Commands default to the current session's `PASEO_AGENT_ID`. The user can
+name any local agent, and agents can change their own policy. The desk
+records changes made through the dashboard or CLI in its monthly ledger
+(`<desk>/render/ledger/`). Agent-quotas owns the policy and the scheduler.
+The desk uses `~/.local/state/agent-quotas/agent-quotas.sock` by default.
+Set `socket` under `[keeper]` in the desk's TOML config to use another Unix
+socket.
+
+When an answer or message targets a local Paseo agent with a probable cold
+cache and a large context, the dashboard offers **Cancel**, **Send anyway**
+and **Compact then send**. Compaction reads the full context once and can
+lose detail. It can save time and tokens when more turns follow. If you
+choose compaction, the thread says **waiting for compaction** until the
+keeper finishes. When a message includes a recording, the desk waits for
+transcription before requesting compaction. If compaction fails or is
+canceled, the desk sends the message and records the outcome in the thread.
+
+Without agent-quotas, the node panel reports its absence and the dashboard
+queues sends normally.
+
 ## Notes for agents only
 
 `agent-desk set --for agents <slot>` writes a slot only agents read: run

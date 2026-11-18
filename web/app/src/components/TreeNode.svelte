@@ -1,6 +1,7 @@
 <script>
   import TreeNode from './TreeNode.svelte';
   import CopyIds from './CopyIds.svelte';
+  import CacheControl from './CacheControl.svelte';
   import Icon from './Icon.svelte';
   import { route, href, go } from '../lib/route.svelte.js';
   import { stateClass } from '../lib/format.js';
@@ -49,6 +50,7 @@
       {#if node.unread}<span class="count" title="Unread">{node.unread}</span>{/if}
       {#if node.host}<span class="host">@{node.host}</span>{/if}
     </a>
+    {#if node.paseo}<CacheControl paseo={node.paseo} />{/if}
     <div class="tools">
       {#if node.paseo}<CopyIds paseo={node.paseo} keys={false} />{/if}
       {#if node.depth >= 3}

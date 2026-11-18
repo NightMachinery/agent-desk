@@ -42,8 +42,9 @@ type App struct {
 	// HTTP sends Web Push messages; nil is a default client.
 	HTTP *http.Client
 
-	st  *store.Store
-	cfg *config.Config
+	st             *store.Store
+	cfg            *config.Config
+	compactForSend func(job, sendProgress)
 }
 
 // liveTTL bounds how stale the Paseo statuses behind node states may be.
@@ -185,6 +186,9 @@ User side:
                                       show only a set's items, and notify only for them;
                                       no argument prints the focus
   agent-desk quota list [--format json]   Paseo agents stopped at a usage limit ([quota])
+  agent-desk cache                     show this Paseo agent's cache state
+  agent-desk cache warm|compact|off [--warm-hours N] [<paseo-id>]
+  agent-desk standby [<paseo-id>]       end warming and switch to compact
   agent-desk quota auto-continue on|off <paseo-id>
   agent-desk quota dismiss|undismiss <paseo-id>   hide it from Out of quota until it runs again
   agent-desk quota ask-parent <paseo-id> [--dry-run]   ask its parent to hand its role on
@@ -293,6 +297,8 @@ func (a *App) run(args []string) error {
 		return a.cmdTask(rest)
 	case "screen":
 		return a.cmdScreen(rest)
+	case "cache", "standby":
+		return a.cmdCache(cmd, rest)
 	case "quota":
 		return a.cmdQuota(rest)
 	case "get":

@@ -279,6 +279,15 @@ take it for work that runs headless, in the background or without focus,
 such as a headless browser's screenshots: that does not disturb the user.
 If the user denies it, do not ask again at once; ask them what to do instead.
 
+## Paseo prompt cache
+
+When you expect to be woken within a few hours, for example after a child
+finishes, the user replies, or CI reports, run `agent-desk cache warm`. Use
+`--warm-hours N` when the default six-hour idle window does not fit. When
+you are done or are blocked on something unlikely to clear within six
+hours, run `agent-desk standby` to end warming and switch to compaction.
+These commands use your Paseo agent and need agent-quotas running locally.
+
 ## Ending
 
 `agent-done` files your done report and sets `status` for you where it is
