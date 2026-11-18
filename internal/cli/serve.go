@@ -340,7 +340,7 @@ func (s *server) userApp() (*App, *bytes.Buffer, *bytes.Buffer) {
 	var out, errb bytes.Buffer
 	base := s.a
 	app := App{Env: base.Env, Now: base.Now, Host: base.Host, Home: base.Home,
-		WaitHooks: base.WaitHooks, Exec: base.Exec, HTTP: base.HTTP, st: base.st}
+		WaitHooks: base.WaitHooks, Exec: base.Exec, HTTP: base.HTTP, st: base.st, storedDesk: s.storedDesk}
 	get := base.Env.Getenv
 	app.Env.Getenv = func(k string) string {
 		if agentVars[k] || get == nil {

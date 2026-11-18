@@ -45,6 +45,7 @@ type App struct {
 	st             *store.Store
 	cfg            *config.Config
 	compactForSend func(job, sendProgress)
+	storedDesk     func() (*desk.Desk, string, error) // stamp-checked shared snapshot when serving
 }
 
 // liveTTL bounds how stale the Paseo statuses behind node states may be.
@@ -247,12 +248,27 @@ func (a *App) store() (*store.Store, error) {
 	return st, nil
 }
 
-func (a *App) load() (*desk.Desk, error) {
+func (a *App) loadEvents() (*desk.Desk, error) {
+	if a.storedDesk != nil {
+		stored, _, err := a.storedDesk()
+		if err != nil {
+			return nil, err
+		}
+		// Each caller owns its clock and live statuses. The indexed event
+		// data remains immutable across requests and queue passes.
+		d := *stored
+		d.Now = a.Now()
+		return &d, nil
+	}
 	st, err := a.store()
 	if err != nil {
 		return nil, err
 	}
-	d, err := desk.Load(st, a.Host, a.Now())
+	return desk.Load(st, a.Host, a.Now())
+}
+
+func (a *App) load() (*desk.Desk, error) {
+	d, err := a.loadEvents()
 	if err == nil {
 		d.Live = a.paseoLive()
 	}

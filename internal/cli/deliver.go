@@ -487,7 +487,7 @@ func (a *App) deliverPending(only string, webOnly bool) (failed int, changed boo
 	if err != nil {
 		return 0, false, next, err
 	}
-	d, err := desk.Load(st, a.Host, a.Now())
+	d, err := a.loadEvents()
 	if err != nil {
 		return 0, false, next, err
 	}
