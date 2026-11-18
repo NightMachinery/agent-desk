@@ -61,3 +61,5 @@ delivered and where you are notified, per project, run or agent.
 ## License
 
 MIT
+
+The dashboard can also record and transcribe voice messages. See [Voice transcription](docs/usage.md#dashboard-voice-transcription).

@@ -288,6 +288,7 @@
         <Composer
           id="answer-box"
           draft={'answer:' + it.display_id}
+          voiceNode={['set', 'clear', 'link'].includes(e.kind) ? e.path.slice(0, e.path.lastIndexOf('/')) : e.path}
           label={e.meta?.choices ? 'A message with your answers (optional)' : 'Answer'}
           placeholder={e.meta?.choices ? 'Anything that is not about one question…' : 'Type your answer…'}
           compose={e.meta?.choices ? (t) => choiceLines + (t.trim() ? '\n\n' + t.trim() : '') : null}
@@ -306,6 +307,7 @@
         <Composer
           id="reply-box"
           draft={'reply:' + it.display_id}
+          voiceNode={['set', 'clear', 'link'].includes(e.kind) ? e.path.slice(0, e.path.lastIndexOf('/')) : e.path}
           label={`Message ${agentName(item.target.agent)}`}
           placeholder={isQuestion && !item.answered ? 'Or say something else to the agent…' : 'Say something to the agent that wrote this…'}
           hint={isQuestion && !item.answered ? '' : viaText(item.target)}

@@ -14,9 +14,11 @@
   import Detail from './components/Detail.svelte';
   import NodePanel from './components/NodePanel.svelte';
   import Settings from './components/Settings.svelte';
+  import Recordings from './components/Recordings.svelte';
   import SetEditor from './components/SetEditor.svelte';
   import { setsUi } from './lib/sets.svelte.js';
 
+  let showRecordings = $state(false);
   // API responses are replaced as a unit, so rows can read plain objects.
   let view = $state.raw(null);
   let globalView = $state.raw(null);
@@ -157,6 +159,10 @@
         <h1>Settings</h1>
         <p class="faint lede">How a message reaches a busy agent, and where you are notified. An override set here applies to everything under it, unless something nearer says otherwise.</p>
         <Settings path={route.path} stamp={view?.stamp} onchange={refresh} />
+        <details ontoggle={(event) => (showRecordings = event.currentTarget.open)}>
+          <summary>Recordings</summary>
+          {#if showRecordings}<Recordings />{/if}
+        </details>
       </section>
     {:else if view?.node}
       <NodePanel node={view.node} target={view.target} conversation={view.conversation} stamp={view.stamp} onchange={refresh} />

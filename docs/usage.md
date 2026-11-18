@@ -1005,3 +1005,42 @@ copies the files each side keeps and the other lacks (`agent-desk media
 list|cat|put` on the other side), and `merge <file>` copies them from the
 `media/` directory next to that file. A file that has not arrived shows as
 "not fetched yet". `import` brings no files.
+
+## Dashboard voice transcription
+
+Use **Record voice** beside an answer or message box. Speak while the desk
+shows the partial transcript, then select **Stop recording**. The final
+transcript goes into the message as a fenced `speech-to-text` block. Phone
+recording requires opening the dashboard over HTTPS.
+
+The running desk server owns transcription. Its config can select a backend
+and set the recording retention period.
+
+```toml
+[voice]
+stt_backend = "paseo"
+keep_days = 7
+```
+
+- `paseo` is the default. It connects to the local running Paseo daemon
+  using its own runtime endpoint and local credential. The daemon chooses the
+  speech engine. Paseo defaults to local Parakeet through sherpa-onnx and can
+  be configured to use another engine.
+- `handy` uses the local Unix control socket of a Handy build with live
+  socket transcription. Open Handy and select a streaming-capable model.
+  Set `handy_socket` to the absolute socket path if Handy and the desk use
+  different temporary directories.
+- `command` runs the `command` string under `sh` and streams signed 16-bit
+  little-endian PCM at 16 kHz (mono) to stdin. The program should read audio
+  as it arrives, print newline-delimited JSON objects such as
+  `{"type":"partial","text":"so far"}` and
+  `{"type":"final","text":"finished text"}` to stdout, and exit successfully
+  after stdin reaches EOF. Configure the command to make it available for
+  retries with that backend too.
+
+**Recordings** is available beside the composer and globally under
+**Settings**. Recordings stay available for seven days from capture by default.
+`voice.keep_days = 0` keeps them until manually deleted. `agent-desk gc`
+prunes recordings independently of attachment retention, and
+`agent-desk gc --dry-run` previews both. Recordings are kept on the server
+that received them, under its media directory.

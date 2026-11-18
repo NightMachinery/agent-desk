@@ -149,3 +149,24 @@ The API, all JSON:
 - `GET api/auto-continue?paseo=`: `{available, on}` for one agent, for the
   node panel's checkbox.
 - `GET api/health`: `ok`.
+
+## Voice recordings
+
+Voice capture needs a secure browser context (HTTPS or localhost).
+The AudioWorklet converts the microphone feed to 16 kHz mono PCM and the
+browser posts a chunk every quarter second. Requests use the same origin
+checks as attachment uploads. The server writes a playable WAV file and
+passes the audio to the configured transcriber. The composer shows the
+partial text as the transcriber reports it.
+
+The phone and desktop use the same textarea. A voice token marks the insertion
+point during transcription. Backspace or Delete at the boundary removes the
+whole token, and cutting and pasting the token moves it. Typing inside a token
+moves the caret past it. The text replaces that token as a
+`speech-to-text` Markdown block. If a recording has disappeared from the
+draft, Send asks whether to put it at the end or leave it out.
+
+Open **Recordings** beside the composer to play audio, retry transcription,
+insert a transcript into your draft, or delete an entry. Settings contains
+the list for all agents on that desk. The composer waits for recordings in the
+draft to finish before it enables Send.

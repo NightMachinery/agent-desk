@@ -42,6 +42,14 @@ export async function upload(file) {
   );
 }
 
+export async function uploadVoice(name, offset, audio) {
+  return parse(await fetch(`./api/${name}/chunk?offset=${offset}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/octet-stream', 'X-Agent-Desk': '1' },
+    body: audio,
+  }));
+}
+
 /** Calls onChange whenever the store changes; reports the connection. */
 export function watch(onChange, onStatus) {
   let es;

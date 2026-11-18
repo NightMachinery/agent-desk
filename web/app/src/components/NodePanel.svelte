@@ -135,6 +135,7 @@
         <Composer
           id={compact ? undefined : 'reply-box'}
           draft={'node:' + node.path}
+          voiceNode={node.path}
           label={`Message the ${kind.toLowerCase()}'s coordinator`}
           placeholder="Tell it something, steer it, or ask what it is doing…"
           hint={viaText(target)}
