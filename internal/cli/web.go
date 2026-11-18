@@ -210,6 +210,7 @@ func prefsView(d *desk.Desk, r *settings.Resolver, path, class string) PrefsView
 		"deliver.behavior": {"steer", "queue"},
 		"notify.desktop":   {"none", "origin", "all"},
 		"notify.remote":    {"off", "away", "always"},
+		"notify.push":      {"off", "away", "always"},
 	}
 	for _, k := range settings.Keys {
 		c := class

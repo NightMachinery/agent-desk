@@ -42,6 +42,7 @@ type route struct {
 	desktop string // none, origin, all, or host names separated by commas
 	remote  string // off, away or always
 	dest    string
+	push    string // off, away or always
 }
 
 // onDesktop reports whether host shows the event's desktop notification.
@@ -67,7 +68,7 @@ func (r route) onDesktop(host, origin string) bool {
 // (meta.notify on the message a response responds to), then the settings.
 // A quiet response, and an event of no class, go nowhere.
 func routeOf(d *desk.Desk, r *settings.Resolver, e store.Event) route {
-	rt := route{class: desk.ClassOf(e), desktop: "none", remote: "off"}
+	rt := route{class: desk.ClassOf(e), desktop: "none", remote: "off", push: "off"}
 	if rt.class == "" || (rt.class == "response" && desk.Meta(e)["quiet"] == true) {
 		return rt
 	}
@@ -75,6 +76,7 @@ func routeOf(d *desk.Desk, r *settings.Resolver, e store.Event) route {
 	rt.desktop, _ = r.Resolve("notify.desktop", node, rt.class)
 	rt.remote, _ = r.Resolve("notify.remote", node, rt.class)
 	rt.dest, _ = r.Resolve("notify.remote.dest", node, rt.class)
+	rt.push, _ = r.Resolve("notify.push", node, rt.class)
 	if rt.class == "response" {
 		if msg, ok := d.ByID[e.Ref]; ok && (msg.Kind == "reply" || msg.Kind == "answer") {
 			var m struct {
@@ -159,14 +161,25 @@ func closer(d *desk.Desk, item store.Event) (store.Event, bool) {
 	return found, !d.Unread(item.ID)
 }
 
-// takeBacks are the notifications this host should take back now.
-func (a *App) takeBacks(d *desk.Desk) []Notice {
+// takeBacks are the notifications this host should take back now: its own
+// desktop cards and pushes, and any remote notification (its handle is in
+// the event), each when this host has the means.
+func (a *App) takeBacks(d *desk.Desk, c config.Config) []Notice {
 	byItem, retracted := notices(d)
 	var out []Notice
 	for id, ns := range byItem {
 		var mine []Notice
 		for _, n := range ns {
-			if !retracted[n.Event.ID] && (n.Channel != "desktop" || n.Host == a.Host) {
+			ours := false
+			switch n.Channel {
+			case "push":
+				ours = n.Host == a.Host && !c.Push.Off
+			case "desktop":
+				ours = n.Host == a.Host && c.DismissCommand != ""
+			default:
+				ours = c.DismissCommand != ""
+			}
+			if ours && !retracted[n.Event.ID] {
 				mine = append(mine, n)
 			}
 		}
@@ -215,7 +228,8 @@ func (a *App) announce(evs []store.Event, imported, force bool) {
 		fmt.Fprintf(a.Stderr, "agent-desk: warning: %v\n", err)
 		return
 	}
-	if c.NotifyCommand == "" && c.DismissCommand == "" {
+	pushOn := a.pushOn(c)
+	if c.NotifyCommand == "" && c.DismissCommand == "" && !pushOn {
 		return
 	}
 	d, err := a.load()
@@ -227,9 +241,11 @@ func (a *App) announce(evs []store.Event, imported, force bool) {
 	var raise []string
 	byItem, _ := notices(d)
 	for _, e := range evs {
-		if c.NotifyCommand != "" && a.raisable(d, e, imported, force) {
+		if a.raisable(d, e, imported, force) {
 			rt := routeOf(d, r, e)
-			if force || rt.onDesktop(a.Host, e.Host) || (!imported && (rt.remote != "off" || rt.desktop != "none")) {
+			notify := c.NotifyCommand != "" &&
+				(force || rt.onDesktop(a.Host, e.Host) || (!imported && (rt.remote != "off" || rt.desktop != "none")))
+			if notify || (pushOn && rt.push != "off") {
 				raise = append(raise, e.ID)
 			}
 		}
@@ -248,7 +264,7 @@ func (a *App) announce(evs []store.Event, imported, force bool) {
 			}
 		}
 	}
-	if len(raise) == 0 && (c.DismissCommand == "" || len(a.takeBacks(d)) == 0) {
+	if len(raise) == 0 && len(a.takeBacks(d, c)) == 0 {
 		return
 	}
 	args := []string{"notify-run"}
@@ -344,18 +360,33 @@ func (a *App) cmdNotifyRun(args []string) error {
 	var made []store.Event
 	push := map[string]bool{}
 	away, awayKnown := false, false
+	isAway := func() bool {
+		if !awayKnown {
+			away, awayKnown = a.away(c), true
+		}
+		return away
+	}
+	pushOn := a.pushOn(c)
+	notify := c.NotifyCommand != ""
 	for _, id := range o.pos {
 		e, ok := d.ByID[id]
 		if !ok || !a.raisable(d, e, imported, force) {
 			continue
 		}
 		rt := routeOf(d, r, e)
-		if (force || rt.onDesktop(a.Host, e.Host)) && !has(e.ID, "desktop", a.Host) {
+		if notify && (force || rt.onDesktop(a.Host, e.Host)) && !has(e.ID, "desktop", a.Host) {
 			if n, ok := a.raise(d, c, e, rt, "desktop", ""); ok {
 				made = append(made, n)
 			}
 		}
-		if imported {
+		// Pushes go from the machine the devices subscribed on, for events
+		// written there and those it imports.
+		if pushOn && (rt.push == "always" || (rt.push == "away" && isAway())) && !has(e.ID, "push", a.Host) {
+			if n, ok := a.pushRaise(d, c, e, rt); ok {
+				made = append(made, n)
+			}
+		}
+		if imported || !notify {
 			continue
 		}
 		for host := range c.SSHHosts {
@@ -363,10 +394,7 @@ func (a *App) cmdNotifyRun(args []string) error {
 				push[host] = true
 			}
 		}
-		if rt.remote == "away" && !awayKnown {
-			away, awayKnown = a.away(c), true
-		}
-		if (rt.remote == "always" || (rt.remote == "away" && away)) && !has(e.ID, "remote", "") {
+		if (rt.remote == "always" || (rt.remote == "away" && isAway())) && !has(e.ID, "remote", "") {
 			if n, ok := a.raise(d, c, e, rt, "remote", rt.dest); ok {
 				made = append(made, n)
 			}
@@ -394,16 +422,24 @@ func (a *App) cmdNotifyRun(args []string) error {
 // takeBack runs dismiss_command for each notification this host should take
 // back, and records it.
 func (a *App) takeBack(c config.Config) error {
-	if c.DismissCommand == "" {
-		return nil
-	}
 	d, err := a.load()
 	if err != nil {
 		return err
 	}
 	var made []store.Event
-	for _, n := range a.takeBacks(d) {
+	for _, n := range a.takeBacks(d, c) {
 		item := d.ByID[n.Item]
+		if n.Channel == "push" {
+			// One try: a device that missed it keeps the card until the
+			// user clears it.
+			if err := a.pushClose(c, n); err != nil {
+				fmt.Fprintf(a.Stderr, "agent-desk: warning: taking back push %s: %v\n", n.Handle, err)
+			}
+			x := a.event("retracted", item.Path, ident.From{}, "notify", map[string]any{"host": a.Host})
+			x.Ref = n.Event.ID
+			made = append(made, x)
+			continue
+		}
 		p := a.payload(d, "dismiss", item)
 		if cause, ok := closer(d, item); ok {
 			p.Cause = &cause
@@ -484,12 +520,16 @@ func itemURL(c config.Config, d *desk.Desk, e store.Event) string {
 	if c.BaseURL == "" {
 		return ""
 	}
-	base := strings.TrimRight(c.BaseURL, "/") + "/"
+	return strings.TrimRight(c.BaseURL, "/") + "/" + itemHash(d, e)
+}
+
+// itemHash is e's page relative to the dashboard.
+func itemHash(d *desk.Desk, e store.Event) string {
 	var segs []string
 	for _, s := range strings.Split(desk.NodeOf(e), "/") {
 		segs = append(segs, url.PathEscape(s))
 	}
-	return base + "#/p/" + strings.Join(segs, "/") + "?item=" + url.QueryEscape(d.Display(e.ID))
+	return "#/p/" + strings.Join(segs, "/") + "?item=" + url.QueryEscape(d.Display(e.ID))
 }
 
 // agentTitle names the agent behind e: its Paseo title when recorded, else

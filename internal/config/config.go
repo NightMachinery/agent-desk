@@ -42,6 +42,8 @@ type Config struct {
 	// Screen configures the screen lock, which an agent takes before it
 	// drives this machine's GUI ([screen]).
 	Screen Screen `toml:"screen"`
+	// Push configures Web Push to the installed dashboard ([push]).
+	Push Push `toml:"push"`
 	// Quota configures the "Out of quota" section ([quota]).
 	Quota Quota `toml:"quota"`
 	// Instructions configures the prompt hook that records the user's
@@ -239,6 +241,16 @@ type Screen struct {
 
 // Idle is IdleMinutes or its default.
 func (s Screen) Idle() int { return intOr(s.IdleMinutes, 30) }
+
+// Push is the [push] table: Web Push to the browsers that subscribed in the
+// dashboard's settings.
+type Push struct {
+	// Subject is the contact the desk gives push services (a mailto: or
+	// https: URL); the default names the software, not you.
+	Subject string `toml:"subject"`
+	// Off stops pushing without forgetting the subscriptions.
+	Off bool `toml:"off"`
+}
 
 // Quota is the [quota] table: Paseo agents stopped at a usage limit.
 type Quota struct {

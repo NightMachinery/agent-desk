@@ -19,7 +19,7 @@ import (
 )
 
 // Keys are the settings there are, in display order.
-var Keys = []string{"deliver.behavior", "notify.desktop", "notify.remote", "notify.remote.dest"}
+var Keys = []string{"deliver.behavior", "notify.desktop", "notify.remote", "notify.remote.dest", "notify.push"}
 
 // Classes are the kinds of event a setting can be set for, besides Any.
 var Classes = []string{"ask-blocked", "ask-default", "response", "tell-notify", "tell", "done"}
@@ -56,12 +56,12 @@ func Check(key, value string) error {
 			}
 		}
 		return nil
-	case "notify.remote":
+	case "notify.remote", "notify.push":
 		switch value {
 		case "off", "away", "always":
 			return nil
 		}
-		return fmt.Errorf("notify.remote is off, away or always, not %q", value)
+		return fmt.Errorf("%s is off, away or always, not %q", key, value)
 	case "notify.remote.dest":
 		if strings.TrimSpace(value) == "" {
 			return fmt.Errorf("notify.remote.dest needs a value")
@@ -100,6 +100,13 @@ func BuiltIn(key, class string) string {
 	case "notify.remote":
 		if class == "ask-blocked" || class == "response" {
 			return "away"
+		}
+		return "off"
+	case "notify.push":
+		// Pushed to the devices that subscribed: a phone hears at once
+		// about what stops an agent.
+		if class == "ask-blocked" {
+			return "always"
 		}
 		return "off"
 	}

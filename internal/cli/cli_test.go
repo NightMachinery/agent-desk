@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -39,6 +40,8 @@ type harness struct {
 	respond func(name string, args []string) (string, error)
 	// real names the programs that run for real, recorded in calls too.
 	real map[string]bool
+	// httpc sends Web Push (to a fake push service).
+	httpc *http.Client
 }
 
 func newHarness(t *testing.T) *harness {
@@ -94,6 +97,7 @@ func (h *harness) app(env map[string]string, stdin string) (*App, *bytes.Buffer,
 		Host:      h.host,
 		Home:      h.desk,
 		WaitHooks: true,
+		HTTP:      h.httpc,
 		Exec: func(ctx context.Context, stdin []byte, name string, args ...string) (string, error) {
 			call := name + " " + strings.Join(args, " ")
 			if stdin != nil {

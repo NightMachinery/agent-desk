@@ -37,7 +37,7 @@ func TestPref(t *testing.T) {
 	}
 	var v SettingsView
 	must(t, json.Unmarshal([]byte(h.ok(nil, "", "pref", "show", "example-proj/r1/coord", "--class", "ask-blocked", "--format", "json")), &v))
-	if len(v.Settings) != 3 || len(v.Overrides) != 2 || v.Settings[2].Origin.Scope != "example-proj/r1" {
+	if len(v.Settings) != 4 || len(v.Overrides) != 2 || v.Settings[2].Origin.Scope != "example-proj/r1" {
 		t.Fatalf("json: %+v", v)
 	}
 

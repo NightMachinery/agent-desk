@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -37,6 +38,8 @@ type App struct {
 	WaitHooks bool
 	// Exec, when set, replaces running paseo and tmux for delivery, for tests.
 	Exec Runner
+	// HTTP sends Web Push messages; nil is a default client.
+	HTTP *http.Client
 
 	st  *store.Store
 	cfg *config.Config
@@ -143,7 +146,7 @@ User side:
   agent-desk pref unset <key> [--scope PATH] [--class C]
   agent-desk pref show [<path>] [--class C] [--format json]
                                       settings: deliver.behavior, notify.desktop,
-                                      notify.remote, notify.remote.dest
+                                      notify.remote, notify.remote.dest, notify.push
   agent-desk quota list [--format json]   Paseo agents stopped at a usage limit ([quota])
   agent-desk quota auto-continue on|off <paseo-id>
   agent-desk quota ask-parent <paseo-id> [--dry-run]   ask its parent to hand its role on

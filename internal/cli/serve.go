@@ -146,6 +146,8 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("POST /api/unread", s.write(s.apiUnread))
 	mux.HandleFunc("POST /api/task", s.write(s.apiTask))
 	mux.HandleFunc("POST /api/screen", s.write(s.apiScreen))
+	mux.HandleFunc("GET /api/push", s.apiPush)
+	mux.HandleFunc("POST /api/push", s.apiPushAct)
 	mux.HandleFunc("GET /api/quota", s.apiQuota)
 	mux.HandleFunc("POST /api/quota", s.write(s.apiQuotaAct))
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
