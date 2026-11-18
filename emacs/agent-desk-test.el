@@ -74,7 +74,20 @@
     (should (equal (agent-desk--choice-answer "1. b keep the seed\n2. A, c" choices)
                    "1. B: Regenerate. Note: keep the seed\n2. A, C: x; z"))
     (should (equal (agent-desk--choice-answer "1. neither, ask me later\n\nThanks." choices)
-                   "1. Other: neither, ask me later\n2. (no answer)\n\nThanks."))))
+                   "1. Other: neither, ask me later\n2. (no answer)\n\nThanks."))
+    (should (equal (agent-desk--choice-answer "1. B-keep it" choices)
+                   "1. B: Regenerate. Note: keep it\n2. (no answer)"))))
+
+(ert-deftest agent-desk-test-choice-answer-hyphen-keys ()
+  ;; A key with hyphens is read whole, not as its first word plus a note.
+  (let ((choices '((questions . [((text . "Hunk 1") (options . [((key . "both") (label . "Both, upstream first"))
+                                                              ((key . "both-local-first") (label . "Both, local first"))]))]))))
+    (should (equal (agent-desk--choice-answer "1. both-local-first" choices)
+                   "1. both-local-first: Both, local first"))
+    (should (equal (agent-desk--choice-answer "1. both - keep order" choices)
+                   "1. both: Both, upstream first. Note: keep order"))
+    (should (equal (agent-desk--choice-answer "1. both-x" choices)
+                   "1. both: Both, upstream first. Note: x"))))
 
 (ert-deftest agent-desk-test-commands ()
   (agent-desk-test--with-stub

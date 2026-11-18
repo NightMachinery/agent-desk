@@ -196,7 +196,16 @@ general message after the picks."
                                                     opts))))
               (cond
                ((string-empty-p s) (format "%d. (no answer)" (1+ i)))
-               ((string-match "\\`\\([[:alnum:]]+\\(?:\\s-*,\\s-*[[:alnum:]]+\\)*\\)\\(?:[ \t:;.-]+\\(.*\\)\\)?\\'" s)
+               ;; Keys may contain hyphens (both-local-first); when the
+               ;; hyphenated reading names no option, "B-note" still reads
+               ;; as key B with a note.
+               ((let ((case-fold-search nil))
+                  (cl-some (lambda (k)
+                             (and (string-match
+                                   (format "\\`\\(%s\\(?:\\s-*,\\s-*%s\\)*\\)\\(?:[ \t:;.-]+\\(.*\\)\\)?\\'" k k) s)
+                                  (save-match-data
+                                    (not (memq nil (mapcar key-of (split-string (match-string 1 s) "\\s-*,\\s-*" t)))))))
+                           '("[[:alnum:]_-]*[[:alnum:]]" "[[:alnum:]]+")))
                 (let* ((keys (split-string (match-string 1 s) "\\s-*,\\s-*" t))
                        (note (string-trim (or (match-string 2 s) "")))
                        (os (mapcar key-of keys)))
