@@ -118,9 +118,36 @@ variable (children inherit the parent's environment, which is how
     agent-desk join rerun-nov/coord/eval-lead    #: nested coordinator
     agent-desk join rerun-nov/coord --takeover   #: replacement coordinator
 
-- `join` appends a `join` event binding this session id to the node.
-- A node bound to another session refuses `join` without `--takeover`. After
-  a takeover the old session's writes are refused.
+- `join` appends a `join` event binding this session id to the node, and adds
+  the node to the nodes the session **holds**. A session holds a node while
+  the node's latest join came from this session on this host and the session
+  has not left it since. Re-joining a held node is harmless.
+- A node held by another session refuses `join` without `--takeover`. A
+  takeover drops the node from the old session's held set, so its writes there
+  are refused. A node whose holder left it is free to join.
+- `leave <node>...` appends a `leave` event: the session no longer holds the
+  node. Leaving the last one makes the session nodeless again (its next write
+  auto-joins as below). The tree stops following the leaver's Paseo agent at
+  that node. An older binary skips `leave` on merge, as it skips any kind it
+  does not know.
+- While a session holds one node, every write goes there. While it holds
+  several, every command that means "this session's node" (`ask`, `tell`,
+  `set`, `clear`, `link`, `done`, `task add`, and the reads `get`,
+  `show --mine`, `instructions`) refuses without `--node PATH` and lists the
+  held nodes. `--node` takes a held node by its full path or relative to its
+  project (`run/role`, as `join` takes it; refused when it matches more than
+  one). It never reaches a node the session does not hold, so a worker still
+  cannot write as its parent. There is no fallback to the latest node: a
+  silent misfile is what this rule prevents. Two exceptions: `tell --re`
+  goes to the node of the message or answer it responds to when the session
+  holds that node, and `task add --node` still files for any node by its full
+  path, as the user's own filing does.
+- Old data: a session that moved between nodes with successive joins, before
+  sessions could hold several, now holds every one of them it still owns, and
+  gets the refusal until it passes `--node` or leaves the nodes it no longer
+  works on. The refusal says so.
+- Messages and answers reach a node's owner (its latest join), so they reach
+  the session for every node it holds.
 - A nested coordinator joins only under a node that has been joined.
 - A write from a session with no binding: if the session has no parent agent,
   auto-join `adhoc/<slug>` (slug from the Paseo title or the session's short
@@ -179,7 +206,7 @@ variable (children inherit the parent's environment, which is how
 - Display ids: kind letter plus the shortest unique suffix of the ULID's
   random part, at least 4 characters (`q-7f3a`, `t-k2m9`). Letters: `q` ask,
   `a` answer, `t` tell, `d` done, `s` set, `c` clear, `l` link, `j` join,
-  `r` read, `v` delivered, `m` reply. Commands accept the display id, the part after the
+  `o` leave, `r` read, `v` delivered, `m` reply. Commands accept the display id, the part after the
   dash, any unique prefix of that part, or a full ULID.
 
 Event semantics:
@@ -223,7 +250,10 @@ prints one line: the display id or `ok`.
 
 Agent side:
 
-    agent-desk join <run>/<role-path> [--takeover]
+    agent-desk join <run>/<role-path> [--takeover]     #: adds to the held nodes
+    agent-desk leave <node>...                         #: drops held nodes
+    agent-desk whoami                                  #: held nodes, one per line
+    #: with several held, each write below takes --node PATH
     agent-desk ask --blocked --title T                 <<'Q' ... Q
     agent-desk ask --default 'A: reuse the cache' --title T <<'Q' ... Q
     agent-desk tell [--notify] --title T               <<'R' ... R

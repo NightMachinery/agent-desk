@@ -27,6 +27,23 @@ agent ids). The project is the repository you are in (`--project` to
 override). A session working alone with the user can skip `join`; its first
 write joins it to `<project>/adhoc/<slug>`.
 
+**A second, unrelated run in the same session gets its own node.** If the user
+starts you on separate work while you still coordinate a run, `join` a node for
+it (`agent-desk join ablation-dec/coord`); do not file it under the first run,
+where the user will not look for it. Join adds a node: you now hold both. From
+then on every write needs `--node` saying which run it is for:
+
+    agent-desk ask --blocked --title T --node ablation-dec/coord <<'Q' ... Q
+    agent-desk set status 'seeds 3/5' --node rerun-nov/coord
+    agent-desk done --title 'Ablation finished' --node ablation-dec/coord
+    agent-desk leave ablation-dec/coord    # finished with it: back to one node
+
+`--node` takes the path relative to the project (`run/role`) or in full, and
+only nodes you hold. `tell --re` needs none: the message names its node. A write without it is refused with the list of your
+nodes; never guess, and leave a node once you have finished its work (after
+its `done`) so single-node writes work again. Workers still never write: a
+nested node is yours only if you joined it.
+
 **Workers do not write.** If another agent started you (a Paseo child, a tmux
 subagent), report to that agent; `agent-desk` refuses you anyway. Your parent
 can give you a node with `join` if the work calls for it. An in-process
@@ -290,7 +307,7 @@ them to the dashboard's Notify chip.
 
 ## Looking things up
 
-    agent-desk whoami                 # your node, or exit 1 if you have not joined
+    agent-desk whoami                 # your nodes, one per line, or exit 1 if you hold none
     agent-desk show --mine            # your node: open questions, slots, messages awaiting you
     agent-desk show rerun-nov         # one run
     agent-desk search 'leakage'

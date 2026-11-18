@@ -26,7 +26,8 @@ work there. To combine machines, merge their stores (below).
   Writing it replaces the text shown; the old text stays as an older event.
 - **Display id**: the short id printed by every write, such as `q-7f3a`. The
   letter is the kind (`q` question, `a` answer, `t` notice, `d` done report,
-  `s` slot text, `l` linked slot, `c` cleared slot, `j` join, `r` read mark).
+  `s` slot text, `l` linked slot, `c` cleared slot, `j` join, `o` leave,
+  `r` read mark).
   Commands accept the display id, its part after the dash, any unique prefix of
   that part, or a full id.
 
@@ -41,9 +42,35 @@ Only coordinators write. A coordinator first joins a node:
     agent-desk join rerun-nov/coord --takeover   # replacing a coordinator
 
 The project is the repository the working directory is in (`--project` to
-override). A node already bound to another session refuses `join` unless
+override). A node already held by another session refuses `join` unless
 `--takeover` is given, and the session it was taken from can no longer write
 there. A nested coordinator can only join under a node someone has joined.
+
+A session **holds** every node it joined, until it leaves the node or another
+session takes it over. One session can coordinate two unrelated runs this way:
+
+    agent-desk join rerun-nov/coord
+    agent-desk join ablation-dec/coord
+    agent-desk whoami                       # both, one per line
+    agent-desk set status 'x'               # refused: which node?
+    agent-desk set status 'seeds 3/5' --node rerun-nov/coord
+    agent-desk ask --blocked --title T --node ablation-dec/coord <<'Q' ... Q
+    agent-desk done --title 'Ablation finished' --node ablation-dec/coord
+    agent-desk leave ablation-dec/coord     # back to one node: no --node needed
+
+While a session holds one node, nothing changes. While it holds several, `ask`,
+`tell`, `set`, `clear`, `link`, `done` and `task add` (and `get`,
+`show --mine` and `instructions`) refuse without `--node PATH`, listing the
+held nodes; there is no default. (`tell --re` needs no `--node`: the message
+it responds to names the node.) `--node` takes the full path
+(`project/run/role`) or one relative to the project, and only a node the
+session holds. `leave` drops a node; a node its holder left is free for
+another session to join. Messages and answers to any held node reach the
+session.
+
+A session that switched nodes by joining again, before a session could hold
+several, now holds all the nodes it still owns. It gets the refusal until it
+passes `--node`, or runs `agent-desk leave` on the nodes it has finished with.
 
 A session that never joined and has no parent agent is joined automatically to
 `<project>/adhoc/<slug>` on its first write. A session with a parent agent (a
@@ -148,7 +175,8 @@ You may respond to a message sent to your node, or to an answer to one of
 your questions; anything else is refused. A message with no response 15
 minutes after it was delivered is flagged "no response yet", and
 `show --mine` lists every message still awaiting your response.
-`agent-desk whoami` prints the node this session writes to.
+`agent-desk whoami` prints the nodes this session holds, one per line, and
+exits 1 when it holds none.
 
 A substantive answer to something the user asked in chat is filed the same
 way, with the question in one line instead of an id:
@@ -860,6 +888,9 @@ hand-kept file. Agents read them back:
     agent-desk instructions tdesktop/rerun-nov [--since 2d] [--format json]
 
 They never appear in the inbox, the dashboard lists or notifications.
+
+A session holding several nodes keeps each prompt under every one of them;
+`instructions` shows such a prompt once.
 
 What is recorded: only sessions that have joined a node, only coordinators
 (a tmux worker's prompts are typed by its parent), and only prompts the user
