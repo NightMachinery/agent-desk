@@ -597,10 +597,13 @@ func (d *Desk) Tree(f Filter) []*Node {
 		if !q.Open() || !counted.Keep(q.Event) {
 			continue
 		}
+		// A dismissed question stays open but no longer needs the user:
+		// it counts nowhere, as it shows nowhere but Show all.
+		if d.dismissed[q.ID] {
+			continue
+		}
 		for m := get(q.Event.Path); m != nil && m != root; m = nodes[parentOf(m.Path)] {
-			if !d.dismissed[q.ID] {
-				m.Open++
-			}
+			m.Open++
 			if q.Event.Level == "blocked" {
 				m.Blocked++
 			}

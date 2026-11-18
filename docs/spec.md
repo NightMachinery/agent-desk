@@ -250,7 +250,8 @@ User side:
 `read` on an open question named by its id **dismisses** it: the question
 leaves "Needs you" and the counts of open questions, and its notification is
 removed, but it stays open. Its agent is still blocked (or goes ahead with its
-default), its node still shows "waiting on you", `show --all` lists it marked
+default), but its node no longer shows "waiting on you" for it (the run tree
+agrees with Needs you); `show --all` lists it marked
 dismissed, `show --mine` keeps it in the agent's own view, and an answer still
 closes it. `unread` undoes a dismissal. Marking a node read never dismisses the
 questions under it; only naming one does. Agent-side writes come only from

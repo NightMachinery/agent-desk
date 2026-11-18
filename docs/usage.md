@@ -349,8 +349,9 @@ slot, until marked read. A slot that changes is unread again. `status` slots
 are never unread; they are shown while their node is live.
 
 A **dismissed** question is an open question you marked read by its id. It
-leaves "Needs you" but stays open: its agent is still blocked (or goes ahead
-with its default), you can still answer it from `--all` or "Show all", and
+leaves "Needs you" and no longer makes its run show "waiting on you", but it
+stays open: its agent is still blocked (or goes ahead with its default), you
+can still answer it from `--all` or "Show all", and
 `unread` puts it back. Marking a node read never dismisses questions.
 
 A run that is finished (its root coordinator filed a done report), has no open

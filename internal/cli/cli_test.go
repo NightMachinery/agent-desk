@@ -387,8 +387,8 @@ func TestUnreadRules(t *testing.T) {
 	if len(h.showJSON("", false)["needs_you"].([]any)) != 1 {
 		t.Fatal("reading the project hid the open question")
 	}
-	// Naming a question dismisses it: out of Needs you, still open, and its
-	// agent still counts as waiting on you.
+	// Naming a question dismisses it: out of Needs you, still open, and no
+	// longer counted as waiting on you in the run tree.
 	_, errOut, code := h.run(nil, "", "read", q)
 	if code != 0 || !strings.Contains(errOut, "stays open") {
 		t.Fatalf("dismiss: %d %q", code, errOut)
@@ -401,7 +401,7 @@ func TestUnreadRules(t *testing.T) {
 		t.Fatalf("--all does not show the dismissed question: %v", all)
 	}
 	run := h.showJSON("", false)["runs"].([]any)[0].(map[string]any)
-	if run["state"] != "waiting on you" || run["open_questions"] != float64(0) {
+	if run["state"] == "waiting on you" || run["open_questions"] != float64(0) {
 		t.Fatalf("run of a dismissed question: state %v, open %v", run["state"], run["open_questions"])
 	}
 	if out := h.ok(a, "", "show", "--mine", "--format", "md"); !strings.Contains(out, "Which?") {
