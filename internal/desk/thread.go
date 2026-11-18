@@ -66,62 +66,91 @@ func (d *Desk) Root(e store.Event) (root store.Event, ok bool) {
 	return e, e.ID != ""
 }
 
-// Thread is every message, answer, delivery mark and response whose root is
-// the event id (or, with id empty, the node thread of path), in order.
-func (d *Desk) Thread(id, path string) []store.Event {
-	var out []store.Event
-	for _, e := range d.Events {
+// The thread indexes hold positions in Events. Root IDs and node paths have
+// separate keys because an imported node path can also look like an ID.
+type threadKey struct {
+	id, path string
+}
+
+type threadIndex struct {
+	entries   map[threadKey][]int
+	responses map[string][]int
+	delivered map[string]int
+	failed    map[string]int
+}
+
+func (d *Desk) indexThreads() {
+	d.threads = threadIndex{
+		entries:   map[threadKey][]int{},
+		responses: map[string][]int{},
+		delivered: map[string]int{},
+		failed:    map[string]int{},
+	}
+	for i, e := range d.Events {
 		x := e
-		if e.Kind == "delivered" {
+		switch e.Kind {
+		case "delivered":
+			d.threads.delivered[e.Ref] = i
+			delete(d.threads.failed, e.Ref)
 			x = d.ByID[e.Ref]
+		case "undelivered":
+			d.threads.failed[e.Ref] = i
 		}
 		if !inThread(x) {
 			continue
 		}
-		root, ok := d.Root(x)
-		if (id != "" && ok && root.ID == id) || (id == "" && !ok && NodeOf(x) == path) {
-			out = append(out, e)
+		if e.Kind == "tell" {
+			d.threads.responses[e.Ref] = append(d.threads.responses[e.Ref], i)
 		}
+		root, ok := d.Root(x)
+		k := threadKey{id: root.ID}
+		if !ok {
+			k = threadKey{path: NodeOf(x)}
+		}
+		d.threads.entries[k] = append(d.threads.entries[k], i)
+	}
+}
+
+func (d *Desk) threadEvents(indices []int) []store.Event {
+	if len(indices) == 0 {
+		return nil
+	}
+	out := make([]store.Event, len(indices))
+	for i, at := range indices {
+		out[i] = d.Events[at]
 	}
 	return out
+}
+
+// Thread is every message, answer, delivery mark and response whose root is
+// the event id (or, with id empty, the node thread of path), in order.
+func (d *Desk) Thread(id, path string) []store.Event {
+	if id != "" {
+		path = ""
+	}
+	return d.threadEvents(d.threads.entries[threadKey{id: id, path: path}])
 }
 
 // ResponsesTo are the responses to message or answer id, oldest first.
 func (d *Desk) ResponsesTo(id string) []store.Event {
-	var out []store.Event
-	for _, e := range d.Events {
-		if IsResponse(e) && e.Ref == id {
-			out = append(out, e)
-		}
-	}
-	return out
+	return d.threadEvents(d.threads.responses[id])
 }
 
 // Delivery is the delivered mark of message id, if any.
 func (d *Desk) Delivery(id string) (store.Event, bool) {
-	var found store.Event
-	for _, e := range d.Events {
-		if e.Kind == "delivered" && e.Ref == id {
-			found = e
-		}
+	if i, ok := d.threads.delivered[id]; ok {
+		return d.Events[i], true
 	}
-	return found, found.ID != ""
+	return store.Event{}, false
 }
 
 // DeliveryFailure is the latest failed attempt to deliver message id, if
 // it has not been delivered since.
 func (d *Desk) DeliveryFailure(id string) (store.Event, bool) {
-	var found store.Event
-	for _, e := range d.Events {
-		switch {
-		case e.Ref != id:
-		case e.Kind == "undelivered":
-			found = e
-		case e.Kind == "delivered":
-			found = store.Event{}
-		}
+	if i, ok := d.threads.failed[id]; ok {
+		return d.Events[i], true
 	}
-	return found, found.ID != ""
+	return store.Event{}, false
 }
 
 // Marked reports whether the user's latest read mark on id stands.
@@ -131,7 +160,7 @@ func (d *Desk) Marked(id string) bool { return d.marked[id] }
 // has not been marked read: it waits for its agent to respond.
 func (d *Desk) Awaiting(id string) bool {
 	e := d.ByID[id]
-	if e.Kind != "reply" || d.marked[id] || len(d.ResponsesTo(id)) > 0 {
+	if e.Kind != "reply" || d.marked[id] || len(d.threads.responses[id]) > 0 {
 		return false
 	}
 	_, ok := d.Delivery(id)

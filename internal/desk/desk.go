@@ -53,6 +53,7 @@ type Desk struct {
 	marked    map[string]bool // events whose latest read mark stands
 	pins      []string        // pin keys, most recently pinned first
 	slots     []store.Event   // slot_current minus clears
+	threads   threadIndex
 
 	// Live maps a Paseo agent id on this machine to its status ("running",
 	// "idle", "error", or "archived"); nil when unknown. An agent node whose
@@ -78,6 +79,7 @@ func Load(s *store.Store, host string, now time.Time) (*Desk, error) {
 		all[i] = e.ID
 	}
 	d.Table = ids.NewTable(all)
+	d.indexThreads()
 	if d.Questions, err = s.Questions(); err != nil {
 		return nil, err
 	}
