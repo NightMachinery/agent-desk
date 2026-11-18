@@ -23,13 +23,17 @@
   // group's newest item on top, and the groups of the project with the newest
   // item first; in Needs you, blocked questions still come before defaults.
   function recent(groups, blockedFirst) {
-    const newest = (g) => g.items.reduce((m, it) => (it.event.id > m ? it.event.id : m), '');
-    const byProject = {};
-    for (const g of groups) if (newest(g) > (byProject[g.project] ?? '')) byProject[g.project] = newest(g);
+    const byProject = new Map();
     const rank = (it) => (blockedFirst && it.event.level === 'blocked' ? 0 : 1);
-    return groups
-      .map((g) => ({ ...g, items: [...g.items].sort((a, b) => rank(a) - rank(b) || (a.event.id < b.event.id ? 1 : -1)) }))
-      .sort((a, b) => byProject[b.project].localeCompare(byProject[a.project]) || newest(b).localeCompare(newest(a)));
+    const ranked = groups.map((group) => {
+      const newest = group.items.reduce((m, it) => (it.event.id > m ? it.event.id : m), '');
+      if (!byProject.has(group.project) || newest > byProject.get(group.project)) byProject.set(group.project, newest);
+      const items = [...group.items].sort((a, b) => rank(a) - rank(b) || (a.event.id < b.event.id ? 1 : -1));
+      return { group: { ...group, items }, newest };
+    });
+    return ranked
+      .sort((a, b) => byProject.get(b.group.project).localeCompare(byProject.get(a.group.project)) || b.newest.localeCompare(a.newest))
+      .map(({ group }) => group);
   }
   const needs = $derived(route.old ? (view?.view?.needs_you ?? []) : recent(view?.view?.needs_you ?? [], true));
   const fresh = $derived(route.old ? (view?.view?.new ?? []) : recent(view?.view?.new ?? [], false));

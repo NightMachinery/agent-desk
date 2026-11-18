@@ -16,10 +16,11 @@
   import SetEditor from './components/SetEditor.svelte';
   import { setsUi } from './lib/sets.svelte.js';
 
-  let view = $state(null);
-  let globalView = $state(null);
+  // API responses are replaced as a unit, so rows can read plain objects.
+  let view = $state.raw(null);
+  let globalView = $state.raw(null);
   let error = $state('');
-  let item = $state(null);
+  let item = $state.raw(null);
   let itemError = $state('');
   let live = $state('connecting');
   let drawer = $state(false);
@@ -33,7 +34,10 @@
     // not make every hold refetch the view.
     params.linger = untrack(lingerIds).join(',');
     try {
-      const [v, g] = await Promise.all([get('view', params), get('view', { host: route.host })]);
+      const scoped = get('view', params);
+      const filtered = params.path || params.session || params.all || params.q || params.linger;
+      const global = filtered ? get('view', { host: params.host }) : scoped;
+      const [v, g] = await Promise.all([scoped, global]);
       if (my !== seq) return;
       view = v;
       globalView = g;
