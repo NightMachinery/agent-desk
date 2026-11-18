@@ -54,10 +54,7 @@
               type={q.multi ? 'checkbox' : 'radio'}
               name={'cq' + i}
               checked={s.picked.includes(o.key)}
-              onclick={(e) => {
-                e.preventDefault();
-                pick(i, o.key);
-              }}
+              onclick={() => pick(i, o.key)}
             />
             <span class="key">{o.key}</span>
             <span class="lbl">
