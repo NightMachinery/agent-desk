@@ -63,6 +63,10 @@ CREATE INDEX IF NOT EXISTS events_kind ON events(kind);
 CREATE INDEX IF NOT EXISTS events_path ON events(path);
 CREATE INDEX IF NOT EXISTS events_ref  ON events(ref);
 
+-- Both slot_current and unread look up the latest slot event for a path.
+CREATE INDEX IF NOT EXISTS events_slot_latest ON events(path, id)
+WHERE kind IN ('set', 'clear', 'link');
+
 CREATE TRIGGER IF NOT EXISTS events_no_update BEFORE UPDATE ON events
 BEGIN SELECT RAISE(ABORT, 'events are append-only: UPDATE is not allowed'); END;
 
