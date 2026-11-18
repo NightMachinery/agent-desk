@@ -58,7 +58,8 @@ delivered and where you are notified, per project, run or agent.
 - [docs/keyboard.md](docs/keyboard.md): driving the dashboard from the
   keyboard, evil-style (`SPC` leader, which-key, `M-x`, link hints).
 - [docs/dashboard.md](docs/dashboard.md): changing the web dashboard.
-- [docs/performance.md](docs/performance.md): profiling the CLI and dashboard.
+- Reproduce the CLI, send queue and phone dashboard benchmarks in the
+  [performance report](docs/performance.md).
 - [docs/spec.md](docs/spec.md): the full design and the build order.
 
 ## License

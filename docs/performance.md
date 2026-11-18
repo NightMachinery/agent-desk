@@ -96,11 +96,89 @@ subshell so the fixture environment is discarded when you leave it.
     export PATH="${pf_dir}/bin:${PATH}"
     export AI_AGENT=codex CODEX_THREAD_ID="$(cat "${pf_dir}/session-id")"
     "${pf_dir}/agent-desk" import < "${pf_dir}/fixture.jsonl"
-    "${pf_dir}/agent-desk" serve --listen 127.0.0.1:7797
+    "${pf_dir}/agent-desk" serve --listen 127.0.0.1:7801
 
 The item ID is in `item-id`. Time the loopback GETs with a persistent
 connection and check the list and long thread with the headless Chrome
-helper. For repeatable thread timings, pin the thread root and mark it
-read once before launching the server so opening it does not initiate a
-write during the measurement. The Go benchmarks also accept the generated
-JSONL with `AGENT_DESK_BENCH_FIXTURE`. [Dashboard browser workflow](dashboard.md#looking-at-a-change)
+helper. The generator pins the thread root and marks it read. The Go
+benchmarks also accept the generated JSONL with `AGENT_DESK_BENCH_FIXTURE`. [Dashboard browser workflow](dashboard.md#looking-at-a-change)
+
+## Second pass, November 2026
+
+@GPT-6.2 Astra
+
+Against revision `7132016`, both builds used the same 8,393 synthetic
+events, 60 coordinators, 120 short WAV files, 40 completed retries and
+60 cache changes. Measurements used Go 1.27.3 on an Apple M2. CLI medians
+used ten new processes and HTTP medians used 15 warm loopback requests.
+The first pass used a smaller workload.
+
+- CLI medians in milliseconds were `whoami` 17 to 16, `hook prompt`
+  18 to 18, `tell` 412 to 323, `set` 382 to 309, `show --mine` 106 to
+  101, and `render` 148 to 156.
+- HTTP medians in milliseconds were 23.6 to 23.0 for the view, 6.32 to 6.17
+  for the long item, 0.55 to 0.54 for cached quota and 15.9 to 16.6
+  for fresh quota. Global recordings fell from 300 to 12.8 and a
+  two-recording node from 7.42 to 1.49.
+- Five keyed reply POSTs to an inert transport took 66.1 to 2.85 ms to
+  acknowledge and 208 to 96 ms from POST to the committed delivery
+  receipt, checked every 5 ms. A worker pass with 120 future retries
+  fell from 81.3 to 1.92 ms and from 20.7 to 0.50 MB allocated.
+- A mock keeper withholding its list for three seconds held the first
+  cache GET open for 2,006 ms before and 4.4 ms after. With its 60-agent
+  snapshot populated, a list took 0.41 to 0.68 ms and a cold-target
+  preflight 0.78 to 1.13 ms. The server starts one background read at
+  startup. Until it completes, the list reports loading and a send has
+  no cold estimate. Explicit policy changes still return the keeper's
+  confirmation.
+
+Three alternating pairs of Go benchmark runs put desk load at 76.7 to 76.0 ms,
+warm view at 17.2 to 17.3 ms, long item at 3.99 to 3.90 ms and stream
+stamp at 29.6 to 27.5 microseconds. The respective allocations stayed
+near 19.9 MB, 5.7 MB, 0.83 MB and 664 bytes. In the baseline CPU profile,
+SQLite stepping took 46% of samples and short-ID lookup took 2.44 of
+the recordings handler's 3.01 CPU seconds. Desk loading accounted for
+34% of allocated bytes. An expression index finds colliding ID suffixes
+for receipts and CLI output. Node recording lists scope delivery history
+by path. Dashboard actions and the worker reuse the server's stamp-checked
+desk, checking again inside the delivery lock. CLI validation, notification
+and ledger rendering still load current data.
+
+### Browser and transfer
+
+Three fresh Chrome profiles per case rendered 454 rows and 180 thread
+entries. The initial scripts and styles fell from 377,758 to 202,771
+uncompressed bytes. The final server sent 67,298 bytes with gzip. Across
+all routes and the worklet, the build grew from 378,760 to 387,247 raw
+bytes. Detail, node and recordings code loads on demand. The recorder
+still requests the microphone inside its button gesture.
+
+- Desktop medians in milliseconds were 156 to 161 from the view response
+  to list paint, 123 to 137 from click to thread paint, 101 to 107 from
+  item response to composer paint, and 34 to 33 from editing a draft
+  to painting its enabled Send button. At 390 px these
+  were 158 to 161, 133 to 135, 104 to 112 and 33 to 32.
+- HTML response to list paint was 271 to 213 ms desktop and 226 to
+  217 ms at 390 px. Navigation to paint varied with the wait for HTML.
+  Desktop medians were 7.01 to 0.88 s and phone-width medians 0.64 to
+  7.16 s. These loopback navigation times did not give a stable ranking.
+- At 390 px, 2 Mbps down, 80 ms latency and fourfold CPU slowdown,
+  HTML response to usable inbox fell from 4.20 to 2.95 s. Splitting
+  alone gave 3.44 s. First click to the long thread rose from 1.03 to
+  1.35 s (1.73 s with splitting alone) because the browser fetched its
+  renderer on first use. These are simulated phone timings.
+
+### Repeat the second pass
+
+Use the fixture environment and server above. Include the queue benchmark
+when profiling. For the browser, run the following from the repository
+root in another shell with the same fixture directory. Omit `--slow-phone`
+for loopback and use `--width 1360` for desktop.
+
+    AGENT_DESK_BENCH_FIXTURE="${pf_dir}/fixture.jsonl" go test ./internal/cli \
+      -run '^$' -bench 'Benchmark(DeskLoad|Dashboard|SendQueueRetryPass)$' \
+      -benchmem -benchtime 2s -cpuprofile "${pf_dir}/cpu" \
+      -memprofile "${pf_dir}/mem" -o "${pf_dir}/bench.test"
+    node web/app/scripts/shot.mjs http://127.0.0.1:7801/ "${pf_dir}/phone.png" \
+      --width 390 --slow-phone --wait 0 --timeout 180000 \
+      --init-file web/app/scripts/perf-browser.js --js 'return await window.fixtureTiming'
