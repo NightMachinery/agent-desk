@@ -44,6 +44,17 @@ type QuotaAgent struct {
 	AutoContinue bool     `json:"auto_continue"`
 	// Dismissed: the user hid it, and it has not run since.
 	Dismissed bool `json:"dismissed,omitempty"`
+	// Seat: the account it runs on and when that has quota again, from
+	// the agent-quotas keeper; absent when the keeper has not said.
+	Seat *QuotaSeat `json:"seat,omitempty"`
+}
+
+// QuotaSeat is a stopped agent's account: Verdict usable, blocked or
+// unknown; AvailableAt (Unix seconds) when a blocked one resets.
+type QuotaSeat struct {
+	Account     string   `json:"account"`
+	Verdict     string   `json:"verdict"`
+	AvailableAt *float64 `json:"available_at,omitempty"`
 }
 
 // AgentRef names another Paseo agent.

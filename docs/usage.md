@@ -892,8 +892,10 @@ screen only while its automation truly needs focus or needs you away.
 Under Needs you, the dashboard's **Out of quota** section lists the Paseo
 agents whose last turn stopped at a usage limit, with their provider, when
 they stopped, their parent and subagents (marked when those are out of quota
-too), and the desk nodes their session holds (one path, or "N nodes" with
-the paths in the tooltip). Under a node, it lists only the agents working
+too), the desk nodes their session holds (one path, or "N nodes" with
+the paths in the tooltip), and, where the agent-quotas keeper runs, when its
+account has quota again ("quota back in 2h 14m, at 21:30", or "quota
+available now"; the tooltip names the account). Under a node, it lists only the agents working
 there: an agent belongs to every node its own session holds, or else to
 those of its nearest Paseo ancestor that holds any, and it is listed under
 each of them. For each:

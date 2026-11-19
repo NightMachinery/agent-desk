@@ -7,6 +7,7 @@
   // listed.
   // Several can be selected (checkboxes in the list's Select mode, or
   // ⌘/Ctrl-click a card) to copy their Paseo ids, one per line.
+  import { availableText } from '../lib/quotatime.js';
   import { SvelteSet } from 'svelte/reactivity';
   import CopyIds from './CopyIds.svelte';
   import CacheControl from './CacheControl.svelte';
@@ -135,6 +136,12 @@
     const p = prompt('Profile for the new agent: provider[/model][@thinking], e.g. codex/gpt-6.1-terra@high');
     if (p?.trim()) act(a, 'replace', 'Started a replacement.', p.trim());
   }
+  // Re-render the reset countdown every half minute.
+  let now = $state(Date.now());
+  $effect(() => {
+    const t = setInterval(() => (now = Date.now()), 30000);
+    return () => clearInterval(t);
+  });
   const ago = (iso) => {
     if (!iso) return '';
     const m = Math.round((Date.now() - new Date(iso)) / 60000);
@@ -186,6 +193,7 @@
       <div class="meta faint">
         <span>{a.provider}</span>
         {#if a.last_active}<span>stopped {ago(a.last_active)}</span>{/if}
+        {#if availableText(a.seat, now)}<span class="seat" class:ok={a.seat.verdict === 'usable'} title={'Account ' + a.seat.account}>{availableText(a.seat, now)}</span>{/if}
         {#if a.parent}<span>parent {a.parent.title || short(a.parent.paseo)}{#if a.parent.stopped}&nbsp;(out of quota too){/if}</span>{/if}
         {#if a.children.length}<span>{a.children.length} subagent{a.children.length > 1 ? 's' : ''}{#if a.children.some((c) => c.stopped)}, {a.children.filter((c) => c.stopped).length} out of quota{/if}</span>{/if}
         {#if nodes(a).length > 1}<span class="nodes" title={nodes(a).join('\n')}>{nodes(a).length} nodes</span>
@@ -320,6 +328,12 @@
     flex-wrap: wrap;
     gap: 0 6px;
     font-size: 12.5px;
+  }
+  .meta .seat {
+    color: var(--blocked);
+  }
+  .meta .seat.ok {
+    color: var(--ok);
   }
   .meta .nodes {
     cursor: help;

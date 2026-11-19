@@ -2,8 +2,13 @@ package cli
 
 import (
 	"encoding/json"
+	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/NightMachinery/agent-desk/internal/keeper"
 )
 
 // Out of quota: list the stopped agents, toggle auto-continue, ask a parent
@@ -193,5 +198,61 @@ func TestQuotaSeveralNodes(t *testing.T) {
 	if out := h.ok(worker, "", "takeover", sessC); !strings.Contains(out, "took over example-proj/r1/eval") ||
 		!strings.Contains(out, "took over example-proj/r2/eval") || !strings.Contains(out, "--node PATH") {
 		t.Fatalf("takeover by session id: %s", out)
+	}
+}
+
+// Each stopped agent shows its account and when that has quota again, from
+// the keeper, read in the background so the request never waits for it.
+func TestQuotaSeat(t *testing.T) {
+	h := newHarness(t)
+	const blocked = "33333333-0000-4000-8000-0000000000b1"
+	const usable = "33333333-0000-4000-8000-0000000000u1"
+	writePaseoRecord(t, h.paseo, blocked, sessA, "", "Eval worker")
+	writePaseoRecord(t, h.paseo, usable, sessB, "", "Plot helper")
+	reset := 1795050000.0
+	fakeKeeper(t, h, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/agents":
+			if r.URL.Query().Get("all") != "1" {
+				t.Errorf("seats read without all=1: %s", r.URL)
+			}
+			writeJSON(w, keeper.List{Enabled: true, Agents: []keeper.Agent{
+				{ID: blocked, Seat: &keeper.Seat{Account: "claude:work", Verdict: "blocked"}},
+				{ID: usable, Seat: &keeper.Seat{Account: "claude:default", Verdict: "usable"}},
+			}})
+		case "/v1/accounts":
+			writeJSON(w, map[string]any{"accounts": []keeper.Account{
+				{ID: "claude:work", Verdict: "blocked", BlockedUntil: &reset},
+				{ID: "claude:default", Verdict: "usable"},
+			}})
+		default:
+			t.Errorf("unexpected keeper request: %s", r.URL)
+		}
+	})
+	cfg, err := os.ReadFile(filepath.Join(h.home, ".config", "agent-desk", "config.toml"))
+	must(t, err)
+	writeConfig(t, h, string(cfg)+"[quota]\nstopped_command = 'printf STOPPED'\n")
+	h.respond = func(name string, args []string) (string, error) {
+		if name == "sh" && args[1] == "printf STOPPED" {
+			return blocked + "\n" + usable + "\n", nil
+		}
+		return "{}", nil
+	}
+	s, hd := testServer(t, h)
+	s.refreshSeats()
+	_, body, _ := do(t, hd, "GET", "/api/quota", "", nil)
+	var resp struct {
+		Agents []QuotaAgent `json:"agents"`
+	}
+	must(t, json.Unmarshal([]byte(body), &resp))
+	got := map[string]*QuotaSeat{}
+	for _, a := range resp.Agents {
+		got[a.Paseo] = a.Seat
+	}
+	if b := got[blocked]; b == nil || b.Verdict != "blocked" || b.AvailableAt == nil || *b.AvailableAt != reset {
+		t.Fatalf("blocked seat: %+v (%s)", b, body)
+	}
+	if u := got[usable]; u == nil || u.Verdict != "usable" || u.AvailableAt != nil {
+		t.Fatalf("usable seat: %+v", u)
 	}
 }

@@ -51,6 +51,10 @@ type server struct {
 	cacheAt         time.Time
 	cacheList       cacheResponse
 	cacheRefreshing bool
+	seatMu          sync.Mutex
+	seatAt          time.Time
+	seats           map[string]QuotaSeat
+	seatRefreshing  bool
 	compacting      map[string]bool // one keeper request in flight per agent
 	sendWake        chan struct{}
 	ui              fs.FS
@@ -992,8 +996,64 @@ func (s *server) apiQuota(w http.ResponseWriter, r *http.Request) {
 			kept = append(kept, q)
 		}
 	}
+	seats := s.seatSnapshot()
+	for i := range kept {
+		if seat, ok := seats[kept[i].Paseo]; ok {
+			kept[i].Seat = &seat
+		}
+	}
 	resp["agents"] = kept
 	writeJSON(w, resp)
+}
+
+// seatTTL is how long the agents' seats are served before a background
+// refresh; a request never waits for the keeper.
+const seatTTL = time.Minute
+
+// seatSnapshot is each Paseo agent's seat from the last refresh (empty
+// before the first), and starts a refresh when that is older than seatTTL.
+func (s *server) seatSnapshot() map[string]QuotaSeat {
+	s.seatMu.Lock()
+	defer s.seatMu.Unlock()
+	if time.Since(s.seatAt) >= seatTTL && !s.seatRefreshing {
+		s.seatRefreshing = true
+		go s.refreshSeats()
+	}
+	return s.seats
+}
+
+func (s *server) refreshSeats() {
+	ctx, cancel := context.WithTimeout(context.Background(), cacheRefreshTimeout)
+	defer cancel()
+	var seats map[string]QuotaSeat
+	app, _, _ := s.userApp()
+	if client, err := app.keeperClient(); err == nil {
+		list, err1 := client.Agents(ctx, true)
+		accounts, err2 := client.Accounts(ctx)
+		if err1 == nil && err2 == nil {
+			until := map[string]*float64{}
+			for _, acc := range accounts {
+				until[acc.ID] = acc.BlockedUntil
+			}
+			seats = map[string]QuotaSeat{}
+			for _, a := range list.Agents {
+				if a.Seat == nil || a.Seat.Account == "" {
+					continue
+				}
+				seat := QuotaSeat{Account: a.Seat.Account, Verdict: a.Seat.Verdict}
+				if seat.Verdict == "blocked" {
+					seat.AvailableAt = until[seat.Account]
+				}
+				seats[a.ID] = seat
+			}
+		}
+	}
+	s.seatMu.Lock()
+	if seats != nil {
+		s.seats = seats
+	}
+	s.seatAt, s.seatRefreshing = time.Now(), false
+	s.seatMu.Unlock()
 }
 
 // apiAutoContinue says whether Paseo agent ?paseo= resumes itself when its

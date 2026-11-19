@@ -37,6 +37,32 @@ type Agent struct {
 	Archived       bool     `json:"archived"`
 	Cache          *Cache   `json:"cache"`
 	LockPath       string   `json:"lock_path"`
+	Seat           *Seat    `json:"seat"`
+}
+
+// Seat is the account an agent runs on and its verdict for the agent's
+// model: usable, blocked or unknown.
+type Seat struct {
+	Account string `json:"account"`
+	Verdict string `json:"verdict"`
+}
+
+// Account is one account's usage snapshot, as much as the desk reads.
+// BlockedUntil is the latest reset among its blocking windows (Unix
+// seconds), when it is blocked.
+type Account struct {
+	ID           string   `json:"id"`
+	Verdict      string   `json:"verdict"`
+	BlockedUntil *float64 `json:"blocked_until"`
+}
+
+// Accounts reads every account's last snapshot (no refresh).
+func (c Client) Accounts(ctx context.Context) ([]Account, error) {
+	var result struct {
+		Accounts []Account `json:"accounts"`
+	}
+	err := c.request(ctx, readTimeout, http.MethodGet, "/v1/accounts", nil, nil, &result)
+	return result.Accounts, err
 }
 
 func (a Agent) Cold(now time.Time) bool {
@@ -81,7 +107,7 @@ func (c Client) Agents(ctx context.Context, all bool) (List, error) {
 	if all {
 		q.Set("all", "1")
 	}
-	err := c.request(ctx, listTimeout, http.MethodGet, "", q, nil, &result)
+	err := c.request(ctx, listTimeout, http.MethodGet, "/v1/agents", q, nil, &result)
 	return result, err
 }
 
@@ -107,7 +133,7 @@ func (c Client) Wait(ctx context.Context, id, compactionID string) (Agent, error
 	return c.agent(ctx, 65*time.Second, http.MethodGet, agentPath(id), q, nil)
 }
 
-func agentPath(id string) string { return "/" + url.PathEscape(id) }
+func agentPath(id string) string { return "/v1/agents/" + url.PathEscape(id) }
 
 func (c Client) agent(ctx context.Context, timeout time.Duration, method, path string, q url.Values, body any) (Agent, error) {
 	var result struct {
@@ -130,7 +156,7 @@ func (c Client) request(ctx context.Context, timeout time.Duration, method, path
 		}
 		reader = bytes.NewReader(data)
 	}
-	req, err := http.NewRequestWithContext(ctx, method, "http://keeper/v1/agents"+path+"?"+q.Encode(), reader)
+	req, err := http.NewRequestWithContext(ctx, method, "http://keeper"+path+"?"+q.Encode(), reader)
 	if err != nil {
 		return err
 	}
