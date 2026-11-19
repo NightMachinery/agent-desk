@@ -4,6 +4,7 @@ Shows what your agents filed for you on [agent-desk](https://github.com/NightMac
 
 - **Agent desk** in the sidebar footer opens a screen with everything that waits on you: open questions, responses to your messages and new items. The row shows how many questions are open.
 - Answer a question in place, including multiple-choice questions (pick options, add a note, or write your own answer), take the agent's default or recommendation, or dismiss it. Message the agent behind any other item, or mark it read.
+- Messaging an item's agent marks the item read. An item you answered, messaged, read or dismissed stays in place, with what you sent, until you leave the view; the agent's response arrives under **Responses to you**.
 - An agent with open questions gets a **Desk** pill on its composer, which opens a panel with only that agent's items. The Command Center has both views too.
 - Each item links to its page on the web dashboard when the desk's `base_url` is set.
 

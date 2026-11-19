@@ -554,9 +554,10 @@ also counts. See
 [paseo-plugin/](../paseo-plugin/OVERVIEW.md) is a Paseo plugin that shows the
 desk inside the Paseo app: an **Agent desk** row in the sidebar footer (with
 the number of open questions) opens a screen where you answer, dismiss and
-message; an agent with open questions gets a **Desk** pill on its composer,
-opening a panel with only its items; and the Command Center has both. Its
-daemon side runs `agent-desk` on the daemon's machine (`$AGENT_DESK_BIN`,
+message (messaging an item's agent marks it read, and what you sent stays
+in its card until you leave the screen); an agent with open questions gets
+a **Desk** pill on its composer, opening a panel with only its items; and the
+Command Center has both. Its daemon side runs `agent-desk` on the daemon's machine (`$AGENT_DESK_BIN`,
 else `~/go/bin/agent-desk`, else `PATH`), so answers are delivered exactly
 as from the dashboard.
 

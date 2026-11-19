@@ -93,7 +93,15 @@ function Choices({ s, qs, picked, setPicked, notes, setNotes }: {
   );
 }
 
-function ItemCard({ s, item }: { s: Styles; item: DeskItem }) {
+// What you sent from a card, shown in it until you leave the view: the desk
+// keeps the thread, but this view lists only what waits on you, so an item
+// you answered or wrote about would otherwise vanish with no trace.
+export type Sent = { verb: "answer" | "reply"; text: string; output: string };
+type Verb = "answer" | "reply" | "read" | "unread";
+
+function ItemCard({ s, item, sent, gone, onDone }: {
+  s: Styles; item: DeskItem; sent: Sent[]; gone: boolean; onDone(verb: Verb, text: string | undefined, output: string): void;
+}) {
   const act = useRpc(actRpc);
   const queries = useQueryClient();
   const toast = useToast();
@@ -103,8 +111,9 @@ function ItemCard({ s, item }: { s: Styles; item: DeskItem }) {
   const [picked, setPicked] = useState<string[][]>(() => qs.map(() => []));
   const [notes, setNotes] = useState<string[]>(() => qs.map(() => ""));
   const send = useMutation({
-    mutationFn: (v: { verb: "answer" | "reply" | "read" | "unread"; text?: string }) => act({ verb: v.verb, target: item.id, text: v.text }),
-    onSuccess: (_, v) => {
+    mutationFn: (v: { verb: Verb; text?: string }) => act({ verb: v.verb, target: item.id, text: v.text }),
+    onSuccess: (r, v) => {
+      onDone(v.verb, v.text, r.output);
       toast.show(v.verb === "answer" ? `Answered ${item.id}` : v.verb === "reply" ? "Message sent" : `Marked ${item.id} ${v.verb}`, { variant: "success" });
       setText("");
       void queries.invalidateQueries({ queryKey: ["agent-desk"] });
@@ -128,7 +137,16 @@ function ItemCard({ s, item }: { s: Styles; item: DeskItem }) {
       <Text style={s.meta}>{[item.id, item.agent, item.node, item.age, item.blocked ? "blocked" : ""].filter(Boolean).join(" · ")}</Text>
       {body ? <Markdown>{body}</Markdown> : null}
       {long ? <Button s={s} label={more ? "Less" : "More"} onPress={() => setMore(!more)} /> : null}
-      {item.question ? (
+      {sent.map((m, i) => (
+        <View key={i} style={{ gap: 2 }}>
+          <Text style={s.text}>{`${m.verb === "answer" ? "You answered" : "You wrote"}: ${m.text}`}</Text>
+          <Text style={s.meta}>{m.output || (m.verb === "answer" ? "Answer recorded." : "Message sent.")}</Text>
+        </View>
+      ))}
+      {gone ? <Text style={s.meta}>{item.question ? "Settled. Kept here until you leave this view." : "Read. Kept here until you leave this view."}</Text> : null}
+      {item.question && gone ? (
+        <View style={s.row}><ItemLinks s={s} item={item} /></View>
+      ) : item.question ? (
         <>
           {qs.length ? <Choices s={s} qs={qs} picked={picked} setPicked={setPicked} notes={notes} setNotes={setNotes} /> : null}
           <TextInput style={s.input} multiline placeholderTextColor={s.muted.color}
@@ -177,6 +195,7 @@ function ItemLinks({ s, item }: { s: Styles; item: DeskItem }) {
 export function DeskView({ theme, compact, session }: { theme: PluginTheme; compact: boolean; session?: string }) {
   const s = useMemo(() => makeStyles(theme, compact), [theme, compact]);
   const view = useRpc(viewRpc);
+  const [acted, setActed] = useState<Record<string, { item: DeskItem; section: string; sent: Sent[] }>>({});
   const q = useQuery({
     queryKey: ["agent-desk", "view", session ?? ""],
     queryFn: () => view({ session }),
@@ -192,16 +211,29 @@ export function DeskView({ theme, compact, session }: { theme: PluginTheme; comp
   }
   if (!q.data) return <View style={s.page}><Text style={s.muted}>Reading the desk…</Text></View>;
   const { needs, responses, fresh, dashboard } = q.data;
-  const section = (title: string, list: DeskItem[]) =>
-    list.length ? (
+  // An item you acted on stays where it was until you leave the view, read,
+  // with what you sent, even after the desk stops listing it.
+  const section = (title: string, listed: DeskItem[]) => {
+    const ids = new Set(listed.map((i) => i.id));
+    const kept = Object.values(acted).filter((a) => a.section === title && !ids.has(a.item.id)).map((a) => ({ ...a.item, unread: false }));
+    const list = [...listed, ...kept];
+    const done = (i: DeskItem) => (verb: Verb, text: string | undefined, output: string) =>
+      setActed((m) => {
+        const prev = m[i.id];
+        const add = (verb === "answer" || verb === "reply") && text ? [{ verb, text: text.trim(), output }] : [];
+        return { ...m, [i.id]: { item: prev?.item ?? i, section: prev?.section ?? title, sent: [...(prev?.sent ?? []), ...add] } };
+      });
+    return list.length ? (
       <View style={{ gap: 10 }}>
-        <Text style={s.section}>{`${title} (${list.length})`}</Text>
-        {list.map((i) => <ItemCard key={i.id} s={s} item={i} />)}
+        <Text style={s.section}>{`${title} (${listed.length})`}</Text>
+        {list.map((i) => <ItemCard key={i.id} s={s} item={i} sent={acted[i.id]?.sent ?? []} gone={!ids.has(i.id)} onDone={done(i)} />)}
       </View>
     ) : null;
+  };
+  const keptAny = Object.keys(acted).length > 0;
   return (
     <View style={s.page}>
-      {needs.length + responses.length + fresh.length === 0 ? (
+      {needs.length + responses.length + fresh.length === 0 && !keptAny ? (
         <Text style={s.muted}>{session ? "Nothing from this agent waits on you." : "Nothing waits on you."}</Text>
       ) : null}
       {section("Needs you", needs)}

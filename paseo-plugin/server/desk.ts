@@ -104,5 +104,8 @@ export async function counts(_: RpcInput<typeof countsRpc>): Promise<RpcOutput<t
 export async function act({ verb, target, text }: RpcInput<typeof actRpc>): Promise<RpcOutput<typeof actRpc>> {
   if ((verb === "answer" || verb === "reply") && !text?.trim()) throw new Error(`${verb} needs text`);
   const out = await run([verb, target], text ? text.trim() + "\n" : undefined);
+  // Writing to an item's agent means you have read it, as opening it does on
+  // the dashboard. Best effort: the message itself already went out.
+  if (verb === "reply" && !target.includes("/")) await run(["read", target]).catch(() => undefined);
   return { output: out.trim() };
 }
