@@ -9,7 +9,7 @@
 // Bindings belong to a pane (side, list, detail, or dialog while a sheet is
 // open) or to all of them. The keymap itself is in keymap.js.
 
-import { route } from './route.svelte.js';
+import { route, pageOpen } from './route.svelte.js';
 
 export const keys = $state({
   mode: 'normal', // normal, insert, visual
@@ -95,7 +95,7 @@ export const dialog = () => /** @type {HTMLElement | null} */ (document.querySel
 /** The pane keys act on now. */
 export function pane() {
   if (dialog()) return 'dialog';
-  if (narrow()) return route.item || route.settings ? 'detail' : 'list';
+  if (narrow()) return route.item || pageOpen() ? 'detail' : 'list';
   return keys.pane;
 }
 

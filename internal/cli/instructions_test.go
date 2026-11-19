@@ -72,6 +72,27 @@ func TestInstructionHook(t *testing.T) {
 	if out := h.ok(nil, "", "show", "--all", "--format", "md"); strings.Contains(out, "big drive") {
 		t.Fatalf("an instruction shows in show:\n%s", out)
 	}
+	// The dashboard's list: newest first, searched by every word, paged.
+	_, hd := testServer(t, h)
+	var list struct {
+		Items []verbatimView `json:"items"`
+		Total int               `json:"total"`
+	}
+	_, raw, _ := do(t, hd, "GET", "/api/verbatim?prefix=example-proj/r1", "", nil)
+	must(t, json.Unmarshal([]byte(raw), &list))
+	if list.Total != 2 || len(list.Items) != 2 || !strings.HasPrefix(list.Items[0].Text, "/delegate") || list.Items[1].Path != "example-proj/r1/coord" {
+		t.Fatalf("list: %s", raw)
+	}
+	_, raw, _ = do(t, hd, "GET", "/api/verbatim?q=OLD+cache", "", nil)
+	must(t, json.Unmarshal([]byte(raw), &list))
+	if list.Total != 1 || !strings.Contains(list.Items[0].Text, "keep the old cache") {
+		t.Fatalf("search: %s", raw)
+	}
+	_, raw, _ = do(t, hd, "GET", "/api/verbatim?limit=1&offset=1", "", nil)
+	must(t, json.Unmarshal([]byte(raw), &list))
+	if list.Total != 2 || len(list.Items) != 1 || !strings.Contains(list.Items[0].Text, "big drive") {
+		t.Fatalf("page 2: %s", raw)
+	}
 
 	// A tmux worker's prompts come from its parent.
 	h.tmux["%9"] = "ag--worker\tsub\t123"

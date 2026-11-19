@@ -219,32 +219,7 @@ func (a *App) cmdInstructions(args []string) error {
 			return err
 		}
 	}
-	// Records made before a pattern caught them (events are immutable) are
-	// dropped here too.
-	var extra []*regexp.Regexp
-	if c, err := a.config(); err == nil {
-		extra, _ = c.Instructions.SkipPatterns()
-	}
-	var out []store.Event
-	copies := map[string]bool{}
-	for _, e := range d.Events {
-		if e.Kind != "instruction" || !desk.Under(e.Path, prefix) || isAutomated(e.Body, extra) {
-			continue
-		}
-		if p := desk.MetaString(e, "prompt"); p != "" {
-			if copies[p] {
-				continue // the same prompt, kept for another node the session held
-			}
-			copies[p] = true
-		}
-		if h := o.vals["host"]; h != "" && e.Host != h {
-			continue
-		}
-		if !since.IsZero() && desk.Time(e).Before(since) {
-			continue
-		}
-		out = append(out, e)
-	}
+	out := a.instructionList(d, instructionFilter{prefix: prefix, host: o.vals["host"], since: since})
 	switch o.vals["format"] {
 	case "", "text", "md":
 	case "json":
@@ -336,4 +311,54 @@ func (a *App) cmdGet(args []string) error {
 		}
 	}
 	return fmt.Errorf("no slot %s at %s", name, node)
+}
+
+// instructionFilter selects recorded instructions: under a path prefix, from
+// one host, since a time, and holding every word of a query.
+type instructionFilter struct {
+	prefix, host, query string
+	since               time.Time
+}
+
+// instructionList is the user's recorded instructions matching f, oldest
+// first: one per prompt (a session holding several nodes records it under
+// each), without prompts recorded before a pattern caught them as automated
+// (events are immutable, so they are dropped here).
+func (a *App) instructionList(d *desk.Desk, f instructionFilter) []store.Event {
+	var extra []*regexp.Regexp
+	if c, err := a.config(); err == nil {
+		extra, _ = c.Instructions.SkipPatterns()
+	}
+	words := strings.Fields(strings.ToLower(f.query))
+	var out []store.Event
+	copies := map[string]bool{}
+	for _, e := range d.Events {
+		if e.Kind != "instruction" || !desk.Under(e.Path, f.prefix) || isAutomated(e.Body, extra) {
+			continue
+		}
+		if p := desk.MetaString(e, "prompt"); p != "" {
+			if copies[p] {
+				continue // the same prompt, kept for another node the session held
+			}
+			copies[p] = true
+		}
+		if f.host != "" && e.Host != f.host {
+			continue
+		}
+		if !f.since.IsZero() && desk.Time(e).Before(f.since) {
+			continue
+		}
+		if len(words) > 0 {
+			low := strings.ToLower(e.Body + "\n" + e.Path)
+			all := true
+			for _, w := range words {
+				all = all && strings.Contains(low, w)
+			}
+			if !all {
+				continue
+			}
+		}
+		out = append(out, e)
+	}
+	return out
 }

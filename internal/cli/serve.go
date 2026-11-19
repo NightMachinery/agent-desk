@@ -163,6 +163,7 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("GET /api/view", s.apiView)
 	mux.HandleFunc("GET /api/item", s.apiItem)
 	mux.HandleFunc("GET /api/target", s.apiTarget)
+	mux.HandleFunc("GET /api/verbatim", s.apiVerbatim)
 	mux.HandleFunc("GET /api/stream", s.apiStream)
 	mux.HandleFunc("GET /api/prefs", s.apiPrefs)
 	mux.HandleFunc("GET /api/media/{file}", s.apiMedia)
@@ -1508,4 +1509,63 @@ func (s *server) sweepScreenOnce() error {
 		s.sendCommitted(events)
 	}
 	return err
+}
+
+// verbatimView is one entry of the verbatim log: a message the user typed
+// to an agent, word for word.
+type verbatimView struct {
+	ID      string `json:"id"`
+	TS      string `json:"ts"`
+	Path    string `json:"path"`
+	Host    string `json:"host"`
+	Text    string `json:"text"`
+	Agent   string `json:"agent,omitempty"` // the session's title, else its agent
+	Session string `json:"session,omitempty"`
+	Paseo   string `json:"paseo,omitempty"`
+}
+
+// apiVerbatim is the verbatim log: the messages the user typed to agents under ?prefix=,
+// newest first, matching every word of ?q=, ?limit= at a time (default 100)
+// from ?offset=. Refs resolves the ids mentioned in them.
+func (s *server) apiVerbatim(w http.ResponseWriter, r *http.Request) {
+	d, _ := s.load(w)
+	if d == nil {
+		return
+	}
+	q := r.URL.Query()
+	limit, _ := strconv.Atoi(q.Get("limit"))
+	if limit <= 0 || limit > 500 {
+		limit = 100
+	}
+	offset, _ := strconv.Atoi(q.Get("offset"))
+	if offset < 0 {
+		offset = 0
+	}
+	s.mu.Lock()
+	all := s.a.instructionList(d, instructionFilter{prefix: strings.Trim(q.Get("prefix"), "/"), host: q.Get("host"), query: q.Get("q")})
+	s.mu.Unlock()
+	resp := struct {
+		Items []verbatimView `json:"items"`
+		Total int               `json:"total"`
+		Refs  map[string]Ref    `json:"refs,omitempty"`
+	}{Items: []verbatimView{}, Total: len(all)}
+	var texts []string
+	for i := len(all) - 1 - offset; i >= 0 && len(resp.Items) < limit; i-- {
+		e := all[i]
+		var m struct {
+			From struct {
+				Agent, Session, Paseo, Title string
+			} `json:"from"`
+		}
+		_ = json.Unmarshal(e.Meta, &m)
+		agent := m.From.Title
+		if agent == "" {
+			agent = m.From.Agent
+		}
+		resp.Items = append(resp.Items, verbatimView{ID: d.Display(e.ID), TS: e.TS, Path: e.Path, Host: e.Host,
+			Text: e.Body, Agent: agent, Session: m.From.Session, Paseo: m.From.Paseo})
+		texts = append(texts, e.Body)
+	}
+	resp.Refs = refsOf(d, texts)
+	writeJSON(w, resp)
 }

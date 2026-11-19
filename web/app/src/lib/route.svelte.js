@@ -1,7 +1,7 @@
-// The view is the URL: #/p/<path>?session=&host=&all=1&q=&sort=old&item=&settings=1. Hash
+// The view is the URL: #/p/<path>?session=&host=&all=1&q=&sort=old&item=&settings=1&verbatim=1. Hash
 // routing keeps the page at the root of wherever it is mounted.
 
-export const route = $state({ path: '', item: '', q: '', session: '', host: '', all: false, old: false, settings: false });
+export const route = $state({ path: '', item: '', q: '', session: '', host: '', all: false, old: false, settings: false, verbatim: false });
 
 function parse() {
   const raw = location.hash.replace(/^#/, '') || '/';
@@ -19,15 +19,19 @@ function parse() {
   route.all = params.get('all') === '1';
   route.old = params.get('sort') === 'old';
   route.settings = params.get('settings') === '1';
+  route.verbatim = params.get('verbatim') === '1';
 }
 
 parse();
 window.addEventListener('hashchange', parse);
 
-/** The URL of the current view with some parts replaced. The settings page
- * is left by any link that does not ask for it. */
+/** A page (settings, the verbatim log) fills the detail pane. */
+export const pageOpen = () => route.settings || route.verbatim;
+
+/** The URL of the current view with some parts replaced. A page (settings,
+ * the verbatim log) is left by any link that does not ask for it. */
 export function href(over = {}) {
-  const r = { ...route, settings: false, ...over };
+  const r = { ...route, settings: false, verbatim: false, ...over };
   const params = new URLSearchParams();
   if (r.session) params.set('session', r.session);
   if (r.host) params.set('host', r.host);
@@ -36,6 +40,7 @@ export function href(over = {}) {
   if (r.old) params.set('sort', 'old');
   if (r.item) params.set('item', r.item);
   if (r.settings) params.set('settings', '1');
+  if (r.verbatim) params.set('verbatim', '1');
   const base = r.path ? '#/p/' + r.path.split('/').map(encodeURIComponent).join('/') : '#/';
   const qs = params.toString();
   return base + (qs ? '?' + qs : '');

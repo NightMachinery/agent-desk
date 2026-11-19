@@ -12,6 +12,7 @@
   const paneNow = $derived.by(() => {
     route.item;
     route.settings;
+    route.verbatim;
     keys.pane;
     keys.mode;
     keys.tick;

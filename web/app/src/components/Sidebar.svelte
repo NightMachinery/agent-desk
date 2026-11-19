@@ -91,6 +91,7 @@
   <div class="foot">
     <span class="live {live}"><span class="dot"></span>{live === 'live' ? 'Live' : live === 'reconnecting' ? 'Reconnecting…' : 'Connecting…'}</span>
     <a class="faint" class:on={route.settings} href={href({ path: '', item: '', session: '', settings: true })}>Settings</a>
+    <a class="faint" class:on={route.verbatim} href={href({ item: '', verbatim: true })} title="Everything you typed to an agent, word for word">Verbatim log</a>
     <a class="faint" href="https://github.com/NightMachinery/agent-desk" target="_blank" rel="noreferrer">About</a>
   </div>
 </nav>
@@ -242,8 +243,13 @@
     margin-top: auto;
     padding: 16px 8px 0;
     display: flex;
+    flex-wrap: wrap;
     justify-content: space-between;
+    gap: 4px 12px;
     font-size: 12px;
+  }
+  .foot > * {
+    white-space: nowrap;
   }
   .live {
     display: inline-flex;

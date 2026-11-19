@@ -1,6 +1,6 @@
 <script>
   import LazyPanel from './components/LazyPanel.svelte';
-  import { route, go } from './lib/route.svelte.js';
+  import { route, go, pageOpen } from './lib/route.svelte.js';
   import { get, watch } from './lib/api.js';
   import { startOutbox } from './lib/outbox.svelte.js';
   import { toasts } from './lib/toast.svelte.js';
@@ -82,7 +82,7 @@
   });
   let prefetchScheduled = false;
   $effect(() => {
-    if (prefetchScheduled || !view || route.item || route.settings) return;
+    if (prefetchScheduled || !view || route.item || pageOpen()) return;
     prefetchScheduled = true;
     const prefetchPanels = () => {
       Promise.all([
@@ -144,6 +144,7 @@
   const focused = $derived.by(() => {
     route.item;
     route.settings;
+    route.verbatim;
     keys.pane;
     keys.mode;
     keys.tick;
@@ -155,7 +156,7 @@
 
 <svelte:window {onkeydown} />
 
-<div class="shell" class:has-item={!!route.item || route.settings}>
+<div class="shell" class:has-item={!!route.item || pageOpen()}>
   <div class="side" class:open={drawer} data-pane="side" class:focused={focused === 'side'}>
     <Sidebar view={globalView} {live} onchange={refresh} />
   </div>
@@ -183,6 +184,8 @@
           {#if showRecordings}<LazyPanel view={import('./components/Recordings.svelte')} />{/if}
         </details>
       </section>
+    {:else if route.verbatim}
+      <LazyPanel view={import('./components/Verbatim.svelte')} path={route.path} stamp={view?.stamp} />
     {:else if view?.node}
       <LazyPanel view={import('./components/NodePanel.svelte')} node={view.node} target={view.target} conversation={view.conversation} stamp={view.stamp} onchange={refresh} />
     {:else}

@@ -1,6 +1,6 @@
 // The bindings. Most commands press the same button a mouse would (tagged
 // data-cmd in the components), so a key and a click do exactly the same.
-import { route, go } from './route.svelte.js';
+import { route, go, pageOpen } from './route.svelte.js';
 import { nav, step } from './nav.svelte.js';
 import { sel, toggle, toggleAll, clear } from './select.svelte.js';
 import { copy } from './format.js';
@@ -95,7 +95,7 @@ function scroll(p, by) {
 
 function focusPane(p) {
   if (matchMedia('(max-width: 900px)').matches) {
-    if (p === 'list' && (route.item || route.settings)) return escape();
+    if (p === 'list' && (route.item || pageOpen())) return escape();
     return say('One pane at a time on a narrow screen');
   }
   keys.pane = p;
@@ -109,7 +109,7 @@ function focusPane(p) {
     else /** @type {HTMLElement} */ (document.activeElement)?.blur?.();
   } else {
     /** @type {HTMLElement} */ (document.activeElement)?.blur?.();
-    if (!route.item && !route.settings && nav.order.length && !ctx.view()?.node) openItem(nav.order[0]);
+    if (!route.item && !pageOpen() && nav.order.length && !ctx.view()?.node) openItem(nav.order[0]);
   }
 }
 const panes = ['side', 'list', 'detail'];
@@ -178,7 +178,7 @@ function escape() {
   else if (route.item) {
     go({ item: '' });
     keys.pane = 'list';
-  } else if (route.settings) go({ settings: false });
+  } else if (pageOpen()) go({ settings: false, verbatim: false });
   else if (route.q) go({ q: '' }, { replace: true });
   else /** @type {HTMLElement} */ (document.activeElement)?.blur?.();
 }

@@ -1020,7 +1020,14 @@ hand-kept file. Agents read them back:
     agent-desk instructions                    # this session's run
     agent-desk instructions tdesktop/rerun-nov [--since 2d] [--format json]
 
-They never appear in the inbox, the dashboard lists or notifications.
+They never appear in the inbox, the dashboard lists or notifications. The
+dashboard shows them on their own page instead: **Verbatim log** in the
+sidebar footer. It lists the messages newest first, grouped by day, scoped
+to the project or run you are viewing (one link widens it to everything).
+The search box keeps messages that contain every word you type, in the text
+or the path, and marks the hits; each message has a Copy button. The page
+reads `GET /api/verbatim?prefix=&q=&host=&limit=&offset=`, which returns
+`{items, total}`, newest first, with the same filtering as `instructions`.
 
 A session holding several nodes keeps each prompt under every one of them;
 `instructions` shows such a prompt once.
