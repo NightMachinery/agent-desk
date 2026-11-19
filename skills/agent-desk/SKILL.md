@@ -40,7 +40,7 @@ then on every write needs `--node` saying which run it is for:
     agent-desk leave ablation-dec/coord    # finished with it: back to one node
 
 `--node` takes the path relative to the project (`run/role`) or in full, and
-only nodes you hold. `tell --re` needs none: the message names its node. A write without it is refused with the list of your
+only nodes you hold. `tell --re` and `ask --re` need none: the message names its node. A write without it is refused with the list of your
 nodes; never guess, and leave a node once you have finished its work (after
 its `done`) so single-node writes work again. Workers still never write: a
 nested node is yours only if you joined it.
@@ -141,6 +141,20 @@ id: respond to each, or to the last one saying it covers the others.
 `agent-desk show --mine` lists messages still awaiting your response. Only
 the session at the message's node can respond to it; a coordinator that took
 the node over may respond to its predecessor's messages.
+
+If you cannot act on the message without a decision from the user, respond
+with the question itself rather than a `tell` followed by a separate `ask`:
+
+    agent-desk ask --re m-4c2d --blocked --title 'Which feed?' <<'Q'
+    The message says "the old feed", and there are two: **v1** (retired in
+    May) and **v2-legacy**. Which one?
+    Q
+
+That one question is your response: it marks the message responded, sits in
+the message's thread, and is answered like any question (`--default` when
+you can go ahead with a stated plan, `--choices` for options). Never file an
+unlinked `ask` about a desk message. The same works for a chat question with
+`ask --re-chat '...'`.
 
 When the user asks you something **in chat** and your answer has substance
 (a finding, an explanation, a decision, where something stands), file the

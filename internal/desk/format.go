@@ -286,7 +286,14 @@ func (w *Writer) Thread(level int, thread []store.Event) {
 			if e.Ref != "" {
 				re = " to " + d.Display(e.Ref)
 			}
-			w.h(level, fmt.Sprintf("%s%s response%s: %s  (%s · %s%s)", kwd(w.Org, "RE"), d.Display(e.ID), re,
+			key, what := "RE", "response"
+			if e.Kind == "ask" {
+				key, what = "ASK", "question"
+				if !d.QuestionOpen(e.ID) {
+					key = "ANSWERED"
+				}
+			}
+			w.h(level, fmt.Sprintf("%s%s %s%s: %s  (%s · %s%s)", kwd(w.Org, key), d.Display(e.ID), what, re,
 				e.Title, agentLabel(e), age, w.hostTag(e.Host)))
 		} else {
 			what := "message"

@@ -7,8 +7,8 @@ import (
 )
 
 // Threads are derived from ref, never stored: a message (reply) refers to
-// what it is about, an answer to its question, and a response (a tell with a
-// ref) to the message or answer it responds to. Following ref upwards from
+// what it is about, an answer to its question, and a response (a tell or an
+// ask with a ref) to the message or answer it responds to. Following ref upwards from
 // any of them reaches the root item; a message with no ref belongs to its
 // node's thread.
 
@@ -18,9 +18,15 @@ const NoResponseAfter = 15 * time.Minute
 
 // IsResponse reports whether e is an agent's response to the user: to a
 // message or an answer (ref), or to something the user asked in chat
-// (meta.asked).
+// (meta.asked). It is a tell, or an ask (a question response).
 func IsResponse(e store.Event) bool {
-	return e.Kind == "tell" && (e.Ref != "" || MetaString(e, "asked") != "")
+	return (e.Kind == "tell" || e.Kind == "ask") && (e.Ref != "" || MetaString(e, "asked") != "")
+}
+
+// IsQuestionResponse reports whether e is a response that is also a
+// question: it needs the user's answer, and is listed as a question.
+func IsQuestionResponse(e store.Event) bool {
+	return e.Kind == "ask" && IsResponse(e)
 }
 
 // Asked is what a response responds to, and how it was asked: "message"
@@ -52,7 +58,7 @@ func inThread(e store.Event) bool {
 func (d *Desk) Root(e store.Event) (root store.Event, ok bool) {
 	for i := 0; i < 64 && inThread(e); i++ {
 		if e.Ref == "" {
-			if i > 0 && e.Kind == "tell" && MetaString(e, "asked") != "" {
+			if i > 0 && IsResponse(e) {
 				return e, true
 			}
 			return store.Event{}, false
@@ -110,7 +116,7 @@ func (d *Desk) indexThreads() {
 		if !inThread(x) {
 			continue
 		}
-		if e.Kind == "tell" {
+		if IsResponse(e) {
 			d.threads.responses[e.Ref] = append(d.threads.responses[e.Ref], i)
 		}
 		root, ok := d.Root(x)

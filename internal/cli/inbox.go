@@ -113,8 +113,12 @@ func (a *App) inboxLines(d *desk.Desk, st inboxState) []line {
 			if it.Dismissed {
 				lvl = dim("DISMISS")
 			}
-			add(it.Event.ID, fmt.Sprintf("    %s %-4s %s  %s%s", lvl, it.Age, dim(it.Label), it.Event.Title,
-				hostTag(d, it.Event.Host)))
+			re := ""
+			if it.Re != "" {
+				re = "  " + dim("re "+it.Re)
+			}
+			add(it.Event.ID, fmt.Sprintf("    %s %-4s %s  %s%s%s", lvl, it.Age, dim(it.Label), it.Event.Title,
+				re, hostTag(d, it.Event.Host)))
 		}
 	}
 

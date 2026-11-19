@@ -431,6 +431,16 @@ func (d *Desk) OpenQuestions(f Filter) []Item {
 	return out
 }
 
+// QuestionOpen reports whether question id has no answer yet.
+func (d *Desk) QuestionOpen(id string) bool {
+	for _, q := range d.Questions {
+		if q.ID == id {
+			return q.Open()
+		}
+	}
+	return false
+}
+
 // NeedsYou groups the open questions by project and run.
 func (d *Desk) NeedsYou(f Filter) []Group { return group(d.OpenQuestions(f)) }
 
@@ -463,11 +473,12 @@ func (d *Desk) New(f Filter) []Group {
 }
 
 // ResponseGroups are the agents' unread responses to the user (all of them
-// with f.All), grouped like New.
+// with f.All), grouped like New. Question responses are left to NeedsYou.
 func (d *Desk) ResponseGroups(f Filter) []Group {
 	var items []Item
 	for _, e := range d.Events {
-		if IsResponse(e) && f.Keep(e) && (d.unread[e.ID] || f.All || f.Linger[e.ID]) {
+		// A question response is a question: it is listed in Needs you.
+		if IsResponse(e) && e.Kind == "tell" && f.Keep(e) && (d.unread[e.ID] || f.All || f.Linger[e.ID]) {
 			items = append(items, d.item(e))
 		}
 	}

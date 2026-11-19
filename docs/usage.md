@@ -65,7 +65,7 @@ session takes it over. One session can coordinate two unrelated runs this way:
 While a session holds one node, nothing changes. While it holds several, `ask`,
 `tell`, `set`, `clear`, `link`, `done` and `task add` (and `get`,
 `show --mine` and `instructions`) refuse without `--node PATH`, listing the
-held nodes; there is no default. (`tell --re` needs no `--node`: the message
+held nodes; there is no default. (`tell --re` and `ask --re` need no `--node`: the message
 it responds to names the node.) `--node` takes the full path
 (`project/run/role`) or one relative to the project, and only a node the
 session holds. `leave` drops a node; a node its holder left is free for
@@ -191,6 +191,20 @@ way, with the question in one line instead of an id:
 
 Responses of both kinds are listed in their own section, **Responses to
 you**, between Needs you and New, and notify unless sent with `--quiet`.
+
+When the agent needs a decision before it can act on a message, it responds
+with a question instead, a **question response**:
+
+    agent-desk ask --re m-4c2d --blocked --title 'Which feed?' <<'Q'
+    There are two old feeds: v1 and v2-legacy. Which one?
+    Q
+
+It takes `--blocked` or `--default`, and `--choices`, like any question, and
+`--re-chat` for a chat question. It counts as the message's response, is
+listed in Needs you (not Responses) and in the message's thread, notifies as
+a question, and your answer goes back to the agent like any other. A
+message's own notify setting can make it louder, never silence it, and
+reading the item the message was about does not dismiss it.
 
 When a session ends, its summary goes on stdin:
 

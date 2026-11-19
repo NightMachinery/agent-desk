@@ -122,6 +122,8 @@ Agent side (only coordinators write; workers report to their parent):
                                       respond to the user's message or answer
   agent-desk tell --re-chat 'what the user asked' [--quiet] [--title T] <<'R' ... R
                                       file your answer to a question asked in chat
+  agent-desk ask --re <m-id|a-id> | --re-chat '...' --blocked|--default '...' [--title T] <<'Q' ... Q
+                                      respond with a question: you need a decision first
   agent-desk whoami                   this session's nodes, one per line, or exit 1
   agent-desk instructions [<path-prefix>] [--since 2d] [--format json]
                                       the user's messages to this run, word for word
@@ -661,10 +663,26 @@ func (a *App) cmdJoin(args []string) error {
 }
 
 func (a *App) cmdAsk(args []string) error {
-	o, err := parse(args, []string{"blocked"}, append([]string{"default", "title", "project", "node", "choices", "on-answer"}, attachOpts...), 0, 0)
+	o, err := parse(args, []string{"blocked", "quiet"}, append([]string{"default", "title", "project", "node", "choices", "on-answer", "re", "re-chat"}, attachOpts...), 0, 0)
 	if err != nil {
 		return err
 	}
+	// A question response: the question is also the response to a message
+	// or an answer (--re), or to something asked in chat (--re-chat).
+	re, asked := strings.TrimSpace(o.vals["re"]), strings.TrimSpace(o.vals["re-chat"])
+	if o.set["re"] && re == "" {
+		return usagef("--re needs the id of the message or answer you respond to")
+	}
+	if o.set["re-chat"] && asked == "" {
+		return usagef("--re-chat needs what the user asked in chat, quoted or in a line")
+	}
+	if re != "" && asked != "" {
+		return usagef("give --re (a message on the desk) or --re-chat (a question asked in chat), not both")
+	}
+	if o.bools["quiet"] {
+		return usagef("ask takes no --quiet: a question is never a bare acknowledgement")
+	}
+	responding := re != "" || asked != ""
 	if o.set["on-answer"] && strings.TrimSpace(o.vals["on-answer"]) == "" {
 		return usagef("--on-answer needs the command to run when the user answers")
 	}
@@ -672,8 +690,11 @@ func (a *App) cmdAsk(args []string) error {
 		return usagef("ask takes exactly one of --blocked or --default 'what you will do'")
 	}
 	title := strings.TrimSpace(o.vals["title"])
-	if title == "" {
+	if title == "" && !responding {
 		return usagef("ask needs --title")
+	}
+	if title == "" && asked != "" {
+		title = "Re: " + clipLine(asked, 60)
 	}
 	body, err := a.stdinText()
 	if err != nil {
@@ -709,9 +730,35 @@ func (a *App) cmdAsk(args []string) error {
 	if err := a.attach(o, extra); err != nil {
 		return err
 	}
-	return a.agentWrite(o.vals["project"], o.vals["node"], "ask", func(from ident.From, node string, _ *desk.Desk) ([]store.Event, error) {
+	if asked != "" {
+		extra["asked"] = asked
+	}
+	nodeArg := o.vals["node"]
+	if re != "" && nodeArg == "" {
+		if node, err := a.reNode(re); err != nil {
+			return err
+		} else if node != "" {
+			nodeArg = node
+		}
+	}
+	return a.agentWrite(o.vals["project"], nodeArg, "ask", func(from ident.From, node string, d *desk.Desk) ([]store.Event, error) {
+		ref := ""
+		if re != "" {
+			target, err := d.Resolve(re)
+			if err != nil {
+				return nil, err
+			}
+			def, err := respondsTo(d, target, node)
+			if err != nil {
+				return nil, err
+			}
+			if title == "" {
+				title = def
+			}
+			ref = target.ID
+		}
 		e := a.event("ask", node, from, "cli", extra)
-		e.Level, e.Title, e.Body = level, title, body
+		e.Level, e.Title, e.Body, e.Ref = level, title, body, ref
 		return []store.Event{e}, nil
 	})
 }
@@ -1223,11 +1270,13 @@ func (a *App) readMark(e store.Event, from ident.From, source string) store.Even
 	return r
 }
 
-// unreadResponses are the unread responses in the thread of item id.
+// unreadResponses are the unread responses in the thread of item id. Open
+// question responses are left out: reading one would dismiss it, and a
+// cascade never dismisses a question.
 func unreadResponses(d *desk.Desk, id string) []store.Event {
 	var out []store.Event
 	for _, e := range d.Thread(id, "") {
-		if desk.IsResponse(e) && d.Unread(e.ID) {
+		if desk.IsResponse(e) && d.Unread(e.ID) && !(e.Kind == "ask" && isOpen(d, e.ID)) {
 			out = append(out, e)
 		}
 	}

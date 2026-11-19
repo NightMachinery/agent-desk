@@ -33,12 +33,14 @@ type Entry struct {
 	VoiceFailure *VoiceFailure `json:"voice_failure,omitempty"`
 	// Status: responded, awaiting, no_response or cleared (read without a
 	// response); empty before delivery and for answers with no response.
-	Status    string            `json:"status,omitempty"`
-	Responses []string          `json:"responses,omitempty"`
-	Re        string            `json:"re,omitempty"` // a response: what it responds to
-	Notify    map[string]string `json:"notify,omitempty"`
-	Unread    bool              `json:"unread,omitempty"`
-	Media     []MediaView       `json:"media,omitempty"`
+	Status    string   `json:"status,omitempty"`
+	Responses []string `json:"responses,omitempty"`
+	Re        string   `json:"re,omitempty"` // a response: what it responds to
+	// Open: a question response not answered yet (kind "question").
+	Open   bool              `json:"open,omitempty"`
+	Notify map[string]string `json:"notify,omitempty"`
+	Unread bool              `json:"unread,omitempty"`
+	Media  []MediaView       `json:"media,omitempty"`
 }
 
 // Failure is an undelivered mark: why the message did not reach its
@@ -95,6 +97,9 @@ func entries(d *desk.Desk, thread []store.Event, pushed map[string]string) []Ent
 			Source: desk.MetaString(e, "source"), Unread: d.Unread(e.ID)}
 		if desk.IsResponse(e) {
 			en.Kind, en.By = "response", agentTitle(e)
+			if e.Kind == "ask" {
+				en.Kind, en.Open = "question", isOpen(d, e.ID)
+			}
 			if e.Ref != "" {
 				en.Re = d.Display(e.Ref)
 			}

@@ -87,7 +87,7 @@ func respondsTo(d *desk.Desk, e store.Event, node string) (string, error) {
 			return "", fmt.Errorf("%s answers a question of %s, not of this session's node %s", shown, desk.NodeOf(q), node)
 		}
 	default:
-		return "", fmt.Errorf("%s is a %s; tell --re takes a message (m-...) or an answer (a-...) sent to you", shown, e.Kind)
+		return "", fmt.Errorf("%s is a %s; --re takes a message (m-...) or an answer (a-...) sent to you", shown, e.Kind)
 	}
 	if root, ok := d.Root(e); ok {
 		title := root.Title

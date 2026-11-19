@@ -79,7 +79,7 @@ func routeOf(d *desk.Desk, r *settings.Resolver, e store.Event) route {
 	rt.remote, _ = r.Resolve("notify.remote", node, rt.class)
 	rt.dest, _ = r.Resolve("notify.remote.dest", node, rt.class)
 	rt.push, _ = r.Resolve("notify.push", node, rt.class)
-	if rt.class == "response" {
+	if desk.IsResponse(e) {
 		if msg, ok := d.ByID[e.Ref]; ok && (msg.Kind == "reply" || msg.Kind == "answer") {
 			var m struct {
 				Notify struct {
@@ -88,15 +88,41 @@ func routeOf(d *desk.Desk, r *settings.Resolver, e store.Event) route {
 				} `json:"notify"`
 			}
 			_ = json.Unmarshal(msg.Meta, &m)
-			if m.Notify.Desktop != "" {
-				rt.desktop = m.Notify.Desktop
+			// A question response holds the agent up: the message's override
+			// may make it louder, never quieter.
+			question := e.Kind == "ask"
+			if v := m.Notify.Desktop; v != "" && (!question || desktopRank(v) > desktopRank(rt.desktop)) {
+				rt.desktop = v
 			}
-			if m.Notify.Remote != "" {
-				rt.remote = m.Notify.Remote
+			if v := m.Notify.Remote; v != "" && (!question || remoteRank(v) > remoteRank(rt.remote)) {
+				rt.remote = v
 			}
 		}
 	}
 	return rt
+}
+
+// desktopRank orders notify.desktop values by how widely they notify: none,
+// then one machine or a list of them, then all.
+func desktopRank(v string) int {
+	switch v {
+	case "none":
+		return 0
+	case "all":
+		return 2
+	}
+	return 1
+}
+
+// remoteRank orders notify.remote values: off, away, always.
+func remoteRank(v string) int {
+	switch v {
+	case "off":
+		return 0
+	case "always":
+		return 2
+	}
+	return 1
 }
 
 // Notice is one notified event, read back.

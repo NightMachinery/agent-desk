@@ -9,7 +9,8 @@ Every value in the examples is fabricated; keep it that way.
 ## Terms
 
 - **Message**: a `reply` event, the user's text for an agent.
-- **Response**: a `tell` whose `ref` is a message or an answer.
+- **Response**: a `tell` or an `ask` whose `ref` is a message or an answer.
+  An `ask` one is a **question response** (see "Question responses").
 - **Thread**: an item, or a node, with the messages, answers and responses
   that lead back to it through `ref`.
 - **Behaviour**: what a message does to a busy agent. `steer` joins the
@@ -307,6 +308,23 @@ see the chat. Act on it, then always respond with `agent-desk tell --re
 `--quiet` only for a bare acknowledgement. `show --mine` lists messages
 still awaiting a response.
 
+For question responses, add to that section of `skills/agent-desk/SKILL.md`,
+after the `tell --re` example: if you cannot act on the message without a
+decision from the user, respond with the question itself rather than a
+`tell` followed by a separate `ask`:
+
+    agent-desk ask --re m-4c2d --blocked --title 'Which feed?' <<'Q'
+    The message says "the old feed", and there are two: **v1** (retired in
+    May) and **v2-legacy**. Which one?
+    Q
+
+That one question is your response: it marks the message responded, sits
+in the message's thread, and is answered like any question (`--default`
+when you can go ahead with a stated plan, `--choices` for options). Never
+file an unlinked `ask` about a desk message. The same works for a chat
+question with `--re-chat`. Also list the forms in the skill's command
+summary next to `tell --re`.
+
 ## The author's integration (scripts repository, separate commits)
 
 - `agent-desk-notify` branches on `channel`. `desktop`: the existing card,
@@ -371,6 +389,74 @@ still awaiting a response.
 10. The dashboard on a phone-sized viewport: thread, behaviour menu with a
     disabled queue and its reason, "Notify me" sheet, settings chip.
 11. Stores written by the first version load, render and merge unchanged.
+
+## Question responses
+
+@Opus5.5 [2026-11-19 Thu]
+
+A response may need a decision before the agent can go on ("Which of the two
+feeds did you mean?"). Until now the agent had to file a separate `ask`,
+which sat outside the thread, did not count as responding, and left the
+message flagged "no response yet". A **question response** is an `ask` that
+is also a response: it blocks (or carries a default) like any question, and
+it answers the message like any response.
+
+    agent-desk ask --re <m-id|a-id> --blocked [--title T] [--choices FILE] <<'Q' ... Q
+    agent-desk ask --re <m-id|a-id> --default 'what you will do' <<'Q' ... Q
+    agent-desk ask --re-chat 'what the user asked' --blocked <<'Q' ... Q
+
+- **Event.** An `ask` gains `ref`, with the same allowed targets and refusals
+  as `tell --re` (a message delivered to this node, or an answer to one of
+  its questions), and `meta.asked` for `--re-chat`. `--quiet` is refused: a
+  question is never a bare acknowledgement. Without `--title`, the title is
+  "Re: " plus the root item's title, as for `tell --re`.
+- **Terms.** A response is now a `tell` or an `ask` whose `ref` is a message
+  or an answer (or that carries `meta.asked`). `IsResponse` covers both; a
+  helper says which is a question response.
+- **Derived state.** A message is responded once a `tell` or an `ask` refers
+  to it, so a question response clears "no response yet" at once. The thread
+  root is found through question responses as through any response, and the
+  user's answer to one joins the same thread.
+- **Reading.** `read` on a root item marks its unread responses read, except
+  open question responses: reading those would dismiss them, and a cascade
+  must never dismiss a question. They stay until answered or dismissed one by
+  one.
+- **Where it shows.** An open question response is a question first: it is
+  listed in Needs you, with its answer controls, and not in Responses. Its
+  row says "Re m-4c2d" and links the thread; in the thread it renders as a
+  question with its choices, then its answer once given. Answered, it stays
+  in the thread like any question. Terminal inbox: the row is a question
+  marked `re`. Org render: a child heading of its root item with the
+  question keywords, `ASK` while open and `ANSWERED` after (a new `Q`
+  keyword would need a change to every file's `#+TODO` line).
+- **Notification class.** `ask-blocked` or `ask-default`, not `response`:
+  a decision that holds an agent up is more urgent than news. A per-message
+  `notify` override on the message applies when it notifies more than the
+  class does, never less, so "Notify me: off" on a message cannot silence a
+  question that blocks the agent.
+- **Answer delivery.** As for any question: the answer is delivered to the
+  asking session with the message's behaviour setting resolved for the node.
+- **Typed text.** Unchanged, to keep every message short. The skill
+  teaches it (see "Skill changes"). The skill is installed as a link to this
+  repository, so its edit lands in the same deploy as the binary: earlier,
+  agents would run a command that does not exist yet.
+- **Compatibility.** Older binaries read an `ask` with `ref` as a plain
+  question; merges are unaffected.
+
+Acceptance checks:
+
+1. `ask --re m-... --blocked` from the target session links. From another
+   node's session, naming a notice, or with `--quiet`, it is refused.
+2. The message reads responded at once; the question is in Needs you and
+   not in Responses; the thread lists message, delivery, question and then
+   its answer, in order.
+3. `read` on the root item marks a plain response read and leaves the open
+   question response open.
+4. It notifies under `ask-blocked`. A message sent with "Notify me: off"
+   still lets its question response notify; one sent with a louder override
+   than the class uses the override.
+5. The answer is delivered to the asking session; the inbox and org render
+   show the question in its thread.
 
 ## Commit groups
 

@@ -23,7 +23,10 @@
     el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   });
 
+  // A response from the agent: a plain one, or a question (a question response).
+  const fromAgent = (t) => t.kind === 'response' || t.kind === 'question';
   function label(t) {
+    if (t.kind === 'question') return (t.by || 'Agent') + ' asks';
     if (t.kind === 'response') return t.by || 'Agent';
     return t.kind === 'answer' ? 'Your answer' : 'Your message';
   }
@@ -74,15 +77,26 @@
 
 <ol class="thread">
   {#each entries as t (t.event.id)}
-    <li id={'e-' + t.display_id} class="entry {t.kind}" class:current={t.display_id === current}>
+    <li id={'e-' + t.display_id} class="entry {t.kind}" class:has-default={t.kind === 'question' && t.event.level !== 'blocked'} class:current={t.display_id === current}>
       <div class="head">
         <strong>{label(t)}</strong>
-        {#if t.kind !== 'response' && t.by}<span class="faint">to {t.by}</span>{/if}
-        {#if t.kind === 'response' && t.unread}<span class="dot" title="Unread"></span>{/if}
+        {#if !fromAgent(t) && t.by}<span class="faint">to {t.by}</span>{/if}
+        {#if fromAgent(t) && t.unread}<span class="dot" title="Unread"></span>{/if}
         <span class="faint">{t.age} ago</span>
         <a class="mono faint idlink" href={href({ item: t.display_id })}>{t.display_id}</a>
       </div>
-      {#if t.kind !== 'response'}
+      {#if t.kind === 'question'}
+        <div class="chips">
+          {#if t.open}
+            <span class="chip {t.event.level === 'blocked' ? 'blocked' : 'default'}">{t.event.level === 'blocked' ? 'blocked: waiting for your answer' : 'has a default'}</span>
+            {#if t.display_id !== current}<a class="btn small" href={href({ item: t.display_id })}>Answer</a>{/if}
+          {:else}
+            <span class="chip ok">answered</span>
+          {/if}
+        </div>
+        {#if t.event.title}<div class="qtitle">{t.event.title}</div>{/if}
+      {/if}
+      {#if !fromAgent(t)}
         <div class="chips">
           {#if t.source === 'chat'}
             <span class="chip">given in chat</span>
@@ -193,6 +207,18 @@
   }
   .entry.message {
     background: var(--default-soft);
+  }
+  .qtitle {
+    font-weight: 600;
+    margin: 4px 0 2px;
+  }
+  .entry.question {
+    background: var(--panel);
+    border-color: var(--line);
+    border-left: 3px solid var(--blocked);
+  }
+  .entry.question.has-default {
+    border-left-color: var(--default);
   }
   .entry.response {
     background: var(--panel);
