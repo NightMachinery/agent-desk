@@ -104,7 +104,11 @@ func (a *App) runHook(command string, p Payload, wait bool) error {
 	defer logf.Close()
 	fmt.Fprintf(logf, "%s %s %s\n", time.Now().Format(time.RFC3339), p.Action, p.DisplayID)
 	cmd.Stdout, cmd.Stderr = logf, logf
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	// A new session, so no controlling terminal: a hook that touches
+	// /dev/tty cannot be stopped by job control (SIGTTIN/SIGTTOU), which
+	// once froze notify-run, holding notify.lock while every later run
+	// queued behind it.
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	if err := cmd.Start(); err != nil {
 		return err
 	}

@@ -100,3 +100,23 @@ dismiss_command = "cat >> '`+log+`'"
 		t.Fatalf("a config typo must be reported: %q", errOut)
 	}
 }
+
+// A detached hook runs in its own session, without a controlling terminal,
+// so job control cannot stop it for touching /dev/tty. Needs a terminal to
+// mean anything: go test from a shell, or under script(1).
+func TestHookHasNoControllingTerminal(t *testing.T) {
+	tty, err := os.OpenFile("/dev/tty", os.O_RDWR, 0)
+	if err != nil {
+		t.Skip("no controlling terminal here; run under a terminal or script(1)")
+	}
+	tty.Close()
+	h := newHarness(t)
+	a, _, _ := h.app(nil, "")
+	must(t, os.MkdirAll(a.Home, 0o700))
+	must(t, a.runHook(`if (: </dev/tty) 2>/dev/null; then echo hook-has-tty; else echo hook-no-tty; fi`, Payload{}, false))
+	b, err := os.ReadFile(filepath.Join(a.Home, "hooks.log"))
+	must(t, err)
+	if !strings.Contains(string(b), "hook-no-tty") {
+		t.Fatalf("the hook could open the terminal:\n%s", b)
+	}
+}

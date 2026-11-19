@@ -516,7 +516,9 @@ Core: on every `ask`, every `tell --notify` and every `done`, run
 question or item it closes.
 
 - Each command runs under `sh -c`, detached, so a slow notifier never holds
-  up an agent's write; its output goes to `~/.agents/desk/hooks.log`.
+  up an agent's write; its output goes to `~/.agents/desk/hooks.log`. It
+  runs in a session of its own, with no controlling terminal: a command that
+  opens `/dev/tty` gets an error instead of being stopped by job control.
 - Stdin is one JSON object: `action` (`notify`, `dismiss`, `open`,
   `deliver`), `display_id`, `path` (the node), `event` (the item notified or
   dismissed), `cause` (the answer or read that dismisses), `local` (whether

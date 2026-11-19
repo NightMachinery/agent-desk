@@ -301,7 +301,11 @@ func (a *App) spawn(args []string) error {
 	cmd := exec.Command(self, args...)
 	cmd.Env = append(os.Environ(), "AGENT_DESK_HOME="+a.Home)
 	cmd.Stdout, cmd.Stderr = logf, logf
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	// A new session, so no controlling terminal: a hook that touches
+	// /dev/tty cannot be stopped by job control (SIGTTIN/SIGTTOU), which
+	// once froze notify-run, holding notify.lock while every later run
+	// queued behind it.
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	if err := cmd.Start(); err != nil {
 		return err
 	}
