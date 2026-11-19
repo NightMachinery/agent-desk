@@ -2,6 +2,8 @@
 // the list, top to bottom, so shift-click can select a range.
 import { SvelteSet } from 'svelte/reactivity';
 import { post } from './api.js';
+import { route } from './route.svelte.js';
+import { hide, show } from './hiding.svelte.js';
 import { toast } from './toast.svelte.js';
 
 // `mode` is selection mode, from the Select button or a long press: rows show
@@ -49,6 +51,9 @@ export function prune(order) {
 export async function markSelected(read, onchange, qs = 0) {
   const targets = [...sel.ids];
   if (!targets.length) return;
+  const hidden = read && !route.all ? targets : []; // Show all keeps read items listed
+  hide(hidden);
+  if (read) clear();
   try {
     await post(read ? 'read' : 'unread', { targets });
     const n = (k, w) => `${k} ${k === 1 ? w : w + 's'}`;
@@ -58,6 +63,7 @@ export async function markSelected(read, onchange, qs = 0) {
     clear();
     onchange();
   } catch (err) {
+    show(hidden);
     toast(err.message, 'error');
   }
 }

@@ -483,7 +483,9 @@ view or its group heading already says. Opening an item marks it read (a
 question excepted: reading one dismisses it), but the row stays where it
 is, dimmed once you open another, for a minute (Settings: "Keep a read item
 in the list for", per device). The icon beside its id marks it unread
-again, and the pin icon keeps it on top.
+again, and the pin icon keeps it on top. Items you mark read with a
+section's mark-all button or the selection's Mark read leave the list at
+once; if the desk refuses, they come back with the error.
 Previous and Next at the bottom of an item walk the list in the order
 shown. Once you answer a question, approve or deny a screen request, or
 dismiss a question, the page moves on: on a wide screen to the next question

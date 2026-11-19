@@ -17,6 +17,7 @@
   import { sel, toggleAll, clear, prune, markSelected, pinSelected, selecting } from '../lib/select.svelte.js';
   import { snapshot } from '../lib/nav.svelte.js';
   import { ui, toggleSection } from '../lib/ui.svelte.js';
+  import { hide, show, settle, unhidden } from '../lib/hiding.svelte.js';
 
 
   let { view, error, onmenu, onchange } = $props();
@@ -37,9 +38,15 @@
       .sort((a, b) => byProject.get(b.group.project).localeCompare(byProject.get(a.group.project)) || b.newest.localeCompare(a.newest))
       .map(({ group }) => group);
   }
-  const needs = $derived(route.old ? (view?.view?.needs_you ?? []) : recent(view?.view?.needs_you ?? [], true));
-  const fresh = $derived(route.old ? (view?.view?.new ?? []) : recent(view?.view?.new ?? [], false));
-  const responses = $derived(route.old ? (view?.view?.responses ?? []) : recent(view?.view?.responses ?? [], false));
+  // Items being marked read are hidden at once (hiding.svelte.js); a view
+  // that no longer lists them settles them.
+  $effect(() => {
+    const v = view?.view;
+    if (v) settle(new Set([v.needs_you, v.new, v.responses].flatMap((gs) => idsOf(gs ?? []))));
+  });
+  const needs = $derived(unhidden(route.old ? (view?.view?.needs_you ?? []) : recent(view?.view?.needs_you ?? [], true)));
+  const fresh = $derived(unhidden(route.old ? (view?.view?.new ?? []) : recent(view?.view?.new ?? [], false)));
+  const responses = $derived(unhidden(route.old ? (view?.view?.responses ?? []) : recent(view?.view?.responses ?? [], false)));
   const pinned = $derived(view?.view?.pinned ?? []);
   const runs = $derived(view?.view?.runs ?? []);
   const count = (gs) => gs.reduce((n, g) => n + g.items.length, 0);
@@ -55,11 +62,14 @@
   // Marks a whole section read, with Undo. Not offered on Needs you: reading
   // a question there dismisses it, too much for one unguarded click.
   async function markAllRead(targets) {
+    const hidden = route.all ? [] : targets; // Show all keeps read items listed
+    hide(hidden);
     try {
       await post('read', { targets });
       toast(`${targets.length} ${targets.length === 1 ? 'item' : 'items'} marked read.`, 'ok', 7000, {
         label: 'Undo',
         run: async () => {
+          show(hidden);
           try {
             await post('unread', { targets });
             onchange?.();
@@ -70,6 +80,7 @@
       });
       onchange?.();
     } catch (err) {
+      show(hidden);
       toast(err.message, 'error');
     }
   }
