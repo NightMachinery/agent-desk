@@ -633,7 +633,10 @@ such as `agent-desk open q-7f3a`.
 The commands run in a detached `agent-desk notify-run`, so a slow notifier
 never holds up an agent's write; output goes to `~/.agents/desk/hooks.log`.
 They have no terminal: anything that prompts or opens `/dev/tty` fails
-rather than waits. With no config, nothing is run.
+rather than waits. A command still running after a minute is killed with
+its children. One `notify-run` works at a time; one that waits more than
+three minutes for the others gives up and logs which process holds
+`notify.lock` and since when. With no config, nothing is run.
 
 ### Push to your phone
 

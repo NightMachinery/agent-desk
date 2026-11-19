@@ -2,10 +2,15 @@ package cli
 
 import (
 	"encoding/json"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 
 	"github.com/NightMachinery/agent-desk/internal/desk"
 	"github.com/NightMachinery/agent-desk/internal/store"
@@ -224,5 +229,52 @@ func TestNotifyPushesToSSHHosts(t *testing.T) {
 	hb.desk, hb.host = remoteHome, "host-b"
 	if !strings.Contains(hb.ok(nil, "", "show", "--format", "md"), "Which?") {
 		t.Fatalf("%s was not pushed to host-b", q)
+	}
+}
+
+// A notify-run that cannot get the lock gives up after notifyLockWait and
+// names the holder, instead of queueing forever behind a stuck one.
+func TestNotifyLockGivesUp(t *testing.T) {
+	a := &App{Home: t.TempDir()}
+	unlock, err := a.lockNotify()
+	must(t, err)
+	defer unlock()
+	old := notifyLockWait
+	notifyLockWait = 300 * time.Millisecond
+	defer func() { notifyLockWait = old }()
+	_, err = a.lockNotify()
+	if err == nil || !strings.Contains(err.Error(), fmt.Sprintf("held by pid %d since ", os.Getpid())) {
+		t.Fatalf("second lock: %v", err)
+	}
+	unlock()
+	again, err := a.lockNotify()
+	must(t, err)
+	again()
+}
+
+// A hook that outlives hookTimeout is killed with its children, so neither
+// it nor a child holding its output keeps notify-run (and its lock) waiting.
+func TestHookTimeoutKillsGroup(t *testing.T) {
+	a := &App{Home: t.TempDir(), Stderr: io.Discard}
+	old := hookTimeout
+	hookTimeout = 300 * time.Millisecond
+	defer func() { hookTimeout = old }()
+	pidf := filepath.Join(a.Home, "child.pid")
+	t0 := time.Now()
+	_, err := a.hookOutput("sleep 30 & echo $! > "+pidf+"; wait", Payload{})
+	if err == nil {
+		t.Fatal("a hook past its timeout reported success")
+	}
+	if d := time.Since(t0); d > 3*time.Second {
+		t.Fatalf("hookOutput returned after %v", d)
+	}
+	b, err := os.ReadFile(pidf)
+	must(t, err)
+	pid, err := strconv.Atoi(strings.TrimSpace(string(b)))
+	must(t, err)
+	time.Sleep(100 * time.Millisecond)
+	if syscall.Kill(pid, 0) == nil {
+		syscall.Kill(pid, syscall.SIGKILL)
+		t.Fatalf("the hook's child %d survived the timeout", pid)
 	}
 }

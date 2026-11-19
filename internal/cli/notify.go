@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"os/exec"
@@ -313,7 +315,18 @@ func (a *App) spawn(args []string) error {
 }
 
 // lockNotify serializes notify-run processes, so two of them never raise or
-// take back the same notification. It returns the unlock.
+// take back the same notification. It returns the unlock. A run waits at
+// most notifyLockWait, then fails naming the holder (in hooks.log), so a
+// stuck holder shows instead of silently queueing every later run.
+var notifyLockWait = 3 * time.Minute
+
+func orUnknown(s string) string {
+	if s == "" {
+		return "an unknown process"
+	}
+	return s
+}
+
 func (a *App) lockNotify() (func(), error) {
 	if a.WaitHooks {
 		return func() {}, nil
@@ -322,9 +335,26 @@ func (a *App) lockNotify() (func(), error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); err != nil {
-		f.Close()
-		return nil, err
+	deadline := time.Now().Add(notifyLockWait)
+	for {
+		err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+		if err == nil {
+			break
+		}
+		if !errors.Is(err, syscall.EWOULDBLOCK) {
+			f.Close()
+			return nil, err
+		}
+		if time.Now().After(deadline) {
+			holder, _ := io.ReadAll(f)
+			f.Close()
+			return nil, fmt.Errorf("notify.lock held by %s; gave up after %v", orUnknown(strings.TrimSpace(string(holder))), notifyLockWait)
+		}
+		time.Sleep(250 * time.Millisecond)
+	}
+	// Say who holds it, for the message above.
+	if err := f.Truncate(0); err == nil {
+		fmt.Fprintf(f, "pid %d since %s\n", os.Getpid(), time.Now().Format(time.RFC3339))
 	}
 	return func() {
 		_ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
@@ -498,15 +528,28 @@ func (a *App) hookOutput(command string, p Payload) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), hookTimeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "sh", "-c", command)
+	killGroupOnCancel(cmd)
 	cmd.Stdin = bytes.NewReader(append(data, '\n'))
 	cmd.Env = append(os.Environ(), "AGENT_DESK_HOME="+a.Home)
 	var out bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, a.Stderr
 	err = cmd.Run()
 	return out.String(), err
+}
+
+// hookTimeout bounds a notify or dismiss command.
+var hookTimeout = time.Minute
+
+// killGroupOnCancel runs cmd in a process group of its own and, when its
+// context ends, kills the whole group: the command's children too, which
+// would otherwise live on and hold its output open.
+func killGroupOnCancel(cmd *exec.Cmd) {
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }
+	cmd.WaitDelay = 5 * time.Second
 }
 
 // away runs away_command: exit 0 means the user is away from this machine.
@@ -517,6 +560,7 @@ func (a *App) away(c config.Config) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "sh", "-c", c.AwayCommand)
+	killGroupOnCancel(cmd)
 	cmd.Stdout, cmd.Stderr = nil, a.Stderr
 	return cmd.Run() == nil
 }
