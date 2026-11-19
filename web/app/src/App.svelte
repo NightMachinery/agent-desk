@@ -80,6 +80,22 @@
     route.path, route.session, route.host, route.all, route.q;
     loadView();
   });
+  let prefetchScheduled = false;
+  $effect(() => {
+    if (prefetchScheduled || !view || route.item || route.settings) return;
+    prefetchScheduled = true;
+    const prefetchPanels = () => {
+      Promise.all([
+        import('./components/Detail.svelte'),
+        import('./components/NodePanel.svelte'),
+      ]).catch(() => {});
+    };
+    // Leave a frame for the populated inbox to paint before scheduling any downloads.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      if (window.requestIdleCallback) window.requestIdleCallback(prefetchPanels);
+      else window.setTimeout(prefetchPanels, 0);
+    }));
+  });
   $effect(() => {
     route.item;
     loadItem();

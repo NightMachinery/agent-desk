@@ -20,6 +20,11 @@ window.fixtureTiming = (async () => {
   const thread = rows.find(row => row.textContent.includes('Review the long thread'));
   if (!thread || thread.classList.contains('unread')) throw Error('Expected the pinned, read fixture thread.');
   const assets = performance.getEntriesByType('resource').filter(e => e.name.includes('/assets/'));
+  const dwell = Number(new URLSearchParams(location.search).get('fixtureDwellMs'));
+  if (dwell > 0) await new Promise(resolve => setTimeout(resolve, dwell));
+  const panelsBeforeClick = performance.getEntriesByType('resource')
+    .map(entry => new URL(entry.name).pathname.match(/\/assets\/(Detail|NodePanel|Recordings)-[^/]+\.js$/)?.[1])
+    .filter(Boolean);
   const start = performance.now();
   thread.click();
   await until(() => document.querySelectorAll('li.entry').length === 180 && document.querySelector('.detail textarea'));
@@ -32,6 +37,7 @@ window.fixtureTiming = (async () => {
   await paint();
   return {
     rows: rows.length,
+    panelsBeforeClick,
     assetBytes: assets.reduce((sum, entry) => sum + entry.encodedBodySize, 0),
     navigationToListMs: list,
     htmlToListMs: list - performance.getEntriesByType('navigation')[0].responseEnd,
