@@ -604,7 +604,10 @@ To turn it off and on again, without removing it:
 
 The core knows nothing about your desktop. It runs commands you name in
 `~/.config/agent-desk/config.toml` (or `$AGENT_DESK_CONFIG`), each under
-`sh -c` with the event as JSON on stdin:
+`sh -c` with the event as JSON on stdin. A store other than
+`~/.agents/desk`, named by `AGENT_DESK_HOME`, never reads that file: give it
+its own with `AGENT_DESK_CONFIG`. So a test or fixture store cannot run your
+notifier.
 
     notify_command  = "my-notifier"        # raise a notification; print its handle
     dismiss_command = "my-notifier --remove"   # take one back

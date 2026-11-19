@@ -15,6 +15,18 @@ import (
 	"github.com/NightMachinery/agent-desk/internal/store"
 )
 
+// foreignStore reports whether AGENT_DESK_HOME names a store other than
+// the user's default (~/.agents/desk) while AGENT_DESK_CONFIG names no
+// config: then the user's config file is not read, so its notify, dismiss,
+// deliver and other commands never run for that store.
+func (a *App) foreignStore() bool {
+	h := a.Env.Getenv("AGENT_DESK_HOME")
+	if h == "" || a.Env.Getenv("AGENT_DESK_CONFIG") != "" || a.Env.Home == "" {
+		return false
+	}
+	return filepath.Clean(h) != filepath.Join(a.Env.Home, ".agents", "desk")
+}
+
 // Payload is the JSON a configured command reads on stdin.
 type Payload struct {
 	Action    string       `json:"action"` // notify, dismiss, open, deliver
@@ -44,6 +56,12 @@ type Payload struct {
 
 func (a *App) config() (config.Config, error) {
 	if a.cfg != nil {
+		return *a.cfg, nil
+	}
+	if a.foreignStore() {
+		// A scratch or test store must never run the user's hooks (a
+		// fixture once sent fabricated questions to the user's phone).
+		a.cfg = &config.Config{}
 		return *a.cfg, nil
 	}
 	c, err := config.Load(config.Path(a.Env.Getenv, a.Env.Home))

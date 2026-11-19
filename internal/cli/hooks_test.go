@@ -120,3 +120,26 @@ func TestHookHasNoControllingTerminal(t *testing.T) {
 		t.Fatalf("the hook could open the terminal:\n%s", b)
 	}
 }
+
+// A store named by AGENT_DESK_HOME other than ~/.agents/desk never reads the
+// user's config, so a fixture or test store cannot run their notify
+// command; naming a config with AGENT_DESK_CONFIG still works.
+func TestForeignStoreSkipsUserConfig(t *testing.T) {
+	h := newHarness(t)
+	log := filepath.Join(t.TempDir(), "hooks.jsonl")
+	notifyConfig(t, h, log, "")
+	cfg := filepath.Join(h.home, ".config", "agent-desk", "config.toml")
+	scratch := map[string]string{"AGENT_DESK_HOME": filepath.Join(t.TempDir(), "scratch-desk")}
+	a, _, _ := h.app(scratch, "")
+	if c, err := a.config(); err != nil || c.NotifyCommand != "" {
+		t.Fatalf("a scratch store read the user's config: %+v %v", c, err)
+	}
+	named := map[string]string{"AGENT_DESK_HOME": scratch["AGENT_DESK_HOME"], "AGENT_DESK_CONFIG": cfg}
+	if a, _, _ := h.app(named, ""); func() string { c, _ := a.config(); return c.NotifyCommand }() == "" {
+		t.Fatal("AGENT_DESK_CONFIG was ignored")
+	}
+	def := map[string]string{"AGENT_DESK_HOME": filepath.Join(h.home, ".agents", "desk")}
+	if a, _, _ := h.app(def, ""); func() string { c, _ := a.config(); return c.NotifyCommand }() == "" {
+		t.Fatal("the default store lost the user's config")
+	}
+}
