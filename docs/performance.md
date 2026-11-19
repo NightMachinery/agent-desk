@@ -150,7 +150,7 @@ Three fresh Chrome profiles per case rendered 454 rows and 180 thread
 entries. The initial scripts and styles fell from 377,758 to 202,771
 uncompressed bytes. The final server sent 67,298 bytes with gzip. Across
 all routes and the worklet, the build grew from 378,760 to 387,247 raw
-bytes. Detail, node and recordings code loads on demand. The recorder
+bytes. This build loaded Detail, node and recordings code on demand. The recorder
 still requests the microphone inside its button gesture.
 
 - Desktop medians in milliseconds were 156 to 161 from the view response
@@ -168,6 +168,29 @@ still requests the microphone inside its button gesture.
   1.35 s (1.73 s with splitting alone) because the browser fetched its
   renderer on first use. These are simulated phone timings.
 
+### Idle panel prefetch
+
+The dashboard now schedules Detail and NodePanel downloads once per page
+after the populated inbox paints. It uses an idle callback when available
+and a timer otherwise. Recordings still loads when opened.
+
+We reran the 390 px phone case against `cc4981c` with 2 Mbps down,
+1 Mbps up, 80 ms latency and fourfold CPU slowdown. Each number is the
+median of three fresh Chrome profiles per build and click timing, using
+the same 454-row inbox and 180-entry thread.
+
+- After three seconds reading the inbox, HTML response to usable inbox
+  took 2,914 ms before and 2,915 ms after. Click to the painted thread
+  and composer fell from 1,293 to 986 ms (24%).
+- With a click at the first usable inbox paint, HTML to inbox took
+  2,862 ms before and 2,896 ms after. Click to thread took 1,275 ms
+  before and 1,291 ms after.
+
+With prefetch enabled, Chrome had fetched both panel scripts before
+every delayed click and neither before the immediate clicks. Disabling the idle callback for
+one additional run confirmed the timer fetched both panels. Recordings
+was absent from all pre-click resource lists.
+
 ### Repeat the second pass
 
 Use the fixture environment and server above. Include the queue benchmark
@@ -182,3 +205,8 @@ for loopback and use `--width 1360` for desktop.
     node web/app/scripts/shot.mjs http://127.0.0.1:7801/ "${pf_dir}/phone.png" \
       --width 390 --slow-phone --wait 0 --timeout 180000 \
       --init-file web/app/scripts/perf-browser.js --js 'return await window.fixtureTiming'
+
+For a click after three seconds of reading, use the same command with
+the URL `http://127.0.0.1:7801/?fixtureDwellMs=3000`. The probe reports
+`htmlToListMs`, `clickToThreadMs` and the panel scripts downloaded before
+the click in `panelsBeforeClick`.
