@@ -39,6 +39,8 @@ const DefaultListen = "127.0.0.1:7740"
 
 // server is the web dashboard: a JSON API over the store and the built page.
 type server struct {
+	closing         chan struct{} // closed on shutdown: event streams end
+	closeOnce       sync.Once
 	voice           voiceHub
 	a               *App
 	mu              sync.Mutex // protects the shared App used by reads
@@ -112,7 +114,7 @@ var agentVars = map[string]bool{
 }
 
 func newServer(a *App, ui fs.FS) (*server, error) {
-	s := &server{a: a, ui: ui, poll: time.Second, logger: a.Stderr, sendWake: make(chan struct{}, 1)}
+	s := &server{a: a, ui: ui, poll: time.Second, logger: a.Stderr, sendWake: make(chan struct{}, 1), closing: make(chan struct{})}
 	index, err := fs.ReadFile(ui, "index.html")
 	if err != nil {
 		return nil, fmt.Errorf("the dashboard is not built: %w", err)
@@ -1170,6 +1172,8 @@ func (s *server) apiStream(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-r.Context().Done():
 			return
+		case <-s.closing:
+			return
 		case <-beat.C:
 			io.WriteString(w, ": keepalive\n\n")
 			fl.Flush()
@@ -1369,14 +1373,19 @@ func (a *App) cmdServe(args []string) error {
 		return fmt.Errorf("recovering interrupted recordings: %w", err)
 	}
 	srv := &http.Server{Handler: s.routes(), ReadHeaderTimeout: 10 * time.Second}
+	// Open event streams end at once on shutdown (the page reconnects), so
+	// they do not hold the drain below until its timeout.
+	srv.RegisterOnShutdown(s.closeStreams)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	go s.sweepScreen(ctx, time.Minute)
 	s.cacheSnapshot() // start the first keeper read before a browser opens the desk
 	go s.runSendQueue(ctx)
+	drained := make(chan struct{})
 	go func() {
+		defer close(drained)
 		<-ctx.Done()
-		sctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		sctx, cancel := context.WithTimeout(context.Background(), shutdownDrain)
 		defer cancel()
 		srv.Shutdown(sctx)
 	}()
@@ -1384,7 +1393,19 @@ func (a *App) cmdServe(args []string) error {
 	if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
+	// Serve returns as soon as Shutdown starts; requests still in flight
+	// would be cut off (the proxy answers 502) if the process exited now.
+	<-drained
 	return nil
+}
+
+// shutdownDrain bounds how long a stopping server waits for requests in
+// flight.
+const shutdownDrain = 10 * time.Second
+
+// closeStreams ends every open /api/stream response.
+func (s *server) closeStreams() {
+	s.closeOnce.Do(func() { close(s.closing) })
 }
 
 // sweepScreen grants a waiting request for the screen once the user has

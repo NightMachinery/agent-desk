@@ -4,8 +4,10 @@ import (
 	"bufio"
 	"bytes"
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -415,5 +417,64 @@ func TestServeReadSnapshot(t *testing.T) {
 	third, nextStamp := s.load(httptest.NewRecorder())
 	if third == nil || nextStamp == stamp || len(third.Events) != 2 || third.Events[0].ID != old.ID {
 		t.Fatalf("external append did not invalidate the snapshot")
+	}
+}
+
+// On shutdown, open event streams end at once and a request in flight
+// still completes, so a restart neither cuts responses off nor waits out
+// the drain timeout on a stream.
+func TestServeShutdownDrains(t *testing.T) {
+	h := newHarness(t)
+	s, hd := testServer(t, h)
+	started := make(chan struct{})
+	mux := http.NewServeMux()
+	mux.Handle("/", hd)
+	mux.HandleFunc("GET /slow", func(w http.ResponseWriter, r *http.Request) {
+		close(started)
+		time.Sleep(300 * time.Millisecond)
+		io.WriteString(w, "done")
+	})
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	must(t, err)
+	srv := &http.Server{Handler: mux}
+	srv.RegisterOnShutdown(s.closeStreams)
+	go srv.Serve(ln)
+	base := "http://" + ln.Addr().String()
+
+	stream, err := http.Get(base + "/api/stream")
+	must(t, err)
+	defer stream.Body.Close()
+	streamEnded := make(chan struct{})
+	go func() {
+		io.Copy(io.Discard, stream.Body)
+		close(streamEnded)
+	}()
+	slow := make(chan string, 1)
+	go func() {
+		resp, err := http.Get(base + "/slow")
+		if err != nil {
+			slow <- "error: " + err.Error()
+			return
+		}
+		b, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		slow <- string(b)
+	}()
+	<-started
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	t0 := time.Now()
+	must(t, srv.Shutdown(ctx))
+	if d := time.Since(t0); d > 2*time.Second {
+		t.Fatalf("shutdown took %v: the stream held the drain", d)
+	}
+	if got := <-slow; got != "done" {
+		t.Fatalf("request in flight: %q", got)
+	}
+	select {
+	case <-streamEnded:
+	case <-time.After(2 * time.Second):
+		t.Fatal("the stream did not end on shutdown")
 	}
 }
