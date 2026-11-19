@@ -124,6 +124,9 @@ func listed(e store.Event) bool {
 }
 
 func atomicWrite(path string, data []byte) error {
+	if filepath.Ext(path) == ".org" {
+		data = LinkMentions(data)
+	}
 	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".*")
 	if err != nil {
 		return err

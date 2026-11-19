@@ -1,4 +1,5 @@
 // The dashboard's API, at ./api relative to the page.
+import { addRefs } from './refs.svelte.js';
 
 async function parse(res) {
   let body = {};
@@ -10,6 +11,7 @@ async function parse(res) {
   if (!res.ok) {
     throw Object.assign(new Error(body.error || `${res.status} ${res.statusText}`), { status: res.status });
   }
+  if (body?.refs) addRefs(body.refs);
   return body;
 }
 

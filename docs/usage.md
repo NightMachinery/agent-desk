@@ -500,6 +500,12 @@ in the list for", per device). The icon beside its id marks it unread
 again, and the pin icon keeps it on top. Items you mark read with a
 section's mark-all button or the selection's Mark read leave the list at
 once; if the desk refuses, they come back with the error.
+An item id written in any text on the desk ("see q-8tqk", or `` `q-8tqk` ``
+alone in code) links to that item; hover it for the title and state. Only
+ids the desk knows link, so "t-test" stays text, and nothing inside a code
+block or a longer code span links. The org files link such ids to the item's
+heading when it is in the same file, and notifications carry the links for
+the notify command.
 Previous and Next at the bottom of an item walk the list in the order
 shown. Once you answer a question, approve or deny a screen request, or
 dismiss a question, the page moves on: on a wide screen to the next question

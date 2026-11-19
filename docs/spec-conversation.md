@@ -458,6 +458,61 @@ Acceptance checks:
 5. The answer is delivered to the asking session; the inbox and org render
    show the question in its thread.
 
+## Id links
+
+@Opus5.5 [2026-11-19 Thu]
+
+Agents mention items by display id ("see q-8tqk") all the time; the desk
+links each mention to the item. An **id mention** is a display id written in
+an agent's or the user's text: a body, a slot, a thread entry, an answer.
+
+- **Only real ids link.** The shape alone is not enough: a display id is a
+  kind letter, a dash and four or more lowercase Crockford base32
+  characters, and "t-test", "n-gram" and "a-team" fit that. So the server
+  decides. Wherever it sends text to render (`api/item` and `api/view`,
+  with the thread entries in them; `api/target` carries no text), it scans
+  the titles and bodies for
+  candidates (`\b[a-z]-[0-9a-hjkmnp-tv-z]{4,}\b`) and returns
+  `refs: {"q-8tqk": {"title": ..., "kind": ..., "state": ..., "url": ...}}`
+  for those that are exactly the display id of an event in the store (exact,
+  never a prefix or a suffix match). The dashboard links only ids in `refs`.
+- **Where a mention links.** Outside code: a plain-text mention. Inside
+  code: an inline code span whose whole content is one id (`` `q-8tqk` ``),
+  keeping its code style, since agents usually write ids that way. Never
+  inside a fenced or indented code block, or inside a longer code span such
+  as `agent-desk tell --re m-4c2d`, and never in text already inside a link.
+  List row titles stay plain: the row is itself a link.
+- **Where it goes.** The item's page, by in-app navigation (no reload),
+  `url` being its `itemHash`. A message, answer or response opens its thread
+  with that entry highlighted. Hovering shows the title, kind and state
+  ("q-8tqk, open, blocked: Which split?"). An id merged from another host
+  links the same way.
+- **Telegram.** The notify payload gains `refs: {"q-8tqk": "<base_url item
+  URL>"}` for the id mentions in its title and body, with `base_url` set;
+  the scripts' notify command turns those mentions into links (a separate
+  commit in the scripts repository).
+- **Org render.** Each item heading gains a `CUSTOM_ID` property equal to
+  its display id, and a mention becomes `[[#q-8tqk][q-8tqk]]` when that
+  heading is in the same file (a `#` link to another file would not
+  resolve). Headings, drawers and code stay as they are.
+- **Terminal inbox.** Unchanged.
+- **Cost.** One regex pass over text the server already sends, and a map
+  lookup per candidate. `refs` holds only ids that resolve, so a response
+  stays small.
+
+Acceptance checks:
+
+1. A body with "see q-8tqk, then run a t-test" links q-8tqk (a real id) and
+   leaves "t-test" plain; a body naming a missing id leaves it plain.
+2. `` `q-8tqk` `` links with code style; a code block containing q-8tqk and
+   the span `agent-desk read q-8tqk` do not link.
+3. Clicking navigates without a reload; a message id opens its thread with
+   the message highlighted; hovering shows the title and state.
+4. With `base_url` set, the notify payload's `refs` carries the item URL
+   of every real id mentioned in its title and body.
+5. The org render gives every item heading a `CUSTOM_ID` and links
+   mentions to it.
+
 ## Commit groups
 
 1. Delivery fix: explicit behaviour, clean environment, dispositions.

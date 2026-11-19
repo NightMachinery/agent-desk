@@ -4,6 +4,7 @@
 // off until the desk has its own attachments: a remote image would load from
 // wherever an agent pointed it.
 import MarkdownIt from 'markdown-it';
+import { idLinks } from './idlinks.js';
 
 // A single newline is ambiguous on the desk. Agents hard-wrap prose at about
 // 72 columns, where it must flow; older bodies and slots are plain lines
@@ -42,12 +43,16 @@ function smartBreaks(state) {
 function make(links) {
   const md = new MarkdownIt({ html: false, linkify: links, breaks: false, typographer: false });
   md.core.ruler.push('smart_breaks', smartBreaks);
+  if (links) md.core.ruler.push('id_links', idLinks);
   md.disable(['image']);
   if (!links) md.disable(['link', 'autolink']);
   const open = md.renderer.rules.link_open || ((t, i, o, e, self) => self.renderToken(t, i, o));
   md.renderer.rules.link_open = (tokens, i, opts, env, self) => {
-    tokens[i].attrSet('target', '_blank');
-    tokens[i].attrSet('rel', 'noopener noreferrer');
+    // An id link navigates inside the dashboard; others open a new tab.
+    if (!tokens[i].meta?.deskId) {
+      tokens[i].attrSet('target', '_blank');
+      tokens[i].attrSet('rel', 'noopener noreferrer');
+    }
     return open(tokens, i, opts, env, self);
   };
   return md;
@@ -57,6 +62,6 @@ const full = make(true);
 // For text shown inside a link (a slot card): nested links are invalid HTML.
 const plain = make(false);
 
-export function markdown(text, { links = true } = {}) {
-  return (links ? full : plain).render(text || '');
+export function markdown(text, { links = true, refs = null } = {}) {
+  return (links ? full : plain).render(text || '', { refs });
 }

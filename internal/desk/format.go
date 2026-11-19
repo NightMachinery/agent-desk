@@ -92,6 +92,10 @@ func (w *Writer) props(kv ...string) {
 	}
 	fmt.Fprintln(w.W, ":PROPERTIES:")
 	for i := 0; i+1 < len(kv); i += 2 {
+		if kv[i] == "DESK_ID" && kv[i+1] != "" {
+			// The target of [[#q-8tqk]] links (render: LinkMentions).
+			fmt.Fprintf(w.W, ":CUSTOM_ID: %s\n", kv[i+1])
+		}
 		if kv[i+1] != "" {
 			fmt.Fprintf(w.W, ":%s: %s\n", kv[i], kv[i+1])
 		}

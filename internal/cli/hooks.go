@@ -37,6 +37,9 @@ type Payload struct {
 	AgentTitle string `json:"agent_title,omitempty"`
 	AgentDesk  string `json:"agent_desk"` // this binary, for click actions
 	DeskHome   string `json:"desk_home"`
+	// Refs maps the id mentions in the event's title and body to their
+	// items' pages (needs base_url), for a notifier to link them.
+	Refs map[string]string `json:"refs,omitempty"`
 }
 
 func (a *App) config() (config.Config, error) {
@@ -56,11 +59,20 @@ func (a *App) payload(d *desk.Desk, action string, e store.Event) Payload {
 	ev := e
 	c, _ := a.config()
 	node := desk.NodeOf(e)
+	var refs map[string]string
+	if c.BaseURL != "" {
+		for id, r := range refsOf(d, []string{e.Title, e.Body}) {
+			if refs == nil {
+				refs = map[string]string{}
+			}
+			refs[id] = strings.TrimRight(c.BaseURL, "/") + "/" + r.URL
+		}
+	}
 	return Payload{
 		Action: action, DisplayID: d.Display(e.ID), Path: node, Event: &ev,
 		Local: e.Host == a.Host, AgentDesk: self, DeskHome: a.Home,
 		URL: itemURL(c, d, e), Project: strings.SplitN(node, "/", 2)[0], Class: desk.ClassOf(e),
-		AgentTitle: agentTitle(e),
+		AgentTitle: agentTitle(e), Refs: refs,
 	}
 }
 

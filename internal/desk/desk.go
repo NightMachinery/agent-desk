@@ -56,6 +56,10 @@ type Desk struct {
 	slots     []store.Event   // slot_current minus clears
 	threads   threadIndex
 
+	// display maps display ids to event ids, built on first use and shared
+	// by the copies a server makes per request.
+	display *displayIndex
+
 	// Live maps a Paseo agent id on this machine to its status ("running",
 	// "idle", "error", or "archived"); nil when unknown. An agent node whose
 	// session is one of them takes its state from it rather than from time.
@@ -71,7 +75,7 @@ func Load(s *store.Store, host string, now time.Time) (*Desk, error) {
 	if err != nil {
 		return nil, err
 	}
-	d := &Desk{Now: now, Host: host, Home: filepath.Dir(s.Path), Events: evs, ByID: make(map[string]store.Event, len(evs))}
+	d := &Desk{Now: now, Host: host, Home: filepath.Dir(s.Path), Events: evs, ByID: make(map[string]store.Event, len(evs)), display: &displayIndex{}}
 	all := make([]string, len(evs))
 	for i := range evs {
 		if evs[i].Kind == "set" {

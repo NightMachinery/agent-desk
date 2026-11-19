@@ -596,9 +596,11 @@ type viewResponse struct {
 	Screens []screenInfo `json:"screens"`
 	// Sets are the project sets; Focus is the focused one and what it
 	// hides, or null. Unfocused is set when ?unfocused=1 ignored the focus.
-	Sets      []SetInfo       `json:"sets"`
-	Focus     *desk.FocusView `json:"focus"`
-	Unfocused bool            `json:"unfocused,omitempty"`
+	Sets  []SetInfo       `json:"sets"`
+	Focus *desk.FocusView `json:"focus"`
+	// Refs resolves the id mentions in the text above (see Ref).
+	Refs      map[string]Ref `json:"refs,omitempty"`
+	Unfocused bool           `json:"unfocused,omitempty"`
 	// Paths are what a set can be made of: every project, each followed by
 	// its runs.
 	Paths []string `json:"paths"`
@@ -733,6 +735,7 @@ func (s *server) apiView(w http.ResponseWriter, r *http.Request) {
 	if f.Session != "" {
 		resp.Session = sessionInfo(d, f.Session)
 	}
+	resp.Refs = refsOf(d, textsOf(resp))
 	writeJSON(w, resp)
 }
 
@@ -1140,6 +1143,8 @@ type itemResponse struct {
 	Media       []MediaView `json:"media,omitempty"`
 	Task        *desk.Task  `json:"task,omitempty"`
 	LaunchReady bool        `json:"launch_ready,omitempty"`
+	// Refs resolves the id mentions in the item and its thread.
+	Refs map[string]Ref `json:"refs,omitempty"`
 }
 
 func (s *server) apiItem(w http.ResponseWriter, r *http.Request) {
@@ -1207,6 +1212,7 @@ func (s *server) apiItem(w http.ResponseWriter, r *http.Request) {
 		s.behaviors(d, &t)
 		resp.Target = &t
 	}
+	resp.Refs = refsOf(d, textsOf(resp))
 	writeJSON(w, resp)
 }
 
