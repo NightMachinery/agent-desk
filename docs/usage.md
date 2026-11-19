@@ -487,7 +487,9 @@ again, and the pin icon keeps it on top.
 Previous and Next at the bottom of an item walk the list in the order
 shown. Once you answer a question, approve or deny a screen request, or
 dismiss a question, the page moves on: on a wide screen to the next question
-still in the list (else the next item), on a phone back to the list. The
+still in the list (else the next item), skipping pinned items wherever they
+are listed, and back to the list when only pinned items are left; on a phone
+back to the list. The
 toast's Back (Undo for a dismissal) returns to it. A message you send in a
 conversation keeps you there, since you wait for its response. The search filters every section, and the run tree by project, run
 or agent name and by the session or Paseo id of whoever joined a node.

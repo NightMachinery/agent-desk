@@ -17,6 +17,7 @@
   import Icon from './Icon.svelte';
   import Thread from './Thread.svelte';
   import { autoRead, nav, position, step } from '../lib/nav.svelte.js';
+  import { moveOnTarget } from '../lib/moveon.js';
 
   let { item, error, onchange } = $props();
 
@@ -96,21 +97,13 @@
   }
 
   // Once a question is dealt with (answered, approved, denied, dismissed),
-  // move on: on a wide screen to the next item in the list, on a phone back
+  // move on: on a wide screen to the next unpinned item (moveon.js), on a phone back
   // to the list. The toast's Back returns to it. A message sent in a
   // conversation stays put: its response is what the user waits for.
   const wide = () => typeof matchMedia === 'function' && matchMedia('(min-width: 901px)').matches;
-  // The next question still in the list after here (or, past the last, the
-  // nearest one before it), else the next item of any kind.
-  function nextOpen(here) {
-    const o = nav.order.filter((id) => id !== here);
-    const at = Math.max(0, nav.order.indexOf(here));
-    const q = (id) => id.startsWith('q-');
-    return o.slice(at).find(q) || o.slice(0, at).reverse().find(q) || step(1, here) || step(-1, here);
-  }
   function moveOn(text, back = null) {
     const here = route.item;
-    const next = wide() ? nextOpen(here) : '';
+    const next = wide() ? moveOnTarget(nav.order, here, nav.pinned) : '';
     setTimeout(() => go({ item: next }), 0); // after the composer has finished with its draft
     toast(text, 'ok', 6000, {
       label: back ? 'Undo' : 'Back',

@@ -78,8 +78,12 @@
   const allIds = $derived([
     ...new Set([...shown('needs', needIds), ...shown('pinned', pinnedIds), ...shown('responses', responseIds), ...shown('new', freshIds)]),
   ]);
+  // Pinned items in any section, including a pinned question under Needs.
+  const pinnedAll = $derived(
+    new Set([...pinnedIds, ...[...needs, ...responses, ...fresh].flatMap((g) => g.items.filter((it) => it.pinned).map((it) => it.display_id))]),
+  );
   // Previous and next walk the list in the order shown.
-  $effect(() => snapshot(allIds, route.item));
+  $effect(() => snapshot(allIds, route.item, pinnedAll));
   const pickedPinned = $derived(pinnedIds.filter((x) => sel.ids.has(x)).length);
   const allOn = (ids) => ids.length > 0 && ids.every((x) => sel.ids.has(x));
   $effect(() => prune(allIds));
