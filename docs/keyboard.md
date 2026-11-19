@@ -151,7 +151,8 @@ and keys are bound to its name:
 `palette: false` keeps it out of `M-x`; `anywhere` lets it work inside a
 sheet. Dispatch, which-key, the pickers, the binding list and the describe
 sheets all read these two tables, so a new page or action needs only a
-`command()` to be reachable by name, and a `bind()` for a key. Most commands
+`command()` to be reachable by name, and a `bind()` for a key. So a change that adds a page,
+panel or action adds its command too; otherwise the new feature is mouse-only. Most commands
 press the same button a click would: tag the button `data-cmd="name"` in its
 component and call `click('name')`, so the key and the click cannot drift
 apart. `group('SPC i', '+item')` names a prefix for which-key.
