@@ -15,13 +15,24 @@ export const ui = $state({
   // How long a row read by opening it stays in the list, dimmed, after you
   // move on. 0 drops it at once.
   lingerSeconds: Number.isFinite(saved.lingerSeconds) ? saved.lingerSeconds : 60,
+  // Whether a wide screen moves to the next item once a question is dealt
+  // with (answered, approved, denied, dismissed), and once a message is sent
+  // in a conversation. A phone goes back to the list instead.
+  nextAfterQuestion: saved.nextAfterQuestion ?? true,
+  nextAfterMessage: saved.nextAfterMessage ?? true,
   // Sections folded away, by name: needs, pinned, responses, new, runs.
   collapsed: saved.collapsed ?? {},
 });
 
 export function saveUI() {
   try {
-    localStorage.setItem(KEY, JSON.stringify({ lingerSeconds: ui.lingerSeconds, collapsed: ui.collapsed }));
+    localStorage.setItem(KEY, JSON.stringify({
+        lingerSeconds: ui.lingerSeconds,
+        nextAfterQuestion: ui.nextAfterQuestion,
+        nextAfterMessage: ui.nextAfterMessage,
+        collapsed: ui.collapsed,
+      }),
+    );
   } catch {
     /* private mode: settings last until reload */
   }

@@ -18,6 +18,7 @@
   import Thread from './Thread.svelte';
   import { autoRead, nav, position, step } from '../lib/nav.svelte.js';
   import { moveOnTarget } from '../lib/moveon.js';
+  import { ui } from '../lib/ui.svelte.js';
 
   let { item, error, onchange } = $props();
 
@@ -96,12 +97,18 @@
     }
   }
 
-  // Once a question is dealt with (answered, approved, denied, dismissed),
-  // move on: on a wide screen to the next unpinned item (moveon.js), on a phone back
-  // to the list. The toast's Back returns to it. A message sent in a
-  // conversation stays put: its response is what the user waits for.
+  // Once a question is dealt with (answered, approved, denied, dismissed) or
+  // a message is sent in a conversation, move on: on a wide screen to the
+  // next unpinned item (moveon.js), on a phone back to the list. The toast's
+  // Back returns to it. Settings can keep either case on the item
+  // (ui.nextAfterQuestion, ui.nextAfterMessage); then only the toast shows,
+  // with Undo when there is one.
   const wide = () => typeof matchMedia === 'function' && matchMedia('(min-width: 901px)').matches;
-  function moveOn(text, back = null) {
+  function moveOn(text, back = null, enabled = ui.nextAfterQuestion) {
+    if (!enabled) {
+      toast(text, 'ok', 6000, back ? { label: 'Undo', run: back } : null);
+      return;
+    }
     const here = route.item;
     const next = wide() ? moveOnTarget(nav.order, here, nav.pinned) : '';
     setTimeout(() => go({ item: next }), 0); // after the composer has finished with its draft
@@ -131,7 +138,9 @@
     const page = route.item;
     const choice = await chooseSendCache('reply', to);
     if (choice === 'cancel' || route.item !== page) return false;
-    return queueMessage('reply', { to, text, ...opts, ...(choice === 'compact' && { after_compaction: true }) });
+    const queued = queueMessage('reply', { to, text, ...opts, ...(choice === 'compact' && { after_compaction: true }) }, to, { quiet: ui.nextAfterMessage });
+    if (queued && ui.nextAfterMessage) moveOn(`Message on ${it.display_id} queued.`, null, true);
+    return queued;
   }
   async function mark(read) {
     try {

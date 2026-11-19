@@ -151,10 +151,25 @@
       </select>
       <div class="origin"><span class="faint">Opening an item marks it read. It stays in place, dimmed once you move on, for this long.</span></div>
     </div>
+    <div class="key">
+      <div class="key-head">
+        <span class="key-name">Move to the next item</span>
+        <span class="mono faint">this device</span>
+      </div>
+      <label class="check"><input type="checkbox" checked={ui.nextAfterQuestion} onchange={(e) => ((ui.nextAfterQuestion = e.currentTarget.checked), saveUI())} /> after answering, approving, denying or dismissing a question</label>
+      <label class="check"><input type="checkbox" checked={ui.nextAfterMessage} onchange={(e) => ((ui.nextAfterMessage = e.currentTarget.checked), saveUI())} /> after sending a message in a conversation</label>
+      <div class="origin"><span class="faint">On a wide screen, to the next item that is not pinned; on a phone, back to the list. Off: stay on the item.</span></div>
+    </div>
   {/if}
 </div>
 
 <style>
+  .check {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    font-size: 13px;
+  }
   .settings {
     display: flex;
     flex-direction: column;
