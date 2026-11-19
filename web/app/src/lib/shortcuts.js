@@ -86,12 +86,12 @@ export const cheatsheet = [
   {
     title: 'Leader',
     rows: [
-      [['SPC SPC'], 'Go to a project, run or agent'],
+      [['SPC SPC'], 'Any command or place, by name'],
+      [['M-x', ':'], 'Commands only, by name'],
       [['SPC ,'], 'Switch to an item'],
-      [['M-x', ':'], 'Any command, by name'],
-      [['SPC i'], 'Item commands'],
-      [['SPC n'], 'Node commands'],
-      [['SPC t'], 'Toggles: all, sort, select'],
+      [['SPC i', 'SPC n'], 'Item and node commands'],
+      [['g v', 'SPC o'], 'Verbatim log; open pages'],
+      [['SPC h k', 'SPC h f'], 'What a key or command does'],
     ],
   },
   {

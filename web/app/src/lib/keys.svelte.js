@@ -6,8 +6,12 @@
 // that is the start of longer bindings waits for the next key and, after a
 // moment, shows the which-key popup listing what can follow.
 //
-// Bindings belong to a pane (side, list, detail, or dialog while a sheet is
-// open) or to all of them. The keymap itself is in keymap.js.
+// Every action is a named command (command()); a key sequence is bound to a
+// command name (bind()). Dispatch, which-key, M-x, SPC SPC, the binding list
+// and describe-key/describe-command all read these two tables, so a command
+// with no key is still reachable by name. Bindings belong to a pane (side,
+// list, detail, or dialog while a sheet is open) or to all of them. The keymap
+// itself is in keymap.js.
 
 import { route, pageOpen } from './route.svelte.js';
 
@@ -17,8 +21,10 @@ export const keys = $state({
   pending: /** @type {string[]} */ ([]),
   count: '',
   which: false, // the which-key popup
-  help: false, // the full list of bindings
+  help: /** @type {false | 'sheet' | 'all' | 'describe'} */ (false), // the cheatsheet, every binding, or the describe sheet
   palette: /** @type {null | {title: string, items: any[], query: string, index: number}} */ (null),
+  capture: false, // describe-key: the next sequence is described, not run
+  describe: /** @type {null | {keys?: string, cmd?: string}} */ (null), // what the describe sheet shows
   hints: /** @type {null | {typed: string, marks: {label: string, el: HTMLElement, x: number, y: number}[]}} */ (null),
   anchor: '', // visual mode's first row
   used: false, // the keyboard has driven the page: show which pane has focus
@@ -34,16 +40,30 @@ export const ctx = {
   /** @returns {any[]} */ runs: () => [],
 };
 
-/** @typedef {{keys: string, seq: string[], desc: string, run: (n: number) => any, pane?: string, when?: () => any, palette?: boolean, anywhere?: boolean}} Binding */
+/** @typedef {{name: string, desc: string, run: (n: number) => any, pane?: string, when?: () => any, need?: string, palette?: boolean, anywhere?: boolean}} Command */
+/** @typedef {{keys: string, seq: string[], cmd: string, desc: string, run: (n: number) => any, pane?: string, when?: () => any, anywhere?: boolean}} Binding */
+/** @type {Map<string, Command>} */
+export const commands = new Map();
 /** @type {Binding[]} */
 export const bindings = [];
 /** @type {Record<string, string>} prefix -> group name */
 export const groups = {};
 
-/** Adds a binding. opts: pane, when, palette (false: not in M-x),
- * anywhere (also inside a sheet). */
-export function bind(seq, desc, run, opts = {}) {
-  bindings.push({ keys: seq, seq: seq.split(' '), desc, run, ...opts });
+/** Defines a command. opts: pane (it acts on that pane only), when (it
+ * applies only while this is true), need (what it needs, said when it does
+ * not apply), palette (false: not offered by name), anywhere (also inside a
+ * sheet). */
+export function command(name, desc, run, opts = {}) {
+  if (commands.has(name)) throw new Error(`command ${name} is defined twice`);
+  commands.set(name, { name, desc, run, ...opts });
+}
+
+/** Binds a key sequence to a command. opts.pane limits this key to a pane
+ * (the command's own pane otherwise). */
+export function bind(seq, name, opts = {}) {
+  const c = commands.get(name);
+  if (!c) throw new Error(`bind ${seq}: no command ${name}`);
+  bindings.push({ keys: seq, seq: seq.split(' '), cmd: name, desc: c.desc, run: c.run, when: c.when, pane: opts.pane ?? c.pane, anywhere: opts.anywhere ?? c.anywhere });
 }
 export function group(prefix, name) {
   groups[prefix] = name;
@@ -158,8 +178,85 @@ export function continuations(prefix) {
 // Letters before punctuation, lower case before upper, as which-key does.
 const sortKey = (k) => (/^[a-z]$/.test(k) ? '0' + k : /^[A-Z]$/.test(k) ? '1' + k.toLowerCase() + k : '2' + k);
 
-/** Every binding that applies now, for help and M-x. */
+/** Every binding that applies now, for the binding list. */
 export const activeBindings = () => bindings.filter(active);
+
+/** Whether a command can run here now. */
+export const applies = (c) => active(c);
+
+/** The keys that run command name here, or with all = true anywhere. */
+export const keysOf = (name, all = false) => bindings.filter((b) => b.cmd === name && (all || active(b))).map((b) => b.keys);
+
+/** The commands offered by name: those that apply here, A to Z, each with
+ * the keys that run it. */
+export function commandItems() {
+  return [...commands.values()]
+    .filter((c) => c.palette !== false && applies(c))
+    .map((c) => ({ label: c.desc, key: keysOf(c.name).slice(0, 2).join(', '), run: () => c.run(1) }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+}
+
+/** Runs a command by name, as a key would (for the palette). */
+export function runCommand(name, n = 1) {
+  const c = commands.get(name);
+  if (!c) return say(`No command ${name}`);
+  if (!applies(c)) return say(c.need ? `Needs ${c.need}` : `${c.desc}: not here`);
+  run(c, n);
+}
+
+// --- describe-key and describe-command ----------------------------------------
+
+/** SPC h k: the next key sequence is described instead of run. */
+export function describeKey() {
+  reset();
+  keys.capture = true;
+  say('Describe key: press a key sequence (C-g cancels)', 60000);
+}
+
+function captureKey(e, tok) {
+  e.preventDefault();
+  if (tok === 'C-g' && !keys.pending.length) {
+    keys.capture = false;
+    return say('Cancelled');
+  }
+  const seq = [...keys.pending, tok];
+  if (isPrefix(seq) || (!exact(seq) && bindings.some((b) => b.seq.length > seq.length && starts(b.seq, seq)))) {
+    keys.pending = seq;
+    return;
+  }
+  keys.capture = false;
+  reset();
+  say('');
+  keys.describe = { keys: seq.join(' ') };
+  keys.help = 'describe';
+}
+
+/** Opens the describe sheet on a command. */
+export function describeCommand(name) {
+  keys.describe = { cmd: name };
+  keys.help = 'describe';
+}
+
+/** What the describe sheet shows: the command a sequence runs here (or
+ * where else it is bound), or a command with its keys and whether it
+ * applies here. */
+export function description(d) {
+  if (!d) return null;
+  if (d.keys) {
+    const seq = d.keys.split(' ');
+    const here = exact(seq);
+    const elsewhere = bindings.filter((b) => b.keys === d.keys && b !== here);
+    return { keys: d.keys, cmd: here ? commands.get(here.cmd) : null, elsewhere: elsewhere.map((b) => ({ desc: b.desc, cmd: b.cmd, pane: b.pane })) };
+  }
+  const c = commands.get(d.cmd ?? '');
+  if (!c) return null;
+  return {
+    cmd: c,
+    here: keysOf(c.name),
+    all: bindings.filter((b) => b.cmd === c.name).map((b) => ({ keys: b.keys, pane: b.pane })),
+    applies: applies(c),
+  };
+}
 
 // --- dispatch ----------------------------------------------------------------
 
@@ -192,9 +289,13 @@ export function onkeydown(e) {
     syncMode();
   });
   if (keys.palette) return; // the palette's input handles its own keys
+  if (keys.capture) return captureKey(e, tok);
   if (keys.hints) return hintKey(e, tok);
   if (keys.help) {
     if (['ESC', 'C-g', 'q', '?'].includes(tok)) keys.help = false;
+    else if (keys.help === 'describe') {
+      // Only the keys above close it.
+    }
     else if (tok === 'TAB') keys.help = keys.help === 'all' ? 'sheet' : 'all';
     else if (tok === 'j' || tok === 'C-d') document.querySelector('.keyhelp')?.scrollBy(0, tok === 'j' ? 60 : 300);
     else if (tok === 'k' || tok === 'C-u') document.querySelector('.keyhelp')?.scrollBy(0, tok === 'k' ? -60 : -300);

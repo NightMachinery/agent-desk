@@ -76,10 +76,13 @@ On a phone there is one pane at a time: the list, or the open item.
 `SPC` starts a sequence; wait a moment and the which-key popup lists what can
 follow, with groups in colour.
 
-- `SPC SPC` or `SPC p p`: go to a project, run or agent, by name.
+- `SPC SPC`: find anything by name: every command that applies here (with its
+  keys, so the palette also teaches them), then every project, run and agent.
+- `SPC p p`: places only (projects, runs and agents).
 - `SPC ,` or `SPC b b`: switch to an item in the list.
-- `SPC :`, `:` or `M-x`: run any command by name. Each row shows its keys, so
-  the palette also teaches them.
+- `SPC :`, `:` or `M-x`: commands only. Every command is listed, including the
+  ones with no key (screen requests, retrying a delivery, focus sets,
+  auto-continue).
 - `SPC i`: the open item (`a` answer, `r` message, `d` read, `u` unread, `p`
   pin, `t` take, `o` its node, `n` "Notify me", `m` "Send how?").
 - `SPC n`: the node page (`m` message the coordinator, `r` mark everything
@@ -87,10 +90,16 @@ follow, with groups in colour.
 - `SPC s s` search, `SPC s c` clear the search; `/` searches too.
 - `SPC t a` show all, `SPC t o` oldest first, `SPC t s` select mode.
 - `SPC x a` select every item, `SPC x c` clear the selection.
+- `SPC o`: open a page: `v` the Verbatim log here, `V` everywhere, `s`
+  settings, `S` global settings, `r` recordings.
 - `SPC w`: panes, as `C-w`.
-- `SPC h b`: every binding that applies here (`?` shows the cheatsheet).
+- `SPC h`: help. `SPC h b` (or `SPC ?`) lists every binding that applies here;
+  `?` shows the cheatsheet. `SPC h k` then a key sequence says what that key
+  runs here and what it does elsewhere, without running it (`C-g` cancels).
+  `SPC h f` picks any command, available here or not, and shows its keys and,
+  when it does not apply, what it needs.
 
-In the pickers (`SPC SPC`, `SPC ,`, `M-x`) the words you type match in any
+In the pickers (`SPC SPC`, `SPC h f`, `SPC ,`, `M-x`) the words you type match in any
 order. `C-n` / `C-p`, `C-j` / `C-k` or the arrows move, `RET` picks, `Esc` or
 `C-g` closes.
 
@@ -104,7 +113,9 @@ its own.
 ## Going places
 
 `-` goes up one level of the path, `gh` to everything, `gs` to the settings
-for the current view, `gS` to the global settings, `gr` refreshes.
+for the current view, `gS` to the global settings, `gv` to the Verbatim log
+for the current view, `gV` to the whole Verbatim log, `gr` refreshes. On the
+Verbatim log, `/` focuses its search box.
 
 ## Sheets
 
@@ -116,24 +127,35 @@ is open.
 ## Back out with Esc
 
 Outside a text box, `Esc` (or `C-g`) undoes one thing at a time: visual mode,
-then the selection, then the open item, then the settings page, then the
-search.
+then the selection, then the open item, then the settings page or the
+Verbatim log, then the search.
 
 ## For developers
 
 The engine is `web/app/src/lib/keys.svelte.js`: tokens, modes, panes,
-sequences, which-key, hints and the palette. The bindings are in
-`web/app/src/lib/keymap.js`; `lib/shortcuts.js` holds the cheatsheet and the
-key each `data-cmd` button's tooltip names (`tip(label, cmd)`), so update it
-with a key. A binding is
+sequences, which-key, hints, the palette, the command and binding tables, and
+describe-key/describe-command. The commands and keys are in
+`web/app/src/lib/keymap.js`. Every action is a named command, defined once:
 
-    bind('SPC i p', 'Pin or unpin', run, { pane, when, palette, anywhere })
+    command('pin', 'Pin or unpin', run, { pane, when, need, palette, anywhere })
 
-where `pane` limits it to `side`, `list`, `detail` or `dialog` (a sheet),
-`when` hides it when it does not apply (and from which-key, `?` and `M-x`),
-`palette: false` keeps it out of `M-x`, and `anywhere` lets it work inside a
-sheet. Most commands press the same button a click would: tag the button
-`data-cmd="name"` in its component and call `click('name')`, so the key and
-the click cannot drift apart. `group('SPC i', '+item')` names a prefix for
-which-key. `components/Keys.svelte` draws the mode line, which-key, the
-binding list, the palette and the hints.
+and keys are bound to its name:
+
+    bind('p', 'pin')
+    bind('SPC i p', 'pin')
+    bind('j', 'next-item', { pane: 'list' })
+
+`pane` limits a command (or one key) to `side`, `list`, `detail` or `dialog`
+(a sheet); `when` hides it when it does not apply (from which-key, `?`,
+`M-x` and `SPC SPC`), and `need` says what it needs, which `SPC h f` shows;
+`palette: false` keeps it out of `M-x`; `anywhere` lets it work inside a
+sheet. Dispatch, which-key, the pickers, the binding list and the describe
+sheets all read these two tables, so a new page or action needs only a
+`command()` to be reachable by name, and a `bind()` for a key. Most commands
+press the same button a click would: tag the button `data-cmd="name"` in its
+component and call `click('name')`, so the key and the click cannot drift
+apart. `group('SPC i', '+item')` names a prefix for which-key.
+`lib/shortcuts.js` holds the cheatsheet and the key each `data-cmd` button's
+tooltip names (`tip(label, cmd)`); update it with a key.
+`components/Keys.svelte` draws the mode line, which-key, the binding list, the
+describe sheet, the palette and the hints.

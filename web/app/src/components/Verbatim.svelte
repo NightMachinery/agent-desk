@@ -87,7 +87,7 @@
     {#if path}Showing <a class="mono" href={href({ path, verbatim: false })}>{path}</a> only (<a href={href({ path: '', verbatim: true })}>show everywhere</a>).{:else}Showing every project.{/if}
     Agents read the same with <code>agent-desk instructions</code>.
   </p>
-  <input class="input search" type="search" placeholder="Search: every word must appear" bind:value={q} aria-label="Search the verbatim log" />
+  <input id="verbatim-search" class="input search" type="search" placeholder="Search: every word must appear  (/)" bind:value={q} aria-label="Search the verbatim log" />
   <div class="tally faint">
     {#if error}<span class="err">{error}</span>
     {:else if loading && !items.length}Loading…
@@ -112,7 +112,7 @@
     </ol>
   {/each}
   {#if items.length < total}
-    <button class="btn small more" disabled={loading} onclick={() => load(true)}>{loading ? 'Loading…' : 'Show older'}</button>
+    <button class="btn small more" data-cmd="verbatim-more" disabled={loading} onclick={() => load(true)}>{loading ? 'Loading…' : 'Show older'}</button>
   {/if}
 </section>
 

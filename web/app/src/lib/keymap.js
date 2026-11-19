@@ -1,5 +1,8 @@
-// The bindings. Most commands press the same button a mouse would (tagged
-// data-cmd in the components), so a key and a click do exactly the same.
+// The commands and their keys. Most commands press the same button a mouse
+// would (tagged data-cmd in the components), so a key and a click do exactly
+// the same. Each command is defined once with command(name, ...); keys are
+// bound to its name with bind(keys, name), so M-x, SPC SPC and help list a
+// command even when it has no key.
 import { route, go, pageOpen } from './route.svelte.js';
 import { nav, step } from './nav.svelte.js';
 import { sel, toggle, toggleAll, clear } from './select.svelte.js';
@@ -7,8 +10,8 @@ import { copy } from './format.js';
 import { toast } from './toast.svelte.js';
 import { toggleSection } from './ui.svelte.js';
 import {
-  keys, ctx, bind, group, pane, paneEl, cmdEl, say, dialog, moveFocus, focusables, startHints, openPalette,
-  activeBindings, setVisual, syncMode,
+  keys, ctx, command, bind, group, pane, paneEl, cmdEl, say, dialog, moveFocus, focusables, startHints, openPalette,
+  commands, commandItems, keysOf, applies, describeKey, describeCommand, setVisual, syncMode,
 } from './keys.svelte.js';
 
 // --- helpers -----------------------------------------------------------------
@@ -188,33 +191,45 @@ function parent() {
   go({ path: route.path.split('/').slice(0, -1).join('/'), item: '' });
 }
 
-// --- pickers -------------------------------------------------------------------
+// --- pages ------------------------------------------------------------------------
 
-function commands() {
-  const seen = new Set();
-  const items = [];
-  for (const b of activeBindings()) {
-    if (b.palette === false || seen.has(b.desc)) continue;
-    seen.add(b.desc);
-    const keysFor = activeBindings()
-      .filter((x) => x.desc === b.desc)
-      .map((x) => x.keys);
-    items.push({ label: b.desc, key: keysFor.slice(0, 2).join(', '), run: () => b.run(1) });
-  }
-  openPalette('M-x', items.sort((a, b) => a.label.localeCompare(b.label)));
+const verbatimHere = () => go({ item: '', verbatim: true });
+const verbatimAll = () => go({ path: '', item: '', session: '', verbatim: true });
+function recordings() {
+  if (!route.settings) go({ settings: true, item: '' });
+  let tries = 0;
+  const openIt = () => {
+    const d = /** @type {HTMLDetailsElement | null} */ (document.getElementById('recordings'));
+    if (!d) return ++tries < 20 ? setTimeout(openIt, 50) : say('No recordings here');
+    d.open = true;
+    d.scrollIntoView({ block: 'nearest' });
+  };
+  openIt();
+}
+/** `/`: the search box of the page in view. */
+function search() {
+  if (route.verbatim && document.getElementById('verbatim-search')) return focusBox('verbatim-search');
+  focusBox('search', 'No search box');
 }
 
-function nodes() {
-  const out = [{ label: 'Everything', detail: '', run: () => go({ path: '', item: '', session: '' }) }];
+// --- pickers -------------------------------------------------------------------
+
+const mx = () => openPalette('M-x', commandItems());
+
+function places() {
+  const out = [{ label: 'Everything', detail: 'go to', run: () => go({ path: '', item: '', session: '' }) }];
   const walk = (ns) => {
     for (const n of ns ?? []) {
-      out.push({ label: n.path, detail: n.state, run: () => go({ path: n.path, item: '', session: '' }) });
+      out.push({ label: n.path, detail: `go to · ${n.state}`, run: () => go({ path: n.path, item: '', session: '' }) });
       walk(n.children);
     }
   };
   walk(ctx.runs());
-  openPalette('Go to project, run or agent', out);
+  return out;
 }
+const nodes = () => openPalette('Go to project, run or agent', places());
+/** SPC SPC: every command that applies here, then every place. */
+const anything = () => openPalette('Command or place', [...commandItems(), ...places()]);
 
 function items() {
   const rows = /** @type {HTMLElement[]} */ ([...(paneEl('list')?.querySelectorAll('[data-item]') ?? [])]);
@@ -230,6 +245,152 @@ function items() {
   openPalette('Switch to item', out);
 }
 
+/** SPC h f: every command, here or not, to describe. */
+function describeFn() {
+  const out = [...commands.values()]
+    .map((c) => ({
+      label: c.desc,
+      detail: applies(c) ? c.name : `${c.name} · not here`,
+      key: keysOf(c.name, true).slice(0, 2).join(', '),
+      run: () => describeCommand(c.name),
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+  openPalette('Describe command', out);
+}
+
+// --- commands --------------------------------------------------------------------
+// command(name, description, run, { pane, when, need, palette, anywhere })
+
+const C = command;
+const visual = () => {
+  if (!route.item) edge(false);
+  if (!route.item) return;
+  setVisual(route.item);
+  sel.ids.add(route.item);
+};
+const sideFocus = () => /** @type {HTMLElement} */ (document.activeElement)?.click?.();
+const closeSheet = () => dialog()?.querySelector('.head button')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+const tagged = (name, need) => ({ when: has(name), need });
+
+// Help and pickers.
+C('cheatsheet', 'The cheatsheet', () => (keys.help = 'sheet'), { anywhere: true });
+C('bindings', 'Show every key binding here', () => (keys.help = 'all'));
+C('describe-key', 'Describe a key: what it runs, without running it', describeKey);
+C('describe-command', 'Describe a command: its keys and where it applies', describeFn);
+C('m-x', 'Run a command by name (M-x)', mx, { palette: false, anywhere: true });
+C('find', 'Find a command or a place (SPC SPC)', anything, { palette: false });
+C('go-node', 'Go to a project, run or agent', nodes);
+C('switch-item', 'Switch to an item in the list', items);
+C('hints', 'Click something on screen (hints)', startHints, { anywhere: true });
+C('search', 'Search', search);
+C('search-clear', 'Clear the search', () => go({ q: '', item: '' }, { replace: true }), { when: () => !!route.q, need: 'a search' });
+C('escape', 'Back out: visual mode, selection, item, page, search', escape, { palette: false });
+
+// Going places.
+C('next-item', 'Next item', (n) => stepBy(n));
+C('prev-item', 'Previous item', (n) => stepBy(-n));
+C('up', 'Up one level', parent);
+C('top', 'Go to everything (the top)', () => go({ path: '', item: '', session: '', q: '' }));
+C('settings', 'Settings here', () => go({ settings: true, item: '' }));
+C('settings-global', 'Global settings', () => go({ path: '', settings: true, item: '', session: '' }));
+C('verbatim', 'Verbatim log: your messages to agents, here', verbatimHere);
+C('verbatim-all', 'Verbatim log: your messages to agents, everywhere', verbatimAll);
+C('verbatim-more', 'Verbatim log: show older messages', () => click('verbatim-more'), tagged('verbatim-more', 'the Verbatim log with older messages'));
+C('recordings', 'Recordings (voice messages)', recordings);
+C('refresh', 'Refresh', () => (ctx.refresh(), say('Refreshed')));
+C('open-node', "Open the item's node", () => click('open-node', 'Nothing open'), { when: open, need: 'an open item' });
+C('session', 'Show everything its session wrote', () => click('session', 'No session'), tagged('session', 'an item from a session'));
+C('thread-root', 'Go to the item this conversation is about', () => click('thread-root'), tagged('thread-root', 'a reply in a conversation'));
+
+// Toggles.
+C('toggle-all', 'Toggle show all (read items, finished runs)', () => go({ all: !route.all, item: '' }));
+C('toggle-old', 'Toggle oldest first', () => go({ old: !route.old }, { replace: true }));
+C('toggle-select', 'Toggle select mode', () => click('select-mode'));
+C('toggle-auto-continue', 'Toggle auto-continue', () => click('auto-continue'), tagged('auto-continue', 'the settings page'));
+C('edit-sets', 'Edit focus sets', () => click('edit-sets'), tagged('edit-sets', 'the sidebar'));
+
+// Panes.
+C('pane-left', 'Focus the pane on the left', () => nextPane(-1));
+C('pane-right', 'Focus the pane on the right', () => nextPane(1));
+C('pane-next', 'Focus the next pane', () => nextPane(1));
+C('pane-side', 'Focus the sidebar', () => focusPane('side'));
+C('pane-detail', 'Focus the detail pane', () => focusPane('detail'));
+
+// The open item (or the selection).
+C('answer', 'Answer the question', () => focusBox('answer-box', 'Not an open question'));
+C('message', 'Message its agent', message);
+C('compose', 'Write in the first message box', focusComposer);
+C('take', 'Take the recommendation or the default', () => click('quick', 'Not an open question'), tagged('quick', 'an open question with a recommendation or default'));
+C('read', 'Mark read (a question: dismiss it)', after(markRead));
+C('unread', 'Mark unread (a question: back to Needs you)', after(markUnread));
+C('pin', 'Pin or unpin', after(pin));
+C('notify-menu', 'Notify me: where its response notifies you', () => click('notify-menu', 'No message box'), tagged('notify-menu', 'a message box'));
+C('send-menu', 'Send how? (steer, queue, interrupt)', () => click('send-menu', 'Write the message first'), tagged('send-menu', 'a message being written'));
+C('attach', 'Attach a file to the message', () => click('attach'), tagged('attach', 'a message box'));
+C('screen-grant', 'Screen request: grant it', () => click('screen-grant'), tagged('screen-grant', 'an open screen request'));
+C('screen-deny', 'Screen request: deny it', () => click('screen-deny'), tagged('screen-deny', 'an open screen request'));
+C('screen-release', 'Release the screen lock', () => click('screen-release'), tagged('screen-release', 'a screen lock held here'));
+C('deliver-retry', 'Retry delivering the message', () => click('deliver-retry'), tagged('deliver-retry', 'a message that failed to deliver'));
+C('yank-link', 'Copy a link to the item', () => yank(open() ? location.href : '', 'Link'));
+C('yank-id', "Copy the item's id", () => yank(route.item, 'Id'));
+C('yank-resume', 'Copy the resume command', () => yank(ctx.item()?.resume ?? '', 'Resume command'));
+C('yank-paseo', "Copy the agent's Paseo id", () => yank(ctx.item()?.from?.paseo || ctx.view()?.target?.paseo || '', 'Paseo id'));
+C('yank-path', 'Copy the path shown', () => yank(ctx.item()?.node ?? route.path, 'Path'));
+
+// The node page and the list.
+C('node-message', 'Message the coordinator', message, { when: () => !!ctx.view()?.target, need: 'a node with a coordinator' });
+C('node-velocity', 'Ask for a velocity report', () => click('velocity-report', 'No velocity slot here'), tagged('velocity-report', 'a node with a velocity slot'));
+C('node-read-all', 'Mark everything under the node read', () => click('read-all'), tagged('read-all', 'a node page'));
+C('node-settings', "The node's notify settings", () => click('node-settings'), tagged('node-settings', 'a node page'));
+C('list-read-all', 'Mark every unread item in the list read', () => click('mark-all-read'), tagged('mark-all-read', 'unread items in the list'));
+C('quota-copy-ids', 'Out of quota: copy the picked agent ids', () => click('quota-copy-ids'), tagged('quota-copy-ids', 'the Out of quota section'));
+
+// Selecting.
+C('select', 'Select or unselect the item', () => (route.item ? toggle(route.item) : say('Nothing open')));
+C('visual', 'Visual mode: select from here as you move', visual);
+C('select-all', 'Select every item in the list', () => toggleAll(sel.order));
+C('select-clear', 'Clear the selection', () => (setVisual(''), clear()));
+
+// The list.
+C('first-item', 'First item', () => edge(false), { pane: 'list' });
+C('last-item', 'Last item', () => edge(true), { pane: 'list' });
+C('next-section', 'Next section', (n) => section(n), { pane: 'list' });
+C('prev-section', 'Previous section', (n) => section(-n), { pane: 'list' });
+C('fold', 'Fold or unfold this section', () => toggleSection(sectionHere()), { pane: 'list' });
+C('fold-close', 'Fold this section', () => toggleSection(sectionHere(), false), { pane: 'list' });
+C('fold-open', 'Unfold this section', () => toggleSection(sectionHere(), true), { pane: 'list' });
+C('fold-all', 'Fold every section', () => foldAll(false), { pane: 'list' });
+C('unfold-all', 'Unfold every section', () => foldAll(true), { pane: 'list' });
+C('list-half-down', 'Scroll down half a page', () => scroll('list', 0.5), { pane: 'list' });
+C('list-half-up', 'Scroll up half a page', () => scroll('list', -0.5), { pane: 'list' });
+C('read-in-detail', 'Read the item in the detail pane', () => focusPane('detail'), { pane: 'list' });
+
+// The detail pane.
+C('scroll-down', 'Scroll down', (n) => scroll('detail', 60 * n), { pane: 'detail' });
+C('scroll-up', 'Scroll up', (n) => scroll('detail', -60 * n), { pane: 'detail' });
+C('half-down', 'Scroll down half a page', () => scroll('detail', 0.5), { pane: 'detail' });
+C('half-up', 'Scroll up half a page', () => scroll('detail', -0.5), { pane: 'detail' });
+C('page-down', 'Scroll down a page', () => scroll('detail', 0.9), { pane: 'detail' });
+C('page-up', 'Scroll up a page', () => scroll('detail', -0.9), { pane: 'detail' });
+C('scroll-top', 'Scroll to the top', () => scroll('detail', 'top'), { pane: 'detail' });
+C('scroll-bottom', 'Scroll to the bottom', () => scroll('detail', 'bottom'), { pane: 'detail' });
+C('back-to-list', 'Back to the list', () => focusPane('list'), { pane: 'detail' });
+C('close', 'Close the item or page', escape, { pane: 'detail' });
+
+// The sidebar.
+C('side-next', 'Next entry', (n) => moveFocus(paneEl('side'), n), { pane: 'side' });
+C('side-prev', 'Previous entry', (n) => moveFocus(paneEl('side'), -n), { pane: 'side' });
+C('side-first', 'First entry', () => moveFocus(paneEl('side'), -Infinity), { pane: 'side' });
+C('side-last', 'Last entry', () => moveFocus(paneEl('side'), Infinity), { pane: 'side' });
+C('side-open', 'Open the entry', sideFocus, { pane: 'side' });
+
+// A sheet.
+C('sheet-next', 'Next control', (n) => moveFocus(dialog(), n), { pane: 'dialog' });
+C('sheet-prev', 'Previous control', (n) => moveFocus(dialog(), -n), { pane: 'dialog' });
+C('sheet-first', 'First control', () => moveFocus(dialog(), -Infinity), { pane: 'dialog' });
+C('sheet-last', 'Last control', () => moveFocus(dialog(), Infinity), { pane: 'dialog' });
+C('sheet-close', 'Close the sheet', closeSheet, { pane: 'dialog' });
+
 // --- groups --------------------------------------------------------------------
 
 group('SPC', 'leader');
@@ -237,6 +398,7 @@ group('SPC b', '+items');
 group('SPC h', '+help');
 group('SPC i', '+item');
 group('SPC n', '+node');
+group('SPC o', '+open');
 group('SPC p', '+project');
 group('SPC s', '+search');
 group('SPC t', '+toggle');
@@ -244,163 +406,157 @@ group('SPC w', '+window');
 group('SPC x', '+select');
 group('g', '+go');
 group('y', '+yank');
+group('z', '+fold');
 group('C-w', '+window');
 
-// --- everywhere ------------------------------------------------------------------
+// --- keys -------------------------------------------------------------------------
 
-bind('?', 'The cheatsheet', () => (keys.help = 'sheet'), { anywhere: true });
-bind('SPC h b', 'Show every key binding', () => (keys.help = 'all'));
-bind(':', 'Run a command (M-x)', commands, { palette: false, anywhere: true });
-bind('M-x', 'Run a command (M-x)', commands, { palette: false, anywhere: true });
-bind('SPC :', 'Run a command (M-x)', commands, { palette: false });
-bind('SPC SPC', 'Go to a project, run or agent', nodes);
-bind('SPC p p', 'Go to a project, run or agent', nodes);
-bind('SPC ,', 'Switch to an item in the list', items);
-bind('SPC b b', 'Switch to an item in the list', items);
-bind('f', 'Click something on screen (hints)', startHints, { anywhere: true });
-bind('SPC j', 'Click something on screen (hints)', startHints);
-bind('/', 'Search', () => focusBox('search', 'No search box'));
-bind('SPC s s', 'Search', () => focusBox('search', 'No search box'));
-bind('SPC s c', 'Clear the search', () => go({ q: '', item: '' }, { replace: true }), { when: () => !!route.q });
-bind('ESC', 'Back out: visual mode, selection, item, settings, search', escape, { palette: false });
-bind('C-g', 'Back out: visual mode, selection, item, settings, search', escape, { palette: false });
+// Everywhere.
+bind('?', 'cheatsheet');
+bind('SPC ?', 'bindings');
+bind('SPC h b', 'bindings');
+bind('SPC h k', 'describe-key');
+bind('SPC h f', 'describe-command');
+bind(':', 'm-x');
+bind('M-x', 'm-x');
+bind('SPC :', 'm-x', { anywhere: false });
+bind('SPC SPC', 'find');
+bind('SPC p p', 'go-node');
+bind('SPC ,', 'switch-item');
+bind('SPC b b', 'switch-item');
+bind('f', 'hints');
+bind('SPC j', 'hints', { anywhere: false });
+bind('/', 'search');
+bind('SPC s s', 'search');
+bind('SPC s c', 'search-clear');
+bind('ESC', 'escape');
+bind('C-g', 'escape');
 
-bind('J', 'Next item', (n) => stepBy(n));
-bind('K', 'Previous item', (n) => stepBy(-n));
-bind('C-j', 'Next item', (n) => stepBy(n));
-bind('C-k', 'Previous item', (n) => stepBy(-n));
-bind('-', 'Up one level', parent);
-bind('SPC p u', 'Up one level', parent);
-bind('g h', 'Go to everything (the top)', () => go({ path: '', item: '', session: '', q: '' }));
-bind('SPC p h', 'Go to everything (the top)', () => go({ path: '', item: '', session: '', q: '' }));
-bind('g s', 'Settings here', () => go({ settings: true, item: '' }));
-bind('g S', 'Global settings', () => go({ path: '', settings: true, item: '', session: '' }));
-bind('g r', 'Refresh', () => (ctx.refresh(), say('Refreshed')));
-bind('g o', "Open the item's node", () => click('open-node', 'Nothing open'), { when: open });
-bind('g w', 'Show everything its session wrote', () => click('session', 'No session'), { when: has('session') });
-bind('g t', 'Go to the item this conversation is about', () => click('thread-root'), { when: has('thread-root') });
+bind('J', 'next-item');
+bind('K', 'prev-item');
+bind('C-j', 'next-item');
+bind('C-k', 'prev-item');
+bind('-', 'up');
+bind('SPC p u', 'up');
+bind('g h', 'top');
+bind('SPC p h', 'top');
+bind('g s', 'settings');
+bind('g S', 'settings-global');
+bind('g v', 'verbatim');
+bind('g V', 'verbatim-all');
+bind('g r', 'refresh');
+bind('g o', 'open-node');
+bind('g w', 'session');
+bind('g t', 'thread-root');
+bind('SPC o s', 'settings');
+bind('SPC o S', 'settings-global');
+bind('SPC o v', 'verbatim');
+bind('SPC o V', 'verbatim-all');
+bind('SPC o r', 'recordings');
 
-bind('SPC t a', 'Toggle show all (read items, finished runs)', () => go({ all: !route.all, item: '' }));
-bind('SPC t o', 'Toggle oldest first', () => go({ old: !route.old }, { replace: true }));
-bind('SPC t s', 'Toggle select mode', () => click('select-mode'));
+bind('SPC t a', 'toggle-all');
+bind('SPC t o', 'toggle-old');
+bind('SPC t s', 'toggle-select');
 
-bind('SPC w h', 'Focus the pane on the left', () => nextPane(-1));
-bind('SPC w l', 'Focus the pane on the right', () => nextPane(1));
-bind('SPC w w', 'Focus the next pane', () => nextPane(1));
-bind('SPC w s', 'Focus the sidebar', () => focusPane('side'));
-bind('SPC w d', 'Focus the detail pane', () => focusPane('detail'));
-bind('C-w h', 'Focus the pane on the left', () => nextPane(-1));
-bind('C-w l', 'Focus the pane on the right', () => nextPane(1));
-bind('C-w w', 'Focus the next pane', () => nextPane(1));
+bind('SPC w h', 'pane-left');
+bind('SPC w l', 'pane-right');
+bind('SPC w w', 'pane-next');
+bind('SPC w s', 'pane-side');
+bind('SPC w d', 'pane-detail');
+bind('C-w h', 'pane-left');
+bind('C-w l', 'pane-right');
+bind('C-w w', 'pane-next');
 
 // The open item (or the selection).
-bind('a', 'Answer the question', () => focusBox('answer-box', 'Not an open question'));
-bind('SPC i a', 'Answer the question', () => focusBox('answer-box', 'Not an open question'));
-bind('r', 'Message its agent', message);
-bind('SPC i r', 'Message its agent', message);
-bind('i', 'Write in the first message box', focusComposer);
-bind('t', 'Take the recommendation or the default', () => click('quick', 'Not an open question'), { when: has('quick') });
-bind('SPC i t', 'Take the recommendation or the default', () => click('quick'), { when: has('quick') });
-bind('d', 'Mark read (a question: dismiss it)', after(markRead));
-bind('SPC i d', 'Mark read (a question: dismiss it)', after(markRead));
-bind('U', 'Mark unread (a question: back to Needs you)', after(markUnread));
-bind('SPC i u', 'Mark unread (a question: back to Needs you)', after(markUnread));
-bind('p', 'Pin or unpin', after(pin));
-bind('SPC i p', 'Pin or unpin', after(pin));
-bind('SPC i o', "Open the item's node", () => click('open-node', 'Nothing open'), { when: open });
-bind('SPC i n', 'Notify me: where its response notifies you', () => click('notify-menu', 'No message box'), { when: has('notify-menu') });
-bind('SPC i m', 'Send how? (steer, queue, interrupt)', () => click('send-menu', 'Write the message first'), { when: has('send-menu') });
-bind('y y', 'Copy a link to the item', () => yank(open() ? location.href : '', 'Link'));
-bind('y i', "Copy the item's id", () => yank(route.item, 'Id'));
-bind('y r', 'Copy the resume command', () => yank(ctx.item()?.resume ?? '', 'Resume command'));
-bind('y a', "Copy the agent's Paseo id", () => yank(ctx.item()?.from?.paseo || ctx.view()?.target?.paseo || '', 'Paseo id'));
-bind('y p', 'Copy the path shown', () => yank(ctx.item()?.node ?? route.path, 'Path'));
+bind('a', 'answer');
+bind('SPC i a', 'answer');
+bind('r', 'message');
+bind('SPC i r', 'message');
+bind('i', 'compose');
+bind('t', 'take');
+bind('SPC i t', 'take');
+bind('d', 'read');
+bind('SPC i d', 'read');
+bind('U', 'unread');
+bind('SPC i u', 'unread');
+bind('p', 'pin');
+bind('SPC i p', 'pin');
+bind('SPC i o', 'open-node');
+bind('SPC i n', 'notify-menu');
+bind('SPC i m', 'send-menu');
+bind('y y', 'yank-link');
+bind('y i', 'yank-id');
+bind('y r', 'yank-resume');
+bind('y a', 'yank-paseo');
+bind('y p', 'yank-path');
 
 // The node page (nothing open).
-bind('SPC n m', 'Message the coordinator', message, { when: () => !!ctx.view()?.target });
-bind('SPC n v', 'Ask for a velocity report', () => click('velocity-report', 'No velocity slot here'), { when: has('velocity-report') });
-bind('SPC n r', 'Mark everything under the node read', () => click('read-all'), { when: has('read-all') });
-bind('SPC n s', "The node's notify settings", () => click('node-settings'), { when: has('node-settings') });
+bind('SPC n m', 'node-message');
+bind('SPC n v', 'node-velocity');
+bind('SPC n r', 'node-read-all');
+bind('SPC n s', 'node-settings');
 
 // Selecting.
-bind('x', 'Select or unselect the item', () => (route.item ? toggle(route.item) : say('Nothing open')));
-bind('V', 'Visual mode: select from here as you move', () => {
-  if (!route.item) edge(false);
-  if (!route.item) return;
-  setVisual(route.item);
-  sel.ids.add(route.item);
-});
-bind('v', 'Visual mode: select from here as you move', () => {
-  if (!route.item) edge(false);
-  if (!route.item) return;
-  setVisual(route.item);
-  sel.ids.add(route.item);
-}, { palette: false });
-bind('SPC x a', 'Select every item in the list', () => toggleAll(sel.order));
-bind('SPC x c', 'Clear the selection', () => (setVisual(''), clear()));
+bind('x', 'select');
+bind('V', 'visual');
+bind('v', 'visual');
+bind('SPC x a', 'select-all');
+bind('SPC x c', 'select-clear');
 
-// --- the list --------------------------------------------------------------------
+// The list.
+bind('j', 'next-item', { pane: 'list' });
+bind('k', 'prev-item', { pane: 'list' });
+bind('<down>', 'next-item', { pane: 'list' });
+bind('<up>', 'prev-item', { pane: 'list' });
+bind('g g', 'first-item');
+bind('G', 'last-item');
+bind('}', 'next-section');
+bind('{', 'prev-section');
+bind('z a', 'fold');
+bind('z c', 'fold-close');
+bind('z o', 'fold-open');
+bind('z M', 'fold-all');
+bind('z R', 'unfold-all');
+bind('C-d', 'list-half-down');
+bind('C-u', 'list-half-up');
+bind('RET', 'read-in-detail');
+bind('l', 'read-in-detail');
+bind('o', 'read-in-detail');
+bind('h', 'pane-side', { pane: 'list' });
 
-bind('j', 'Next item', (n) => stepBy(n), { pane: 'list' });
-bind('k', 'Previous item', (n) => stepBy(-n), { pane: 'list' });
-bind('<down>', 'Next item', (n) => stepBy(n), { pane: 'list', palette: false });
-bind('<up>', 'Previous item', (n) => stepBy(-n), { pane: 'list', palette: false });
-bind('g g', 'First item', () => edge(false), { pane: 'list' });
-bind('G', 'Last item', () => edge(true), { pane: 'list' });
-bind('}', 'Next section', (n) => section(n), { pane: 'list' });
-bind('{', 'Previous section', (n) => section(-n), { pane: 'list' });
-group('z', '+fold');
-bind('z a', 'Fold or unfold this section', () => toggleSection(sectionHere()), { pane: 'list' });
-bind('z c', 'Fold this section', () => toggleSection(sectionHere(), false), { pane: 'list' });
-bind('z o', 'Unfold this section', () => toggleSection(sectionHere(), true), { pane: 'list' });
-bind('z M', 'Fold every section', () => foldAll(false), { pane: 'list' });
-bind('z R', 'Unfold every section', () => foldAll(true), { pane: 'list' });
-bind('C-d', 'Scroll down half a page', () => scroll('list', 0.5), { pane: 'list' });
-bind('C-u', 'Scroll up half a page', () => scroll('list', -0.5), { pane: 'list' });
-bind('RET', 'Read the item in the detail pane', () => focusPane('detail'), { pane: 'list' });
-bind('l', 'Read the item in the detail pane', () => focusPane('detail'), { pane: 'list' });
-bind('o', 'Read the item in the detail pane', () => focusPane('detail'), { pane: 'list', palette: false });
-bind('h', 'Focus the sidebar', () => focusPane('side'), { pane: 'list' });
+// The detail pane.
+bind('j', 'scroll-down');
+bind('k', 'scroll-up');
+bind('<down>', 'scroll-down');
+bind('<up>', 'scroll-up');
+bind('C-d', 'half-down');
+bind('C-u', 'half-up');
+bind('C-f', 'page-down');
+bind('C-b', 'page-up');
+bind('g g', 'scroll-top');
+bind('G', 'scroll-bottom');
+bind('h', 'back-to-list');
+bind('q', 'close');
 
-// --- the detail pane ----------------------------------------------------------
+// The sidebar.
+bind('j', 'side-next');
+bind('k', 'side-prev');
+bind('<down>', 'side-next');
+bind('<up>', 'side-prev');
+bind('g g', 'side-first');
+bind('G', 'side-last');
+bind('l', 'side-open');
+bind('o', 'side-open');
+bind('RET', 'side-open');
 
-bind('j', 'Scroll down', (n) => scroll('detail', 60 * n), { pane: 'detail' });
-bind('k', 'Scroll up', (n) => scroll('detail', -60 * n), { pane: 'detail' });
-bind('<down>', 'Scroll down', (n) => scroll('detail', 60 * n), { pane: 'detail', palette: false });
-bind('<up>', 'Scroll up', (n) => scroll('detail', -60 * n), { pane: 'detail', palette: false });
-bind('C-d', 'Scroll down half a page', () => scroll('detail', 0.5), { pane: 'detail' });
-bind('C-u', 'Scroll up half a page', () => scroll('detail', -0.5), { pane: 'detail' });
-bind('C-f', 'Scroll down a page', () => scroll('detail', 0.9), { pane: 'detail' });
-bind('C-b', 'Scroll up a page', () => scroll('detail', -0.9), { pane: 'detail' });
-bind('g g', 'Scroll to the top', () => scroll('detail', 'top'), { pane: 'detail' });
-bind('G', 'Scroll to the bottom', () => scroll('detail', 'bottom'), { pane: 'detail' });
-bind('h', 'Back to the list', () => focusPane('list'), { pane: 'detail' });
-bind('q', 'Close the item', escape, { pane: 'detail' });
-
-// --- the sidebar -----------------------------------------------------------------
-
-bind('j', 'Next entry', (n) => moveFocus(paneEl('side'), n), { pane: 'side' });
-bind('k', 'Previous entry', (n) => moveFocus(paneEl('side'), -n), { pane: 'side' });
-bind('<down>', 'Next entry', (n) => moveFocus(paneEl('side'), n), { pane: 'side', palette: false });
-bind('<up>', 'Previous entry', (n) => moveFocus(paneEl('side'), -n), { pane: 'side', palette: false });
-bind('g g', 'First entry', () => moveFocus(paneEl('side'), -Infinity), { pane: 'side' });
-bind('G', 'Last entry', () => moveFocus(paneEl('side'), Infinity), { pane: 'side' });
-bind('l', 'Open the entry', () => /** @type {HTMLElement} */ (document.activeElement)?.click?.(), { pane: 'side' });
-bind('o', 'Open the entry', () => /** @type {HTMLElement} */ (document.activeElement)?.click?.(), { pane: 'side', palette: false });
-bind('RET', 'Open the entry', () => /** @type {HTMLElement} */ (document.activeElement)?.click?.(), { pane: 'side', palette: false });
-
-// --- a sheet ------------------------------------------------------------------------
-
-bind('j', 'Next control', (n) => moveFocus(dialog(), n), { pane: 'dialog' });
-bind('k', 'Previous control', (n) => moveFocus(dialog(), -n), { pane: 'dialog' });
-bind('C-n', 'Next control', (n) => moveFocus(dialog(), n), { pane: 'dialog', palette: false });
-bind('C-p', 'Previous control', (n) => moveFocus(dialog(), -n), { pane: 'dialog', palette: false });
-bind('<down>', 'Next control', (n) => moveFocus(dialog(), n), { pane: 'dialog', palette: false });
-bind('<up>', 'Previous control', (n) => moveFocus(dialog(), -n), { pane: 'dialog', palette: false });
-bind('g g', 'First control', () => moveFocus(dialog(), -Infinity), { pane: 'dialog' });
-bind('G', 'Last control', () => moveFocus(dialog(), Infinity), { pane: 'dialog' });
-const closeSheet = () => dialog()?.querySelector('.head button')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-bind('C-g', 'Close the sheet', closeSheet, { pane: 'dialog', palette: false });
-bind('q', 'Close the sheet', () => dialog()?.querySelector('.head button')?.dispatchEvent(new MouseEvent('click', { bubbles: true })), {
-  pane: 'dialog',
-});
+// A sheet.
+bind('j', 'sheet-next');
+bind('k', 'sheet-prev');
+bind('C-n', 'sheet-next');
+bind('C-p', 'sheet-prev');
+bind('<down>', 'sheet-next');
+bind('<up>', 'sheet-prev');
+bind('g g', 'sheet-first');
+bind('G', 'sheet-last');
+bind('C-g', 'sheet-close');
+bind('q', 'sheet-close');

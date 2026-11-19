@@ -2,7 +2,7 @@
   import { cheatsheet } from '../lib/shortcuts.js';
   // What the keyboard layer draws: the mode line, the which-key popup, the
   // list of every binding, the M-x palette and the link hints.
-  import { keys, pane, continuations, activeBindings, matches, groups } from '../lib/keys.svelte.js';
+  import { keys, pane, continuations, activeBindings, matches, groups, description, describeCommand } from '../lib/keys.svelte.js';
   import { route } from '../lib/route.svelte.js';
   import { position } from '../lib/nav.svelte.js';
   import { sel } from '../lib/select.svelte.js';
@@ -52,6 +52,13 @@
     e.stopPropagation();
   }
 
+  // The describe sheet (SPC h k, SPC h f).
+  const desc = $derived.by(() => {
+    keys.tick;
+    return keys.help === 'describe' ? description(keys.describe) : null;
+  });
+  const where = (p) => (p ? `in the ${paneName[p]}` : 'everywhere');
+
   // The help sheet: every binding that applies now, by context.
   const helpGroups = $derived.by(() => {
     if (keys.help !== 'all') return [];
@@ -100,6 +107,46 @@
       <p class="faint kh-note">
         Keys are commands until a text box has focus. The which-key popup after <kbd>SPC</kbd> or <kbd>g</kbd> lists what can follow; every button's tooltip names its key.
       </p>
+    </div>
+  </div>
+{:else if keys.help === 'describe'}
+  <div class="keys-overlay scrimmed" role="presentation" onpointerdown={(e) => e.target === e.currentTarget && (keys.help = false)}>
+    <div class="keyhelp describe keys-ui" role="dialog" aria-label="Describe">
+      <div class="kh-head">
+        <h3>{desc?.keys ? 'Describe key' : 'Describe command'}</h3>
+        <span class="faint"><kbd>q</kbd> close</span>
+      </div>
+      {#if !desc}
+        <p>Nothing to describe.</p>
+      {:else if desc.keys}
+        {#if desc.cmd}
+          <p><kbd>{desc.keys}</kbd> runs <b>{desc.cmd.desc}</b> <span class="faint mono">{desc.cmd.name}</span> here.</p>
+          <p><button class="btn ghost small" onclick={() => desc.cmd && describeCommand(desc.cmd.name)}>More about this command</button></p>
+        {:else}
+          <p><kbd>{desc.keys}</kbd> does nothing here.</p>
+        {/if}
+        {#if desc.elsewhere.length}
+          <p class="faint">Elsewhere:</p>
+          <ul>
+            {#each desc.elsewhere as o, i (i)}<li>{o.desc} <span class="faint">({where(o.pane)}, <span class="mono">{o.cmd}</span>)</span></li>{/each}
+          </ul>
+        {/if}
+      {:else}
+        <p><b>{desc.cmd.desc}</b> <span class="faint mono">{desc.cmd.name}</span></p>
+        <p>
+          {#if desc.applies}Available here{desc.here.length ? ':' : ', with no key here; run it from SPC SPC or M-x.'}
+            {#each desc.here as k (k)}<kbd>{k}</kbd> {/each}
+          {:else}Not available here{desc.cmd.need ? `: it needs ${desc.cmd.need}` : ''}.{/if}
+        </p>
+        {#if desc.all.length}
+          <p class="faint">Every key for it:</p>
+          <ul>
+            {#each desc.all as b, i (i)}<li><kbd>{b.keys}</kbd> <span class="faint">{where(b.pane)}</span></li>{/each}
+          </ul>
+        {:else}
+          <p class="faint">It has no key; SPC SPC or M-x runs it by name.</p>
+        {/if}
+      {/if}
     </div>
   </div>
 {:else if keys.help}
@@ -172,7 +219,7 @@
 
 <div class="modeline" aria-hidden="true">
   <span class="mode {keys.hints ? 'hints' : keys.palette ? 'mx' : keys.mode}"
-    >{keys.hints ? 'HINTS' : keys.palette ? (keys.palette.title === 'M-x' ? 'M-x' : 'PICK') : keys.mode === 'insert' ? 'INSERT' : keys.mode === 'visual' ? 'VISUAL' : 'NORMAL'}</span
+    >{keys.hints ? 'HINTS' : keys.capture ? 'KEY?' : keys.palette ? (keys.palette.title === 'M-x' ? 'M-x' : 'PICK') : keys.mode === 'insert' ? 'INSERT' : keys.mode === 'visual' ? 'VISUAL' : 'NORMAL'}</span
   >
   <span class="pane">{paneName[paneNow]}</span>
   {#if keys.count || keys.pending.length}<span class="pending">{keys.count}{keys.pending.join(' ')}-</span>{/if}
@@ -298,6 +345,16 @@
     box-shadow: var(--shadow);
     padding: 16px 20px 20px;
     font-size: 13px;
+  }
+  .keyhelp.describe {
+    width: min(520px, calc(100vw - 32px));
+  }
+  .describe ul {
+    margin: 4px 0 8px;
+    padding-left: 18px;
+  }
+  .describe p {
+    margin: 8px 0;
   }
   .kh-head {
     display: flex;

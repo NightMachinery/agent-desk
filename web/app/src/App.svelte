@@ -179,7 +179,7 @@
         <h1>Settings</h1>
         <p class="faint lede">How a message reaches a busy agent, and where you are notified. An override set here applies to everything under it, unless something nearer says otherwise.</p>
         <Settings path={route.path} stamp={view?.stamp} onchange={refresh} />
-        <details ontoggle={(event) => (showRecordings = event.currentTarget.open)}>
+        <details id="recordings" ontoggle={(event) => (showRecordings = event.currentTarget.open)}>
           <summary>Recordings</summary>
           {#if showRecordings}<LazyPanel view={import('./components/Recordings.svelte')} />{/if}
         </details>
