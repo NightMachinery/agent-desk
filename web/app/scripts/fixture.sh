@@ -18,6 +18,12 @@ B=${AGENT_DESK_BIN:-agent-desk}
 export AGENT_DESK_HOME=${dir}/desk AGENT_DESK_HOST=host-a AI_AGENT=claude-code_x
 unset PASEO_AGENT_ID TMUX_PANE TMUX TMUX_SUBAGENT_NODE
 [[ -e ${AGENT_DESK_HOME} ]] && { print -u2 "fixture.sh: ${AGENT_DESK_HOME} exists; pick a new DIR"; exit 1 }
+# The desk's own config, before the first write: without it every write below
+# would run the user's real notify_command, and fabricated questions would
+# reach their phone. It names no notify_command; messages go to a stand-in.
+mkdir -p ${dir}
+print -r -- 'deliver_command = "cat > /dev/null"' > ${dir}/config.toml
+export AGENT_DESK_CONFIG=${dir}/config.toml
 root=${dir}/src
 mkdir -p ${root}/example-proj/.git ${root}/site/.git ${root}/paper-figs/.git
 mkdir -p ${dir}/bin ${dir}/paseo/agents/example
@@ -69,8 +75,6 @@ R
 # A conversation: the user messages the agent behind the notice, which
 # responds; deliveries go to a stand-in deliver_command.
 u() { env -u AI_AGENT -u CLAUDE_CODE_SESSION_ID -u CODEX_THREAD_ID -u CODEX_SESSION_ID -u ANTIGRAVITY_CONVERSATION_ID "$@" }
-print -r -- 'deliver_command = "cat > /dev/null"' > ${dir}/config.toml
-export AGENT_DESK_CONFIG=${dir}/config.toml
 notice=$(${B} show --format json | python3 -c 'import json,sys; v=json.load(sys.stdin); print(next(i["display_id"] for g in v["new"] for i in g["items"] if i["event"].get("title", "").startswith("Seed 2")))')
 msg=$(u ${B} reply --notify-remote always ${notice} 'Skip shard 17 for every seed, not just seed 2.' 2>/dev/null)
 s 2 ${B} tell --re ${msg} >/dev/null <<'R'
