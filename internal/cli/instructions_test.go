@@ -6,6 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/NightMachinery/agent-desk/internal/ident"
+	"github.com/NightMachinery/agent-desk/internal/store"
 )
 
 func hookJSON(session, prompt string) string {
@@ -26,6 +29,7 @@ func TestInstructionHook(t *testing.T) {
 
 	hook("before joining: not recorded")
 	h.ok(a, "", "join", "r1/coord")
+	typed := deskMessage(t, h, a)
 	before := h.count()
 	for _, p := range []string{
 		"Continue.",
@@ -35,6 +39,7 @@ func TestInstructionHook(t *testing.T) {
 		`Schedule "keepalive" fired (id=abc, run=1)` + "\nping",
 		`Answer to q-7f3a "Which split?": B`,
 		"Message from the user via agent-desk, about t-k2m9 \"x\": hi",
+		typed,
 		"<task-notification>done</task-notification>",
 		"[agent-quotas keepalive] Automatic cache keepalive, not the user: reply with one word.",
 		"   ",
@@ -134,5 +139,39 @@ func TestAgentNotes(t *testing.T) {
 	_, body, _ := do(t, hd, "GET", "/api/view?path=example-proj", "", nil)
 	if strings.Contains(body, `"unread":1`) || !strings.Contains(body, `"notes":[`) {
 		t.Fatalf("view: %s", body)
+	}
+}
+
+// deskMessage is a desk message as it is typed into a session (ReplyText).
+func deskMessage(t *testing.T, h *harness, env map[string]string) string {
+	t.Helper()
+	tl := h.ok(env, "x", "tell", "--title", "Deploy finished")
+	h.respond = func(name string, args []string) (string, error) { return `{"status":"sent"}`, nil }
+	m := h.ok(nil, "", "reply", tl, "check the old feed too")
+	d := h.loadDesk()
+	e, err := d.Resolve(m)
+	must(t, err)
+	text := ReplyText(d, e)
+	if !strings.HasPrefix(text, "Message "+m+" from the user via agent-desk") {
+		t.Fatalf("typed text: %q", text)
+	}
+	return text
+}
+
+// Desk messages recorded as instructions before the pattern knew their id
+// are left out of the output.
+func TestInstructionsDropOldDeskMessages(t *testing.T) {
+	h := newHarness(t)
+	env := h.as(sessA)
+	h.ok(env, "", "join", "r1/coord")
+	a, _, _ := h.app(nil, "")
+	for _, body := range []string{"Message m-4c2d from the user via agent-desk, about t-k2m9 \"x\": hi", "Keep the old cache."} {
+		e := a.event("instruction", "example-proj/r1/coord", ident.From{}, "hook", nil)
+		e.Body = body
+		must(t, a.commit([]store.Event{e}, ""))
+	}
+	out := h.ok(nil, "", "instructions", "example-proj/r1")
+	if strings.Contains(out, "via agent-desk") || !strings.Contains(out, "Keep the old cache.") {
+		t.Fatalf("instructions:\n%s", out)
 	}
 }

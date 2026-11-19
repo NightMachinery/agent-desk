@@ -40,7 +40,8 @@ var automated = []*regexp.Regexp{
 	regexp.MustCompile(`^<(task-notification|system-reminder|command-name|local-command-stdout)>`),
 	regexp.MustCompile(`^\[Request interrupted`),
 	regexp.MustCompile(`^Answer to [a-z]-[0-9a-z]+ "`),
-	regexp.MustCompile(`^Message from the user via agent-desk\b`),
+	// ReplyText; older versions typed no id.
+	regexp.MustCompile(`^Message (?:[a-z]-[0-9a-z]+ )?from the user via agent-desk\b`),
 }
 
 // isAutomated reports whether a prompt is one the user did not type.
@@ -218,10 +219,16 @@ func (a *App) cmdInstructions(args []string) error {
 			return err
 		}
 	}
+	// Records made before a pattern caught them (events are immutable) are
+	// dropped here too.
+	var extra []*regexp.Regexp
+	if c, err := a.config(); err == nil {
+		extra, _ = c.Instructions.SkipPatterns()
+	}
 	var out []store.Event
 	copies := map[string]bool{}
 	for _, e := range d.Events {
-		if e.Kind != "instruction" || !desk.Under(e.Path, prefix) {
+		if e.Kind != "instruction" || !desk.Under(e.Path, prefix) || isAutomated(e.Body, extra) {
 			continue
 		}
 		if p := desk.MetaString(e, "prompt"); p != "" {
