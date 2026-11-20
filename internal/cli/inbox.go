@@ -122,6 +122,25 @@ func (a *App) inboxLines(d *desk.Desk, st inboxState) []line {
 		}
 	}
 
+	if dl := d.DeliverableGroups(f); len(dl) > 0 {
+		add("-", bold(fmt.Sprintf("DELIVERABLES (%d)", countItems(dl))))
+		for _, g := range dl {
+			add("node:"+g.Project+"/"+g.Run, "  "+cyan(g.Project+" / "+g.Run))
+			for _, it := range g.Items {
+				mark := " "
+				if it.Unread {
+					mark = yellow("•")
+				}
+				where := desk.MetaString(it.Event, "url")
+				if where == "" && it.Attachments > 0 {
+					where = fmt.Sprintf("%d file(s)", it.Attachments)
+				}
+				add(it.Event.ID, fmt.Sprintf("  %s %-5s %-4s %s  %s  %s%s", mark, "ready", it.Age, dim(it.Label),
+					it.Event.Title, dim(where), hostTag(d, it.Event.Host)))
+			}
+		}
+	}
+
 	if resp := d.ResponseGroups(f); len(resp) > 0 {
 		add("-", bold(fmt.Sprintf("RESPONSES (%d)", countItems(resp))))
 		for _, g := range resp {

@@ -45,6 +45,9 @@ const (
 	MaxAudio = 50 << 20
 	MaxVideo = 100 << 20
 	MaxFile  = 25 << 20
+	// MaxPackage is for an app package (an Android APK), which agents file
+	// as deliverables.
+	MaxPackage = 150 << 20
 	// MaxAny is the largest of them, the most an upload may send.
 	MaxAny = MaxVideo
 )
@@ -80,7 +83,8 @@ var exts = map[string]string{
 	"application/json": ".json",
 	"application/zip":  ".zip",
 	"application/gzip": ".gz",
-	Generic:            ".bin",
+	"application/vnd.android.package-archive": ".apk",
+	Generic: ".bin",
 }
 
 // byExt is the type each accepted extension names; it wins over sniffing,
@@ -95,6 +99,7 @@ var byExt = map[string]string{
 	".pdf": "application/pdf", ".txt": "text/plain", ".log": "text/plain", ".md": "text/markdown",
 	".org": "text/plain", ".csv": "text/csv", ".json": "application/json", ".jsonl": "text/plain",
 	".zip": "application/zip", ".gz": "application/gzip", ".bin": Generic,
+	".apk": "application/vnd.android.package-archive",
 }
 
 var fileRE = regexp.MustCompile(`^[0-9a-f]{64}\.[a-z0-9]{2,5}$`)
@@ -141,13 +146,16 @@ func Limit(mimeType string) int64 {
 	case "video":
 		return MaxVideo
 	}
+	if mimeType == "application/vnd.android.package-archive" {
+		return MaxPackage
+	}
 	return MaxFile
 }
 
 // Limits says what may be attached, for messages.
 func Limits() string {
-	return fmt.Sprintf("any file: images up to %s, audio %s, video %s, anything else %s",
-		Size(MaxImage), Size(MaxAudio), Size(MaxVideo), Size(MaxFile))
+	return fmt.Sprintf("any file: images up to %s, audio %s, video %s, Android packages %s, anything else %s",
+		Size(MaxImage), Size(MaxAudio), Size(MaxVideo), Size(MaxPackage), Size(MaxFile))
 }
 
 // typeOf names the type of a file called name, from its extension, else

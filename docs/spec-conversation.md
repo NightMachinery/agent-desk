@@ -30,7 +30,13 @@ Every value in the examples is fabricated; keep it that way.
 1. A conversation lives on what it is about. No thread entity: a thread is
    derived from `ref`. A separate entity would add a "which thread" choice to
    every write for no gain in steering agents.
-2. The agent responds with `agent-desk tell --re <id>`. The typed message
+2. Every kind an agent files for the user can be part of a thread: a
+   notice, a question, a done report and a deliverable each take `--re
+   <id>` (or `--re-chat`) and then sit in that message's thread, listed in
+   the section their kind belongs to. A new agent item kind gets this too
+   (`desk.AgentItem` in `internal/desk/thread.go`); a kind that cannot
+   respond would leave the user's message looking unanswered.
+   The agent responds with `agent-desk tell --re <id>`. The typed message
    carries its own id and that command, so linking does not depend on the
    agent remembering the skill.
 3. No acknowledgement command. A message is sent, delivered (with its
@@ -85,7 +91,8 @@ with no `ref` belongs to its node's thread.
 
 Derived state:
 
-- A message is **responded** when a `tell` refers to it.
+- A message is **responded** when any agent item (a `tell`, `ask`, `done`
+  or `deliverable`) refers to it.
 - A response is unread like any `tell`. `read` on a root item also marks its
   unread responses read. `read` on a message clears its "no response" flag.
 - A delivered message with no response after 15 minutes is flagged

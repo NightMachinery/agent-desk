@@ -35,6 +35,7 @@ export const viewRpc = defineRpc({
   input: z.object({ session: z.string().optional() }),
   output: z.object({
     needs: z.array(deskItem),
+    deliverables: z.array(deskItem).default([]),
     responses: z.array(deskItem),
     fresh: z.array(deskItem),
     dashboard: z.string().optional(),

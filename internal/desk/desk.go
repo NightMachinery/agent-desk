@@ -55,6 +55,9 @@ type Desk struct {
 	pins      []string        // pin keys, most recently pinned first
 	slots     []store.Event   // slot_current minus clears
 	threads   threadIndex
+	// latestDeliverable maps project and meta.key to the newest
+	// deliverable with that key: an older one is superseded.
+	latestDeliverable map[string]string
 
 	// display maps display ids to event ids, built on first use and shared
 	// by the copies a server makes per request.
@@ -356,6 +359,9 @@ type Item struct {
 	RootTitle string `json:"root_title,omitempty"`
 	// Attachments counts the images and audio files the item carries.
 	Attachments int `json:"attachments,omitempty"`
+	// SupersededBy: a deliverable with a newer one of the same key in its
+	// project, by display id. Superseded ones leave Deliverables.
+	SupersededBy string `json:"superseded_by,omitempty"`
 }
 
 // Group is the items of one project and run.
@@ -374,6 +380,9 @@ func (d *Desk) item(e store.Event) Item {
 		NoResponse: e.Kind == "reply" && d.NoResponse(e.ID), Pinned: d.Pinned(e), Response: IsResponse(e)}
 	it.Asked, it.AskedVia = d.Asked(e)
 	it.Attachments = len(media.Of(e))
+	if by := d.SupersededBy(e); by != "" {
+		it.SupersededBy = d.Display(by)
+	}
 	if it.Response && e.Ref != "" {
 		it.Re = d.Display(e.Ref)
 		if root, ok := d.Root(e); ok {
@@ -450,6 +459,7 @@ func (d *Desk) NeedsYou(f Filter) []Group { return group(d.OpenQuestions(f)) }
 
 // New is the unread notices, done reports and changed slots, grouped by
 // project then run, oldest first. With f.All it includes read ones.
+// Responses and deliverables have sections of their own.
 func (d *Desk) New(f Filter) []Group {
 	var items []Item
 	cur := map[string]bool{}
@@ -461,8 +471,8 @@ func (d *Desk) New(f Filter) []Group {
 			continue
 		}
 		switch {
-		case IsResponse(e):
-			continue // in Responses
+		case IsResponse(e) || e.Kind == "deliverable":
+			continue // in Responses or Deliverables
 		case e.Kind == "tell" || e.Kind == "done":
 		case e.Kind == "set" && cur[e.ID] && SlotName(e) != "status" && !ForAgents(e):
 		default:
@@ -477,16 +487,58 @@ func (d *Desk) New(f Filter) []Group {
 }
 
 // ResponseGroups are the agents' unread responses to the user (all of them
-// with f.All), grouped like New. Question responses are left to NeedsYou.
+// with f.All), grouped like New. Question responses are left to NeedsYou,
+// and deliverables to DeliverableGroups.
 func (d *Desk) ResponseGroups(f Filter) []Group {
 	var items []Item
 	for _, e := range d.Events {
 		// A question response is a question: it is listed in Needs you.
-		if IsResponse(e) && e.Kind == "tell" && f.Keep(e) && (d.unread[e.ID] || f.All || f.Linger[e.ID]) {
+		if IsResponse(e) && (e.Kind == "tell" || e.Kind == "done") && f.Keep(e) && (d.unread[e.ID] || f.All || f.Linger[e.ID]) {
 			items = append(items, d.item(e))
 		}
 	}
 	return group(items)
+}
+
+// DeliverableGroups are the unread deliverables (all of them with f.All),
+// grouped like New, responding or not. One superseded by a newer
+// deliverable of the same key is left out unless f.All.
+func (d *Desk) DeliverableGroups(f Filter) []Group {
+	var items []Item
+	for _, e := range d.Events {
+		if e.Kind != "deliverable" || !f.Keep(e) || !(d.unread[e.ID] || f.All || f.Linger[e.ID]) {
+			continue
+		}
+		if !f.All && !f.Linger[e.ID] && d.SupersededBy(e) != "" {
+			continue
+		}
+		items = append(items, d.item(e))
+	}
+	return group(items)
+}
+
+// deliverableKey is the project and meta.key that a newer deliverable
+// supersedes e by, or "" when e has no key.
+func deliverableKey(e store.Event) string {
+	k := MetaString(e, "key")
+	if e.Kind != "deliverable" || k == "" {
+		return ""
+	}
+	p, _, _ := Split(e.Path)
+	return p + "\x00" + k
+}
+
+// SupersededBy is the id of the newest deliverable with e's key in its
+// project when that is not e, else "".
+func (d *Desk) SupersededBy(e store.Event) string {
+	k := deliverableKey(e)
+	if k == "" {
+		return ""
+	}
+	if by := d.latestDeliverable[k]; by != e.ID {
+		return by
+	}
+	return ""
 }
 
 // Slot is the current content of one slot.

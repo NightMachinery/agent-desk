@@ -26,7 +26,7 @@ work there. To combine machines, merge their stores (below).
   Writing it replaces the text shown; the old text stays as an older event.
 - **Display id**: the short id printed by every write, such as `q-7f3a`. The
   letter is the kind (`q` question, `a` answer, `t` notice, `d` done report,
-  `s` slot text, `l` linked slot, `c` cleared slot, `j` join, `o` leave,
+  `b` deliverable, `s` slot text, `l` linked slot, `c` cleared slot, `j` join, `o` leave,
   `r` read mark).
   Commands accept the display id, its part after the dash, any unique prefix of
   that part, or a full id.
@@ -192,6 +192,12 @@ way, with the question in one line instead of an id:
 Responses of both kinds are listed in their own section, **Responses to
 you**, between Needs you and New, and notify unless sent with `--quiet`.
 
+**Every kind can respond.** A notice, a question, a done report and a
+deliverable all take `--re` or `--re-chat`, and then sit in that message's
+thread. Each is still listed where its kind belongs: a question response in
+Needs you, a deliverable in Deliverables, a notice or a done report in
+Responses to you.
+
 When the agent needs a decision before it can act on a message, it responds
 with a question instead, a **question response**:
 
@@ -213,7 +219,34 @@ When a session ends, its summary goes on stdin:
     S
 
 This files a done report and sets the node's `status` to "Finished." (or
-"Finished; see report."). A done report from a run's root coordinator marks
+"Finished; see report."). `--re` makes it the response to a message.
+
+**Deliverables.** When something is ready for the user to open or install
+(a deployment, an Android APK, a release), file a deliverable instead of a
+notice:
+
+    agent-desk deliverable --title 'Android APK 1.4.2' --key android-apk \
+      --attach build/app-release.apk --caption 'Release build' <<'D'
+    Install it over 1.4.1; your data stays. Checked on the emulator: login and sync.
+    D
+    agent-desk deliverable --title 'Site on staging' --url https://staging.example.org/ <<'D'
+    The comparison table is live.
+    D
+
+It needs `--url` (http or https), `--attach`, or both. The body says what it
+is, how to try it and what you checked. `--key` names what it is a version
+of: a newer deliverable with the same key in the same project supersedes the
+older one, which leaves the Deliverables section (it stays in its thread and
+in Show all). `--re` and `--re-chat` work as for `tell`. Android packages
+(`.apk`) may be up to 150 MB.
+
+The dashboard lists deliverables in their own section, **Deliverables**,
+above Responses to you and below Needs you. The item page shows a large
+**Open** button for the link and a download button per file, with **Works**
+(messages the agent "Works.") and **Problem…** (opens the message box).
+On the keyboard: `SPC i g` opens the link, `SPC i G` downloads the file,
+`SPC i w` says it works. Their notify class is `deliverable` (desktop: the
+machine it came from; phone when away), set in Settings like any other. A done report from a run's root coordinator marks
 the run finished. `agent-done` does this for you where it is installed.
 `agent-desk show --mine` shows only the calling session's own node.
 

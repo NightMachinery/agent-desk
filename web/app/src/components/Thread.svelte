@@ -3,7 +3,7 @@
   // response state, and the agents' responses, oldest first.
   import { untrack } from 'svelte';
   import { href } from '../lib/route.svelte.js';
-  import { dispositionText, deliveryTitle, desktopText, remoteText } from '../lib/format.js';
+  import { dispositionText, deliveryTitle, desktopText, remoteText, deliverableURL } from '../lib/format.js';
   import Markdown from './Markdown.svelte';
   import Attachments from './Attachments.svelte';
   import { post } from '../lib/api.js';
@@ -93,6 +93,14 @@
           {:else}
             <span class="chip ok">answered</span>
           {/if}
+        </div>
+        {#if t.event.title}<div class="qtitle">{t.event.title}</div>{/if}
+      {/if}
+      {#if t.kind === 'response' && (t.event.kind === 'deliverable' || t.event.kind === 'done')}
+        <!-- Any agent item can respond; these say what kind they are. -->
+        <div class="chips">
+          <span class="chip {t.event.kind}">{t.event.kind === 'deliverable' ? 'Deliverable' : 'Done report'}</span>
+          {#if deliverableURL(t.event)}<a class="btn small" href={deliverableURL(t.event)} target="_blank" rel="noopener noreferrer" title={t.event.meta.url}>Open</a>{/if}
         </div>
         {#if t.event.title}<div class="qtitle">{t.event.title}</div>{/if}
       {/if}

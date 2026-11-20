@@ -23,6 +23,7 @@
     'ask-blocked': 'Blocked questions',
     'ask-default': 'Questions with a default',
     response: 'Responses to your messages',
+    deliverable: 'Deliverables (deployments, packages)',
     'tell-notify': 'Notices that ask to notify',
     tell: 'Other notices',
     done: 'Done reports',

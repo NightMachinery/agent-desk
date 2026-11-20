@@ -53,6 +53,8 @@ func refKind(e store.Event) string {
 		return "notice"
 	case e.Kind == "done":
 		return "done report"
+	case e.Kind == "deliverable":
+		return "deliverable"
 	case e.Kind == "reply":
 		return "message"
 	case desk.IsSlotKind(e.Kind):

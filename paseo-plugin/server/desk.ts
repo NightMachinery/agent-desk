@@ -88,6 +88,7 @@ export async function view({ session }: RpcInput<typeof viewRpc>): Promise<RpcOu
   const base = baseURL();
   return {
     needs: items(v.needs_you, base),
+    deliverables: items(v.deliverables ?? [], base),
     responses: items(v.responses, base),
     fresh: items(v.new, base),
     dashboard: base,

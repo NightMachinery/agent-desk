@@ -13,11 +13,14 @@ import (
 
 // View is what `show` prints.
 type View struct {
-	Pinned    []Item  `json:"pinned"`
-	NeedsYou  []Group `json:"needs_you"`
-	Responses []Group `json:"responses"`
-	New       []Group `json:"new"`
-	Runs      []*Node `json:"runs"`
+	Pinned   []Item  `json:"pinned"`
+	NeedsYou []Group `json:"needs_you"`
+	// Deliverables: what agents shipped (deployments, packages), listed
+	// between Needs you and Responses.
+	Deliverables []Group `json:"deliverables"`
+	Responses    []Group `json:"responses"`
+	New          []Group `json:"new"`
+	Runs         []*Node `json:"runs"`
 	// Awaiting: the user's messages to this node that wait for its response.
 	// Filled only for an agent's own view (show --mine).
 	Awaiting []Group `json:"awaiting,omitempty"`
@@ -43,8 +46,11 @@ func (d *Desk) AwaitingGroups(path string) []Group {
 
 // Build assembles the three printed views for a filter.
 func (d *Desk) Build(f Filter) View {
-	v := View{Pinned: d.PinnedItems(f), NeedsYou: d.NeedsYou(f), Responses: d.ResponseGroups(f), New: d.New(f),
+	v := View{Pinned: d.PinnedItems(f), NeedsYou: d.NeedsYou(f), Deliverables: d.DeliverableGroups(f), Responses: d.ResponseGroups(f), New: d.New(f),
 		Runs: Visible(d.Tree(f))}
+	if v.Deliverables == nil {
+		v.Deliverables = []Group{}
+	}
 	if v.Responses == nil {
 		v.Responses = []Group{}
 	}
@@ -224,6 +230,12 @@ func (w *Writer) Notice(level int, it Item) {
 	w.props("DESK_ID", it.ID, "DESK_PATH", it.Event.Path, "DESK_TS", it.Event.TS, "DESK_HOST", it.Event.Host)
 	if it.Response {
 		w.Text(fmt.Sprintf("You asked (%s): %s", it.AskedVia, firstLine(it.Asked)))
+	}
+	if u := MetaString(it.Event, "url"); u != "" {
+		w.Text("Open: " + u)
+	}
+	if it.SupersededBy != "" {
+		w.Text("Superseded by " + it.SupersededBy)
 	}
 	w.Text(it.Event.Body)
 	w.Media(it.Event)
@@ -446,6 +458,10 @@ func (w *Writer) View(v View) {
 	}
 	w.h(1, fmt.Sprintf("Needs you (%d)", count(v.NeedsYou)))
 	w.groups(2, v.NeedsYou, w.Question)
+	if len(v.Deliverables) > 0 {
+		w.h(1, fmt.Sprintf("Deliverables (%d)", count(v.Deliverables)))
+		w.groups(2, v.Deliverables, w.Notice)
+	}
 	if len(v.Responses) > 0 {
 		w.h(1, fmt.Sprintf("Responses to you (%d)", count(v.Responses)))
 		w.groups(2, v.Responses, w.Notice)

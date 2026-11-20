@@ -20,6 +20,8 @@
   --notice-soft: #f1ebfd;
   --response: #0f766e;
   --response-soft: #e3f5f2;
+  --deliverable: #a16207;
+  --deliverable-soft: #fdf4dc;
   --focus: #2563eb55;
   --shadow: 0 1px 2px #0000000d, 0 4px 16px #00000010;
   --radius: 12px;
@@ -50,6 +52,8 @@
     --notice-soft: #1f1730;
     --response: #5eead4;
     --response-soft: #0f2624;
+    --deliverable: #facc15;
+    --deliverable-soft: #2a2410;
     --focus: #7aa7ff55;
     --shadow: 0 1px 2px #00000040, 0 6px 24px #00000055;
   }
@@ -183,6 +187,10 @@ button {
   background: var(--response-soft);
   color: var(--response);
 }
+.chip.deliverable {
+  background: var(--deliverable-soft);
+  color: var(--deliverable);
+}
 .chip.notice {
   background: var(--notice-soft);
   color: var(--notice);
@@ -229,6 +237,11 @@ button {
 .count.response {
   background: var(--response-soft);
   color: var(--response);
+}
+
+.count.deliverable {
+  background: var(--deliverable-soft);
+  color: var(--deliverable);
 }
 
 .count.hot {

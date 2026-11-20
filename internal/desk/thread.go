@@ -7,20 +7,35 @@ import (
 )
 
 // Threads are derived from ref, never stored: a message (reply) refers to
-// what it is about, an answer to its question, and a response (a tell or an
-// ask with a ref) to the message or answer it responds to. Following ref upwards from
-// any of them reaches the root item; a message with no ref belongs to its
-// node's thread.
+// what it is about, an answer to its question, and a response to the
+// message or answer it responds to. Following ref upwards from any of them
+// reaches the root item; a message with no ref belongs to its node's thread.
+//
+// Every kind an agent files for the user (AgentItem: a notice, a question,
+// a done report, a deliverable) can be a response: given a ref (--re) or
+// what was asked in chat (--re-chat), it sits in that thread, whatever its
+// kind. A new agent item kind gets this by being added to AgentItem.
 
 // NoResponseAfter is how long a delivered message may wait for a response
 // before every view flags it.
 const NoResponseAfter = 15 * time.Minute
 
+// AgentItem reports whether kind is one an agent files for the user: a
+// notice (tell), a question (ask), a done report or a deliverable. Each
+// can respond to a message and so be part of a thread.
+func AgentItem(kind string) bool {
+	switch kind {
+	case "tell", "ask", "done", "deliverable":
+		return true
+	}
+	return false
+}
+
 // IsResponse reports whether e is an agent's response to the user: to a
 // message or an answer (ref), or to something the user asked in chat
-// (meta.asked). It is a tell, or an ask (a question response).
+// (meta.asked). It is any agent item (AgentItem).
 func IsResponse(e store.Event) bool {
-	return (e.Kind == "tell" || e.Kind == "ask") && (e.Ref != "" || MetaString(e, "asked") != "")
+	return AgentItem(e.Kind) && (e.Ref != "" || MetaString(e, "asked") != "")
 }
 
 // IsQuestionResponse reports whether e is a response that is also a
@@ -94,7 +109,11 @@ func (d *Desk) indexThreads() {
 		failed:    map[string]int{},
 		progress:  map[string]int{},
 	}
+	d.latestDeliverable = map[string]string{}
 	for i, e := range d.Events {
+		if k := deliverableKey(e); k != "" {
+			d.latestDeliverable[k] = e.ID
+		}
 		x := e
 		switch e.Kind {
 		case "delivered":
@@ -215,8 +234,8 @@ func (d *Desk) AwaitingAt(path string) []store.Event {
 
 // ClassOf is the settings class of a notifiable event: a question is
 // ask-blocked or ask-default; a tell is response when it responds, else
-// tell-notify with --notify, else tell; a done report is done. Other events
-// have no class.
+// tell-notify with --notify, else tell; a done report is done; a deliverable
+// is deliverable, responding or not. Other events have no class.
 func ClassOf(e store.Event) string {
 	switch e.Kind {
 	case "ask":
@@ -234,6 +253,8 @@ func ClassOf(e store.Event) string {
 		return "tell"
 	case "done":
 		return "done"
+	case "deliverable":
+		return "deliverable"
 	}
 	return ""
 }

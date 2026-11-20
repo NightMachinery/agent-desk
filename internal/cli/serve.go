@@ -689,6 +689,7 @@ func (s *server) apiView(w http.ResponseWriter, r *http.Request) {
 	if query != "" {
 		v.NeedsYou = searchGroups(d, v.NeedsYou, query)
 		v.Responses = searchGroups(d, v.Responses, query)
+		v.Deliverables = searchGroups(d, v.Deliverables, query)
 		v.New = searchGroups(d, v.New, query)
 		pinned := []desk.Item{}
 		for _, g := range searchGroups(d, []desk.Group{{Items: v.Pinned}}, query) {

@@ -168,6 +168,11 @@ Quote or paraphrase the question in one line. Skip this for quick
 back-and-forth and clarifications. Responses get their own section on the
 desk, above other notices, and notify the user unless `--quiet`.
 
+Any kind of item can be the response: `tell`, `ask`, `done` and
+`deliverable` all take `--re` and `--re-chat`. When the message asked you
+to ship something, respond with the deliverable itself, not a `tell` that
+points at it.
+
 ## Notices
 
 For something the user should know but need not answer: a result, a finished
@@ -199,6 +204,33 @@ the desk keeps its own copy.
 Messages and answers from the user may carry files too. They arrive as paths
 listed after the text ("The user attached these files; read them from these
 paths:"); open them like any file.
+
+## Deliverables
+
+When something is ready for the user to open or install (a deployment, an
+Android APK, a release, a published page), file a **deliverable**, not a
+notice. The desk lists deliverables in their own section above responses,
+with a large Open or Download button:
+
+    agent-desk deliverable --title 'Android APK 1.4.2' --key android-apk \
+      --attach build/app-release.apk --caption 'Release build, debug-signed' <<'D'
+    Install it over 1.4.1; your data stays. New: dark mode in Settings.
+    Checked on the emulator (API 35): login, sync and the new switch.
+    D
+    agent-desk deliverable --title 'Site on staging' --url https://staging.example.org/ <<'D'
+    ...
+    D
+
+- Give `--url` (http or https), `--attach FILE --caption '...'`, or both.
+  Nothing to open or download means it is a `tell`.
+- The body says what it is, how to try it, and what you verified.
+- `--key` names what this is a version of (`android-apk`, `staging-site`).
+  A newer deliverable with the same key in the project replaces the older
+  one on the desk, so the user never installs a stale build. Reuse the key
+  for every new version.
+- An APK may be up to 150 MB.
+- The user may answer **Works** (you get "Works.") or describe a problem;
+  both arrive as a message to respond to.
 
 ## Slots: what is true now
 

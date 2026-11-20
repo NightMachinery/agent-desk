@@ -161,7 +161,7 @@ func labelOf(s push.Sub) string {
 // pushTitles leads a notification's title, by class.
 var pushTitles = map[string]string{
 	"ask-blocked": "Blocked: ", "ask-default": "Question: ", "response": "Reply: ",
-	"tell-notify": "", "tell": "", "done": "Done: ",
+	"tell-notify": "", "tell": "", "done": "Done: ", "deliverable": "Ready: ",
 }
 
 // pushRaise pushes e's notification and returns the notified event.

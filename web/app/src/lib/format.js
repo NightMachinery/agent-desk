@@ -18,6 +18,8 @@ export function agentName(a) {
 
 export function kindOf(item) {
   const e = item.event;
+  // A deliverable stays one when it responds: it has its own section.
+  if (e.kind === 'deliverable') return 'deliverable';
   if (item.response && e.kind !== 'ask') return 'response';
   if (e.kind === 'ask') return e.level === 'blocked' ? 'blocked' : 'default';
   if (e.kind === 'tell') return 'notice';
@@ -31,6 +33,7 @@ export const kindLabel = {
   default: 'Has default',
   notice: 'Notice',
   response: 'Response',
+  deliverable: 'Deliverable',
   done: 'Done',
   slot: 'Slot',
   answer: 'Answer',
@@ -38,6 +41,32 @@ export const kindLabel = {
   task: 'Task',
   instruction: 'Your instruction',
 };
+
+/** Where a deliverable is: its URL's host and path, else its files. */
+export function deliverableWhere(event) {
+  const url = event?.meta?.url;
+  if (url) {
+    try {
+      const u = new URL(url);
+      return (u.host + u.pathname).replace(/\/$/, '');
+    } catch {
+      return url;
+    }
+  }
+  const files = event?.meta?.media ?? [];
+  if (!files.length) return '';
+  return (files[0].name || 'a file') + (files.length > 1 ? ` and ${files.length - 1} more` : '');
+}
+
+/** A deliverable's link, only when it is http or https. */
+export function deliverableURL(event) {
+  const url = event?.meta?.url;
+  try {
+    return url && ['http:', 'https:'].includes(new URL(url).protocol) ? url : '';
+  } catch {
+    return '';
+  }
+}
 
 export function slotName(event) {
   return event.path.slice(event.path.lastIndexOf('/') + 1);

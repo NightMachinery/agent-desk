@@ -83,7 +83,7 @@ function sectionHere() {
   while (el && !el.matches?.('h2.section-title')) el = el.previousElementSibling || el.parentElement;
   return el?.dataset.section || paneEl('list')?.querySelector('h2.section-title')?.getAttribute('data-section') || 'needs';
 }
-const sections = ['needs', 'quota', 'pinned', 'responses', 'new', 'runs', 'deferred'];
+const sections = ['needs', 'quota', 'pinned', 'deliverables', 'responses', 'new', 'runs', 'deferred'];
 function foldAll(open) {
   for (const s of sections) toggleSection(s, open);
 }
@@ -345,6 +345,10 @@ C('agent-archive', "Archive the node's coordinator agent in Paseo", () => click(
 C('node-settings', "The node's notify settings", () => click('node-settings'), tagged('node-settings', 'a node page'));
 C('list-read-all', 'Mark every unread item in the list read', () => click('mark-all-read'), tagged('mark-all-read', 'unread items in the list'));
 C('quota-copy-ids', 'Out of quota: copy the picked agent ids', () => click('quota-copy-ids'), tagged('quota-copy-ids', 'the Out of quota section'));
+C('deliverable-open', 'Deliverable: open its link', () => click('deliverable-open'), tagged('deliverable-open', 'a deliverable with a link'));
+C('deliverable-download', 'Deliverable: download its first file', () => click('deliverable-download'), tagged('deliverable-download', 'a deliverable with a file'));
+C('deliverable-works', 'Deliverable: tell the agent it works', () => click('deliverable-works'), tagged('deliverable-works', 'a deliverable whose agent can be messaged'));
+C('deliverable-problem', 'Deliverable: tell the agent what is wrong (opens the message box)', () => click('deliverable-problem'), tagged('deliverable-problem', 'a deliverable whose agent can be messaged'));
 C('quota-archive', 'Out of quota: archive the first agent in Paseo', () => click('quota-archive'), tagged('quota-archive', 'an agent out of quota'));
 C('quota-replace', 'Out of quota: replace the first agent (pick its provider, model and effort)', () => click('quota-replace'), tagged('quota-replace', 'an agent out of quota that can be replaced'));
 
@@ -487,6 +491,9 @@ bind('SPC i p', 'pin');
 bind('SPC i o', 'open-node');
 bind('SPC i n', 'notify-menu');
 bind('SPC i m', 'send-menu');
+bind('SPC i g', 'deliverable-open');
+bind('SPC i G', 'deliverable-download');
+bind('SPC i w', 'deliverable-works');
 bind('y y', 'yank-link');
 bind('y i', 'yank-id');
 bind('y r', 'yank-resume');

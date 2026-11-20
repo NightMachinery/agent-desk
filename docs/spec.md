@@ -182,8 +182,8 @@ variable (children inherit the parent's environment, which is how
       id    TEXT PRIMARY KEY,  -- ULID: globally unique, sortable by time
       ts    TEXT NOT NULL,     -- RFC 3339 with offset
       host  TEXT NOT NULL,
-      kind  TEXT NOT NULL,     -- join ask answer delivered tell done set clear
-                               -- link read reply
+      kind  TEXT NOT NULL,     -- join ask answer delivered tell done deliverable
+                               -- set clear link read reply
       path  TEXT NOT NULL,
       ref   TEXT,              -- event this one refers to
       level TEXT,              -- ask: blocked | default.  tell: fyi | notify
@@ -209,7 +209,7 @@ variable (children inherit the parent's environment, which is how
   events whose ids are new.
 - Display ids: kind letter plus the shortest unique suffix of the ULID's
   random part, at least 4 characters (`q-7f3a`, `t-k2m9`). Letters: `q` ask,
-  `a` answer, `t` tell, `d` done, `s` set, `c` clear, `l` link, `j` join,
+  `a` answer, `t` tell, `d` done, `b` deliverable, `s` set, `c` clear, `l` link, `j` join,
   `o` leave, `r` read, `v` delivered, `m` reply. Commands accept the display id, the part after the
   dash, any unique prefix of that part, or a full ULID.
 
@@ -226,6 +226,17 @@ Event semantics:
   `delivered` supersedes it.
 - `tell`: a notice or interim report. `level=notify` raises a notification.
 - `done`: a finished session's summary and report path, from `agent-done`.
+- `deliverable`: something the user can open or download now (a
+  deployment, an Android package, a release): `meta.url` (http or https)
+  and/or files in `meta.media`, with how to try it in the body.
+  `meta.key` names what it is a version of: a newer deliverable with the
+  same key in the same project supersedes it, and only the newest is listed.
+  Its notify class is `deliverable`.
+- Threads: every kind an agent files for the user (`tell`, `ask`, `done`,
+  `deliverable`) may respond to a message or answer (`ref`) or to a
+  question asked in chat (`meta.asked`), and then belongs to that thread.
+  The views list it by kind: a question response in Needs you, a
+  deliverable in Deliverables, a notice or done report in Responses.
 - `set`: new text for the slot at `path`. `clear`: the slot is empty from now.
 - `link`: the slot at `path` shows the file `meta.file` (rendered at view
   time; never unread).
@@ -239,7 +250,7 @@ Event semantics:
   expands, at command time, into one `read` per current unread item under it.
   A `read` naming an open question **dismisses** it (see Commands).
 
-Unread rules: a `tell`, a `done`, and the latest `set` of a slot are
+Unread rules: a `tell`, a `done`, a `deliverable`, and the latest `set` of a slot are
 unread until a `read` names that event. A new `set` is a new event, so an
 updated slot is unread again. Otherwise fresh information in a slot the user
 once dismissed would stay hidden, which is the original problem. Exception:

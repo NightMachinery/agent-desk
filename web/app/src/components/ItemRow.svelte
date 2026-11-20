@@ -1,6 +1,6 @@
 <script>
   import { route, href } from '../lib/route.svelte.js';
-  import { kindOf, kindLabel, titleOf, previewLine } from '../lib/format.js';
+  import { kindOf, kindLabel, titleOf, previewLine, deliverableWhere } from '../lib/format.js';
   import Icon from './Icon.svelte';
   import { desk } from '../lib/desk.svelte.js';
   import { sel, toggle, selecting } from '../lib/select.svelte.js';
@@ -103,6 +103,9 @@
       <span>{{ answer: 'Your answer', message: 'Your message', chat: 'You asked in chat' }[item.asked_via] || 'You asked'}: {previewLine(item.asked)}</span>
     </div>
   {/if}
+  {#if kind === 'deliverable' && deliverableWhere(item.event)}
+    <div class="where" title={item.event.meta?.url || ''}><Icon name={item.event.meta?.url ? 'link' : 'download'} size={12} /> {deliverableWhere(item.event)}{#if item.superseded_by}<span class="faint"> · superseded by {item.superseded_by}</span>{/if}</div>
+  {/if}
   {#if preview && kind !== 'slot'}
     <div class="preview">{preview}</div>
   {:else if kind === 'slot'}
@@ -186,7 +189,8 @@
     border-color: color-mix(in srgb, var(--default) 45%, var(--line));
   }
   .row.blocked::before,
-  .row.response::before {
+  .row.response::before,
+  .row.deliverable::before {
     content: '';
     position: absolute;
     left: -1px;
@@ -198,6 +202,20 @@
   }
   .row.response::before {
     background: var(--response);
+  }
+  .row.deliverable::before {
+    background: var(--deliverable);
+  }
+  .where {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 3px;
+    font-size: 12.5px;
+    color: var(--deliverable);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
   }
   .pin .n {
     font-size: 11px;

@@ -147,8 +147,14 @@ Agent side (only coordinators write; workers report to their parent):
   agent-desk screen release | status [--host H]
   agent-desk answer <id> --from-chat 'text'   record an answer given in chat
   agent-desk done --title T [--report FILE]   <<'S' ... S   (agent-done calls this)
-      ask, tell and done take [--attach FILE --caption 'what it shows']...: any
-      file, up to 8; images, audio and video play in the dashboard
+  agent-desk deliverable --title T [--url URL] [--attach FILE --caption C]... [--key K] <<'D' ... D
+                                      something the user can open or download now (a
+                                      deployment, an APK): what it is and how to try it;
+                                      --key K: a newer one with the same key supersedes it
+      ask, tell, done and deliverable take [--attach FILE --caption 'what it shows']...:
+      any file, up to 8; images, audio and video play in the dashboard
+      tell, done and deliverable take --re <m-id|a-id> or --re-chat '...': every agent
+      item can respond to a message and so sit in its thread
 
 User side:
   agent-desk inbox [<path-prefix>] [--all]    interactive (needs fzf)
@@ -331,6 +337,8 @@ func (a *App) run(args []string) error {
 		return a.cmdServe(rest)
 	case "done":
 		return a.cmdDone(rest)
+	case "deliverable":
+		return a.cmdDeliverable(rest)
 	case "clear":
 		return a.cmdClear(rest)
 	case "link":
@@ -768,17 +776,12 @@ func (a *App) cmdTell(args []string) error {
 	if err != nil {
 		return err
 	}
-	re, asked := strings.TrimSpace(o.vals["re"]), strings.TrimSpace(o.vals["re-chat"])
-	if o.set["re"] && re == "" {
-		return usagef("--re needs the id of the message or answer you respond to")
+	r, err := respondingOf(o)
+	if err != nil {
+		return err
 	}
-	if o.set["re-chat"] && asked == "" {
-		return usagef("--re-chat needs what the user asked in chat, quoted or in a line")
-	}
-	if re != "" && asked != "" {
-		return usagef("give --re (a message on the desk) or --re-chat (a question asked in chat), not both")
-	}
-	responding := re != "" || asked != ""
+	re, asked := r.re, r.asked
+	responding := r.on()
 	if o.bools["quiet"] && !responding {
 		return usagef("--quiet goes with --re or --re-chat: it marks a bare acknowledgement")
 	}
@@ -1611,7 +1614,11 @@ func (a *App) cmdOpen(args []string) (err error) {
 // cmdDone files a finished session's summary and report path, and sets its
 // status slot to say so, in one transaction.
 func (a *App) cmdDone(args []string) error {
-	o, err := parse(args, nil, append([]string{"title", "report", "project", "node"}, attachOpts...), 0, 0)
+	o, err := parse(args, nil, append([]string{"title", "report", "project", "node", "re", "re-chat"}, attachOpts...), 0, 0)
+	if err != nil {
+		return err
+	}
+	r, err := respondingOf(o)
 	if err != nil {
 		return err
 	}
@@ -1633,9 +1640,18 @@ func (a *App) cmdDone(args []string) error {
 	if err := a.attach(o, extra); err != nil {
 		return err
 	}
-	return a.agentWrite(o.vals["project"], o.vals["node"], "done", func(from ident.From, node string, _ *desk.Desk) ([]store.Event, error) {
+	nodeArg, err := a.respondingNode(r, o.vals["node"])
+	if err != nil {
+		return err
+	}
+	return a.agentWrite(o.vals["project"], nodeArg, "done", func(from ident.From, node string, d *desk.Desk) ([]store.Event, error) {
+		// A done report may respond to a message, like any agent item.
+		ref, _, err := r.apply(d, node, extra)
+		if err != nil {
+			return nil, err
+		}
 		e := a.event("done", node, from, "cli", extra)
-		e.Title, e.Body = title, body
+		e.Title, e.Body, e.Ref = title, body, ref
 		status := "Finished."
 		if extra["report"] != nil {
 			status = "Finished; see report."

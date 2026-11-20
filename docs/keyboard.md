@@ -84,7 +84,9 @@ follow, with groups in colour.
   ones with no key (screen requests, retrying a delivery, focus sets,
   auto-continue).
 - `SPC i`: the open item (`a` answer, `r` message, `d` read, `u` unread, `p`
-  pin, `t` take, `o` its node, `n` "Notify me", `m` "Send how?").
+  pin, `t` take, `o` its node, `n` "Notify me", `m` "Send how?"; on a
+  deliverable, `g` open its link, `G` download its file, `w` tell the agent
+  it works).
 - `SPC n`: the node page (`m` message the coordinator, `r` mark everything
   under it read, `s` its notify settings, `v` ask for a velocity report, `a`
   archive its coordinator's Paseo agent).

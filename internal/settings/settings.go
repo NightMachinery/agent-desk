@@ -22,7 +22,7 @@ import (
 var Keys = []string{"deliver.behavior", "notify.desktop", "notify.remote", "notify.remote.dest", "notify.push"}
 
 // Classes are the kinds of event a setting can be set for, besides Any.
-var Classes = []string{"ask-blocked", "ask-default", "response", "tell-notify", "tell", "done"}
+var Classes = []string{"ask-blocked", "ask-default", "response", "deliverable", "tell-notify", "tell", "done"}
 
 // Any is the class that applies to every event.
 const Any = "*"
@@ -98,7 +98,7 @@ func BuiltIn(key, class string) string {
 		}
 		return "origin"
 	case "notify.remote":
-		if class == "ask-blocked" || class == "response" {
+		if class == "ask-blocked" || class == "response" || class == "deliverable" {
 			return "away"
 		}
 		return "off"

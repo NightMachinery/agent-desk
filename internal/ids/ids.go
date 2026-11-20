@@ -36,6 +36,8 @@ func Letter(kind string) string {
 		return "t"
 	case "done":
 		return "d"
+	case "deliverable":
+		return "b"
 	case "set":
 		return "s"
 	case "clear":

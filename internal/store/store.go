@@ -36,7 +36,7 @@ type Event struct {
 }
 
 // Kinds lists every event kind the store accepts.
-var Kinds = []string{"join", "leave", "ask", "answer", "delivered", "undelivered", "delivery-state", "tell", "done", "set", "clear", "link", "read", "reply", "pin", "pref", "notified", "retracted", "instruction", "task", "taskstate", "screen", "projectset", "focus", "recording", "recording-used", "cache"}
+var Kinds = []string{"join", "leave", "ask", "answer", "delivered", "undelivered", "delivery-state", "tell", "done", "deliverable", "set", "clear", "link", "read", "reply", "pin", "pref", "notified", "retracted", "instruction", "task", "taskstate", "screen", "projectset", "focus", "recording", "recording-used", "cache"}
 
 func validKind(k string) bool {
 	for _, x := range Kinds {
@@ -115,14 +115,14 @@ WHERE r.kind = 'read'
 `
 
 // unreadView is recreated when the stored one differs (unreadMarker tells
-// them apart): unread are notices, done reports and the current text of each
+// them apart): unread are notices, done reports, deliverables and the current text of each
 // slot other than status, until a read marker names that exact event. A slot
 // written for agents only (meta.audience "agents") is never unread.
-const unreadMarker = "-- unread v2"
+const unreadMarker = "-- unread v3"
 
 const unreadView = `CREATE VIEW unread AS ` + unreadMarker + `
 SELECT e.* FROM events e
-WHERE (e.kind IN ('tell', 'done')
+WHERE (e.kind IN ('tell', 'done', 'deliverable')
        OR (e.kind = 'set'
            AND e.id IN (SELECT id FROM slot_current)
            AND e.path NOT LIKE '%/status'

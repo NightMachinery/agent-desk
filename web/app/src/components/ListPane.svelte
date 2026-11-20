@@ -43,11 +43,12 @@
   // that no longer lists them settles them.
   $effect(() => {
     const v = view?.view;
-    if (v) settle(new Set([v.needs_you, v.new, v.responses].flatMap((gs) => idsOf(gs ?? []))));
+    if (v) settle(new Set([v.needs_you, v.new, v.responses, v.deliverables].flatMap((gs) => idsOf(gs ?? []))));
   });
   const needs = $derived(unhidden(route.old ? (view?.view?.needs_you ?? []) : recent(view?.view?.needs_you ?? [], true)));
   const fresh = $derived(unhidden(route.old ? (view?.view?.new ?? []) : recent(view?.view?.new ?? [], false)));
   const responses = $derived(unhidden(route.old ? (view?.view?.responses ?? []) : recent(view?.view?.responses ?? [], false)));
+  const deliverables = $derived(unhidden(route.old ? (view?.view?.deliverables ?? []) : recent(view?.view?.deliverables ?? [], false)));
   const pinned = $derived(view?.view?.pinned ?? []);
   const runs = $derived(view?.view?.runs ?? []);
   const count = (gs) => gs.reduce((n, g) => n + g.items.length, 0);
@@ -55,10 +56,12 @@
   const needIds = $derived(idsOf(needs));
   const freshIds = $derived(idsOf(fresh));
   const responseIds = $derived(idsOf(responses));
+  const deliverableIds = $derived(idsOf(deliverables));
   const pinnedIds = $derived(pinned.map((it) => it.display_id));
   const unreadOf = (gs) => gs.flatMap((g) => g.items.filter((it) => it.unread).map((it) => it.display_id));
   const freshUnread = $derived(unreadOf(fresh));
   const responseUnread = $derived(unreadOf(responses));
+  const deliverableUnread = $derived(unreadOf(deliverables));
 
   // Marks a whole section read, with Undo. Not offered on Needs you: reading
   // a question there dismisses it, too much for one unguarded click.
@@ -89,11 +92,11 @@
   // Folded sections drop out of j/k and previous/next.
   const shown = (name, ids) => (ui.collapsed[name] ? [] : ids);
   const allIds = $derived([
-    ...new Set([...shown('needs', needIds), ...shown('pinned', pinnedIds), ...shown('responses', responseIds), ...shown('new', freshIds)]),
+    ...new Set([...shown('needs', needIds), ...shown('pinned', pinnedIds), ...shown('deliverables', deliverableIds), ...shown('responses', responseIds), ...shown('new', freshIds)]),
   ]);
   // Pinned items in any section, including a pinned question under Needs.
   const pinnedAll = $derived(
-    new Set([...pinnedIds, ...[...needs, ...responses, ...fresh].flatMap((g) => g.items.filter((it) => it.pinned).map((it) => it.display_id))]),
+    new Set([...pinnedIds, ...[...needs, ...deliverables, ...responses, ...fresh].flatMap((g) => g.items.filter((it) => it.pinned).map((it) => it.display_id))]),
   );
   // Previous and next walk the list in the order shown.
   $effect(() => snapshot(allIds, route.item, pinnedAll));
@@ -223,6 +226,23 @@
         <div class="rows">
           {#each pinned as it (it.event.id)}<ItemRow item={it} base={route.path} />{/each}
         </div>
+      {/if}
+    {/if}
+
+    {#if deliverables.length}
+      <h2 class="section-title" data-section="deliverables">
+        {@render fold('deliverables', 'Deliverables')}
+        <span class="count deliverable">{count(deliverables)}</span>
+        {#if deliverableIds.length > 1 && !ui.collapsed.deliverables}<button class="pick" onclick={() => toggleAll(deliverableIds)}>{allOn(deliverableIds) ? 'Deselect' : 'Select all'}</button>{/if}
+        {#if deliverableUnread.length}{@render markAll(deliverableUnread)}{/if}
+      </h2>
+      {#if !ui.collapsed.deliverables}
+        {#each deliverables as g (g.project + '/' + g.run)}
+          {@render groupHead(g, true)}
+          <div class="rows">
+            {#each g.items as it (it.event.id)}<ItemRow item={it} base={baseOf(g)} />{/each}
+          </div>
+        {/each}
       {/if}
     {/if}
 

@@ -210,7 +210,7 @@ export function DeskView({ theme, compact, session }: { theme: PluginTheme; comp
     );
   }
   if (!q.data) return <View style={s.page}><Text style={s.muted}>Reading the desk…</Text></View>;
-  const { needs, responses, fresh, dashboard } = q.data;
+  const { needs, deliverables, responses, fresh, dashboard } = q.data;
   // An item you acted on stays where it was until you leave the view, read,
   // with what you sent, even after the desk stops listing it.
   const section = (title: string, listed: DeskItem[]) => {
@@ -233,10 +233,11 @@ export function DeskView({ theme, compact, session }: { theme: PluginTheme; comp
   const keptAny = Object.keys(acted).length > 0;
   return (
     <View style={s.page}>
-      {needs.length + responses.length + fresh.length === 0 && !keptAny ? (
+      {needs.length + deliverables.length + responses.length + fresh.length === 0 && !keptAny ? (
         <Text style={s.muted}>{session ? "Nothing from this agent waits on you." : "Nothing waits on you."}</Text>
       ) : null}
       {section("Needs you", needs)}
+      {section("Deliverables", deliverables)}
       {section("Responses to you", responses)}
       {section("New", fresh)}
       {dashboard ? <View style={s.row}><Button s={s} label="Open the web dashboard" onPress={() => void openExternal(dashboard)} /></View> : null}

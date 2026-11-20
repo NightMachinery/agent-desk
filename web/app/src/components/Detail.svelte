@@ -9,7 +9,7 @@
   import { clearDraft } from '../lib/drafts.js';
   import { pendingMessages, queueMessage } from '../lib/outbox.svelte.js';
   import { desk } from '../lib/desk.svelte.js';
-  import { agentName, copy, kindLabel, kindOf, sessionOf, short, slotName, titleOf, viaText } from '../lib/format.js';
+  import { agentName, copy, deliverableURL, kindLabel, kindOf, sessionOf, short, slotName, titleOf, viaText } from '../lib/format.js';
   import Composer from './Composer.svelte';
   import Markdown from './Markdown.svelte';
   import Attachments from './Attachments.svelte';
@@ -169,6 +169,25 @@
       toast(err.message, 'error');
     }
   }
+  // A deliverable: Works tells the agent so; Problem opens the message box.
+  function works() {
+    return reply('Works.');
+  }
+  function problem() {
+    const box = document.getElementById('reply-box');
+    box?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    box?.focus();
+  }
+  const files = $derived(kind === 'deliverable' ? (item?.media ?? []).filter((m) => m.kind === 'file') : []);
+  const shownMedia = $derived(kind === 'deliverable' ? (item?.media ?? []).filter((m) => m.kind !== 'file') : (item?.media ?? []));
+  const openURL = $derived(kind === 'deliverable' ? deliverableURL(e) : '');
+  const openHost = $derived.by(() => {
+    try {
+      return openURL ? new URL(openURL).host : '';
+    } catch {
+      return '';
+    }
+  });
   async function copyText(text, what) {
     toast((await copy(text)) ? `${what} copied.` : text, 'ok');
   }
@@ -262,9 +281,42 @@
         <Markdown text={it.asked} />
       </div>
     {/if}
+    {#if kind === 'deliverable'}
+      <div class="deliver">
+        <div class="deliver-get">
+          {#if openURL}
+            <a data-cmd="deliverable-open" class="btn primary big" href={openURL} target="_blank" rel="noopener noreferrer" title={openURL}
+              ><Icon name="link" /> Open {openHost}</a
+            >
+          {/if}
+          {#each files as m (m.sha256)}
+            {#if m.url}
+              <a data-cmd="deliverable-download" class="btn big" class:primary={!openURL} href={'./' + m.url} download={m.name} title={m.caption}
+                ><Icon name="download" /> {m.name} <span class="size">{m.size_text}</span></a
+              >
+            {:else}
+              <span class="faint">{m.name}: {m.gone}</span>
+            {/if}
+          {/each}
+        </div>
+        {#each files.filter((m) => m.caption && m.caption !== m.name) as m (m.sha256)}
+          <div class="faint">{m.name}: {m.caption}</div>
+        {/each}
+        {#if it.superseded_by}
+          <div class="faint">A newer one has replaced this: <a class="link" href={href({ item: it.superseded_by })}>{it.superseded_by}</a>.</div>
+        {/if}
+        {#if item.target}
+          <div class="deliver-say">
+            <span class="faint">Tried it?</span>
+            <button data-cmd="deliverable-works" class="btn small" title={tip('Tell the agent it works', 'deliverable-works')} onclick={works}>Works</button>
+            <button data-cmd="deliverable-problem" class="btn small" title={tip('Tell the agent what is wrong', 'deliverable-problem')} onclick={problem}>Problem…</button>
+          </div>
+        {/if}
+      </div>
+    {/if}
     {#if !inThread}
       {#if e.body}<Markdown class="body" text={e.body} />{/if}
-      <Attachments media={item.media} />
+      <Attachments media={shownMedia} />
     {/if}
 
     {#if item.default}
@@ -362,6 +414,43 @@
 {/if}
 
 <style>
+  .deliver {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 14px 0;
+    padding: 12px;
+    border: 1px solid color-mix(in srgb, var(--deliverable) 40%, var(--line));
+    border-radius: 10px;
+    background: var(--deliverable-soft);
+  }
+  .deliver-get {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .deliver .big {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    height: 38px;
+    padding: 0 14px;
+    font-size: 14px;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-decoration: none;
+  }
+  .deliver .size {
+    opacity: 0.7;
+    font-size: 12px;
+  }
+  .deliver-say {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
   .task-bar {
     display: flex;
     gap: 8px;

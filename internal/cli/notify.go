@@ -71,7 +71,7 @@ func (r route) onDesktop(host, origin string) bool {
 // A quiet response, and an event of no class, go nowhere.
 func routeOf(d *desk.Desk, r *settings.Resolver, e store.Event) route {
 	rt := route{class: desk.ClassOf(e), desktop: "none", remote: "off", push: "off"}
-	if rt.class == "" || (rt.class == "response" && desk.Meta(e)["quiet"] == true) {
+	if rt.class == "" || (desk.IsResponse(e) && e.Kind != "ask" && desk.Meta(e)["quiet"] == true) {
 		return rt
 	}
 	node := desk.NodeOf(e)
