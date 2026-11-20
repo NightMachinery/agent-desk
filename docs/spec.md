@@ -641,7 +641,10 @@ One atomic commit group each. Stop after each phase and run its check.
      reads any slot.
    - Tasks as events. Built 2026-11-17 with deferred-for-quota tasks
      (kinds `task` and `taskstate`, `agent-desk task ...`, `[tasks]`
-     launch_command and quota nudge; docs/usage.md).
+     launch_command and quota nudge; docs/usage.md). Made the replacement
+     for `TASKS.org` on 2026-11-20: `meta.type` (task, bug, feature, idea,
+     chore), `meta.parent` (a subtask's parent task), `task list --org`,
+     the dashboard's Tasks page, and tasks the user files there.
    - A Paseo plugin. Built 2026-11-17 in `paseo-plugin/` (Paseo >= 0.15.4):
      a sidebar footer row and screen, a per-agent panel and composer pill,
      Command Center items; RPCs run the CLI on the daemon's machine. The

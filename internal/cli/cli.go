@@ -132,10 +132,13 @@ Agent side (only coordinators write; workers report to their parent):
   agent-desk set --for agents <slot> [text]   a note only agents see (run state): never unread, 400 lines
   agent-desk get <slot> [--node PATH]   print a slot's current text (yours by default)
   agent-desk clear <slot>
-  agent-desk task add --title T [--brief TEXT|-] [--priority 1-3] [--size S|M|L] [--node PATH]
+  agent-desk task add --title T [--type task|bug|feature|idea|chore] [--parent <w-id>]
+                     [--brief TEXT|-] [--priority 1-3] [--size S|M|L] [--node PATH]
+                                      your checklist lives here, not in a TASKS.org file
   agent-desk task add --defer --title T [--size] [--priority] [--profile P] [--cwd DIR] <<'B' ... B
   agent-desk task start|done|drop|defer|reopen <id>... [--note TEXT]
-  agent-desk task list [<prefix>] [--deferred] [--all] [--format json] | task prompt <id>
+  agent-desk task list [<prefix>] [--type T] [--deferred] [--all] [--format json] | task prompt <id>
+  agent-desk task list [<prefix>] --org [--all]   the checklist as org (* node, - [ ] items)
   agent-desk task launch <id>... | --deferred [<prefix>] [--max N] [--dry-run]
                                       start agents on tasks ([tasks] launch_command)
   agent-desk task nudge [--dry-run]   remind the user when quota would go unused (cron)

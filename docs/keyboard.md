@@ -87,6 +87,8 @@ follow, with groups in colour.
   pin, `t` take, `o` its node, `n` "Notify me", `m` "Send how?"; on a
   deliverable, `g` open its link, `G` download its file, `w` tell the agent
   it works).
+- Tasks: `g c` the Tasks page here, `g C` everywhere (`SPC o t`, `SPC o T`),
+  `SPC n t` a new task; on the page `/` searches.
 - `SPC n`: the node page (`m` message the coordinator, `r` mark everything
   under it read, `s` its notify settings, `v` ask for a velocity report, `a`
   archive its coordinator's Paseo agent).

@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/NightMachinery/agent-desk/internal/desk"
 )
 
 func writeConfig(t *testing.T, h *harness, body string) {
@@ -112,5 +114,56 @@ func TestTasks(t *testing.T) {
 	}
 	if out := h.ok(nil, "", "task", "nudge"); out != "no nudge due" {
 		t.Fatalf("second nudge: %q", out)
+	}
+}
+
+// Tasks as the checklist: types, subtasks, an org rendering, and tasks the
+// user files from the dashboard.
+func TestTaskTypesAndOrg(t *testing.T) {
+	h := newHarness(t)
+	a := h.as(sessA)
+	h.ok(a, "", "join", "r1/coord")
+
+	ms := h.ok(a, "", "task", "add", "--title", "Ship 1.4")
+	bug := h.ok(a, "", "task", "add", "--title", "Login fails on Android 15", "--type", "bug", "--parent", ms, "--priority", "1")
+	h.ok(a, "", "task", "add", "--title", "Dark mode", "--type", "Feature", "--parent", ms)
+	h.fails(a, "", "--type is one of", "task", "add", "--title", "x", "--type", "epic")
+	h.fails(a, "", "not a task", "task", "add", "--title", "x", "--parent", h.ok(a, "y", "tell", "--title", "n"))
+	h.ok(a, "", "task", "start", bug)
+
+	if out := h.ok(nil, "", "task", "list", "--type", "bug"); !strings.Contains(out, "bug: Login fails on Android 15") ||
+		strings.Contains(out, "Dark mode") || !strings.Contains(out, "under "+ms) {
+		t.Fatalf("list --type bug:\n%s", out)
+	}
+	org := h.ok(nil, "", "task", "list", "--org")
+	want := "* example-proj/r1/coord\n- [ ] Ship 1.4 (" + ms + ")\n  - [-] bug: Login fails on Android 15 (" + bug + ", started, p1)\n  - [ ] feature: Dark mode ("
+	if !strings.HasPrefix(org, want) {
+		t.Fatalf("org:\n%s\nwant prefix:\n%s", org, want)
+	}
+
+	// From the dashboard: at a node on the desk, with a type and a parent.
+	app, _, _ := h.app(nil, "")
+	id, err := app.taskAddWeb("example-proj/r1/coord", "Crash on rotate", "bug", "Seen twice.", ms)
+	must(t, err)
+	if !strings.HasPrefix(id, "w-") {
+		t.Fatalf("id %q", id)
+	}
+	for _, bad := range [][]string{{"", "t"}, {"nowhere/x", "t"}, {"example-proj/r1/coord", ""}, {"_desk/quota/nudge", "t"}} {
+		if _, err := app.taskAddWeb(bad[0], bad[1], "", "", ""); err == nil {
+			t.Fatalf("filed %v", bad)
+		}
+	}
+	if _, err := app.taskAddWeb("example-proj", "t", "epic", "", ""); err == nil {
+		t.Fatal("filed an unknown type")
+	}
+	d := h.loadDesk()
+	var got *desk.Task
+	for _, x := range d.Tasks(desk.Filter{}) {
+		if x.ID == id {
+			got = &x
+		}
+	}
+	if got == nil || got.Type != "bug" || got.ParentID != ms || got.Event.Body != "Seen twice." || desk.MetaString(got.Event, "source") != "web" {
+		t.Fatalf("web task: %+v", got)
 	}
 }

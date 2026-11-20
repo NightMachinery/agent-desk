@@ -181,7 +181,7 @@ function escape() {
   else if (route.item) {
     go({ item: '' });
     keys.pane = 'list';
-  } else if (pageOpen()) go({ settings: false, verbatim: false });
+  } else if (pageOpen()) go({ settings: false, verbatim: false, tasks: false });
   else if (route.q) go({ q: '' }, { replace: true });
   else /** @type {HTMLElement} */ (document.activeElement)?.blur?.();
 }
@@ -195,6 +195,21 @@ function parent() {
 
 const verbatimHere = () => go({ item: '', verbatim: true });
 const verbatimAll = () => go({ path: '', item: '', session: '', verbatim: true });
+const tasksHere = () => go({ item: '', tasks: true });
+const tasksAll = () => go({ path: '', item: '', session: '', tasks: true });
+/** Opens the Tasks page (here) with its New task form. */
+function taskAdd() {
+  if (!route.tasks) go({ item: '', tasks: true });
+  let tries = 0;
+  const openIt = () => {
+    const title = document.getElementById('task-title');
+    if (title) return title.focus();
+    const b = cmdEl('task-add');
+    if (b) return b.click();
+    if (++tries < 20) setTimeout(openIt, 50);
+  };
+  openIt();
+}
 function recordings() {
   if (!route.settings) go({ settings: true, item: '' });
   let tries = 0;
@@ -209,6 +224,7 @@ function recordings() {
 /** `/`: the search box of the page in view. */
 function search() {
   if (route.verbatim && document.getElementById('verbatim-search')) return focusBox('verbatim-search');
+  if (route.tasks && document.getElementById('tasks-search')) return focusBox('tasks-search');
   focusBox('search', 'No search box');
 }
 
@@ -295,6 +311,9 @@ C('settings', 'Settings here', () => go({ settings: true, item: '' }));
 C('settings-global', 'Global settings', () => go({ path: '', settings: true, item: '', session: '' }));
 C('verbatim', 'Verbatim log: your messages to agents, here', verbatimHere);
 C('verbatim-all', 'Verbatim log: your messages to agents, everywhere', verbatimAll);
+C('tasks', 'Tasks: the checklist here (tasks, bugs, ideas)', tasksHere);
+C('tasks-all', 'Tasks: every project', tasksAll);
+C('task-add', 'File a new task, bug or idea', taskAdd);
 C('verbatim-more', 'Verbatim log: show older messages', () => click('verbatim-more'), tagged('verbatim-more', 'the Verbatim log with older messages'));
 C('recordings', 'Recordings (voice messages)', recordings);
 C('refresh', 'Refresh', () => (ctx.refresh(), say('Refreshed')));
@@ -460,6 +479,11 @@ bind('SPC o S', 'settings-global');
 bind('SPC o v', 'verbatim');
 bind('SPC o V', 'verbatim-all');
 bind('SPC o r', 'recordings');
+bind('SPC o t', 'tasks');
+bind('SPC o T', 'tasks-all');
+bind('g c', 'tasks');
+bind('g C', 'tasks-all');
+bind('SPC n t', 'task-add');
 
 bind('SPC t a', 'toggle-all');
 bind('SPC t o', 'toggle-old');

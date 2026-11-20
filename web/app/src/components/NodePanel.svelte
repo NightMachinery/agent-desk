@@ -117,12 +117,17 @@
     </div>
   {/if}
 
-  {#if !compact && node.tasks?.length}
-    {@const done = node.tasks.filter((t) => t.state === 'done').length}
+  {#if !compact}
+    {@const all = node.tasks ?? []}
+    {@const done = all.filter((t) => t.state === 'done').length}
     <div class="tasks">
-      <div class="slot-name">Tasks <span class="faint">{done} of {node.tasks.length} done</span></div>
-      {#each node.tasks.filter((t) => t.state !== 'done' && t.state !== 'dropped') as t (t.event.id)}
-        <a class="task" href={href({ item: t.display_id })}><span class="chip">{t.state}</span> {t.event.title}</a>
+      <div class="slot-name">
+        <a class="tasks-link" href={href({ path: node.path, item: '', tasks: true })} title="This node's tasks, bugs and ideas on the Tasks page">Tasks</a>
+        {#if all.length}<span class="faint">{done} of {all.length} done</span>{/if}
+        <a class="add-task faint" data-cmd="node-task-add" href={href({ path: node.path, item: '', tasks: true })} onclick={() => setTimeout(() => document.querySelector('[data-cmd="task-add"]')?.click(), 120)} title={tip('File a task, bug or idea here', 'task-add')}>+ New</a>
+      </div>
+      {#each all.filter((t) => t.state !== 'done' && t.state !== 'dropped') as t (t.event.id)}
+        <a class="task" href={href({ item: t.display_id })}><span class="chip">{t.type && t.type !== 'task' ? t.type : t.state}</span> {t.event.title}</a>
       {/each}
     </div>
   {/if}
@@ -255,6 +260,20 @@
   .coord {
     margin-top: 6px;
     font-size: 12.5px;
+  }
+  .tasks-link {
+    color: inherit;
+    text-decoration: none;
+  }
+  .tasks-link:hover {
+    text-decoration: underline;
+  }
+  .add-task {
+    margin-left: 8px;
+    font-weight: 500;
+    text-decoration: none;
+    text-transform: none;
+    letter-spacing: 0;
   }
   .tasks {
     display: flex;

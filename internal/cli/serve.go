@@ -169,6 +169,7 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("GET /api/item", s.apiItem)
 	mux.HandleFunc("GET /api/target", s.apiTarget)
 	mux.HandleFunc("GET /api/verbatim", s.apiVerbatim)
+	mux.HandleFunc("GET /api/tasks", s.apiTasks)
 	mux.HandleFunc("GET /api/stream", s.apiStream)
 	mux.HandleFunc("GET /api/prefs", s.apiPrefs)
 	mux.HandleFunc("GET /api/media/{file}", s.apiMedia)
@@ -288,6 +289,11 @@ type request struct {
 	// have their own.
 	Action        string            `json:"action"`
 	Profile       string            `json:"profile"`        // quota replace: the new agent's provider[/model][@thinking]
+	// task add: Title, Type and Parent (a task id); To is the node, Text
+	// the brief.
+	Title  string `json:"title"`
+	Type   string `json:"type"`
+	Parent string `json:"parent"`
 	QuotaActivity map[string]string `json:"quota_activity"` // last activity of each selected quota agent
 	// sets: define, delete or focus a project set by Name (focus with an
 	// empty Name turns it off); define takes Prefixes.
@@ -501,9 +507,12 @@ func (s *server) apiSets(app *App, body request) (any, error) {
 
 func (s *server) apiTask(app *App, body request) (any, error) {
 	switch body.Action {
+	case "add":
+		id, err := app.taskAddWeb(body.To, body.Title, body.Type, body.Text, body.Parent)
+		return map[string]string{"id": id}, err
 	case "start", "done", "drop", "defer", "reopen", "launch":
 	default:
-		return nil, usagef("task action is start, done, drop, defer, reopen or launch")
+		return nil, usagef("task action is add, start, done, drop, defer, reopen or launch")
 	}
 	ids := body.list(body.ID)
 	if len(ids) == 0 {

@@ -162,6 +162,11 @@ The API, all JSON:
 - `GET api/view` also returns `deliverables`, grouped like `responses`;
   an item superseded by a newer deliverable of the same key carries
   `superseded_by` (shown only with `all=1`).
+- `GET api/tasks?path=`: every task under the path (all states), with
+  `type`, `parent` (full id) and `parent_display`, and `types`, the task
+  types there are. `POST api/task {action: "add", to, title, type, text,
+  parent}` files one at node `to` (a project, run or agent on the desk) as
+  the user (`meta.source` `web`) and returns its `id`.
 - `POST api/agent {action: "archive", id}`: archives a Paseo agent this
   machine's Paseo has a record of (`paseo archive`); an unknown id is
   refused before Paseo runs. `note` says what happened.

@@ -20,8 +20,26 @@ const (
 // TaskStates are the states a taskstate event may set.
 var TaskStates = []string{TaskOpen, TaskDeferred, TaskStarted, TaskDone, TaskDropped}
 
+// TaskTypes are the kinds of task, the first the default: what the
+// checklist item is, so the Tasks page can filter bugs from features.
+var TaskTypes = []string{"task", "bug", "feature", "idea", "chore"}
+
+// ValidTaskType reports whether t is one of TaskTypes.
+func ValidTaskType(t string) bool {
+	for _, x := range TaskTypes {
+		if x == t {
+			return true
+		}
+	}
+	return false
+}
+
 // TaskMeta is what a task event carries besides its title and brief.
 type TaskMeta struct {
+	// Type is one of TaskTypes; empty is a plain task.
+	Type string `json:"type,omitempty"`
+	// Parent is the full id of the task this one is a step of.
+	Parent   string `json:"parent,omitempty"`
 	Deferred bool   `json:"deferred,omitempty"`
 	Size     string `json:"size,omitempty"`    // S, M or L
 	Profile  string `json:"profile,omitempty"` // what to launch it with, for launch_command
@@ -37,7 +55,17 @@ type Task struct {
 	Agent   string      `json:"agent,omitempty"` // what launch_command printed
 	Note    string      `json:"note,omitempty"`
 	Updated string      `json:"updated"`
+	// ParentID is the parent task's display id, when it has one.
+	ParentID string `json:"parent_display,omitempty"`
 	TaskMeta
+}
+
+// Kind is the task's type, task when none was given.
+func (t Task) Kind() string {
+	if t.Type == "" {
+		return "task"
+	}
+	return t.Type
 }
 
 // Active reports whether the task still needs doing.
@@ -92,7 +120,11 @@ func (d *Desk) Tasks(f Filter) []Task {
 	}
 	out := make([]Task, 0, len(order))
 	for _, id := range order {
-		out = append(out, *byID[id])
+		t := byID[id]
+		if t.Parent != "" {
+			t.ParentID = d.Display(t.Parent)
+		}
+		out = append(out, *t)
 	}
 	sort.SliceStable(out, func(i, j int) bool {
 		a, b := out[i], out[j]

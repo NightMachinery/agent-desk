@@ -157,6 +157,7 @@
     route.item;
     route.settings;
     route.verbatim;
+    route.tasks;
     keys.pane;
     keys.mode;
     keys.tick;
@@ -198,6 +199,8 @@
       </section>
     {:else if route.verbatim}
       <LazyPanel view={import('./components/Verbatim.svelte')} path={route.path} stamp={view?.stamp} />
+    {:else if route.tasks}
+      <LazyPanel view={import('./components/Tasks.svelte')} path={route.path} stamp={view?.stamp} runs={globalView?.view?.runs ?? []} />
     {:else if view?.node}
       <LazyPanel view={import('./components/NodePanel.svelte')} node={view.node} target={view.target} conversation={view.conversation} stamp={view.stamp} onchange={refresh} />
     {:else}

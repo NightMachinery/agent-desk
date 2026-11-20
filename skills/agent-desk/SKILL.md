@@ -241,7 +241,7 @@ current text; old text is kept but out of sight.
     agent-desk set findings < findings.txt
     agent-desk set next $'Finish seeds 4 and 5.\nWrite the table.'   # $'...' for line breaks
     agent-desk clear next
-    agent-desk link tasks TASKS.org
+    agent-desk link tasks TASKS.org     # older runs; new ones keep desk tasks (below)
 
 On any task longer than a few turns, keep these standard slots, so every node
 reads the same:
@@ -285,11 +285,25 @@ read yours with `agent-desk get <name> --node <path>`.
 
 ## Tasks, and work deferred for quota
 
-Keep a run's checklist on the desk when the user should see progress:
+Your checklist lives on the desk, not in a file: the user sees it on the
+Tasks page, filters it by type and checks things off there.
 
-    agent-desk task add --title 'Rerun seed 4' [--priority 1] [--brief 'one line']
-    agent-desk task start w-3k9d ; agent-desk task done w-3k9d [--note 'in results.md']
-    agent-desk task list [--all]
+    agent-desk task add --title 'Ship 1.4' [--priority 1] [--brief 'one line']
+    agent-desk task add --title 'Login fails on Android 15' --type bug --parent w-3k9d
+    agent-desk task start w-8f2a ; agent-desk task done w-8f2a [--note 'in results.md']
+    agent-desk task list [--all] [--type bug]
+    agent-desk task list --org          # the checklist as org: * node, - [ ] items
+
+- `--type` is `task` (default), `bug`, `feature`, `idea` or `chore`.
+- `--parent` makes it a step of another task (a milestone and its items).
+- Start a task when you begin it and mark it done when it is, so the list
+  says what is true now. Drop what you decided not to do.
+- If your instructions also ask for a `TASKS.org` file, write it from the
+  desk (`agent-desk task list --org --all > TASKS.org`) instead of keeping
+  two lists by hand.
+- The user files tasks too, from the dashboard. When they do, you get a
+  message naming the task id: respond to it, and track the task like your
+  own.
 
 When you find work worth doing that the quota does not allow now (a cleanup,
 a deeper check, a nice-to-have), defer it instead of dropping it, with a

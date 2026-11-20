@@ -862,9 +862,29 @@ they stop working once it is deleted.
 ## Tasks, and work deferred for quota
 
 A task is a work item at a node (display id `w-...`), in one of the states
-open, started, deferred, done or dropped. Agents keep their checklist with
-`task add`, `task start`, `task done`; the node panel shows "Tasks: 3 of 7
-done" and `show` lists the ones still active.
+open, started, deferred, done or dropped. Desk tasks replace a `TASKS.org`
+checklist: agents keep theirs with `task add`, `task start`, `task done`;
+the node panel shows "Tasks: 3 of 7 done" with the open ones, and `show`
+lists the ones still active.
+
+- `--type` says what it is: `task` (the default), `bug`, `feature`, `idea`
+  or `chore`.
+- `--parent w-...` makes it a step of another task, so a milestone holds
+  its items.
+- `task list --type bug` keeps one type; `task list --org [--all]` prints
+  the checklist as org, one heading per node and subtasks indented
+  (`[-]` started, `[X]` done, dropped ones struck out with `--all`), for a
+  human or a compaction recovery that wants one file.
+
+**The Tasks page** (sidebar **Tasks**, `g c` here, `g C` everywhere, also
+`SPC o t`/`SPC o T`) lists every task under the current path, grouped by
+node with subtasks under their parent. Filter by Open, Finished or All, by
+type, and by search (`/`). The box checks a task off (Undo in the toast)
+or reopens it; clicking its title shows its brief with Start, Drop and
+Open. **New task** (`SPC n t`, or "+ New" on a node page) files one at any
+project, run or agent: a title, a type, an optional parent and details.
+When the node has a coordinator, "Message its coordinator about it" (on by
+default) also sends it a message naming the task, so it acts on it now.
 
 A deferred task waits for quota to spare. It carries a brief (stdin), and
 optionally `--size S|M|L`, `--priority 1|2|3` (1 first), `--profile NAME`

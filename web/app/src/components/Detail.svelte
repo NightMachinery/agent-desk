@@ -257,6 +257,9 @@
     {#if item.task}
       {@const t = item.task}
       <div class="task-bar">
+        {#if t.type && t.type !== 'task'}<span class="chip {t.type === 'bug' ? 'blocked' : t.type === 'feature' ? 'default' : t.type === 'idea' ? 'notice' : ''}">{t.type}</span>{/if}
+        {#if t.parent_display}<span class="faint">under <a class="mono" href={href({ item: t.parent_display })}>{t.parent_display}</a></span>{/if}
+        <a class="faint" href={href({ path: e.path, item: '', tasks: true })}>All tasks here</a>
         {#if t.priority}<span class="chip">p{t.priority}</span>{/if}
         {#if t.size}<span class="chip">{t.size}</span>{/if}
         {#if t.profile}<span class="chip mono">{t.profile}</span>{/if}

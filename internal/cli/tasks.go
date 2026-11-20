@@ -4,7 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -49,7 +52,7 @@ func (a *App) cmdTask(args []string) error {
 }
 
 func (a *App) taskAdd(args []string) error {
-	o, err := parse(args, []string{"defer"}, []string{"title", "brief", "size", "profile", "priority", "cwd", "node", "project"}, 0, 0)
+	o, err := parse(args, []string{"defer"}, []string{"title", "brief", "size", "profile", "priority", "cwd", "node", "project", "type", "parent"}, 0, 0)
 	if err != nil {
 		return err
 	}
@@ -58,6 +61,23 @@ func (a *App) taskAdd(args []string) error {
 		return usagef("task add needs --title")
 	}
 	m := desk.TaskMeta{Deferred: o.bools["defer"], Profile: o.vals["profile"], Cwd: o.vals["cwd"]}
+	if t := strings.ToLower(strings.TrimSpace(o.vals["type"])); t != "" && t != "task" {
+		if !desk.ValidTaskType(t) {
+			return usagef("--type is one of %s", strings.Join(desk.TaskTypes, ", "))
+		}
+		m.Type = t
+	}
+	if p := strings.TrimSpace(o.vals["parent"]); p != "" {
+		d, err := a.load()
+		if err != nil {
+			return err
+		}
+		parent, err := a.task(d, p)
+		if err != nil {
+			return err
+		}
+		m.Parent = parent.Event.ID
+	}
 	switch s := strings.ToUpper(o.vals["size"]); s {
 	case "", "S", "M", "L":
 		m.Size = s
@@ -319,7 +339,7 @@ func lastLine(s string) string {
 }
 
 func (a *App) taskList(args []string) error {
-	o, err := parse(args, []string{"all", "deferred"}, []string{"format", "prompt"}, 0, 1)
+	o, err := parse(args, []string{"all", "deferred", "org"}, []string{"format", "prompt", "type"}, 0, 1)
 	if err != nil {
 		return err
 	}
@@ -343,9 +363,20 @@ func (a *App) taskList(args []string) error {
 	if len(o.pos) == 1 {
 		f.Prefix = o.pos[0]
 	}
+	typ := strings.ToLower(o.vals["type"])
+	if typ != "" && !desk.ValidTaskType(typ) {
+		return usagef("--type is one of %s", strings.Join(desk.TaskTypes, ", "))
+	}
+	if o.bools["org"] {
+		// The org checklist shows finished steps too, as a TASKS.org does.
+		return writeTasksOrg(a.Stdout, d, d.Tasks(f), typ, o.bools["all"])
+	}
 	var ts []desk.Task
 	for _, t := range d.Tasks(f) {
 		if o.bools["deferred"] && t.State != desk.TaskDeferred {
+			continue
+		}
+		if typ != "" && t.Kind() != typ {
 			continue
 		}
 		if !o.bools["all"] && !t.Active() {
@@ -376,11 +407,83 @@ func (a *App) taskList(args []string) error {
 		if t.Agent != "" {
 			extra = append(extra, t.Agent)
 		}
+		if t.ParentID != "" {
+			extra = append(extra, "under "+t.ParentID)
+		}
 		x := ""
 		if len(extra) > 0 {
 			x = "  [" + strings.Join(extra, " ") + "]"
 		}
-		fmt.Fprintf(a.Stdout, "%s  %-8s %s%s  %s\n", t.ID, t.State, t.Event.Title, x, t.Event.Path)
+		kind := ""
+		if t.Type != "" {
+			kind = t.Type + ": "
+		}
+		fmt.Fprintf(a.Stdout, "%s  %-8s %s%s%s  %s\n", t.ID, t.State, kind, t.Event.Title, x, t.Event.Path)
+	}
+	return nil
+}
+
+// writeTasksOrg prints tasks as an org checklist, one heading per node and
+// subtasks indented under their parent: what a TASKS.org file would hold.
+// Dropped tasks are left out unless all; typ keeps one type.
+func writeTasksOrg(w io.Writer, d *desk.Desk, ts []desk.Task, typ string, all bool) error {
+	keep := func(t desk.Task) bool {
+		return (all || t.State != desk.TaskDropped) && (typ == "" || t.Kind() == typ)
+	}
+	byNode := map[string][]desk.Task{}
+	var nodes []string
+	children := map[string][]desk.Task{}
+	shown := map[string]bool{}
+	for _, t := range ts {
+		if keep(t) {
+			shown[t.Event.ID] = true
+		}
+	}
+	for _, t := range ts {
+		if !shown[t.Event.ID] {
+			continue
+		}
+		if t.Parent != "" && shown[t.Parent] {
+			children[t.Parent] = append(children[t.Parent], t)
+			continue
+		}
+		if _, ok := byNode[t.Event.Path]; !ok {
+			nodes = append(nodes, t.Event.Path)
+		}
+		byNode[t.Event.Path] = append(byNode[t.Event.Path], t)
+	}
+	sort.Strings(nodes)
+	box := map[string]string{desk.TaskDone: "[X]", desk.TaskStarted: "[-]"}
+	var item func(t desk.Task, depth int)
+	item = func(t desk.Task, depth int) {
+		b := box[t.State]
+		if b == "" {
+			b = "[ ]"
+		}
+		title := t.Event.Title
+		if t.Type != "" {
+			title = t.Type + ": " + title
+		}
+		if t.State == desk.TaskDropped {
+			title = "+" + title + "+"
+		}
+		note := []string{t.ID}
+		if t.State != desk.TaskOpen && t.State != desk.TaskDone {
+			note = append(note, t.State)
+		}
+		if t.Priority != 0 {
+			note = append(note, fmt.Sprintf("p%d", t.Priority))
+		}
+		fmt.Fprintf(w, "%s- %s %s (%s)\n", strings.Repeat("  ", depth), b, title, strings.Join(note, ", "))
+		for _, c := range children[t.Event.ID] {
+			item(c, depth+1)
+		}
+	}
+	for _, n := range nodes {
+		fmt.Fprintf(w, "* %s\n", n)
+		for _, t := range byNode[n] {
+			item(t, 0)
+		}
 	}
 	return nil
 }
@@ -499,4 +602,74 @@ func jsonPart(s string) string {
 		return s
 	}
 	return s[i : j+1]
+}
+
+// taskAddWeb files a task the user wrote in the dashboard at node path,
+// which must be a project, run or agent on the desk. It returns the task's
+// display id.
+func (a *App) taskAddWeb(path, title, typ, brief, parent string) (string, error) {
+	path = strings.Trim(strings.TrimSpace(path), "/")
+	title = strings.TrimSpace(title)
+	if title == "" {
+		return "", usagef("a task needs a title")
+	}
+	if path == "" {
+		return "", usagef("a task needs a node: a project, run or agent")
+	}
+	typ = strings.ToLower(strings.TrimSpace(typ))
+	if typ == "task" {
+		typ = ""
+	}
+	if typ != "" && !desk.ValidTaskType(typ) {
+		return "", usagef("the type is one of %s", strings.Join(desk.TaskTypes, ", "))
+	}
+	d, err := a.load()
+	if err != nil {
+		return "", err
+	}
+	known := false
+	for _, e := range d.Events {
+		if e.Path == path || strings.HasPrefix(e.Path, path+"/") {
+			known = true
+			break
+		}
+	}
+	if !known || strings.HasPrefix(path, "_desk") {
+		return "", fmt.Errorf("%s is not a project, run or agent on the desk", path)
+	}
+	m := desk.TaskMeta{Type: typ}
+	if parent = strings.TrimSpace(parent); parent != "" {
+		p, err := a.task(d, parent)
+		if err != nil {
+			return "", err
+		}
+		m.Parent = p.Event.ID
+	}
+	var extra map[string]any
+	b, _ := json.Marshal(m)
+	_ = json.Unmarshal(b, &extra)
+	e := a.event("task", path, ident.Resolve(a.Env), "web", extra)
+	e.Title, e.Body = title, strings.TrimSpace(brief)
+	if err := a.commit([]store.Event{e}, "-"); err != nil {
+		return "", err
+	}
+	d, err = a.load()
+	if err != nil {
+		return "", err
+	}
+	return d.Display(e.ID), nil
+}
+
+// apiTasks lists the tasks under ?path= (every state; the page filters),
+// with the types there are.
+func (s *server) apiTasks(w http.ResponseWriter, r *http.Request) {
+	d, _ := s.load(w)
+	if d == nil {
+		return
+	}
+	f := desk.Filter{Prefix: strings.Trim(r.URL.Query().Get("path"), "/")}
+	if r.URL.Query().Get("unfocused") != "1" {
+		f.Focus = d.FocusPrefixes()
+	}
+	writeJSON(w, map[string]any{"tasks": d.Tasks(f), "types": desk.TaskTypes})
 }
