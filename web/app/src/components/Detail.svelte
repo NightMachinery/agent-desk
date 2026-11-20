@@ -18,6 +18,7 @@
   import Thread from './Thread.svelte';
   import { autoRead, nav, position, step } from '../lib/nav.svelte.js';
   import { moveOnTarget } from '../lib/moveon.js';
+  import { arrival, arrivedAuto, cancelArrival, settleArrival } from '../lib/arrival.js';
   import { ui } from '../lib/ui.svelte.js';
 
   let { item, error, onchange } = $props();
@@ -53,8 +54,14 @@
   );
 
   // Opening an item reads it. Not a question: reading one dismisses it.
+  // Nor an item the page moved to by itself (arrival.js): that is read once
+  // the user acts on it or moves on.
   $effect(() => {
     if (!it || isQuestion || !it.unread || autoRead.has(e.id)) return;
+    if (arrival.id === it.display_id) {
+      arrival.pending = true;
+      return;
+    }
     autoRead.add(e.id);
     const id = e.id, display = it.display_id;
     post('read', { target: display })
@@ -105,16 +112,19 @@
   // with Undo when there is one.
   const wide = () => typeof matchMedia === 'function' && matchMedia('(min-width: 901px)').matches;
   function moveOn(text, back = null, enabled = ui.nextAfterQuestion) {
+    settleArrival(route.item); // acting on an arrival reads it
     if (!enabled) {
       toast(text, 'ok', 6000, back ? { label: 'Undo', run: back } : null);
       return;
     }
     const here = route.item;
     const next = wide() ? moveOnTarget(nav.order, here, nav.pinned) : '';
+    arrivedAuto(next);
     setTimeout(() => go({ item: next }), 0); // after the composer has finished with its draft
     toast(text, 'ok', 6000, {
       label: back ? 'Undo' : 'Back',
       run: () => {
+        cancelArrival(next); // a glance, not a read
         if (back) back();
         go({ item: here });
       },
@@ -143,6 +153,7 @@
     return queued;
   }
   async function mark(read) {
+    cancelArrival(it.display_id); // the user said read or unread
     try {
       await post(read ? 'read' : 'unread', read ? { target: it.display_id } : { id: it.display_id });
       if (isQuestion && read) {

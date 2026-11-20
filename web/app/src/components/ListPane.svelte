@@ -1,4 +1,5 @@
 <script>
+  import { cancelArrival } from '../lib/arrival.js';
   import LazyPanel from './LazyPanel.svelte';
   import CopyIds from './CopyIds.svelte';
   import { tip } from '../lib/shortcuts.js';
@@ -62,6 +63,7 @@
   // Marks a whole section read, with Undo. Not offered on Needs you: reading
   // a question there dismisses it, too much for one unguarded click.
   async function markAllRead(targets) {
+    targets.forEach((t) => cancelArrival(t));
     const hidden = route.all ? [] : targets; // Show all keeps read items listed
     hide(hidden);
     try {

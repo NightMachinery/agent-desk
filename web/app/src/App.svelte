@@ -7,6 +7,8 @@
   import { desk } from './lib/desk.svelte.js';
   import { untrack } from 'svelte';
   import { lingerIds, moved, onLingerEnd } from './lib/linger.svelte.js';
+  import { arrivalHooks, routeMoved } from './lib/arrival.js';
+  import { post } from './lib/api.js';
   import { keys, ctx, pane, onkeydown } from './lib/keys.svelte.js';
   import './lib/keymap.js';
   import Keys from './components/Keys.svelte';
@@ -103,6 +105,16 @@
   $effect(() => {
     const cur = route.item;
     untrack(() => moved(cur));
+  });
+  // Leaving an item the page moved to by itself reads it (arrival.js).
+  arrivalHooks({ poster: (id) => post('read', { target: id }), onRead: () => refresh() });
+  let lastItem = route.item;
+  $effect(() => {
+    const cur = route.item;
+    untrack(() => {
+      routeMoved(lastItem, cur);
+      lastItem = cur;
+    });
   });
   onLingerEnd(() => loadView());
 

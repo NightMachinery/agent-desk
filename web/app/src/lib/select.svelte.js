@@ -1,5 +1,6 @@
 // Rows chosen for a bulk action. Ids are display ids; `order` is every row in
 // the list, top to bottom, so shift-click can select a range.
+import { cancelArrival } from './arrival.js';
 import { SvelteSet } from 'svelte/reactivity';
 import { post } from './api.js';
 import { route } from './route.svelte.js';
@@ -51,6 +52,7 @@ export function prune(order) {
 export async function markSelected(read, onchange, qs = 0) {
   const targets = [...sel.ids];
   if (!targets.length) return;
+  targets.forEach((t) => cancelArrival(t)); // the user decided its state
   const hidden = read && !route.all ? targets : []; // Show all keeps read items listed
   hide(hidden);
   if (read) clear();
