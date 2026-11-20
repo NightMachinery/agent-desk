@@ -127,7 +127,10 @@
   const quotaText = (p) => {
     if (!p.verdict) return 'quota unknown';
     if (p.verdict === 'usable') return 'quota left';
-    if (p.verdict === 'blocked') return availableText(p, now).replace(/^quota back/, 'out of quota, back') || 'out of quota';
+    if (p.verdict === 'blocked') {
+      const at = availableText(p, now).split(', at ')[1];
+      return at ? `out of quota · back ${at}` : 'out of quota';
+    }
     return 'quota unknown';
   };
   const modelLabel = (id) => models.find((m) => m.id === id)?.label ?? id;
@@ -157,8 +160,8 @@
             <span class="name">{p.label}
               {#if own(p)}<span class="tag">this agent’s</span>{/if}</span>
             <span class="quota" class:ok={p.verdict === 'usable'} class:bad={p.verdict === 'blocked'}
-              title={[p.account && 'Account ' + p.account, ...(p.reasons ?? [])].filter(Boolean).join('\n') || 'The quota keeper has not seen an agent on this provider'}>
-              {#if p.account_label}{p.account_label} · {/if}{quotaText(p)}</span>
+              title={[p.account && 'Account ' + p.account, availableText(p, now), ...(p.reasons ?? [])].filter(Boolean).join('\n') || 'The quota keeper has not seen an agent on this provider'}>
+              {p.account_label ? p.account_label + ' · ' : ''}{quotaText(p)}</span>
           </label>
         {/each}
       {/if}
