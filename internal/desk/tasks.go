@@ -2,7 +2,9 @@ package desk
 
 import (
 	"encoding/json"
+	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/NightMachinery/agent-desk/internal/store"
 )
@@ -45,6 +47,50 @@ type TaskMeta struct {
 	Profile  string `json:"profile,omitempty"` // what to launch it with, for launch_command
 	Priority int    `json:"priority,omitempty"`
 	Cwd      string `json:"cwd,omitempty"`
+	// Tags are free labels beside the fixed Type ("ui", "phone"), from
+	// NormTags; a taskstate event with meta.tags replaces them.
+	Tags []string `json:"tags,omitempty"`
+}
+
+// MaxTags is how many tags a task may carry.
+const MaxTags = 12
+
+// NormTags cleans tags as typed ("#UI", "phone, sync"): split on commas
+// and spaces, lowercased, without a leading #, each once, in order. A tag
+// is a letter or digit, then up to 31 of letters, digits and . _ / -.
+func NormTags(in []string) ([]string, error) {
+	out := []string{}
+	seen := map[string]bool{}
+	for _, chunk := range in {
+		for _, t := range strings.FieldsFunc(chunk, func(r rune) bool { return r == ',' || r == ' ' || r == '\t' || r == '\n' }) {
+			t = strings.ToLower(strings.TrimPrefix(t, "#"))
+			if t == "" || seen[t] {
+				continue
+			}
+			if !validTag(t) {
+				return nil, fmt.Errorf("tag %q: a letter or digit, then letters, digits, . _ / or - (at most 32)", t)
+			}
+			seen[t] = true
+			out = append(out, t)
+		}
+	}
+	if len(out) > MaxTags {
+		return nil, fmt.Errorf("at most %d tags", MaxTags)
+	}
+	return out, nil
+}
+
+func validTag(t string) bool {
+	if len(t) > 32 {
+		return false
+	}
+	for i, r := range t {
+		alnum := r >= 'a' && r <= 'z' || r >= '0' && r <= '9'
+		if !alnum && (i == 0 || !strings.ContainsRune("._/-", r)) {
+			return false
+		}
+	}
+	return true
 }
 
 // Task is a task with its current state.
@@ -107,6 +153,17 @@ func (d *Desk) Tasks(f Filter) []Task {
 			t, ok := byID[e.Ref]
 			if !ok {
 				continue
+			}
+			var tagged struct {
+				Tags *[]string `json:"tags"`
+			}
+			_ = json.Unmarshal(e.Meta, &tagged)
+			if tagged.Tags != nil {
+				t.Tags = *tagged.Tags
+				if MetaString(e, "state") == "" && e.Body == "" {
+					t.Updated = e.TS // only the tags changed: the note stays
+					continue
+				}
 			}
 			if s := MetaString(e, "state"); s != "" {
 				t.State = s

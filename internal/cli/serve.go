@@ -298,6 +298,7 @@ type request struct {
 	Title         string            `json:"title"`
 	Type          string            `json:"type"`
 	Parent        string            `json:"parent"`
+	Tags          []string          `json:"tags"`           // task add, task tags: free tags
 	QuotaActivity map[string]string `json:"quota_activity"` // last activity of each selected quota agent
 	// sets: define, delete or focus a project set by Name (focus with an
 	// empty Name turns it off); define takes Prefixes.
@@ -518,11 +519,21 @@ func (s *server) apiSets(app *App, body request) (any, error) {
 func (s *server) apiTask(app *App, body request) (any, error) {
 	switch body.Action {
 	case "add":
-		id, err := app.taskAddWeb(body.To, body.Title, body.Type, body.Text, body.Parent)
+		id, err := app.taskAddWeb(body.To, body.Title, body.Type, body.Text, body.Parent, body.Tags)
 		return map[string]string{"id": id}, err
+	case "tags":
+		d, err := app.load()
+		if err != nil {
+			return nil, err
+		}
+		t, err := app.task(d, body.ID)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]string{}, app.setTaskTags(t, body.Tags, ident.Resolve(app.Env), "web")
 	case "start", "done", "drop", "defer", "reopen", "launch":
 	default:
-		return nil, usagef("task action is add, start, done, drop, defer, reopen or launch")
+		return nil, usagef("task action is add, tags, start, done, drop, defer, reopen or launch")
 	}
 	ids := body.list(body.ID)
 	if len(ids) == 0 {

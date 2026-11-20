@@ -899,7 +899,11 @@ lists the ones still active.
   or `chore`.
 - `--parent w-...` makes it a step of another task, so a milestone holds
   its items.
-- `task list --type bug` keeps one type; `task list --org [--all]` prints
+- `--tag ui --tag phone` (or `--tag 'ui, phone'`) adds free tags beside the
+  type: lowercase, a letter or digit then letters, digits, `. _ / -`, at
+  most 12. `task tag w-... desk` and `task untag w-... phone` change them
+  later without touching the task's state or note.
+- `task list --type bug` keeps one type, `--tag ui` one tag; `task list --org [--all]` prints
   the checklist as org, one heading per node and subtasks indented
   (`[-]` started, `[X]` done, dropped ones struck out with `--all`), for a
   human or a compaction recovery that wants one file.
@@ -907,10 +911,13 @@ lists the ones still active.
 **The Tasks page** (sidebar **Tasks**, `g c` here, `g C` everywhere, also
 `SPC o t`/`SPC o T`) lists every task under the current path, grouped by
 node with subtasks under their parent. Filter by Open, Finished or All, by
-type, and by search (`/`). The box checks a task off (Undo in the toast)
+type, by tag (the dashed `#tag` pills; a row's own tags filter too), and by
+search (`/`, which also matches `#tag`). A task's tags are edited in its
+expanded row. The box checks a task off (Undo in the toast)
 or reopens it; clicking its title shows its brief with Start, Drop and
 Open. **New task** (`SPC n t`, or "+ New" on a node page) files one at any
-project, run or agent: a title, a type, an optional parent and details.
+project, run or agent: a title, a type, an optional parent, details and
+tags.
 When the node has a coordinator, "Message its coordinator about it" (on by
 default) also sends it a message naming the task, so it acts on it now.
 

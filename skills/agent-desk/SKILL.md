@@ -289,13 +289,15 @@ Your checklist lives on the desk, not in a file: the user sees it on the
 Tasks page, filters it by type and checks things off there.
 
     agent-desk task add --title 'Ship 1.4' [--priority 1] [--brief 'one line']
-    agent-desk task add --title 'Login fails on Android 15' --type bug --parent w-3k9d
+    agent-desk task add --title 'Login fails on Android 15' --type bug --parent w-3k9d --tag android
     agent-desk task start w-8f2a ; agent-desk task done w-8f2a [--note 'in results.md']
-    agent-desk task list [--all] [--type bug]
+    agent-desk task list [--all] [--type bug] [--tag android]
     agent-desk task list --org          # the checklist as org: * node, - [ ] items
 
 - `--type` is `task` (default), `bug`, `feature`, `idea` or `chore`.
 - `--parent` makes it a step of another task (a milestone and its items).
+- `--tag` (repeatable) adds free tags beside the type, such as an area
+  (`ui`, `android`); `task tag|untag <id> TAG...` changes them later.
 - Start a task when you begin it and mark it done when it is, so the list
   says what is true now. Drop what you decided not to do.
 - If your instructions also ask for a `TASKS.org` file, write it from the

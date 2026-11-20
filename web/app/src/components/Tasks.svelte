@@ -23,6 +23,7 @@
   let loaded = $state(false);
   let show = $state(/** @type {'active'|'finished'|'all'} */ ('active'));
   let type = $state('');
+  let tag = $state(''); // a free tag to keep, '' for all
   let q = $state('');
   let expanded = $state(/** @type {Record<string, boolean>} */ ({}));
   let busy = $state('');
@@ -53,12 +54,19 @@
   const words = $derived(q.trim().toLowerCase().split(/\s+/).filter(Boolean));
   const matches = (t) => {
     if (!words.length) return true;
-    const hay = `${t.display_id} ${t.event.title} ${t.event.body || ''} ${t.event.path}`.toLowerCase();
+    const hay = `${t.display_id} ${t.event.title} ${t.event.body || ''} ${t.event.path} ${(t.tags ?? []).map((g) => '#' + g).join(' ')}`.toLowerCase();
     return words.every((w) => hay.includes(w));
   };
   const scoped = $derived(tasks.filter((t) => inState(t) && matches(t)));
   const counts = $derived(scoped.reduce((m, t) => ((m[kindOf(t)] = (m[kindOf(t)] || 0) + 1), m), /** @type {Record<string, number>} */ ({})));
-  const shown = $derived(scoped.filter((t) => !type || kindOf(t) === type));
+  // Free tags in what the state and search keep, most used first.
+  const tagCounts = $derived(
+    Object.entries(scoped.reduce((m, t) => {
+      for (const g of t.tags ?? []) m[g] = (m[g] || 0) + 1;
+      return m;
+    }, /** @type {Record<string, number>} */ ({}))).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])),
+  );
+  const shown = $derived(scoped.filter((t) => (!type || kindOf(t) === type) && (!tag || (t.tags ?? []).includes(tag))));
   const ids = $derived(new Set(shown.map((t) => t.event.id)));
   // Each node's top-level tasks, with their subtasks under them. A subtask
   // whose parent is filtered out stands on its own.
@@ -79,6 +87,23 @@
     active: tasks.filter((t) => ACTIVE.has(t.state)).length,
     finished: tasks.filter((t) => !ACTIVE.has(t.state)).length,
   });
+
+  // Tags typed as text: "#ui, phone sync" (the desk cleans them).
+  const tagList = (text) => text.split(/[\s,]+/).map((g) => g.replace(/^#/, '').toLowerCase()).filter(Boolean);
+  let tagEdit = $state(/** @type {Record<string, string>} */ ({}));
+  async function saveTags(t) {
+    busy = t.event.id;
+    try {
+      await post('task', { action: 'tags', id: t.display_id, tags: tagList(tagEdit[t.event.id] ?? '') });
+      delete tagEdit[t.event.id];
+      toast(`Tags saved: ${t.display_id}.`, 'ok', 3000);
+      await load();
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      busy = '';
+    }
+  }
 
   async function act(t, action) {
     busy = t.event.id;
@@ -112,6 +137,7 @@
   let node = $state('');
   let brief = $state('');
   let parent = $state('');
+  let newTags = $state('');
   let tell = $state(true);
   let target = $state(/** @type {any} */ (null));
   let filing = $state(false);
@@ -143,7 +169,7 @@
     if (!title.trim() || !node || filing) return;
     filing = true;
     try {
-      const res = await post('task', { action: 'add', to: node, title: title.trim(), type: newType, text: brief, parent });
+      const res = await post('task', { action: 'add', to: node, title: title.trim(), type: newType, text: brief, parent, tags: tagList(newTags) });
       let told = '';
       if (tell && target) {
         const choice = await chooseSendCache('reply', node);
@@ -156,6 +182,7 @@
       title = '';
       brief = '';
       parent = '';
+      newTags = '';
       adding = false;
       await load();
     } catch (err) {
@@ -216,6 +243,7 @@
         {/if}
       </div>
       <textarea class="input" rows="3" placeholder="Details (optional): what you saw, what done looks like" bind:value={brief} aria-label="Details"></textarea>
+      <input class="input" placeholder="Tags (optional): ui, phone" bind:value={newTags} aria-label="Tags" autocomplete="off" />
       <div class="row2">
         {#if target}
           <label class="check"><input type="checkbox" bind:checked={tell} /> Message its coordinator about it</label>
@@ -241,6 +269,14 @@
         <button role="radio" aria-checked={type === t} class="tchip {t}" class:on={type === t} onclick={() => (type = type === t ? '' : t)}>{LABEL[t] ?? t} <span class="n">{counts[t]}</span></button>
       {/each}
     </div>
+    {#if tagCounts.length || tag}
+      <div class="types tags" role="radiogroup" aria-label="Tag filter">
+        <button role="radio" aria-checked={!tag} class="tag" class:on={!tag} onclick={() => (tag = '')}>All tags</button>
+        {#each tagCounts as [g, n] (g)}
+          <button role="radio" aria-checked={tag === g} class="tag" class:on={tag === g} onclick={() => (tag = tag === g ? '' : g)}>#{g} <span class="n">{n}</span></button>
+        {/each}
+      </div>
+    {/if}
     <input id="tasks-search" class="input search" type="search" placeholder="Search tasks  (/)" bind:value={q} aria-label="Search tasks" />
   </div>
 
@@ -248,7 +284,7 @@
     <div class="empty err">{error}</div>
   {:else if loaded && !shown.length}
     <div class="empty faint">
-      {#if tasks.length}Nothing {show === 'active' ? 'open' : show === 'finished' ? 'finished' : ''}{type ? ` of type ${LABEL[type] ?? type}` : ''}{q.trim() ? ' matching' : ''} here.
+      {#if tasks.length}Nothing {show === 'active' ? 'open' : show === 'finished' ? 'finished' : ''}{type ? ` of type ${LABEL[type] ?? type}` : ''}{tag ? ` tagged #${tag}` : ''}{q.trim() ? ' matching' : ''} here.
       {:else}No tasks here yet. Agents file them with <code>agent-desk task add</code>, or use New task.{/if}
     </div>
   {/if}
@@ -267,6 +303,7 @@
         <button class="title" onclick={() => (expanded[t.event.id] = !expanded[t.event.id])} aria-expanded={!!expanded[t.event.id]}>{t.event.title}</button>
         {#if t.state === 'started'}<span class="chip active">started</span>{:else if t.state === 'deferred'}<span class="chip waiting">deferred</span>{:else if dropped}<span class="chip">dropped</span>{/if}
         {#if t.priority === 1}<span class="chip blocked" title="Priority 1">p1</span>{/if}
+        {#each t.tags ?? [] as g (g)}<button class="tag small" class:on={tag === g} title={`Only #${g}`} onclick={() => (tag = tag === g ? '' : g)}>#{g}</button>{/each}
         {#if t.event.meta?.source === 'web'}<span class="faint you" title="You filed it">you</span>{/if}
         <a class="mono faint id" href={href({ item: t.display_id })}>{t.display_id}</a>
       </div>
@@ -275,6 +312,11 @@
           {#if t.event.body}<Markdown text={t.event.body} />{/if}
           {#if t.note}<div class="faint">Note: {t.note}</div>{/if}
           {#if t.agent}<div class="faint">Agent: <span class="mono">{t.agent}</span></div>{/if}
+          <form class="tag-edit" onsubmit={(e) => (e.preventDefault(), saveTags(t))}>
+            <input class="input" placeholder="Tags: ui, phone" aria-label={`Tags of ${t.display_id}`} autocomplete="off"
+              value={tagEdit[t.event.id] ?? (t.tags ?? []).join(', ')} oninput={(e) => (tagEdit[t.event.id] = e.currentTarget.value)} />
+            <button class="btn small" type="submit" disabled={!!busy || tagEdit[t.event.id] === undefined}>Save tags</button>
+          </form>
           <div class="acts">
             {#if ACTIVE.has(t.state)}
               {#if t.state !== 'started'}<button class="btn small" disabled={!!busy} onclick={() => act(t, 'start')}>Start</button>{/if}
@@ -384,6 +426,37 @@
   .n {
     opacity: 0.7;
     font-size: 11.5px;
+  }
+  .tag {
+    padding: 2px 9px;
+    border: 1px dashed var(--line-strong);
+    border-radius: 999px;
+    background: none;
+    color: var(--muted);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .tag.small {
+    padding: 0 7px;
+    font-size: 11.5px;
+  }
+  .tag.on {
+    border-style: solid;
+    border-color: var(--text);
+    color: var(--text);
+  }
+  .tag .n {
+    opacity: 0.6;
+  }
+  .tag-edit {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  .tag-edit .input {
+    flex: 1;
+    min-width: 0;
   }
   .types {
     display: flex;

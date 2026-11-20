@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -28,7 +29,7 @@ const LaunchTimeout = 2 * time.Minute
 
 func (a *App) cmdTask(args []string) error {
 	if len(args) == 0 {
-		return usagef("task add|start|done|drop|defer|reopen|launch|prompt|list|nudge; see agent-desk help")
+		return usagef("task add|start|done|drop|defer|reopen|tag|untag|launch|prompt|list|nudge; see agent-desk help")
 	}
 	sub, rest := args[0], args[1:]
 	switch sub {
@@ -36,6 +37,8 @@ func (a *App) cmdTask(args []string) error {
 		return a.taskAdd(rest)
 	case "start", "done", "drop", "defer", "reopen":
 		return a.taskMark(sub, rest)
+	case "tag", "untag":
+		return a.taskTag(sub == "tag", rest)
 	case "launch":
 		return a.taskLaunch(rest)
 	case "list":
@@ -52,7 +55,7 @@ func (a *App) cmdTask(args []string) error {
 }
 
 func (a *App) taskAdd(args []string) error {
-	o, err := parse(args, []string{"defer"}, []string{"title", "brief", "size", "profile", "priority", "cwd", "node", "project", "type", "parent"}, 0, 0)
+	o, err := parse(args, []string{"defer"}, []string{"title", "brief", "size", "profile", "priority", "cwd", "node", "project", "type", "parent", "tag"}, 0, 0)
 	if err != nil {
 		return err
 	}
@@ -66,6 +69,15 @@ func (a *App) taskAdd(args []string) error {
 			return usagef("--type is one of %s", strings.Join(desk.TaskTypes, ", "))
 		}
 		m.Type = t
+	}
+	var typed []string
+	for _, kv := range o.seq {
+		if kv[0] == "tag" {
+			typed = append(typed, kv[1])
+		}
+	}
+	if m.Tags, err = desk.NormTags(typed); err != nil {
+		return usagef("--tag: %v", err)
 	}
 	if p := strings.TrimSpace(o.vals["parent"]); p != "" {
 		d, err := a.load()
@@ -171,6 +183,53 @@ func (a *App) taskMark(sub string, args []string) error {
 		evs = append(evs, e)
 	}
 	return a.commit(evs, "")
+}
+
+// taskTag adds tags to a task (task tag ID TAG...) or removes them
+// (task untag ID TAG...), keeping its state and note.
+func (a *App) taskTag(add bool, args []string) error {
+	o, err := parse(args, nil, nil, 2, -1)
+	if err != nil {
+		return err
+	}
+	d, err := a.load()
+	if err != nil {
+		return err
+	}
+	t, err := a.task(d, o.pos[0])
+	if err != nil {
+		return err
+	}
+	tags, err := desk.NormTags(o.pos[1:])
+	if err != nil {
+		return usagef("%v", err)
+	}
+	next := []string{}
+	if add {
+		next = append(next, t.Tags...)
+		next = append(next, tags...)
+	} else {
+		for _, x := range t.Tags {
+			if !slices.Contains(tags, x) {
+				next = append(next, x)
+			}
+		}
+	}
+	return a.setTaskTags(t, next, ident.Resolve(a.Env), "cli")
+}
+
+// setTaskTags records a task's whole new tag list.
+func (a *App) setTaskTags(t desk.Task, tags []string, from ident.From, source string) error {
+	tags, err := desk.NormTags(tags)
+	if err != nil {
+		return usagef("%v", err)
+	}
+	if slices.Equal(tags, t.Tags) || (len(tags) == 0 && len(t.Tags) == 0) {
+		return nil
+	}
+	e := a.event("taskstate", t.Event.Path, from, source, map[string]any{"tags": tags})
+	e.Ref = t.Event.ID
+	return a.commit([]store.Event{e}, "-")
 }
 
 func agentLabel(f ident.From) string {
@@ -339,7 +398,7 @@ func lastLine(s string) string {
 }
 
 func (a *App) taskList(args []string) error {
-	o, err := parse(args, []string{"all", "deferred", "org"}, []string{"format", "prompt", "type"}, 0, 1)
+	o, err := parse(args, []string{"all", "deferred", "org"}, []string{"format", "prompt", "type", "tag"}, 0, 1)
 	if err != nil {
 		return err
 	}
@@ -367,12 +426,23 @@ func (a *App) taskList(args []string) error {
 	if typ != "" && !desk.ValidTaskType(typ) {
 		return usagef("--type is one of %s", strings.Join(desk.TaskTypes, ", "))
 	}
+	tag := strings.ToLower(strings.TrimPrefix(strings.TrimSpace(o.vals["tag"]), "#"))
+	all := d.Tasks(f)
+	if tag != "" {
+		kept := all[:0:0]
+		for _, t := range all {
+			if slices.Contains(t.Tags, tag) {
+				kept = append(kept, t)
+			}
+		}
+		all = kept
+	}
 	if o.bools["org"] {
 		// The org checklist shows finished steps too, as a TASKS.org does.
-		return writeTasksOrg(a.Stdout, d, d.Tasks(f), typ, o.bools["all"])
+		return writeTasksOrg(a.Stdout, d, all, typ, o.bools["all"])
 	}
 	var ts []desk.Task
-	for _, t := range d.Tasks(f) {
+	for _, t := range all {
 		if o.bools["deferred"] && t.State != desk.TaskDeferred {
 			continue
 		}
@@ -409,6 +479,9 @@ func (a *App) taskList(args []string) error {
 		}
 		if t.ParentID != "" {
 			extra = append(extra, "under "+t.ParentID)
+		}
+		for _, g := range t.Tags {
+			extra = append(extra, "#"+g)
 		}
 		x := ""
 		if len(extra) > 0 {
@@ -466,6 +539,9 @@ func writeTasksOrg(w io.Writer, d *desk.Desk, ts []desk.Task, typ string, all bo
 		}
 		if t.State == desk.TaskDropped {
 			title = "+" + title + "+"
+		}
+		for _, g := range t.Tags {
+			title += " #" + g
 		}
 		note := []string{t.ID}
 		if t.State != desk.TaskOpen && t.State != desk.TaskDone {
@@ -607,7 +683,7 @@ func jsonPart(s string) string {
 // taskAddWeb files a task the user wrote in the dashboard at node path,
 // which must be a project, run or agent on the desk. It returns the task's
 // display id.
-func (a *App) taskAddWeb(path, title, typ, brief, parent string) (string, error) {
+func (a *App) taskAddWeb(path, title, typ, brief, parent string, tags []string) (string, error) {
 	path = strings.Trim(strings.TrimSpace(path), "/")
 	title = strings.TrimSpace(title)
 	if title == "" {
@@ -638,6 +714,9 @@ func (a *App) taskAddWeb(path, title, typ, brief, parent string) (string, error)
 		return "", fmt.Errorf("%s is not a project, run or agent on the desk", path)
 	}
 	m := desk.TaskMeta{Type: typ}
+	if m.Tags, err = desk.NormTags(tags); err != nil {
+		return "", usagef("%v", err)
+	}
 	if parent = strings.TrimSpace(parent); parent != "" {
 		p, err := a.task(d, parent)
 		if err != nil {

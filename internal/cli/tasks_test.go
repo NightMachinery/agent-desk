@@ -143,17 +143,17 @@ func TestTaskTypesAndOrg(t *testing.T) {
 
 	// From the dashboard: at a node on the desk, with a type and a parent.
 	app, _, _ := h.app(nil, "")
-	id, err := app.taskAddWeb("example-proj/r1/coord", "Crash on rotate", "bug", "Seen twice.", ms)
+	id, err := app.taskAddWeb("example-proj/r1/coord", "Crash on rotate", "bug", "Seen twice.", ms, nil)
 	must(t, err)
 	if !strings.HasPrefix(id, "w-") {
 		t.Fatalf("id %q", id)
 	}
 	for _, bad := range [][]string{{"", "t"}, {"nowhere/x", "t"}, {"example-proj/r1/coord", ""}, {"_desk/quota/nudge", "t"}} {
-		if _, err := app.taskAddWeb(bad[0], bad[1], "", "", ""); err == nil {
+		if _, err := app.taskAddWeb(bad[0], bad[1], "", "", "", nil); err == nil {
 			t.Fatalf("filed %v", bad)
 		}
 	}
-	if _, err := app.taskAddWeb("example-proj", "t", "epic", "", ""); err == nil {
+	if _, err := app.taskAddWeb("example-proj", "t", "epic", "", "", nil); err == nil {
 		t.Fatal("filed an unknown type")
 	}
 	d := h.loadDesk()
@@ -165,5 +165,35 @@ func TestTaskTypesAndOrg(t *testing.T) {
 	}
 	if got == nil || got.Type != "bug" || got.ParentID != ms || got.Event.Body != "Seen twice." || desk.MetaString(got.Event, "source") != "web" {
 		t.Fatalf("web task: %+v", got)
+	}
+}
+
+// Free tags beside the fixed type: cleaned on add, added and removed later
+// without touching the note, filtered on, and shown in both listings.
+func TestTaskTags(t *testing.T) {
+	h := newHarness(t)
+	a := h.as(sessA)
+	h.ok(a, "", "join", "r1/coord")
+	id := h.ok(a, "", "task", "add", "--title", "Sync drafts", "--type", "feature", "--tag", "#UI", "--tag", "phone, sync")
+	h.ok(a, "", "task", "start", id, "--note", "halfway")
+	h.fails(a, "", "tag", "task", "add", "--title", "x", "--tag", "-bad")
+	h.ok(a, "", "task", "tag", id, "desk", "ui")
+	h.ok(a, "", "task", "untag", id, "phone")
+	d := h.loadDesk()
+	var got desk.Task
+	for _, x := range d.Tasks(desk.Filter{}) {
+		if x.ID == id {
+			got = x
+		}
+	}
+	if strings.Join(got.Tags, ",") != "ui,sync,desk" || got.Note != "halfway" || got.State != desk.TaskStarted {
+		t.Fatalf("after tag and untag: %+v", got)
+	}
+	h.ok(a, "", "task", "add", "--title", "Other")
+	if out := h.ok(nil, "", "task", "list", "--tag", "#sync"); !strings.Contains(out, "Sync drafts") || strings.Contains(out, "Other") || !strings.Contains(out, "#desk") {
+		t.Fatalf("list --tag:\n%s", out)
+	}
+	if out := h.ok(nil, "", "task", "list", "--org"); !strings.Contains(out, "feature: Sync drafts #ui #sync #desk") {
+		t.Fatalf("org:\n%s", out)
 	}
 }
