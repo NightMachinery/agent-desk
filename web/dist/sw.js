@@ -7,6 +7,7 @@
 // It also shows the desk's push messages (internal/cli/push.go): "show"
 // raises a notification tagged with the item's display id, "close" takes it
 // back once the item no longer needs the user, and a tap opens the item.
+// pushsubscriptionchange re-subscribes and tells the desk.
 const CACHE = 'agent-desk-offline-1';
 const OFFLINE = new URL('offline.html', self.registration.scope).href;
 
@@ -49,6 +50,31 @@ self.addEventListener('push', (e) => {
       icon: new URL('icon-192.png', self.registration.scope).href,
       data: { url: new URL(m.url || '', self.registration.scope).href },
     }),
+  );
+});
+
+// The browser replaced the subscription (keys rotated, or the push service
+// expired it): subscribe again with the desk's key and tell the desk, which
+// keeps the old device's label and drops the old endpoint (replaces).
+self.addEventListener('pushsubscriptionchange', (e) => {
+  const api = new URL('api/push', self.registration.scope).href;
+  const headers = { 'Content-Type': 'application/json', 'X-Agent-Desk': '1' };
+  const fromB64 = (s) => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
+  e.waitUntil(
+    (async () => {
+      const old = e.oldSubscription;
+      let sub = e.newSubscription;
+      if (!sub) {
+        let key = old?.options?.applicationServerKey;
+        if (!key) key = fromB64((await (await fetch(api, { headers: { Accept: 'application/json' } })).json()).key);
+        sub = await self.registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
+      }
+      await fetch(api, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ action: 'subscribe', subscription: sub.toJSON(), replaces: old?.endpoint || '' }),
+      });
+    })(),
   );
 });
 

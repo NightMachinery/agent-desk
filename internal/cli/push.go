@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -103,9 +104,11 @@ func (a *App) pushSend(c config.Config, n pushNote, m push.Message, only string)
 				s.LastOK, s.LastErr = now, ""
 				sent++
 			case errors.Is(r, push.ErrGone):
+				a.pushLog("gone", s, "push service says the subscription no longer exists; dropped")
 				continue
 			default:
 				s.LastErr = now + " " + clipLine(r.Error(), 200)
+				a.pushLog("error", s, clipLine(r.Error(), 200))
 			}
 			out = append(out, s)
 		}
@@ -115,6 +118,37 @@ func (a *App) pushSend(c config.Config, n pushNote, m push.Message, only string)
 		err = errors.New(strings.Join(errs, "; "))
 	}
 	return sent, err
+}
+
+// pushLog appends one line to <desk>/push/log: time, what happened, the
+// device id and label, and detail. Subscriptions come and go silently
+// otherwise, which left a phone that stopped getting pushes undiagnosable.
+func (a *App) pushLog(action string, s push.Sub, detail string) {
+	a.pushLogLine(action, push.ID(s.Endpoint), labelOf(s), detail)
+}
+
+func (a *App) pushLogID(action, id, detail string) {
+	a.pushLogLine(action, id, "", detail)
+}
+
+func (a *App) pushLogLine(action, id, label, detail string) {
+	dir := string(a.pushDir())
+	if os.MkdirAll(dir, 0o700) != nil {
+		return
+	}
+	f, err := os.OpenFile(filepath.Join(dir, "log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	line := a.Now().UTC().Format(time.RFC3339) + " " + action + " " + id
+	if label != "" {
+		line += " (" + label + ")"
+	}
+	if detail != "" {
+		line += ": " + detail
+	}
+	fmt.Fprintln(f, line)
 }
 
 func labelOf(s push.Sub) string {
@@ -243,6 +277,9 @@ type pushRequest struct {
 	Subscription push.Sub `json:"subscription"`
 	Label        string   `json:"label"`
 	ID           string   `json:"id"`
+	// Replaces is the endpoint a re-subscription replaces (the service
+	// worker's pushsubscriptionchange): dropped, its label kept.
+	Replaces string `json:"replaces"`
 }
 
 // apiPushAct subscribes this browser, unsubscribes it, removes another
@@ -279,19 +316,36 @@ func (s *server) apiPushAct(w http.ResponseWriter, r *http.Request) {
 		sub.Label = clipRunes(strings.TrimSpace(q.Label), 80)
 		sub.Created = s.a.Now().UTC().Format(time.RFC3339)
 		sub.LastOK, sub.LastErr = "", ""
+		known := false
 		err := dir.Update(func(subs []push.Sub) []push.Sub {
 			out := subs[:0]
 			for _, x := range subs {
-				if x.Endpoint != sub.Endpoint {
-					out = append(out, x)
+				if x.Endpoint == sub.Endpoint {
+					known = true
 				}
+				if x.Endpoint == sub.Endpoint || (q.Replaces != "" && x.Endpoint == q.Replaces) {
+					if sub.Label == "" {
+						sub.Label = x.Label
+					}
+					continue
+				}
+				out = append(out, x)
 			}
 			return append(out, sub)
 		})
 		if err != nil {
+			s.a.pushLog("subscribe-failed", sub, err.Error())
 			jsonError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
+		detail := "new"
+		if known {
+			detail = "again"
+		}
+		if q.Replaces != "" {
+			detail = "replaces " + push.ID(q.Replaces)
+		}
+		s.a.pushLog("subscribe", sub, detail)
 		writeJSON(w, map[string]string{"id": push.ID(sub.Endpoint)})
 	case "unsubscribe", "remove":
 		id := q.ID
@@ -306,6 +360,7 @@ func (s *server) apiPushAct(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
+		s.a.pushLogID(q.Action, id, "")
 		writeJSON(w, map[string]string{})
 	case "test":
 		if q.ID == "" {

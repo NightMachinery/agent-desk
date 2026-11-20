@@ -678,6 +678,10 @@ Allowing notifications for the app in the phone's own settings is not
 enough: the page has to subscribe. So on a phone or an installed app that
 does not receive pushes yet, a strip above the list says so, with **Turn on**
 (the same thing) and **Not now** (hidden on that device for 30 days).
+**Turn on** reports success only once the desk lists the device. A browser
+that still holds a subscription the desk no longer lists registers it again
+by itself, without the strip, and when the browser replaces its
+subscription the service worker subscribes again and tells the desk.
 
 - What is pushed is the `notify.push` setting: `off`, `away` or `always`,
   per class. Built in: blocked questions, always. To add done reports:
@@ -687,7 +691,10 @@ does not receive pushes yet, a strip above the list says so, with **Turn on**
 - The machine that serves the dashboard sends the pushes, for events
   written there and those it merges in from other machines. Subscriptions
   and its key pair live in `~/.agents/desk/push/` (owner-only), not in the
-  event log, so they do not travel with a merge.
+  event log, so they do not travel with a merge. `push/log` there records
+  every subscribe, unsubscribe and removal, every device dropped because the
+  push service called it gone, and every failed push, with the device's id
+  and label: start there when a phone stops getting notifications.
 - Messages go through the browser maker's push service (Google's, for
   Chrome) encrypted end to end (RFC 8291): the service sees when a push
   happens, not what it says. The desk signs its requests with its own key

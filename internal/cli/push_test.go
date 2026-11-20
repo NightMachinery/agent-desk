@@ -182,4 +182,27 @@ func TestPush(t *testing.T) {
 	if fi, err := os.Stat(filepath.Join(h.desk, "push", "vapid.json")); err != nil || fi.Mode().Perm() != 0o600 {
 		t.Fatalf("vapid.json: %v %v", fi, err)
 	}
+
+	// The service worker's re-subscription replaces the old endpoint and
+	// keeps its label.
+	do(t, hd, "POST", "/api/push", string(req), dashboard)
+	sub2 := map[string]any{"endpoint": ts.URL + "/push/dev2", "keys": sub["keys"]}
+	re, _ := json.Marshal(map[string]any{"action": "subscribe", "subscription": sub2, "replaces": ts.URL + "/push/dev1"})
+	if code, body, _ := do(t, hd, "POST", "/api/push", string(re), dashboard); code != 200 {
+		t.Fatalf("re-subscribe: %d %s", code, body)
+	}
+	subs, _ := push.Dir(filepath.Join(h.desk, "push")).Subs()
+	if len(subs) != 1 || subs[0].Endpoint != ts.URL+"/push/dev2" || subs[0].Label != "Chrome on Android" {
+		t.Fatalf("after re-subscribe: %+v", subs)
+	}
+
+	// Every subscribe, removal and gone-drop is in push/log.
+	log, err := os.ReadFile(filepath.Join(h.desk, "push", "log"))
+	must(t, err)
+	for _, want := range []string{"subscribe " + id + " (Chrome on Android): new", "gone " + id, "remove " + id,
+		"subscribe " + push.ID(ts.URL+"/push/dev2") + " (Chrome on Android): replaces " + id} {
+		if !strings.Contains(string(log), want) {
+			t.Fatalf("push/log lacks %q:\n%s", want, log)
+		}
+	}
 }

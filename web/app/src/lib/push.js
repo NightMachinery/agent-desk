@@ -48,6 +48,29 @@ export async function subscribedHere(info) {
   return info.devices.some((d) => d.id === id);
 }
 
+/**
+ * Makes sure the desk knows this browser's subscription. When the browser
+ * holds one for the desk's key that the server does not list (it dropped
+ * it, or a re-subscription never reached it), registers it again without
+ * asking: permission was granted when it was made. Returns its id, or ''
+ * when the browser holds no usable subscription (the user must Turn on).
+ */
+export async function ensureRegistered(info) {
+  if (!pushSupported || !info || Notification.permission !== 'granted') return '';
+  const [, sub] = await current();
+  if (!sub || !sameKey(sub.options.applicationServerKey, info.key)) return '';
+  const id = await idOf(sub.endpoint);
+  if (info.devices.some((d) => d.id === id)) return id;
+  await post('push', { action: 'subscribe', subscription: sub.toJSON(), label: deviceLabel() });
+  return (await confirmListed(id)) ? id : '';
+}
+
+/** Whether GET api/push lists device id. */
+async function confirmListed(id) {
+  const info = await get('push');
+  return info.devices.some((d) => d.id === id);
+}
+
 /** Asks for permission if needed, subscribes and registers this device. */
 export async function subscribeHere(info) {
   info ??= await get('push');
@@ -63,5 +86,9 @@ export async function subscribeHere(info) {
   }
   if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(info.key) });
   await post('push', { action: 'subscribe', subscription: sub.toJSON(), label: deviceLabel() });
-  return idOf(sub.endpoint);
+  const id = await idOf(sub.endpoint);
+  // Only a subscription the desk lists gets pushes: check before saying so.
+  if (!(await confirmListed(id)))
+    throw new Error(`The desk did not keep this device's subscription (${id}). Try again; the desk's push/log says what happened to it.`);
+  return id;
 }

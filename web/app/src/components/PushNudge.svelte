@@ -2,10 +2,11 @@
   // On a phone or an installed app that does not receive the desk's pushes,
   // a strip above the list offers to turn them on. Allowing notifications in
   // the phone's settings is not enough: the page has to subscribe. "Not now"
-  // hides it on this device for 30 days.
+  // hides it on this device for 30 days. A subscription the browser already
+  // holds is registered again silently instead (ensureRegistered).
   import { get } from '../lib/api.js';
   import { toast } from '../lib/toast.svelte.js';
-  import { pushSupported, subscribedHere, subscribeHere } from '../lib/push.js';
+  import { ensureRegistered, pushSupported, subscribeHere } from '../lib/push.js';
 
   const KEY = 'agent-desk:push-nudge-off';
   const QUIET = 30 * 24 * 3600 * 1000;
@@ -29,7 +30,9 @@
     get('push')
       .then(async (i) => {
         info = i;
-        show = !(await subscribedHere(i));
+        // A subscription the browser holds but the desk lost is re-sent
+        // quietly; the strip shows only when there is none to send.
+        show = !(await ensureRegistered(i).catch(() => ''));
       })
       .catch(() => {});
   });

@@ -4,7 +4,7 @@
   // notify.push setting decides which kinds of item are pushed.
   import { get, post } from '../lib/api.js';
   import { toast } from '../lib/toast.svelte.js';
-  import { current, idOf, ios, pushSupported, subscribeHere } from '../lib/push.js';
+  import { current, ensureRegistered, idOf, ios, pushSupported, subscribeHere } from '../lib/push.js';
 
   let { stamp = '' } = $props();
 
@@ -23,6 +23,8 @@
       if (supported) {
         const [, sub] = await current();
         mine = sub ? await idOf(sub.endpoint) : '';
+        // Held here but not listed by the desk: register it again quietly.
+        if (mine && !info.devices.some((d) => d.id === mine) && (await ensureRegistered(info).catch(() => ''))) info = await get('push');
       }
       error = '';
     } catch (e) {
