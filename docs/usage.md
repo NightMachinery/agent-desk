@@ -530,7 +530,11 @@ focus.
 The same sections as the inbox, on a desktop in three panes and on a phone
 in one column: Needs you, Out of quota, Deliverables, Pinned, Responses to
 you (the agents' answers to what you asked), New, and the run tree; a
-section with nothing in it is left out, Needs you and New excepted. Click a section's
+section with nothing in it is left out, Needs you and New excepted. That is
+the default order: Settings, "Order of the list's sections" (`SPC o o`),
+changes it by dragging a section's card by its handle (mouse or touch), its
+arrows, or the up and down arrow keys on a focused handle. The order is kept
+on the desk, so every device shows it. Click a section's
 title to fold it. Each row names its project, run and agent below what the
 view or its group heading already says. Opening an item marks it read (a
 question excepted: reading one dismisses it), but the row stays where it

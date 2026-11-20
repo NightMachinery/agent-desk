@@ -309,6 +309,22 @@ C('up', 'Up one level', parent);
 C('top', 'Go to everything (the top)', () => go({ path: '', item: '', session: '', q: '' }));
 C('settings', 'Settings here', () => go({ settings: true, item: '' }));
 C('settings-global', 'Global settings', () => go({ path: '', settings: true, item: '', session: '' }));
+// The section order card in global Settings, its first handle focused
+// (arrow keys move that section).
+function sectionOrder() {
+  go({ path: '', settings: true, item: '', session: '' });
+  let tries = 0;
+  const focus = () => {
+    const el = cmdEl('section-order');
+    if (el) {
+      el.scrollIntoView({ block: 'center' });
+      el.focus();
+    } else if (++tries < 40) setTimeout(focus, 50);
+  };
+  focus();
+}
+C('section-order', "Order the list's sections (Settings; every device)", sectionOrder);
+C('section-order-reset', "Put the list's sections back in the default order", () => click('section-order-reset', 'Open Settings first (SPC o S)'));
 C('verbatim', 'Verbatim log: your messages to agents, here', verbatimHere);
 C('verbatim-all', 'Verbatim log: your messages to agents, everywhere', verbatimAll);
 C('tasks', 'Tasks: the checklist here (tasks, bugs, ideas)', tasksHere);
@@ -480,6 +496,7 @@ bind('g w', 'session');
 bind('g t', 'thread-root');
 bind('SPC o s', 'settings');
 bind('SPC o S', 'settings-global');
+bind('SPC o o', 'section-order');
 bind('SPC o v', 'verbatim');
 bind('SPC o V', 'verbatim-all');
 bind('SPC o r', 'recordings');

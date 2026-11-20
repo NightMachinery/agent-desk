@@ -23,6 +23,7 @@ export const cmdKeys = {
   'agent-archive': 'SPC n a',
   'task-add': 'SPC n t',
   'deliverables-show': 'SPC t d',
+  'section-order': 'SPC o o',
   'deliverable-works': 'SPC i w',
   'deliverable-open': 'SPC i g',
   'message-node': 'SPC n m',

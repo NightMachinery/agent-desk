@@ -193,6 +193,8 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("POST /api/agent", s.action(s.apiAgentAct))
 	mux.HandleFunc("GET /api/draft", s.apiDraft)
 	mux.HandleFunc("POST /api/draft", s.action(s.apiDraftPut))
+	mux.HandleFunc("GET /api/dashboard-prefs", s.apiDashboardPrefs)
+	mux.HandleFunc("POST /api/dashboard-prefs", s.action(s.apiDashboardPrefPut))
 	mux.HandleFunc("GET /api/auto-continue", s.apiAutoContinue)
 	s.voiceRoutes(mux)
 	mux.HandleFunc("GET /api/cache", s.apiCache)
@@ -308,6 +310,8 @@ type request struct {
 	// Device the browser that typed it.
 	Draft  json.RawMessage `json:"draft"`
 	Device string          `json:"device"`
+	// dashboard-prefs: Key names the shared setting, Data is its JSON.
+	Data json.RawMessage `json:"data"`
 }
 
 func (r request) notify() (map[string]string, error) {

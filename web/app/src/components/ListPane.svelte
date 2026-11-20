@@ -17,7 +17,7 @@
   let quotaHidden = $state(0);
   import { sel, toggleAll, clear, prune, markSelected, pinSelected, selecting } from '../lib/select.svelte.js';
   import { snapshot } from '../lib/nav.svelte.js';
-  import { ui, toggleSection, deliverableModes, deliverableModeLabel, showDeliverables } from '../lib/ui.svelte.js';
+  import { ui, toggleSection, deliverableModes, deliverableModeLabel, showDeliverables, orderedSections } from '../lib/ui.svelte.js';
   import { hide, show, settle, unhidden } from '../lib/hiding.svelte.js';
 
 
@@ -51,6 +51,7 @@
   const deliverables = $derived(unhidden(route.old ? (view?.view?.deliverables ?? []) : recent(view?.view?.deliverables ?? [], false)));
   const pinned = $derived(view?.view?.pinned ?? []);
   const deliverablesAny = $derived(view?.view?.deliverables_any ?? 0);
+  const sectionOrder = $derived(orderedSections(ui.sectionOrder));
   const runs = $derived(view?.view?.runs ?? []);
   const count = (gs) => gs.reduce((n, g) => n + g.items.length, 0);
   const idsOf = (gs) => gs.flatMap((g) => g.items.map((it) => it.display_id));
@@ -93,7 +94,7 @@
   // Folded sections drop out of j/k and previous/next.
   const shown = (name, ids) => (ui.collapsed[name] ? [] : ids);
   const allIds = $derived([
-    ...new Set([...shown('needs', needIds), ...shown('deliverables', deliverableIds), ...shown('pinned', pinnedIds), ...shown('responses', responseIds), ...shown('new', freshIds)]),
+    ...new Set(sectionOrder.flatMap((n) => shown(n, { needs: needIds, deliverables: deliverableIds, pinned: pinnedIds, responses: responseIds, new: freshIds }[n] ?? []))),
   ]);
   // Pinned items in any section, including a pinned question under Needs.
   const pinnedAll = $derived(
@@ -194,6 +195,8 @@
     <PushNudge />
     {#if view.screens?.length}<ScreenStrip screens={view.screens} host={view.host} {onchange} />{/if}
 
+    {#each sectionOrder as name (name)}
+      {#if name === 'needs'}
     <h2 class="section-title" data-section="needs">
       {@render fold('needs', 'Needs you')}
       {#if count(needs)}<span class="count hot">{count(needs)}</span>{/if}
@@ -209,7 +212,7 @@
         <div class="empty">Nothing is waiting on you{route.q ? ' that matches' : ''}.</div>
       {/each}
     {/if}
-
+      {:else if name === 'quota'}
     <div class:hidden={!quotaCount && !quotaHidden}>
       <h2 class="section-title" data-section="quota">
         {@render fold('quota', 'Out of quota')}
@@ -217,7 +220,7 @@
       </h2>
       <QuotaHit stamp={view.stamp} path={route.path} collapsed={!!ui.collapsed.quota} bind:count={quotaCount} bind:hiddenCount={quotaHidden} />
     </div>
-
+      {:else if name === 'deliverables'}
     {#if deliverables.length || deliverablesAny}
       <h2 class="section-title" data-section="deliverables">
         {@render fold('deliverables', 'Deliverables')}
@@ -244,7 +247,7 @@
         {/each}
       {/if}
     {/if}
-
+      {:else if name === 'pinned'}
     {#if pinned.length}
       <h2 class="section-title" data-section="pinned">
         {@render fold('pinned', 'Pinned')}
@@ -256,7 +259,7 @@
         </div>
       {/if}
     {/if}
-
+      {:else if name === 'responses'}
     {#if responses.length}
       <h2 class="section-title" data-section="responses">
         {@render fold('responses', 'Responses to you')}
@@ -273,7 +276,7 @@
         {/each}
       {/if}
     {/if}
-
+      {:else if name === 'new'}
     <h2 class="section-title" data-section="new">
       {@render fold('new', route.all ? 'Notices and slots' : 'New')}
       {#if count(fresh)}<span class="count">{count(fresh)}</span>{/if}
@@ -290,7 +293,7 @@
         <div class="empty">{route.all ? 'No notices here.' : 'All read.'}</div>
       {/each}
     {/if}
-
+      {:else if name === 'runs'}
     <h2 class="section-title" data-section="runs">{@render fold('runs', 'Runs')}</h2>
     {#if ui.collapsed.runs}
       <!-- folded -->
@@ -303,7 +306,7 @@
     {:else}
       <div class="empty">No runs{route.all ? '' : ' with anything to show; Show all includes finished ones'}.</div>
     {/if}
-
+      {:else if name === 'deferred'}
     {#if view.deferred?.length}
       <h2 class="section-title" data-section="deferred">
         {@render fold('deferred', 'Deferred for quota')}
@@ -313,6 +316,8 @@
         <Deferred tasks={view.deferred} launch={view.launch} base={route.path} {onchange} />
       {/if}
     {/if}
+      {/if}
+    {/each}
   {/if}
 </div>
 

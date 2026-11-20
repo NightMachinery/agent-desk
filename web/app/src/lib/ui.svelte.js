@@ -1,5 +1,8 @@
 // Settings of this device's dashboard, kept in localStorage: how it reads,
-// not what the desk holds.
+// not what the desk holds. The section order is the exception: shared by
+// every device through the desk, and cached here.
+import { get, post } from './api.js';
+import { toast } from './toast.svelte.js';
 const KEY = 'agent-desk.ui';
 
 function load() {
@@ -10,6 +13,32 @@ function load() {
   }
 }
 const saved = load();
+
+// The list's sections: their names, in the default order. The order shown
+// is set in Settings and shared by every device (api/dashboard-prefs); this
+// browser keeps the last one it saw, so the list never jumps on load.
+export const sectionNames = {
+  needs: 'Needs you',
+  quota: 'Out of quota',
+  deliverables: 'Deliverables',
+  pinned: 'Pinned',
+  responses: 'Responses to you',
+  new: 'New',
+  runs: 'Runs',
+  deferred: 'Deferred for quota',
+};
+export const defaultSections = Object.keys(sectionNames);
+
+/** order made whole: known names once each, any missing one after its default neighbour. */
+export function orderedSections(order) {
+  const out = (Array.isArray(order) ? order : []).filter((s, i, a) => defaultSections.includes(s) && a.indexOf(s) === i);
+  defaultSections.forEach((s, i) => {
+    if (out.includes(s)) return;
+    const before = defaultSections.slice(0, i).reverse().find((x) => out.includes(x));
+    out.splice(before ? out.indexOf(before) + 1 : 0, 0, s);
+  });
+  return out;
+}
 export const deliverableModes = ['unread', 'latest', 'all'];
 export const deliverableModeLabel = { unread: 'Unread latest', latest: 'Latest', all: 'All' };
 
@@ -27,6 +56,8 @@ export const ui = $state({
   // Which deliverables the list shows: unread (the newest of each key,
   // unread), latest (the newest of each key, read or not) or all.
   deliverablesShow: deliverableModes.includes(saved.deliverablesShow) ? saved.deliverablesShow : 'unread',
+  // The list's sections in order (orderedSections), shared by every device.
+  sectionOrder: orderedSections(saved.sectionOrder),
 });
 
 export function saveUI() {
@@ -37,6 +68,7 @@ export function saveUI() {
         nextAfterMessage: ui.nextAfterMessage,
         collapsed: ui.collapsed,
         deliverablesShow: ui.deliverablesShow,
+        sectionOrder: ui.sectionOrder,
       }),
     );
   } catch {
@@ -55,4 +87,32 @@ export function showDeliverables(mode) {
   ui.deliverablesShow = deliverableModes.includes(mode) ? mode : deliverableModes[(at + 1) % deliverableModes.length];
   saveUI();
   return ui.deliverablesShow;
+}
+
+/** Take the section order shared on the desk, if it differs from this browser's. */
+export async function loadSharedUI() {
+  try {
+    const prefs = await get('dashboard-prefs');
+    const order = orderedSections(prefs.sections);
+    if (order.join() !== ui.sectionOrder.join()) {
+      ui.sectionOrder = order;
+      saveUI();
+    }
+  } catch {
+    // an older desk or offline: the cached order stands
+  }
+}
+
+/** Show the list's sections in order on every device; null is the default order. */
+export async function setSectionOrder(order) {
+  const before = ui.sectionOrder;
+  ui.sectionOrder = orderedSections(order);
+  saveUI();
+  try {
+    await post('dashboard-prefs', { key: 'sections', data: order ? ui.sectionOrder : null });
+  } catch (e) {
+    ui.sectionOrder = before;
+    saveUI();
+    toast(`The order was not saved: ${e.message}`, 'error');
+  }
 }

@@ -2,7 +2,7 @@
   import LazyPanel from './components/LazyPanel.svelte';
   import { route, go, pageOpen } from './lib/route.svelte.js';
   import { get, watch } from './lib/api.js';
-  import { ui } from './lib/ui.svelte.js';
+  import { ui, loadSharedUI } from './lib/ui.svelte.js';
   import { startOutbox } from './lib/outbox.svelte.js';
   import { toasts } from './lib/toast.svelte.js';
   import { desk } from './lib/desk.svelte.js';
@@ -136,8 +136,9 @@
     ),
   );
 
+  $effect(() => untrack(() => void loadSharedUI()));
   $effect(() => {
-    const onVisible = () => document.visibilityState === 'visible' && refresh();
+    const onVisible = () => document.visibilityState === 'visible' && (refresh(), loadSharedUI());
     document.addEventListener('visibilitychange', onVisible);
     return () => document.removeEventListener('visibilitychange', onVisible);
   });

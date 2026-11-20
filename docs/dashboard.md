@@ -180,6 +180,12 @@ The API, all JSON:
   it, and a null `draft` drops it, leaving the newer `updated` so other
   devices drop theirs. Keys are a box name and a colon (`answer:`, `reply:`,
   `choices:`, `voice:`, `node:`); a draft is at most 256 KB.
+- `GET api/dashboard-prefs`: the dashboard settings shared by every device,
+  `{"sections": [...]}` once the order of the list's sections is set.
+  `POST api/dashboard-prefs {key: "sections", data: [...]}` sets it (each of
+  needs, quota, deliverables, pinned, responses, new, runs, deferred at most
+  once; one left out keeps its default place), and a null `data` puts back
+  the default.
 - `GET api/auto-continue?paseo=`: `{available, on}` for one agent, for the
   node panel's checkbox.
 - `GET api/cache`: cache policies and estimated expiry for local agents,

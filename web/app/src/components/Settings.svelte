@@ -7,6 +7,7 @@
   import { desktopText, remoteText, pushText, originText, behaviorLabel } from '../lib/format.js';
   import { ui, saveUI } from '../lib/ui.svelte.js';
   import PushSettings from './PushSettings.svelte';
+  import SectionOrder from './SectionOrder.svelte';
   const lingerChoices = [0, 15, 30, 60, 120, 300];
   const lingerText = (n) => (n === 0 ? 'Drop it at once' : n < 60 ? `${n} seconds` : n === 60 ? '1 minute' : `${n / 60} minutes`);
 
@@ -141,6 +142,13 @@
   {/if}
 
   {#if !path}
+    <div class="key" id="section-order">
+      <div class="key-head">
+        <span class="key-name">Order of the list's sections</span>
+        <span class="mono faint">every device</span>
+      </div>
+      <SectionOrder />
+    </div>
     <PushSettings {stamp} />
     <div class="key">
       <div class="key-head">

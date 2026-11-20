@@ -71,3 +71,32 @@ func TestDrafts(t *testing.T) {
 		t.Fatalf("cross-site save: %d", code)
 	}
 }
+
+// The section order is shared by every device: checked names, read back,
+// and null puts back the default.
+func TestDashboardSections(t *testing.T) {
+	_, hd := testServer(t, newHarness(t))
+	if code, body, _ := do(t, hd, "GET", "/api/dashboard-prefs", "", nil); code != 200 || strings.TrimSpace(body) != "{}" {
+		t.Fatalf("nothing set: %d %s", code, body)
+	}
+	for _, bad := range []string{
+		`{"key":"sections","data":["needs","needs"]}`,
+		`{"key":"sections","data":["needs","bogus"]}`,
+		`{"key":"sections","data":"needs"}`,
+		`{"key":"colour","data":"red"}`,
+	} {
+		if code, _, _ := do(t, hd, "POST", "/api/dashboard-prefs", bad, dashboard); code != 400 {
+			t.Fatalf("%s: %d, want 400", bad, code)
+		}
+	}
+	if code, body, _ := do(t, hd, "POST", "/api/dashboard-prefs", `{"key":"sections","data":["deliverables","needs","new"]}`, dashboard); code != 200 {
+		t.Fatalf("set: %d %s", code, body)
+	}
+	if _, body, _ := do(t, hd, "GET", "/api/dashboard-prefs", "", nil); !strings.Contains(body, `"sections":["deliverables","needs","new"]`) {
+		t.Fatalf("read back: %s", body)
+	}
+	do(t, hd, "POST", "/api/dashboard-prefs", `{"key":"sections","data":null}`, dashboard)
+	if _, body, _ := do(t, hd, "GET", "/api/dashboard-prefs", "", nil); strings.TrimSpace(body) != "{}" {
+		t.Fatalf("reset: %s", body)
+	}
+}
