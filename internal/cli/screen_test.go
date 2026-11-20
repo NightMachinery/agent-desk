@@ -267,8 +267,13 @@ func TestBannerTimeoutKillsGroup(t *testing.T) {
 	if err := a.runBanner("sh", "-c", "sleep 30 & echo $! > "+pidf+"; wait"); err == nil {
 		t.Fatal("a hung banner reported success")
 	}
-	if d := time.Since(t0); d > 3*time.Second {
+	if d := time.Since(t0); d > 15*time.Second { // the stack sample takes a few seconds
 		t.Fatalf("runBanner returned after %v", d)
+	}
+	if logs, _ := filepath.Glob(filepath.Join(a.Home, "screen", "hang-*.txt")); len(logs) != 1 {
+		t.Fatalf("no stack sample of the hung banner: %v", logs)
+	} else if b, _ := os.ReadFile(logs[0]); !strings.Contains(string(b), "sleep 30") {
+		t.Fatalf("the sample does not name the hung process:\n%.400s", b)
 	}
 	b, err := os.ReadFile(pidf)
 	must(t, err)

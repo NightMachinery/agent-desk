@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -223,8 +224,19 @@ func (a *App) runBanner(name string, args ...string) error {
 	cmd.Env = envFor(name, os.Environ())
 	cmd.WaitDelay = 2 * time.Second
 	killGroupOnCancel(cmd)
+	kill := cmd.Cancel
+	var hung string
+	cmd.Cancel = func() error {
+		// Record where the hung command is stuck before killing it: the
+		// cause of these hangs (hs, Hammerspoon's CLI) is not known yet.
+		hung = a.sampleGroup(cmd.Process.Pid)
+		return kill()
+	}
 	out, err := cmd.CombinedOutput()
 	if ctx.Err() != nil {
+		if hung != "" {
+			return fmt.Errorf("gave up after %s; stacks of the hung processes are in %s", bannerTimeout, hung)
+		}
 		return fmt.Errorf("gave up after %s", bannerTimeout)
 	}
 	if err != nil && len(out) > 0 {
@@ -523,4 +535,50 @@ func short8(s string) string {
 		return s[:8]
 	}
 	return s
+}
+
+// sampleGroup writes a stack sample of every process in process group pgid
+// (macOS sample(1)) to <desk>/screen/hang-<time>.txt, with a line in
+// <desk>/screen/log, and returns the file, or "" when it could not.
+func (a *App) sampleGroup(pgid int) string {
+	sampler, err := exec.LookPath("sample")
+	if err != nil {
+		return ""
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	ps, err := exec.CommandContext(ctx, "ps", "-A", "-o", "pid=,pgid=,etime=,command=").Output()
+	if err != nil {
+		return ""
+	}
+	dir := filepath.Join(a.Home, "screen")
+	if os.MkdirAll(dir, 0o700) != nil {
+		return ""
+	}
+	now := time.Now()
+	if a.Now != nil {
+		now = a.Now()
+	}
+	file := filepath.Join(dir, "hang-"+now.UTC().Format("20060102T150405Z")+".txt")
+	var b strings.Builder
+	var members []string
+	for _, line := range strings.Split(string(ps), "\n") {
+		f := strings.Fields(line)
+		if len(f) >= 4 && f[1] == strconv.Itoa(pgid) {
+			members = append(members, f[0])
+			fmt.Fprintf(&b, "%s\n", strings.TrimSpace(line))
+		}
+	}
+	for _, pid := range members {
+		out, _ := exec.CommandContext(ctx, sampler, pid, "1").CombinedOutput()
+		fmt.Fprintf(&b, "\n===== sample %s\n%s", pid, out)
+	}
+	if os.WriteFile(file, []byte(b.String()), 0o600) != nil {
+		return ""
+	}
+	if f, err := os.OpenFile(filepath.Join(dir, "log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600); err == nil {
+		fmt.Fprintf(f, "%s banner hung after %s: %d processes, stacks in %s\n", now.UTC().Format(time.RFC3339), bannerTimeout, len(members), file)
+		f.Close()
+	}
+	return file
 }

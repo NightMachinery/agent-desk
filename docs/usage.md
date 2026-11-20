@@ -959,6 +959,11 @@ screen, with `AGENT_DESK_REASON` and `AGENT_DESK_SECONDS` set, and
 `banner_off` when it lets go: point them at whatever tells you to keep off,
 such as a banner across the screen. Each grant tells the agent to hold the
 screen only while its automation truly needs focus or needs you away.
+Either command gets 15 seconds; one still running then is killed with its
+children, after a stack sample of each (macOS `sample`) is written to
+`<desk>/screen/hang-<time>.txt` and noted in `<desk>/screen/log`. Hammerspoon's
+`hs` command has hung there before, leaving `screen take` and `release`
+processes behind for days; the samples are there to find out why.
 
 ## Agents out of quota
 
