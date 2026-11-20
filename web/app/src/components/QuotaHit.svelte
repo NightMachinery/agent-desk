@@ -12,6 +12,7 @@
   import CopyIds from './CopyIds.svelte';
   import CacheControl from './CacheControl.svelte';
   import ReplaceDialog from './ReplaceDialog.svelte';
+  import { archiveAgent } from '../lib/agents.js';
   import { sel } from '../lib/select.svelte.js';
   import { get, post } from '../lib/api.js';
   import { toast } from '../lib/toast.svelte.js';
@@ -207,6 +208,8 @@
           <button class="btn small" disabled={!!busy} title="Message its parent: archive it and give its role to a new subagent on an account with quota left, recovering its partial work and minding its own subagents (prompt: reassign-role.md)"
             onclick={() => act(a, 'ask-parent', 'Asked its parent.')}>Ask parent to reassign</button>
         {/if}
+        <button class="btn small" data-cmd="quota-archive" disabled={!!busy} title="Archive it in Paseo: it leaves this list (messaging it from the desk revives it)"
+          onclick={async () => { if (await archiveAgent(a.paseo, a.title)) load(true); }}>Archive</button>
         {#if data.launch_ready}
           <button class="btn small" data-cmd="quota-replace" disabled={!!busy}
             title="Start a new agent on a provider you pick, that recovers its partial work, takes over its role and archives it (prompt: replace-agent.md)"

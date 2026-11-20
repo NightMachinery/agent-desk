@@ -189,6 +189,7 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("GET /api/quota", s.apiQuota)
 	mux.HandleFunc("POST /api/quota", s.action(s.apiQuotaAct))
 	mux.HandleFunc("GET /api/providers", s.apiProviders)
+	mux.HandleFunc("POST /api/agent", s.action(s.apiAgentAct))
 	mux.HandleFunc("GET /api/auto-continue", s.apiAutoContinue)
 	s.voiceRoutes(mux)
 	mux.HandleFunc("GET /api/cache", s.apiCache)

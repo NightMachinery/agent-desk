@@ -86,7 +86,8 @@ follow, with groups in colour.
 - `SPC i`: the open item (`a` answer, `r` message, `d` read, `u` unread, `p`
   pin, `t` take, `o` its node, `n` "Notify me", `m` "Send how?").
 - `SPC n`: the node page (`m` message the coordinator, `r` mark everything
-  under it read, `s` its notify settings, `v` ask for a velocity report).
+  under it read, `s` its notify settings, `v` ask for a velocity report, `a`
+  archive its coordinator's Paseo agent).
 - `SPC s s` search, `SPC s c` clear the search; `/` searches too.
 - `SPC t a` show all, `SPC t o` oldest first, `SPC t s` select mode.
 - `SPC x a` select every item, `SPC x c` clear the selection.

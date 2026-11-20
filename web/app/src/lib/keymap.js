@@ -341,9 +341,11 @@ C('yank-path', 'Copy the path shown', () => yank(ctx.item()?.node ?? route.path,
 C('node-message', 'Message the coordinator', message, { when: () => !!ctx.view()?.target, need: 'a node with a coordinator' });
 C('node-velocity', 'Ask for a velocity report', () => click('velocity-report', 'No velocity slot here'), tagged('velocity-report', 'a node with a velocity slot'));
 C('node-read-all', 'Mark everything under the node read', () => click('read-all'), tagged('read-all', 'a node page'));
+C('agent-archive', "Archive the node's coordinator agent in Paseo", () => click('agent-archive'), tagged('agent-archive', 'a node whose coordinator is a Paseo agent here'));
 C('node-settings', "The node's notify settings", () => click('node-settings'), tagged('node-settings', 'a node page'));
 C('list-read-all', 'Mark every unread item in the list read', () => click('mark-all-read'), tagged('mark-all-read', 'unread items in the list'));
 C('quota-copy-ids', 'Out of quota: copy the picked agent ids', () => click('quota-copy-ids'), tagged('quota-copy-ids', 'the Out of quota section'));
+C('quota-archive', 'Out of quota: archive the first agent in Paseo', () => click('quota-archive'), tagged('quota-archive', 'an agent out of quota'));
 C('quota-replace', 'Out of quota: replace the first agent (pick its provider, model and effort)', () => click('quota-replace'), tagged('quota-replace', 'an agent out of quota that can be replaced'));
 
 // Selecting.
@@ -496,6 +498,7 @@ bind('SPC n m', 'node-message');
 bind('SPC n v', 'node-velocity');
 bind('SPC n r', 'node-read-all');
 bind('SPC n s', 'node-settings');
+bind('SPC n a', 'agent-archive');
 
 // Selecting.
 bind('x', 'select');

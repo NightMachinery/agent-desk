@@ -16,6 +16,7 @@
   import CacheControl from './CacheControl.svelte';
   import { chooseSendCache } from '../lib/cache.svelte.js';
   import { desk } from '../lib/desk.svelte.js';
+  import { archiveAgent } from '../lib/agents.js';
 
   let { node, target, conversation = [], stamp = '', onchange, compact = false } = $props();
   let settingsOpen = $state(false);
@@ -93,6 +94,10 @@
       <CopyIds paseo={target.paseo} resume={target.resume} keys={false} />
       {#if target.paseo && !compact}<AutoContinue paseo={target.paseo} />{/if}
       {#if target.paseo && target.host === desk.host}<CacheControl paseo={target.paseo} showUnavailable={!compact} />{/if}
+      {#if target.paseo && target.host === desk.host && target.finished !== 'archived'}
+        <button data-cmd="agent-archive" class="btn small archive" title={tip("Archive the coordinator's Paseo agent (stops it if running; messaging it revives it)", 'agent-archive')}
+          onclick={async () => { if (await archiveAgent(target.paseo, agentName(target.agent))) onchange?.(); }}>Archive agent</button>
+      {/if}
     </div>
   {/if}
 

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"os"
@@ -326,5 +327,32 @@ func TestProviderChoices(t *testing.T) {
 	}
 	if b := ps[2]; len(b.Models) != 0 || b.Account != "" {
 		t.Fatalf("a provider whose models fail is still offered, without models: %+v", b)
+	}
+}
+
+// Archive from the dashboard passes paseo only an agent this machine has a
+// record of, and says so when it is archived already.
+func TestArchiveAgent(t *testing.T) {
+	h := newHarness(t)
+	const id = "11111111-0000-4000-8000-0000000000aa"
+	writePaseoRecord(t, h.paseo, id, sessA, "", "Old coordinator")
+	a, _, _ := h.app(map[string]string{}, "")
+	var calls [][]string
+	a.Exec = func(_ context.Context, _ []byte, name string, args ...string) (string, error) {
+		calls = append(calls, append([]string{name}, args...))
+		return "", nil
+	}
+	note, err := a.archiveAgent(id)
+	must(t, err)
+	if note != "Archived Old coordinator." || len(calls) != 1 || strings.Join(calls[0], " ") != "paseo archive "+id {
+		t.Fatalf("note %q calls %v", note, calls)
+	}
+	for _, bad := range []string{"", "nope", "../x", "*"} {
+		if _, err := a.archiveAgent(bad); err == nil {
+			t.Fatalf("archived %q", bad)
+		}
+	}
+	if len(calls) != 1 {
+		t.Fatalf("paseo ran for an unknown id: %v", calls)
 	}
 }

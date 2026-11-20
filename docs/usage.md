@@ -950,9 +950,15 @@ each of them. For each:
   one per line.
 - **×** dismisses it: hidden until it runs and stops again. "Show N
   dismissed" brings dismissed ones back into view, each with an undo.
+- **Archive** archives it in Paseo (`paseo archive`, after you confirm), so
+  it leaves the list for good. Messaging it from the desk revives it. The
+  keyboard command is `quota-archive`.
 
 The node panel of any agent's node also has the **Auto-continue** checkbox,
-so you can arm it before the agent runs out.
+so you can arm it before the agent runs out, and **Archive agent** (`SPC n
+a`), which archives the coordinator's Paseo agent when it runs on this
+machine. The server only passes `paseo archive` an id this machine's Paseo
+has a record of (`POST api/agent` with `{"action": "archive", "id": ...}`).
 
 The same from a terminal:
 
