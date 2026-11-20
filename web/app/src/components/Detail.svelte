@@ -169,15 +169,13 @@
       toast(err.message, 'error');
     }
   }
-  // A deliverable: Works tells the agent so; Problem opens the message box.
-  function works() {
-    return reply('Works.');
-  }
-  function problem() {
-    const box = document.getElementById('reply-box');
-    box?.scrollIntoView({ block: 'center', behavior: 'smooth' });
-    box?.focus();
-  }
+  // A deliverable's buttons under its message box: Works tells the agent so,
+  // with what is typed as a note; Problem sends what is typed as the
+  // problem, or opens the empty box.
+  const tried = [
+    { label: 'Works', cmd: 'deliverable-works', title: 'Tell the agent it works, with anything typed above as a note', wrap: (t) => (t ? `Works. ${t}` : 'Works.') },
+    { label: 'Problem', cmd: 'deliverable-problem', title: 'Tell the agent what is wrong: type it above, then press this', wrap: (t) => `Problem: ${t}`, needsText: true },
+  ];
   const files = $derived(kind === 'deliverable' ? (item?.media ?? []).filter((m) => m.kind === 'file') : []);
   const shownMedia = $derived(kind === 'deliverable' ? (item?.media ?? []).filter((m) => m.kind !== 'file') : (item?.media ?? []));
   const openURL = $derived(kind === 'deliverable' ? deliverableURL(e) : '');
@@ -308,13 +306,6 @@
         {#if it.superseded_by}
           <div class="faint">A newer one has replaced this: <a class="link" href={href({ item: it.superseded_by })}>{it.superseded_by}</a>.</div>
         {/if}
-        {#if item.target}
-          <div class="deliver-say">
-            <span class="faint">Tried it?</span>
-            <button data-cmd="deliverable-works" class="btn small" title={tip('Tell the agent it works', 'deliverable-works')} onclick={works}>Works</button>
-            <button data-cmd="deliverable-problem" class="btn small" title={tip('Tell the agent what is wrong', 'deliverable-problem')} onclick={problem}>Problem…</button>
-          </div>
-        {/if}
       </div>
     {/if}
     {#if !inThread}
@@ -390,6 +381,8 @@
           hint={isQuestion && !item.answered ? '' : viaText(item.target)}
           target={item.target}
           send={reply}
+          after={kind === 'deliverable' ? tried : []}
+          afterLabel={kind === 'deliverable' ? 'Tried it?' : ''}
         />
       </section>
     {/if}
@@ -448,11 +441,6 @@
   .deliver .size {
     opacity: 0.7;
     font-size: 12px;
-  }
-  .deliver-say {
-    display: flex;
-    align-items: center;
-    gap: 8px;
   }
   .task-bar {
     display: flex;

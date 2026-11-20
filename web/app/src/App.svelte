@@ -2,6 +2,7 @@
   import LazyPanel from './components/LazyPanel.svelte';
   import { route, go, pageOpen } from './lib/route.svelte.js';
   import { get, watch } from './lib/api.js';
+  import { ui } from './lib/ui.svelte.js';
   import { startOutbox } from './lib/outbox.svelte.js';
   import { toasts } from './lib/toast.svelte.js';
   import { desk } from './lib/desk.svelte.js';
@@ -34,7 +35,7 @@
 
   async function loadView() {
     const my = ++seq;
-    const params = { path: route.path, session: route.session, host: route.host, all: route.all ? '1' : '', q: route.q };
+    const params = { path: route.path, session: route.session, host: route.host, all: route.all ? '1' : '', q: route.q, deliverables: ui.deliverablesShow };
     // Rows just read stay listed for a while; reading the list of them must
     // not make every hold refetch the view.
     params.linger = untrack(lingerIds).join(',');
@@ -79,7 +80,7 @@
   }
 
   $effect(() => {
-    route.path, route.session, route.host, route.all, route.q;
+    route.path, route.session, route.host, route.all, route.q, ui.deliverablesShow;
     loadView();
   });
   let prefetchScheduled = false;

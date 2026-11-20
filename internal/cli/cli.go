@@ -161,7 +161,7 @@ Agent side (only coordinators write; workers report to their parent):
 
 User side:
   agent-desk inbox [<path-prefix>] [--all]    interactive (needs fzf)
-  agent-desk show [<path-prefix>|--mine] [--all] [--unfocused] [--host H] [--session S] [--format org|md|json]
+  agent-desk show [<path-prefix>|--mine] [--all] [--unfocused] [--host H] [--session S] [--deliverables unread|latest|all] [--format org|md|json]
   agent-desk screen grant|deny <q-id>   hand an agent the screen, or refuse it
   agent-desk answer <id> [--behavior B] [--notify-desktop V] [--notify-remote V] 'text'
                                       record, then type it into the asking session
@@ -1362,7 +1362,7 @@ func (a *App) cmdUnread(args []string) error {
 // --- reading -----------------------------------------------------------------
 
 func (a *App) cmdShow(args []string) error {
-	o, err := parse(args, []string{"all", "mine", "unfocused"}, []string{"format", "host", "session", "node"}, 0, 1)
+	o, err := parse(args, []string{"all", "mine", "unfocused"}, []string{"format", "host", "session", "node", "deliverables"}, 0, 1)
 	if err != nil {
 		return err
 	}
@@ -1373,7 +1373,10 @@ func (a *App) cmdShow(args []string) error {
 	if err != nil {
 		return err
 	}
-	f := desk.Filter{All: o.bools["all"], Host: o.vals["host"], Session: o.vals["session"]}
+	f := desk.Filter{All: o.bools["all"], Host: o.vals["host"], Session: o.vals["session"], Deliverables: o.vals["deliverables"]}
+	if !desk.ValidDeliverables(f.Deliverables) {
+		return usagef("--deliverables is unread (the newest of each, unread), latest (the newest of each) or all")
+	}
 	if len(o.pos) == 1 {
 		f.Prefix = strings.Trim(o.pos[0], "/")
 	}

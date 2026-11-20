@@ -161,7 +161,10 @@ The API, all JSON:
   Dismissal flags are applied to every quota response, including cached lists.
 - `GET api/view` also returns `deliverables`, grouped like `responses`;
   an item superseded by a newer deliverable of the same key carries
-  `superseded_by` (shown only with `all=1`).
+  `superseded_by`. `deliverables=unread|latest|all` picks which are listed
+  (unread: the newest of each key, unread, the default; latest: the newest
+  of each key; all: every one; without it, `all=1` means all), and
+  `deliverables_any` counts every deliverable in scope.
 - `GET api/tasks?path=`: every task under the path (all states), with
   `type`, `parent` (full id) and `parent_display`, and `types`, the task
   types there are. `POST api/task {action: "add", to, title, type, text,

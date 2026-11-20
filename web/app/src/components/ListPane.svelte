@@ -17,7 +17,7 @@
   let quotaHidden = $state(0);
   import { sel, toggleAll, clear, prune, markSelected, pinSelected, selecting } from '../lib/select.svelte.js';
   import { snapshot } from '../lib/nav.svelte.js';
-  import { ui, toggleSection } from '../lib/ui.svelte.js';
+  import { ui, toggleSection, deliverableModes, deliverableModeLabel, showDeliverables } from '../lib/ui.svelte.js';
   import { hide, show, settle, unhidden } from '../lib/hiding.svelte.js';
 
 
@@ -50,6 +50,7 @@
   const responses = $derived(unhidden(route.old ? (view?.view?.responses ?? []) : recent(view?.view?.responses ?? [], false)));
   const deliverables = $derived(unhidden(route.old ? (view?.view?.deliverables ?? []) : recent(view?.view?.deliverables ?? [], false)));
   const pinned = $derived(view?.view?.pinned ?? []);
+  const deliverablesAny = $derived(view?.view?.deliverables_any ?? 0);
   const runs = $derived(view?.view?.runs ?? []);
   const count = (gs) => gs.reduce((n, g) => n + g.items.length, 0);
   const idsOf = (gs) => gs.flatMap((g) => g.items.map((it) => it.display_id));
@@ -217,10 +218,16 @@
       <QuotaHit stamp={view.stamp} path={route.path} collapsed={!!ui.collapsed.quota} bind:count={quotaCount} bind:hiddenCount={quotaHidden} />
     </div>
 
-    {#if deliverables.length}
+    {#if deliverables.length || deliverablesAny}
       <h2 class="section-title" data-section="deliverables">
         {@render fold('deliverables', 'Deliverables')}
-        <span class="count deliverable">{count(deliverables)}</span>
+        {#if deliverables.length}<span class="count deliverable">{count(deliverables)}</span>{/if}
+        <label class="show-pick" title={tip('Which deliverables to list: the newest of each, unread; the newest of each; or every one, replaced ones too', 'deliverables-show')}>
+          <select data-cmd="deliverables-show" aria-label="Which deliverables to list" value={ui.deliverablesShow} onchange={(e) => showDeliverables(e.currentTarget.value)}>
+            {#each deliverableModes as m (m)}<option value={m}>{deliverableModeLabel[m]}</option>{/each}
+          </select>
+          <svg width="9" height="9" viewBox="0 0 10 10" aria-hidden="true"><path d="m2 3.5 3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+        </label>
         {#if deliverableIds.length > 1 && !ui.collapsed.deliverables}<button class="pick" onclick={() => toggleAll(deliverableIds)}>{allOn(deliverableIds) ? 'Deselect' : 'Select all'}</button>{/if}
         {#if deliverableUnread.length}{@render markAll(deliverableUnread)}{/if}
       </h2>
@@ -229,6 +236,10 @@
           {@render groupHead(g, true)}
           <div class="rows">
             {#each g.items as it (it.event.id)}<ItemRow item={it} base={baseOf(g)} />{/each}
+          </div>
+        {:else}
+          <div class="empty">
+            {#if route.q}No deliverable matches.{:else if ui.deliverablesShow === 'unread'}Nothing new. <button class="linkish" onclick={() => showDeliverables('latest')}>Latest</button> lists the ones you have seen.{:else}No deliverables here.{/if}
           </div>
         {/each}
       {/if}
@@ -477,6 +488,50 @@
     align-items: center;
     justify-content: space-between;
     gap: 8px;
+  }
+  /* The Deliverables section's "show" menu: a quiet pill that reads as part
+     of the heading until hovered. */
+  .show-pick {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+  .show-pick select {
+    appearance: none;
+    -webkit-appearance: none;
+    field-sizing: content;
+    height: 22px;
+    padding: 0 20px 0 9px;
+    border: 1px solid color-mix(in srgb, var(--deliverable) 35%, var(--line));
+    border-radius: 999px;
+    background: var(--deliverable-soft);
+    color: var(--deliverable);
+    font: inherit;
+    font-size: 11.5px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .show-pick select:hover,
+  .show-pick select:focus-visible {
+    border-color: var(--deliverable);
+    outline: none;
+  }
+  .show-pick svg {
+    position: absolute;
+    right: 7px;
+    pointer-events: none;
+    color: var(--deliverable);
+  }
+  .linkish {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-decoration: underline;
+    cursor: pointer;
   }
   .group-line .pick {
     opacity: 0;

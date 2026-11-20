@@ -236,16 +236,22 @@ notice:
 It needs `--url` (http or https), `--attach`, or both. The body says what it
 is, how to try it and what you checked. `--key` names what it is a version
 of: a newer deliverable with the same key in the same project supersedes the
-older one, which leaves the Deliverables section (it stays in its thread and
-in Show all). `--re` and `--re-chat` work as for `tell`. Android packages
+older one, which leaves the Deliverables section (it stays in its thread, and
+the section's All lists it). `--re` and `--re-chat` work as for `tell`. Android packages
 (`.apk`) may be up to 150 MB.
 
 The dashboard lists deliverables in their own section, **Deliverables**,
-above Responses to you and below Needs you. The item page shows a large
-**Open** button for the link and a download button per file, with **Works**
-(messages the agent "Works.") and **Problem…** (opens the message box).
-On the keyboard: `SPC i g` opens the link, `SPC i G` downloads the file,
-`SPC i w` says it works. Their notify class is `deliverable` (desktop: the
+below Needs you and above Pinned and Responses to you. The menu in its
+heading picks what it lists, per device: **Unread latest** (the default: the
+newest of each key, while unread), **Latest** (the newest of each key, read
+or not) or **All** (every one, replaced ones too); `SPC t d` switches, and
+`agent-desk show --deliverables unread|latest|all` does the same in the
+terminal. The item page shows a large **Open** button for the link and a
+download button per file. Under its message box, **Works** tells the agent
+it works, with anything you typed as a note, and **Problem** sends what you
+typed as the problem (with the box empty it puts you in the box). On the
+keyboard: `SPC i g` opens the link, `SPC i G` downloads the file, `SPC i w`
+says it works. Their notify class is `deliverable` (desktop: the
 machine it came from; phone when away), set in Settings like any other. A done report from a run's root coordinator marks
 the run finished. `agent-done` does this for you where it is installed.
 `agent-desk show --mine` shows only the calling session's own node.

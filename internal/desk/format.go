@@ -18,9 +18,13 @@ type View struct {
 	// Deliverables: what agents shipped (deployments, packages), listed
 	// between Needs you and Responses.
 	Deliverables []Group `json:"deliverables"`
-	Responses    []Group `json:"responses"`
-	New          []Group `json:"new"`
-	Runs         []*Node `json:"runs"`
+	// DeliverablesAny counts every deliverable in scope, whatever
+	// Filter.Deliverables lists: the section stays to switch to the read
+	// ones when no unread one is left.
+	DeliverablesAny int     `json:"deliverables_any"`
+	Responses       []Group `json:"responses"`
+	New             []Group `json:"new"`
+	Runs            []*Node `json:"runs"`
 	// Awaiting: the user's messages to this node that wait for its response.
 	// Filled only for an agent's own view (show --mine).
 	Awaiting []Group `json:"awaiting,omitempty"`
@@ -47,7 +51,7 @@ func (d *Desk) AwaitingGroups(path string) []Group {
 // Build assembles the three printed views for a filter.
 func (d *Desk) Build(f Filter) View {
 	v := View{Pinned: d.PinnedItems(f), NeedsYou: d.NeedsYou(f), Deliverables: d.DeliverableGroups(f), Responses: d.ResponseGroups(f), New: d.New(f),
-		Runs: Visible(d.Tree(f))}
+		Runs: Visible(d.Tree(f)), DeliverablesAny: d.DeliverableCount(f)}
 	if v.Deliverables == nil {
 		v.Deliverables = []Group{}
 	}

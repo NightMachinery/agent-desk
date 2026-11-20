@@ -267,6 +267,23 @@ type Filter struct {
 	// Focus keeps only what is under one of these prefixes (and the desk's
 	// own items): the focused project set's. Empty keeps everything.
 	Focus []string
+	// Deliverables is which deliverables to list: DeliverUnread (the
+	// newest of each key, unread), DeliverLatest (the newest of each key,
+	// read or not) or DeliverAll (every one, replaced ones too). Empty is
+	// DeliverUnread, or DeliverAll with All.
+	Deliverables string
+}
+
+// The ways to list deliverables (Filter.Deliverables).
+const (
+	DeliverUnread = "unread"
+	DeliverLatest = "latest"
+	DeliverAll    = "all"
+)
+
+// ValidDeliverables reports whether s is a Filter.Deliverables value.
+func ValidDeliverables(s string) bool {
+	return s == "" || s == DeliverUnread || s == DeliverLatest || s == DeliverAll
 }
 
 func (f Filter) Keep(e store.Event) bool {
@@ -504,17 +521,41 @@ func (d *Desk) ResponseGroups(f Filter) []Group {
 // grouped like New, responding or not. One superseded by a newer
 // deliverable of the same key is left out unless f.All.
 func (d *Desk) DeliverableGroups(f Filter) []Group {
+	mode := f.Deliverables
+	if mode == "" {
+		mode = DeliverUnread
+		if f.All {
+			mode = DeliverAll
+		}
+	}
 	var items []Item
 	for _, e := range d.Events {
-		if e.Kind != "deliverable" || !f.Keep(e) || !(d.unread[e.ID] || f.All || f.Linger[e.ID]) {
+		if e.Kind != "deliverable" || !f.Keep(e) {
 			continue
 		}
-		if !f.All && !f.Linger[e.ID] && d.SupersededBy(e) != "" {
-			continue
+		if !f.Linger[e.ID] {
+			if mode == DeliverUnread && !d.unread[e.ID] {
+				continue
+			}
+			if mode != DeliverAll && d.SupersededBy(e) != "" {
+				continue
+			}
 		}
 		items = append(items, d.item(e))
 	}
 	return group(items)
+}
+
+// DeliverableCount is how many deliverables f keeps, read, unread or
+// replaced: whether the Deliverables section has anything to switch to.
+func (d *Desk) DeliverableCount(f Filter) int {
+	n := 0
+	for _, e := range d.Events {
+		if e.Kind == "deliverable" && f.Keep(e) {
+			n++
+		}
+	}
+	return n
 }
 
 // deliverableKey is the project and meta.key that a newer deliverable

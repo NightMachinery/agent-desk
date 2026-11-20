@@ -8,7 +8,7 @@ import { nav, step } from './nav.svelte.js';
 import { sel, toggle, toggleAll, clear } from './select.svelte.js';
 import { copy } from './format.js';
 import { toast } from './toast.svelte.js';
-import { toggleSection } from './ui.svelte.js';
+import { toggleSection, showDeliverables, deliverableModeLabel } from './ui.svelte.js';
 import {
   keys, ctx, command, bind, group, pane, paneEl, cmdEl, say, dialog, moveFocus, focusables, startHints, openPalette,
   commands, commandItems, keysOf, applies, describeKey, describeCommand, setVisual, syncMode,
@@ -324,6 +324,11 @@ C('thread-root', 'Go to the item this conversation is about', () => click('threa
 // Toggles.
 C('toggle-all', 'Toggle show all (read items, finished runs)', () => go({ all: !route.all, item: '' }));
 C('toggle-old', 'Toggle oldest first', () => go({ old: !route.old }, { replace: true }));
+const deliverablesShow = (mode) => () => say(`Deliverables: ${deliverableModeLabel[showDeliverables(mode)]}`);
+C('deliverables-show', 'Deliverables: switch between unread latest, latest and all', deliverablesShow());
+C('deliverables-unread', 'Deliverables: the newest of each, unread', deliverablesShow('unread'));
+C('deliverables-latest', 'Deliverables: the newest of each, read or not', deliverablesShow('latest'));
+C('deliverables-all', 'Deliverables: every one, replaced ones too', deliverablesShow('all'));
 C('toggle-select', 'Toggle select mode', () => click('select-mode'));
 C('toggle-auto-continue', 'Toggle auto-continue', () => click('auto-continue'), tagged('auto-continue', 'the settings page'));
 C('edit-sets', 'Edit focus sets', () => click('edit-sets'), tagged('edit-sets', 'the sidebar'));
@@ -367,7 +372,7 @@ C('quota-copy-ids', 'Out of quota: copy the picked agent ids', () => click('quot
 C('deliverable-open', 'Deliverable: open its link', () => click('deliverable-open'), tagged('deliverable-open', 'a deliverable with a link'));
 C('deliverable-download', 'Deliverable: download its first file', () => click('deliverable-download'), tagged('deliverable-download', 'a deliverable with a file'));
 C('deliverable-works', 'Deliverable: tell the agent it works', () => click('deliverable-works'), tagged('deliverable-works', 'a deliverable whose agent can be messaged'));
-C('deliverable-problem', 'Deliverable: tell the agent what is wrong (opens the message box)', () => click('deliverable-problem'), tagged('deliverable-problem', 'a deliverable whose agent can be messaged'));
+C('deliverable-problem', 'Deliverable: send what is typed as the problem (opens the empty box)', () => click('deliverable-problem'), tagged('deliverable-problem', 'a deliverable whose agent can be messaged'));
 C('quota-archive', 'Out of quota: archive the first agent in Paseo', () => click('quota-archive'), tagged('quota-archive', 'an agent out of quota'));
 C('quota-replace', 'Out of quota: replace the first agent (pick its provider, model and effort)', () => click('quota-replace'), tagged('quota-replace', 'an agent out of quota that can be replaced'));
 
@@ -487,6 +492,7 @@ bind('SPC n t', 'task-add');
 
 bind('SPC t a', 'toggle-all');
 bind('SPC t o', 'toggle-old');
+bind('SPC t d', 'deliverables-show');
 bind('SPC t s', 'toggle-select');
 
 bind('SPC w h', 'pane-left');

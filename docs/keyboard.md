@@ -93,7 +93,8 @@ follow, with groups in colour.
   under it read, `s` its notify settings, `v` ask for a velocity report, `a`
   archive its coordinator's Paseo agent).
 - `SPC s s` search, `SPC s c` clear the search; `/` searches too.
-- `SPC t a` show all, `SPC t o` oldest first, `SPC t s` select mode.
+- `SPC t a` show all, `SPC t o` oldest first, `SPC t s` select mode, `SPC t d`
+  which deliverables to list (unread latest, latest, all).
 - `SPC x a` select every item, `SPC x c` clear the selection.
 - `SPC o`: open a page: `v` the Verbatim log here, `V` everywhere, `s`
   settings, `S` global settings, `r` recordings.

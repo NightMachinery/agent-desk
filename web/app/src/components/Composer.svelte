@@ -18,7 +18,11 @@
   // (e.g. "reply:t-k2m9"): its text is saved until sent, and a new name
   // starts from that box's own draft, with no files or notify overrides
   // carried over from the last one.
-  let { voiceNode = '', draft = '', id = undefined, label, placeholder, send, hint = '', quick = [], sendLabel = 'Send', target = null, compose = null, ready = false } = $props();
+  // after: buttons under the box that send its text their own way, with an
+  // optional lead-in (afterLabel): { label, cmd, title, wrap(text), needsText }.
+  // wrap turns what is typed into the message; needsText focuses the empty
+  // box instead of sending.
+  let { voiceNode = '', draft = '', id = undefined, label, placeholder, send, hint = '', quick = [], sendLabel = 'Send', target = null, compose = null, ready = false, after = [], afterLabel = '' } = $props();
   let text = $state('');
   let busy = $state(false);
   let menu = $state(false);
@@ -310,6 +314,15 @@
     }
   }
 
+  function sendAfter(a) {
+    if (a.needsText && !text.trim()) {
+      textarea?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      textarea?.focus();
+      return;
+    }
+    return submit(a.wrap(text.trim()), '', false);
+  }
+
   async function restoreMissing() {
     const choices = missing;
     const key = draftOf;
@@ -426,6 +439,14 @@
       {/if}
     </div>
   </div>
+  {#if after.length}
+    <div class="after">
+      {#if afterLabel}<span class="faint">{afterLabel}</span>{/if}
+      {#each after as a (a.label)}
+        <button data-cmd={a.cmd} class="btn small" disabled={busy || uploading} title={tip(a.title, a.cmd)} onclick={() => sendAfter(a)}>{a.label}</button>
+      {/each}
+    </div>
+  {/if}
 </div>
 
 <Sheet bind:open={recordingBin} title="Recordings">
@@ -566,6 +587,15 @@
     align-items: center;
     gap: 6px;
     flex-wrap: wrap;
+  }
+  .after {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    padding-top: 6px;
+    border-top: 1px dashed var(--line);
+    font-size: 12.5px;
   }
   .hint {
     flex: 1;

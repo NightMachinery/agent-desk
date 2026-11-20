@@ -10,6 +10,8 @@ function load() {
   }
 }
 const saved = load();
+export const deliverableModes = ['unread', 'latest', 'all'];
+export const deliverableModeLabel = { unread: 'Unread latest', latest: 'Latest', all: 'All' };
 
 export const ui = $state({
   // How long a row read by opening it stays in the list, dimmed, after you
@@ -22,6 +24,9 @@ export const ui = $state({
   nextAfterMessage: saved.nextAfterMessage ?? true,
   // Sections folded away, by name: needs, pinned, responses, new, runs.
   collapsed: saved.collapsed ?? {},
+  // Which deliverables the list shows: unread (the newest of each key,
+  // unread), latest (the newest of each key, read or not) or all.
+  deliverablesShow: deliverableModes.includes(saved.deliverablesShow) ? saved.deliverablesShow : 'unread',
 });
 
 export function saveUI() {
@@ -31,6 +36,7 @@ export function saveUI() {
         nextAfterQuestion: ui.nextAfterQuestion,
         nextAfterMessage: ui.nextAfterMessage,
         collapsed: ui.collapsed,
+        deliverablesShow: ui.deliverablesShow,
       }),
     );
   } catch {
@@ -41,4 +47,12 @@ export function saveUI() {
 export function toggleSection(name, open) {
   ui.collapsed[name] = open === undefined ? !ui.collapsed[name] : !open;
   saveUI();
+}
+
+/** List deliverables by mode (deliverableModes); omitted, the next one. */
+export function showDeliverables(mode) {
+  const at = deliverableModes.indexOf(ui.deliverablesShow);
+  ui.deliverablesShow = deliverableModes.includes(mode) ? mode : deliverableModes[(at + 1) % deliverableModes.length];
+  saveUI();
+  return ui.deliverablesShow;
 }

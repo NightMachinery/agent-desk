@@ -22,6 +22,7 @@ export const cmdKeys = {
   'node-settings': 'SPC n s',
   'agent-archive': 'SPC n a',
   'task-add': 'SPC n t',
+  'deliverables-show': 'SPC t d',
   'deliverable-works': 'SPC i w',
   'deliverable-open': 'SPC i g',
   'message-node': 'SPC n m',

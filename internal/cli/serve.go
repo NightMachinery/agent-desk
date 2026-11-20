@@ -287,13 +287,13 @@ type request struct {
 	Value *string `json:"value"`
 	// task: start, done, drop, defer, reopen or launch; screen and quota
 	// have their own.
-	Action        string            `json:"action"`
-	Profile       string            `json:"profile"`        // quota replace: the new agent's provider[/model][@thinking]
+	Action  string `json:"action"`
+	Profile string `json:"profile"` // quota replace: the new agent's provider[/model][@thinking]
 	// task add: Title, Type and Parent (a task id); To is the node, Text
 	// the brief.
-	Title  string `json:"title"`
-	Type   string `json:"type"`
-	Parent string `json:"parent"`
+	Title         string            `json:"title"`
+	Type          string            `json:"type"`
+	Parent        string            `json:"parent"`
 	QuotaActivity map[string]string `json:"quota_activity"` // last activity of each selected quota agent
 	// sets: define, delete or focus a project set by Name (focus with an
 	// empty Name turns it off); define takes Prefixes.
@@ -679,6 +679,9 @@ func (s *server) apiView(w http.ResponseWriter, r *http.Request) {
 		Host:    q.Get("host"),
 		Session: q.Get("session"),
 		All:     q.Get("all") == "1" || q.Get("all") == "true",
+	}
+	if m := q.Get("deliverables"); desk.ValidDeliverables(m) {
+		f.Deliverables = m
 	}
 	unfocused := q.Get("unfocused") == "1"
 	if !unfocused {
@@ -1563,8 +1566,8 @@ func (s *server) apiVerbatim(w http.ResponseWriter, r *http.Request) {
 	s.mu.Unlock()
 	resp := struct {
 		Items []verbatimView `json:"items"`
-		Total int               `json:"total"`
-		Refs  map[string]Ref    `json:"refs,omitempty"`
+		Total int            `json:"total"`
+		Refs  map[string]Ref `json:"refs,omitempty"`
 	}{Items: []verbatimView{}, Total: len(all)}
 	var texts []string
 	for i := len(all) - 1 - offset; i >= 0 && len(resp.Items) < limit; i-- {

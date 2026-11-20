@@ -76,6 +76,41 @@ func TestDeliverables(t *testing.T) {
 		t.Fatal("the superseded APK is not marked with --all")
 	}
 
+	// The three ways to list them: once b2 is read, unread drops it, latest
+	// keeps it (and still not b1), all lists b1 too.
+	h.ok(nil, "", "read", b2)
+	d = h.loadDesk()
+	listed := func(mode string, all bool) string {
+		ids := []string{}
+		for _, g := range d.Build(desk.Filter{Deliverables: mode, All: all}).Deliverables {
+			for _, it := range g.Items {
+				ids = append(ids, it.ID)
+			}
+		}
+		return strings.Join(ids, " ")
+	}
+	for _, c := range []struct {
+		mode string
+		all  bool
+		want string
+	}{
+		{"", false, site},
+		{desk.DeliverUnread, false, site},
+		{desk.DeliverLatest, false, site + " " + b2},
+		{desk.DeliverAll, false, b1 + " " + site + " " + b2},
+		{"", true, b1 + " " + site + " " + b2},
+		{desk.DeliverUnread, true, site},
+	} {
+		if got := listed(c.mode, c.all); got != c.want {
+			t.Fatalf("deliverables %q (all %v): %q, want %q", c.mode, c.all, got, c.want)
+		}
+	}
+	if n := d.Build(desk.Filter{}).DeliverablesAny; n != 3 {
+		t.Fatalf("deliverables_any = %d, want 3", n)
+	}
+	h.fails(nil, "", "--deliverables is", "show", "--deliverables", "newest")
+	h.ok(nil, "", "unread", b2)
+
 	// Responding: a deliverable and a done report answer a message, and
 	// both sit in its thread; the done report is listed with Responses.
 	h.respond = func(name string, args []string) (string, error) { return `{"status":"sent"}`, nil }
