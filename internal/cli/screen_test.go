@@ -3,7 +3,12 @@ package cli
 import (
 	"context"
 	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -247,5 +252,31 @@ func TestScreenSweepDoesNotBlockWritesOrOverrideDenial(t *testing.T) {
 	}
 	if hold := h.loadDesk().Screen(h.host).Hold; hold != nil {
 		t.Fatalf("sweep granted a denied request: %+v", hold)
+	}
+}
+
+// A banner command that hangs (hs with a stuck Hammerspoon) is killed with
+// its children after bannerTimeout, so screen take and release still exit.
+func TestBannerTimeoutKillsGroup(t *testing.T) {
+	a := &App{Home: t.TempDir(), Stderr: io.Discard}
+	old := bannerTimeout
+	bannerTimeout = 300 * time.Millisecond
+	defer func() { bannerTimeout = old }()
+	pidf := filepath.Join(a.Home, "child.pid")
+	t0 := time.Now()
+	if err := a.runBanner("sh", "-c", "sleep 30 & echo $! > "+pidf+"; wait"); err == nil {
+		t.Fatal("a hung banner reported success")
+	}
+	if d := time.Since(t0); d > 3*time.Second {
+		t.Fatalf("runBanner returned after %v", d)
+	}
+	b, err := os.ReadFile(pidf)
+	must(t, err)
+	pid, err := strconv.Atoi(strings.TrimSpace(string(b)))
+	must(t, err)
+	time.Sleep(100 * time.Millisecond)
+	if syscall.Kill(pid, 0) == nil {
+		syscall.Kill(pid, syscall.SIGKILL)
+		t.Fatalf("the banner's child %d survived the timeout", pid)
 	}
 }

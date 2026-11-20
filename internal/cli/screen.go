@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
@@ -203,11 +205,39 @@ func (a *App) screenRequest(d *desk.Desk, from ident.From, reason string, hold t
 	return q
 }
 
+// bannerTimeout bounds banner_on and banner_off. Hammerspoon's hs command
+// can hang when its IPC port is stuck, and an unbounded wait left screen take
+// and release processes behind for days.
+var bannerTimeout = 15 * time.Second
+
+// runBanner runs a banner command for at most bannerTimeout, then kills it
+// with its children (killGroupOnCancel), so the screen command always exits.
+func (a *App) runBanner(name string, args ...string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), bannerTimeout)
+	defer cancel()
+	if a.Exec != nil {
+		_, err := a.Exec(ctx, nil, name, args...)
+		return err
+	}
+	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.Env = envFor(name, os.Environ())
+	cmd.WaitDelay = 2 * time.Second
+	killGroupOnCancel(cmd)
+	out, err := cmd.CombinedOutput()
+	if ctx.Err() != nil {
+		return fmt.Errorf("gave up after %s", bannerTimeout)
+	}
+	if err != nil && len(out) > 0 {
+		return fmt.Errorf("%w: %s", err, strings.TrimSpace(string(out)))
+	}
+	return err
+}
+
 // screenGranted starts the banner and tells the agent the rules.
 func (a *App) screenGranted(c config.Config, reason string, until time.Time, by string) error {
 	secs := int(until.Sub(a.Now()).Seconds())
 	if c.Screen.BannerOn != "" {
-		if _, err := a.runExt(context.Background(), nil, "env",
+		if err := a.runBanner("env",
 			"AGENT_DESK_REASON="+reason, "AGENT_DESK_SECONDS="+strconv.Itoa(secs), "sh", "-c", c.Screen.BannerOn); err != nil {
 			fmt.Fprintf(a.Stderr, "agent-desk: warning: banner_on: %v\n", err)
 		}
@@ -253,7 +283,7 @@ func (a *App) screenLetGo(from ident.From, st desk.ScreenState, by string) error
 	}
 	c, err := a.config()
 	if err == nil && c.Screen.BannerOff != "" && st.Host == a.Host {
-		if _, err := a.runExt(context.Background(), nil, "sh", "-c", c.Screen.BannerOff); err != nil {
+		if err := a.runBanner("sh", "-c", c.Screen.BannerOff); err != nil {
 			fmt.Fprintf(a.Stderr, "agent-desk: warning: banner_off: %v\n", err)
 		}
 	}
