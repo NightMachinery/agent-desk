@@ -247,11 +247,10 @@ newest of each key, while unread), **Latest** (the newest of each key, read
 or not) or **All** (every one, replaced ones too); `SPC t d` switches, and
 `agent-desk show --deliverables unread|latest|all` does the same in the
 terminal. The item page shows a large **Open** button for the link and a
-download button per file. Under its message box, **Works** tells the agent
-it works, with anything you typed as a note, and **Problem** sends what you
-typed as the problem (with the box empty it puts you in the box). On the
-keyboard: `SPC i g` opens the link, `SPC i G` downloads the file, `SPC i w`
-says it works. Their notify class is `deliverable` (desktop: the
+download button per file. Beside its message box's Send, **Works** sends
+the message with "This worked." in front (with the box empty, just that).
+On the keyboard: `SPC i g` opens the link, `SPC i G` downloads the file,
+`SPC i w` is Works. Their notify class is `deliverable` (desktop: the
 machine it came from; phone when away), set in Settings like any other. A done report from a run's root coordinator marks
 the run finished. `agent-done` does this for you where it is installed.
 `agent-desk show --mine` shows only the calling session's own node.
@@ -570,9 +569,15 @@ first (`?sort=old`; recent first is the default) and an open item
 (`?item=q-7f3a`). From it you answer questions (with one-click "take your
 recommendation" or "go with the default"), message the agent behind any item
 or any coordinator, dismiss a question without answering it, and mark things
-read. What you type is kept as a draft for that item and that box (your
-picks too), in the browser's storage: switching items or reloading loses
-nothing, and it is dropped when you send it or after 30 days.
+read. What you type is kept as a draft for that item and that box (a
+question's picks and notes too), at once in the browser and a moment later
+on the desk, so a draft started on the laptop is in the same box on the
+phone. Opening the box, or coming back to the tab, picks up the newer draft
+from another device, unless this one has edits the desk has not taken yet
+(those win, and go up once the desk can be reached). Sending or emptying a
+box drops its draft everywhere; an untouched draft goes after 30 days.
+Drafts stay on the desk that serves the dashboard: `merge` does not copy
+them to other machines' desks.
 
 An item shows its conversation under it: your messages and answers, each
 with what happened to it ("joined the running turn", "queued, position 2",

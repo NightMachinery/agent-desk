@@ -191,6 +191,8 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("POST /api/quota", s.action(s.apiQuotaAct))
 	mux.HandleFunc("GET /api/providers", s.apiProviders)
 	mux.HandleFunc("POST /api/agent", s.action(s.apiAgentAct))
+	mux.HandleFunc("GET /api/draft", s.apiDraft)
+	mux.HandleFunc("POST /api/draft", s.action(s.apiDraftPut))
 	mux.HandleFunc("GET /api/auto-continue", s.apiAutoContinue)
 	s.voiceRoutes(mux)
 	mux.HandleFunc("GET /api/cache", s.apiCache)
@@ -302,6 +304,10 @@ type request struct {
 	// Media: answer, reply: files sent with it, as /api/upload returned them.
 	Media           []media.Ref `json:"media"`
 	VoiceRecordings []string    `json:"voice_recordings,omitempty"`
+	// draft: Key names the box, Draft is its JSON value (null drops it),
+	// Device the browser that typed it.
+	Draft  json.RawMessage `json:"draft"`
+	Device string          `json:"device"`
 }
 
 func (r request) notify() (map[string]string, error) {

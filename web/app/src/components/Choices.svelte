@@ -6,7 +6,8 @@
   // "(no answer)"); the answer box below sends it with any general message.
   import Markdown from './Markdown.svelte';
   import { tip } from '../lib/shortcuts.js';
-  import { loadDraft, saveDraft } from '../lib/drafts.js';
+  import { onDestroy } from 'svelte';
+  import { loadDraft, saveDraft, watchDraft } from '../lib/drafts.js';
 
   // draft names the question ("choices:q-7f3a"): picks and notes are saved
   // until sent, and another question starts from its own.
@@ -16,13 +17,20 @@
   // Per question: the picked keys and the text field.
   let ans = $state([]);
   let ansOf = null; // the question whose picks are in ans
+  let stopWatch = () => {};
+  onDestroy(() => stopWatch());
+  const fresh = (d) => (Array.isArray(d) && d.length === qs.length ? d : qs.map(() => ({ picked: [], text: '' })));
   $effect(() => {
     const k = draft + '#' + qs.length;
     const now = $state.snapshot(ans);
     if (k !== ansOf) {
       ansOf = k;
-      const d = loadDraft(draft);
-      ans = Array.isArray(d) && d.length === qs.length ? d : qs.map(() => ({ picked: [], text: '' }));
+      ans = fresh(loadDraft(draft));
+      stopWatch();
+      // Picks and notes made on another device, newer than these.
+      stopWatch = watchDraft(draft, (v) => {
+        if (ansOf === k) ans = fresh(v);
+      });
       return;
     }
     saveDraft(draft, now, now.every((a) => !a.picked.length && !a.text.trim()));

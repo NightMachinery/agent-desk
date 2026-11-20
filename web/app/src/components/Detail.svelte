@@ -169,12 +169,10 @@
       toast(err.message, 'error');
     }
   }
-  // A deliverable's buttons under its message box: Works tells the agent so,
-  // with what is typed as a note; Problem sends what is typed as the
-  // problem, or opens the empty box.
+  // A deliverable's Works, beside Send: the message starts "This worked.",
+  // with anything typed after it.
   const tried = [
-    { label: 'Works', cmd: 'deliverable-works', title: 'Tell the agent it works, with anything typed above as a note', wrap: (t) => (t ? `Works. ${t}` : 'Works.') },
-    { label: 'Problem', cmd: 'deliverable-problem', title: 'Tell the agent what is wrong: type it above, then press this', wrap: (t) => `Problem: ${t}`, needsText: true },
+    { label: 'Works', cmd: 'deliverable-works', title: 'Send with "This worked." in front (the box may be empty)', wrap: (t) => (t ? `This worked.\n\n${t}` : 'This worked.') },
   ];
   const files = $derived(kind === 'deliverable' ? (item?.media ?? []).filter((m) => m.kind === 'file') : []);
   const shownMedia = $derived(kind === 'deliverable' ? (item?.media ?? []).filter((m) => m.kind !== 'file') : (item?.media ?? []));
@@ -381,8 +379,7 @@
           hint={isQuestion && !item.answered ? '' : viaText(item.target)}
           target={item.target}
           send={reply}
-          after={kind === 'deliverable' ? tried : []}
-          afterLabel={kind === 'deliverable' ? 'Tried it?' : ''}
+          alongside={kind === 'deliverable' ? tried : []}
         />
       </section>
     {/if}

@@ -9,7 +9,8 @@
   // at once and sent with the message; the session gets their paths.
   import { behaviorLabel, behaviorHelp, desktopText, remoteText } from '../lib/format.js';
   import { get, upload } from '../lib/api.js';
-  import { clearDraft, loadDraft, saveDraft } from '../lib/drafts.js';
+  import { clearDraft, loadDraft, saveDraft, watchDraft } from '../lib/drafts.js';
+  import { toast } from '../lib/toast.svelte.js';
   import Sheet from './Sheet.svelte';
   import { captureVoice, placeBlock, transcriptBlock, voiceToken, voiceTokens } from '../lib/voice.js';
 
@@ -18,11 +19,10 @@
   // (e.g. "reply:t-k2m9"): its text is saved until sent, and a new name
   // starts from that box's own draft, with no files or notify overrides
   // carried over from the last one.
-  // after: buttons under the box that send its text their own way, with an
-  // optional lead-in (afterLabel): { label, cmd, title, wrap(text), needsText }.
-  // wrap turns what is typed into the message; needsText focuses the empty
-  // box instead of sending.
-  let { voiceNode = '', draft = '', id = undefined, label, placeholder, send, hint = '', quick = [], sendLabel = 'Send', target = null, compose = null, ready = false, after = [], afterLabel = '' } = $props();
+  // alongside: buttons beside Send that send what is typed their own way,
+  // { label, cmd, title, wrap(text) }; wrap turns the text (maybe empty)
+  // into the message, so they work with the box empty too.
+  let { voiceNode = '', draft = '', id = undefined, label, placeholder, send, hint = '', quick = [], sendLabel = 'Send', target = null, compose = null, ready = false, alongside = [] } = $props();
   let text = $state('');
   let busy = $state(false);
   let menu = $state(false);
@@ -106,6 +106,7 @@
 
   onDestroy(() => {
     closed = true;
+    stopWatch();
     void capture?.stop();
   });
 
@@ -201,6 +202,19 @@
   }
 
   let draftOf = null; // the box whose text is in the field
+  let stopWatch = () => {};
+  // The desk has a newer draft for this box, typed on another device (or
+  // null: sent or emptied there).
+  function fromDesk(k, v) {
+    if (closed || draftOf !== k || busy) return;
+    const next = typeof v === 'string' ? v : '';
+    if (next === text) return;
+    text = next;
+    for (const { id } of voiceTokens(text)) {
+      if (!voiceDraft.some((item) => item.id === id)) voiceDraft.push({ id });
+    }
+    if (next.trim()) toast('Picked up the draft from your other device.', 'info', 3000);
+  }
   $effect(() => {
     const k = draft;
     const t = text;
@@ -217,6 +231,8 @@
       }
       files = [];
       notify = { desktop: '', remote: '' };
+      stopWatch();
+      stopWatch = watchDraft(k, (v) => fromDesk(k, v));
       return;
     }
     saveDraft(k, t, !t.trim());
@@ -314,14 +330,6 @@
     }
   }
 
-  function sendAfter(a) {
-    if (a.needsText && !text.trim()) {
-      textarea?.scrollIntoView({ block: 'center', behavior: 'smooth' });
-      textarea?.focus();
-      return;
-    }
-    return submit(a.wrap(text.trim()), '', false);
-  }
 
   async function restoreMissing() {
     const choices = missing;
@@ -428,6 +436,10 @@
       </button>
     {/if}
     <span class="hint faint">{hint}</span>
+    <div class="sends">
+    {#each alongside as a (a.label)}
+      <button data-cmd={a.cmd} class="btn small alongside" disabled={busy || uploading} title={tip(a.title, a.cmd)} onclick={() => submit(a.wrap(text.trim()))}>{a.label}</button>
+    {/each}
     <div class="split">
       <button data-cmd="send" class="btn primary small main" disabled={busy || uploading || !(text.trim() || ready || readyFiles.length || hasVoice)} onclick={() => submit()} title={tip(behaviorHelp[def] || 'Send', 'send')}>
         {busy ? 'Sending…' : mainLabel}
@@ -438,15 +450,8 @@
         </button>
       {/if}
     </div>
-  </div>
-  {#if after.length}
-    <div class="after">
-      {#if afterLabel}<span class="faint">{afterLabel}</span>{/if}
-      {#each after as a (a.label)}
-        <button data-cmd={a.cmd} class="btn small" disabled={busy || uploading} title={tip(a.title, a.cmd)} onclick={() => sendAfter(a)}>{a.label}</button>
-      {/each}
     </div>
-  {/if}
+  </div>
 </div>
 
 <Sheet bind:open={recordingBin} title="Recordings">
@@ -588,14 +593,9 @@
     gap: 6px;
     flex-wrap: wrap;
   }
-  .after {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    flex-wrap: wrap;
-    padding-top: 6px;
-    border-top: 1px dashed var(--line);
-    font-size: 12.5px;
+  .alongside {
+    border-color: color-mix(in srgb, var(--deliverable) 45%, var(--line));
+    color: var(--deliverable);
   }
   .hint {
     flex: 1;
@@ -611,9 +611,16 @@
   .bell {
     font-size: 12px;
   }
+  /* Send, and any button that sends its own way (alongside), stay together
+     at the end of the row. */
+  .sends {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+  }
   .split {
     display: inline-flex;
-    margin-left: auto;
   }
   .split .main:not(:last-child) {
     border-top-right-radius: 0;

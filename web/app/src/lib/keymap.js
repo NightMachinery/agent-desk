@@ -371,8 +371,7 @@ C('list-read-all', 'Mark every unread item in the list read', () => click('mark-
 C('quota-copy-ids', 'Out of quota: copy the picked agent ids', () => click('quota-copy-ids'), tagged('quota-copy-ids', 'the Out of quota section'));
 C('deliverable-open', 'Deliverable: open its link', () => click('deliverable-open'), tagged('deliverable-open', 'a deliverable with a link'));
 C('deliverable-download', 'Deliverable: download its first file', () => click('deliverable-download'), tagged('deliverable-download', 'a deliverable with a file'));
-C('deliverable-works', 'Deliverable: tell the agent it works', () => click('deliverable-works'), tagged('deliverable-works', 'a deliverable whose agent can be messaged'));
-C('deliverable-problem', 'Deliverable: send what is typed as the problem (opens the empty box)', () => click('deliverable-problem'), tagged('deliverable-problem', 'a deliverable whose agent can be messaged'));
+C('deliverable-works', 'Deliverable: send with "This worked." in front', () => click('deliverable-works'), tagged('deliverable-works', 'a deliverable whose agent can be messaged'));
 C('quota-archive', 'Out of quota: archive the first agent in Paseo', () => click('quota-archive'), tagged('quota-archive', 'an agent out of quota'));
 C('quota-replace', 'Out of quota: replace the first agent (pick its provider, model and effort)', () => click('quota-replace'), tagged('quota-replace', 'an agent out of quota that can be replaced'));
 
