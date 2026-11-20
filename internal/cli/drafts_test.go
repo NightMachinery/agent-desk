@@ -100,3 +100,54 @@ func TestDashboardSections(t *testing.T) {
 		t.Fatalf("reset: %s", body)
 	}
 }
+
+// An item with a draft stays listed after it is read, flagged draft, until
+// the draft is dropped; a draft of only spaces does not count.
+func TestDraftKeepsItemListed(t *testing.T) {
+	h := newHarness(t)
+	const uuid = "22222222-0000-4000-8000-0000000000e1"
+	writePaseoRecord(t, h.paseo, uuid, sessA, "", "App coordinator")
+	env := map[string]string{"AI_AGENT": "claude-code", "CLAUDE_CODE_SESSION_ID": sessA, "PASEO_AGENT_ID": uuid}
+	h.ok(env, "", "join", "app/coord")
+	tid := h.ok(env, "Built and checked.", "tell", "--title", "Build ready")
+	h.ok(nil, "", "read", tid)
+	_, hd := testServer(t, h)
+	listed := func() (bool, bool) {
+		t.Helper()
+		_, body, _ := do(t, hd, "GET", "/api/view", "", nil)
+		var v struct {
+			View struct {
+				New []struct {
+					Items []struct {
+						ID    string `json:"display_id"`
+						Draft bool   `json:"draft"`
+					} `json:"items"`
+				} `json:"new"`
+			} `json:"view"`
+		}
+		must(t, json.Unmarshal([]byte(body), &v))
+		for _, g := range v.View.New {
+			for _, it := range g.Items {
+				if it.ID == tid {
+					return true, it.Draft
+				}
+			}
+		}
+		return false, false
+	}
+	if in, _ := listed(); in {
+		t.Fatal("a read notice without a draft is listed")
+	}
+	do(t, hd, "POST", "/api/draft", `{"key":"reply:`+tid+`","draft":"   "}`, dashboard)
+	if in, _ := listed(); in {
+		t.Fatal("a draft of spaces keeps the notice listed")
+	}
+	do(t, hd, "POST", "/api/draft", `{"key":"reply:`+tid+`","draft":"thanks, one more thing"}`, dashboard)
+	if in, draft := listed(); !in || !draft {
+		t.Fatalf("with a draft: listed %v, draft %v", in, draft)
+	}
+	do(t, hd, "POST", "/api/draft", `{"key":"reply:`+tid+`","draft":null}`, dashboard)
+	if in, _ := listed(); in {
+		t.Fatal("still listed after the draft is dropped")
+	}
+}

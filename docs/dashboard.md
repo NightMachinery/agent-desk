@@ -179,7 +179,10 @@ The API, all JSON:
   the desk's clock) only grows. `POST api/draft {key, draft, device}` saves
   it, and a null `draft` drops it, leaving the newer `updated` so other
   devices drop theirs. Keys are a box name and a colon (`answer:`, `reply:`,
-  `choices:`, `voice:`, `node:`); a draft is at most 256 KB.
+  `choices:`, `voice:`, `node:`); a draft is at most 256 KB. An item with
+  an `answer:`, `reply:` or `choices:` draft (not only spaces) is kept in
+  `api/view` read or not, and carries `draft: true` there and in
+  `api/item`.
 - `GET api/dashboard-prefs`: the dashboard settings shared by every device,
   `{"sections": [...]}` once the order of the list's sections is set.
   `POST api/dashboard-prefs {key: "sections", data: [...]}` sets it (each of

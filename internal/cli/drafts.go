@@ -5,6 +5,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/NightMachinery/agent-desk/internal/desk"
 	"github.com/NightMachinery/agent-desk/internal/store"
 )
 
@@ -69,4 +70,41 @@ func (s *server) apiDraftPut(_ *App, body request) (any, error) {
 		return nil, err
 	}
 	return st.PutDraft(body.Key, body.Draft, device, s.a.Now())
+}
+
+// draftedItems is the full ids of the items the user has a draft for.
+func (s *server) draftedItems(d *desk.Desk) map[string]bool {
+	st, err := s.a.store()
+	if err != nil {
+		return nil
+	}
+	ids, err := st.DraftItems()
+	if err != nil {
+		return nil
+	}
+	out := map[string]bool{}
+	for _, id := range ids {
+		if e, err := d.Resolve(id); err == nil {
+			out[e.ID] = true
+		}
+	}
+	return out
+}
+
+// markDrafted flags the listed items that have a draft.
+func markDrafted(v *desk.View, drafted map[string]bool) {
+	if len(drafted) == 0 {
+		return
+	}
+	mark := func(items []desk.Item) {
+		for i := range items {
+			items[i].Draft = drafted[items[i].Event.ID]
+		}
+	}
+	mark(v.Pinned)
+	for _, gs := range [][]desk.Group{v.NeedsYou, v.Deliverables, v.Responses, v.New} {
+		for _, g := range gs {
+			mark(g.Items)
+		}
+	}
 }

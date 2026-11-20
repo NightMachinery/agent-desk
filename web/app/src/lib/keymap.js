@@ -387,6 +387,14 @@ C('list-read-all', 'Mark every unread item in the list read', () => click('mark-
 C('quota-copy-ids', 'Out of quota: copy the picked agent ids', () => click('quota-copy-ids'), tagged('quota-copy-ids', 'the Out of quota section'));
 C('deliverable-open', 'Deliverable: open its link', () => click('deliverable-open'), tagged('deliverable-open', 'a deliverable with a link'));
 C('deliverable-download', 'Deliverable: download its first file', () => click('deliverable-download'), tagged('deliverable-download', 'a deliverable with a file'));
+// Discard the draft in the box that has focus, else the first box with one.
+function discardDraft() {
+  const here = document.activeElement?.closest?.('.composer')?.querySelector('[data-cmd="draft-discard"]');
+  const el = here || cmdEl('draft-discard');
+  if (!el) return say('No draft here');
+  el.click();
+}
+C('draft-discard', 'Discard the draft in this box (Undo brings it back)', discardDraft);
 C('deliverable-works', 'Deliverable: send with "This worked." in front', () => click('deliverable-works'), tagged('deliverable-works', 'a deliverable whose agent can be messaged'));
 C('quota-archive', 'Out of quota: archive the first agent in Paseo', () => click('quota-archive'), tagged('quota-archive', 'an agent out of quota'));
 C('quota-replace', 'Out of quota: replace the first agent (pick its provider, model and effort)', () => click('quota-replace'), tagged('quota-replace', 'an agent out of quota that can be replaced'));
@@ -540,6 +548,7 @@ bind('SPC i m', 'send-menu');
 bind('SPC i g', 'deliverable-open');
 bind('SPC i G', 'deliverable-download');
 bind('SPC i w', 'deliverable-works');
+bind('SPC i x', 'draft-discard');
 bind('y y', 'yank-link');
 bind('y i', 'yank-id');
 bind('y r', 'yank-resume');

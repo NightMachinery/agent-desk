@@ -19,6 +19,7 @@
   import { snapshot } from '../lib/nav.svelte.js';
   import { ui, toggleSection, deliverableModes, deliverableModeLabel, showDeliverables, orderedSections } from '../lib/ui.svelte.js';
   import { hide, show, settle, unhidden } from '../lib/hiding.svelte.js';
+  import { hasDraft } from '../lib/drafts.js';
 
 
   let { view, error, onmenu, onchange } = $props();
@@ -67,13 +68,21 @@
 
   // Marks a whole section read, with Undo. Not offered on Needs you: reading
   // a question there dismisses it, too much for one unguarded click.
-  async function markAllRead(targets) {
+  // An item with a draft is left unread (and listed) until the draft is sent
+  // or discarded.
+  const byId = $derived(new Map([...needs, ...deliverables, ...responses, ...fresh].flatMap((g) => g.items).concat(pinned).map((it) => [it.display_id, it])));
+  const drafted = (id) => !!byId.get(id)?.draft || hasDraft(id);
+  async function markAllRead(all) {
+    const kept = all.filter(drafted);
+    const targets = all.filter((t) => !kept.includes(t));
+    const keptNote = kept.length ? ` ${kept.length} with a draft stayed unread.` : '';
+    if (!targets.length) return toast(`${kept.length === 1 ? 'It has a draft' : 'They have drafts'}: send or discard first.`, 'info');
     targets.forEach((t) => cancelArrival(t));
     const hidden = route.all ? [] : targets; // Show all keeps read items listed
     hide(hidden);
     try {
       await post('read', { targets });
-      toast(`${targets.length} ${targets.length === 1 ? 'item' : 'items'} marked read.`, 'ok', 7000, {
+      toast(`${targets.length} ${targets.length === 1 ? 'item' : 'items'} marked read.${keptNote}`, 'ok', 7000, {
         label: 'Undo',
         run: async () => {
           show(hidden);

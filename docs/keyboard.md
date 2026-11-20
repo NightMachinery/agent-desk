@@ -86,7 +86,8 @@ follow, with groups in colour.
 - `SPC i`: the open item (`a` answer, `r` message, `d` read, `u` unread, `p`
   pin, `t` take, `o` its node, `n` "Notify me", `m` "Send how?"; on a
   deliverable, `g` open its link, `G` download its file, `w` Works: send
-  with "This worked." in front).
+  with "This worked." in front; `x` discard the draft in the box, with
+  Undo).
 - Tasks: `g c` the Tasks page here, `g C` everywhere (`SPC o t`, `SPC o T`),
   `SPC n t` a new task; on the page `/` searches.
 - `SPC o o`: the order of the list's sections, in Settings, with the first

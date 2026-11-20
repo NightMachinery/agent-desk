@@ -2,6 +2,7 @@
   import { route, href } from '../lib/route.svelte.js';
   import { kindOf, kindLabel, titleOf, previewLine, deliverableWhere } from '../lib/format.js';
   import Icon from './Icon.svelte';
+  import { hasDraft } from '../lib/drafts.js';
   import { desk } from '../lib/desk.svelte.js';
   import { sel, toggle, selecting } from '../lib/select.svelte.js';
   import { dimmed } from '../lib/linger.svelte.js';
@@ -9,6 +10,8 @@
   // base: the path the surroundings already name (the view's scope, or the
   // project and run of the group heading); the row shows its lineage below it.
   let { item, base = '' } = $props();
+  // A draft keeps the row listed and undimmed until it is sent or discarded.
+  const drafted = $derived(!!item.draft || hasDraft(item.display_id));
   const kind = $derived(kindOf(item));
   const lineage = $derived.by(() => {
     const p = item.event.path.split('/');
@@ -79,7 +82,7 @@
   class:selected={route.item === item.display_id}
   class:picked
   class:unread={item.unread}
-  class:lingering={dimmed(item.event.id) && route.item !== item.display_id}
+  class:lingering={dimmed(item.event.id) && route.item !== item.display_id && !drafted}
   data-item={item.display_id}
   href={href({ item: item.display_id })}
   {onclick}
@@ -95,6 +98,7 @@
     {#if item.pinned}<span class="pin" title="Pinned"><Icon name="pin" size={13} /></span>{/if}
     {#if item.attachments}<span class="pin" title={item.attachments + (item.attachments === 1 ? ' attachment' : ' attachments')}><Icon name="clip" size={13} />{#if item.attachments > 1}<span class="n">{item.attachments}</span>{/if}</span>{/if}
     {#if item.dismissed}<span class="chip">Dismissed</span>{/if}
+    {#if drafted}<span class="chip draft" title="You have a draft here: it stays listed and unread until you send or discard it"><Icon name="pencil" size={11} /> Draft</span>{/if}
     {#if item.unread}<span class="new" title="Unread"></span>{/if}
   </div>
   {#if item.response && item.asked}

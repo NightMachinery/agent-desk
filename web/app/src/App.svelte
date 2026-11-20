@@ -3,6 +3,7 @@
   import { route, go, pageOpen } from './lib/route.svelte.js';
   import { get, watch } from './lib/api.js';
   import { ui, loadSharedUI } from './lib/ui.svelte.js';
+  import { hasDraft, onDraftChange } from './lib/drafts.js';
   import { startOutbox } from './lib/outbox.svelte.js';
   import { toasts } from './lib/toast.svelte.js';
   import { desk } from './lib/desk.svelte.js';
@@ -108,7 +109,10 @@
     untrack(() => moved(cur));
   });
   // Leaving an item the page moved to by itself reads it (arrival.js).
-  arrivalHooks({ poster: (id) => post('read', { target: id }), onRead: () => refresh() });
+  arrivalHooks({ poster: (id) => post('read', { target: id }), onRead: () => refresh(), kept: hasDraft });
+  // A draft started or dropped changes what the list keeps (an item with a
+  // draft stays listed): look again once it has reached the desk.
+  $effect(() => onDraftChange(() => setTimeout(() => loadView(), 1600)));
   let lastItem = route.item;
   $effect(() => {
     const cur = route.item;

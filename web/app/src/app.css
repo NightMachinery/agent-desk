@@ -191,6 +191,14 @@ button {
   background: var(--deliverable-soft);
   color: var(--deliverable);
 }
+/* An item the user has a draft for (ItemRow). */
+.chip.draft {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: var(--default-soft);
+  color: var(--default);
+}
 .chip.notice {
   background: var(--notice-soft);
   color: var(--notice);

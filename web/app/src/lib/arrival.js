@@ -14,11 +14,13 @@ export const arrival = { id: '', pending: false };
 // so node tests can load it.
 let send = async (/** @type {string} */ _id) => {};
 let after = () => {};
+let held = (/** @type {string} */ _id) => false;
 
-/** poster(id) marks id read; onRead runs once it has. */
-export function arrivalHooks({ poster, onRead } = {}) {
+/** poster(id) marks id read; onRead runs once it has; kept(id) says a draft keeps it unread. */
+export function arrivalHooks({ poster, onRead, kept } = {}) {
   if (poster) send = poster;
   if (onRead) after = onRead;
+  if (kept) held = kept;
 }
 
 /** The page is about to move to id by itself. */
@@ -39,7 +41,7 @@ export function settleArrival(id) {
   if (!isAutoArrival(id)) return;
   const pending = arrival.pending;
   arrivedAuto('');
-  if (pending) send(id).then(() => after(), () => {});
+  if (pending && !held(id)) send(id).then(() => after(), () => {});
 }
 
 /** The open item changed from prev to cur. */

@@ -24,6 +24,7 @@ export const cmdKeys = {
   'task-add': 'SPC n t',
   'deliverables-show': 'SPC t d',
   'section-order': 'SPC o o',
+  'draft-discard': 'SPC i x',
   'deliverable-works': 'SPC i w',
   'deliverable-open': 'SPC i g',
   'message-node': 'SPC n m',

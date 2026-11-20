@@ -693,12 +693,23 @@ func (s *server) apiView(w http.ResponseWriter, r *http.Request) {
 	if m := q.Get("deliverables"); desk.ValidDeliverables(m) {
 		f.Deliverables = m
 	}
+	// An item with a draft stays listed, read or not, until the draft is
+	// sent or discarded.
+	drafted := s.draftedItems(d)
+	if len(drafted) > 0 && f.Linger == nil {
+		f.Linger = map[string]bool{}
+	}
+	for id := range drafted {
+		f.Linger[id] = true
+	}
 	unfocused := q.Get("unfocused") == "1"
 	if !unfocused {
 		f.Focus = d.FocusPrefixes()
 	}
 	if l := q.Get("linger"); l != "" {
-		f.Linger = map[string]bool{}
+		if f.Linger == nil {
+			f.Linger = map[string]bool{}
+		}
 		for i, id := range strings.Split(l, ",") {
 			if i == 200 {
 				break
@@ -720,6 +731,7 @@ func (s *server) apiView(w http.ResponseWriter, r *http.Request) {
 		v.Pinned = pinned
 		v.Runs = searchTree(v.Runs, strings.ToLower(query), nodeSessions(d))
 	}
+	markDrafted(&v, drafted)
 	resp := viewResponse{
 		Host: d.Host, Stamp: stamp, Path: f.Prefix, View: v,
 		Filter: viewFilter{Host: f.Host, Session: f.Session, All: f.All, Query: query},
@@ -1190,6 +1202,7 @@ func (s *server) apiItem(w http.ResponseWriter, r *http.Request) {
 	}
 	it := d.Item(e)
 	it.Dismissed = d.Dismissed(e.ID) && isOpen(d, e.ID)
+	it.Draft = s.draftedItems(d)[e.ID]
 	for i := range d.Questions {
 		if d.Questions[i].ID == e.ID {
 			q := d.Questions[i]

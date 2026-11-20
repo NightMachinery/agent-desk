@@ -62,3 +62,15 @@ test('items opened by the user are not arrivals', async () => {
   await Promise.resolve();
   assert.deepEqual(sent, []);
 });
+
+test('an auto arrival with a draft stays unread when the user leaves it', async () => {
+  reset();
+  const drafted = new Set(['t-7']);
+  arrivalHooks({ kept: (id) => drafted.has(id) });
+  arrivedAuto('t-7');
+  arrival.pending = true;
+  routeMoved('t-7', 't-8');
+  await Promise.resolve();
+  assert.deepEqual(sent, []);
+  arrivalHooks({ kept: () => false });
+});

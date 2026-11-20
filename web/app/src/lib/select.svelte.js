@@ -1,3 +1,4 @@
+import { hasDraft } from './drafts.js';
 // Rows chosen for a bulk action. Ids are display ids; `order` is every row in
 // the list, top to bottom, so shift-click can select a range.
 import { cancelArrival } from './arrival.js';
@@ -50,8 +51,13 @@ export function prune(order) {
 
 /** Marks the selection read or unread; qs open questions among it get dismissed. */
 export async function markSelected(read, onchange, qs = 0) {
-  const targets = [...sel.ids];
-  if (!targets.length) return;
+  // Marking read leaves out what has a draft: it stays unread until sent or discarded.
+  const kept = read ? [...sel.ids].filter(hasDraft) : [];
+  const targets = [...sel.ids].filter((t) => !kept.includes(t));
+  if (!targets.length) {
+    if (kept.length) toast(`${kept.length === 1 ? 'It has a draft' : 'They have drafts'}: send or discard first.`, 'info');
+    return;
+  }
   targets.forEach((t) => cancelArrival(t)); // the user decided its state
   const hidden = read && !route.all ? targets : []; // Show all keeps read items listed
   hide(hidden);
@@ -60,6 +66,7 @@ export async function markSelected(read, onchange, qs = 0) {
     await post(read ? 'read' : 'unread', { targets });
     const n = (k, w) => `${k} ${k === 1 ? w : w + 's'}`;
     let msg = `${n(targets.length, 'item')} marked ${read ? 'read' : 'unread'}.`;
+    if (kept.length) msg += ` ${n(kept.length, 'item')} with a draft stayed unread.`;
     if (read && qs) msg += ` ${n(qs, 'question')} dismissed: still open, answer from Show all.`;
     toast(msg, 'ok', qs ? 6000 : 3000);
     clear();

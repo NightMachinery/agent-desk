@@ -379,6 +379,10 @@ type Item struct {
 	// SupersededBy: a deliverable with a newer one of the same key in its
 	// project, by display id. Superseded ones leave Deliverables.
 	SupersededBy string `json:"superseded_by,omitempty"`
+	// Draft: the user has a draft for it on the desk (an answer, a message,
+	// a question's picks), which keeps it listed until sent or discarded.
+	// Set by the dashboard's server, not by Build.
+	Draft bool `json:"draft,omitempty"`
 }
 
 // Group is the items of one project and run.

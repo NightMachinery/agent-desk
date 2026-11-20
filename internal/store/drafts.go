@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 )
 
@@ -80,4 +81,33 @@ RETURNING updated`, key, v, ms, device).Scan(&d.Updated)
 	}
 	_, err = s.DB.Exec(`DELETE FROM drafts WHERE updated < ?`, ms-DraftKeep.Milliseconds())
 	return d, err
+}
+
+// DraftItems returns the display ids of the items the user has a draft for:
+// an answer, a message or a question's picks with something in it.
+func (s *Store) DraftItems() ([]string, error) {
+	rows, err := s.DB.Query(`SELECT key, value FROM drafts WHERE value IS NOT NULL
+  AND (key LIKE 'answer:%' OR key LIKE 'reply:%' OR key LIKE 'choices:%')`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	seen := map[string]bool{}
+	var out []string
+	for rows.Next() {
+		var k, v string
+		if err := rows.Scan(&k, &v); err != nil {
+			return nil, err
+		}
+		var text string
+		if json.Unmarshal([]byte(v), &text) == nil && strings.TrimSpace(text) == "" {
+			continue // only whitespace: no draft
+		}
+		_, id, _ := strings.Cut(k, ":")
+		if !seen[id] {
+			seen[id] = true
+			out = append(out, id)
+		}
+	}
+	return out, rows.Err()
 }

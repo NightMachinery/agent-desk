@@ -82,6 +82,38 @@ const device = (() => {
   }
 })();
 
+/** Whether v counts as a draft: text with something in it, or picks and notes with anything chosen or written. */
+export function filled(v) {
+  if (typeof v === 'string') return v.trim() !== '';
+  if (Array.isArray(v)) return v.some((a) => a?.picked?.length || a?.text?.trim());
+  return v != null;
+}
+
+// The boxes that belong to an item: a draft in any keeps it unread and listed.
+const ITEM_BOXES = ['answer:', 'reply:', 'choices:'];
+
+/** Whether this device has a draft for the item (its display id). */
+export function hasDraft(display) {
+  return !!display && ITEM_BOXES.some((b) => filled(loadDraft(b + display)));
+}
+
+const listeners = new Set();
+/** cb(key) runs when a box's draft starts or stops having something in it; returns the unsubscribe. */
+export function onDraftChange(cb) {
+  listeners.add(cb);
+  return () => listeners.delete(cb);
+}
+function changed(key, before, after) {
+  if (filled(before) === filled(after)) return;
+  for (const cb of listeners) {
+    try {
+      cb(key);
+    } catch {
+      // one listener's failure does not stop the others
+    }
+  }
+}
+
 /** The saved value for key, or null. */
 export function loadDraft(key) {
   const r = read(key);
@@ -96,11 +128,24 @@ export function saveDraft(key, value, empty = false) {
   if (r ? same(r.v, v) : v === null) return;
   write(key, { t: Date.now(), v, s: r?.s ?? 0, d: true });
   later(key);
+  changed(key, r?.v, v);
 }
 
 export function clearDraft(key) {
   saveDraft(key, null, true);
 }
+
+/** Drop the drafts under keys, here and on the desk; returns the function that puts them back (Undo). */
+export function discardDrafts(keys) {
+  const saved = keys.map((k) => [k, loadDraft(k)]).filter(([, v]) => v != null);
+  for (const [k] of saved) clearDraft(k);
+  return () => {
+    for (const [k, v] of saved) saveDraft(k, v);
+  };
+}
+
+/** The draft keys of an item's boxes (display id), its recordings' too. */
+export const itemDraftKeys = (display) => ITEM_BOXES.flatMap((b) => [b + display, 'voice:' + b + display]);
 
 // --- syncing with the desk ------------------------------------------------
 
@@ -186,6 +231,7 @@ async function pull(w) {
   } else {
     write(w.key, { t: Date.now(), v: srv.value, s: srv.updated, d: false });
   }
+  changed(w.key, r?.v, srv.value);
   w.apply(srv.value ?? null);
 }
 

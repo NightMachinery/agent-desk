@@ -9,7 +9,8 @@
   // at once and sent with the message; the session gets their paths.
   import { behaviorLabel, behaviorHelp, desktopText, remoteText } from '../lib/format.js';
   import { get, upload } from '../lib/api.js';
-  import { clearDraft, loadDraft, saveDraft, watchDraft } from '../lib/drafts.js';
+  import { clearDraft, discardDrafts, filled, loadDraft, onDraftChange, saveDraft, watchDraft } from '../lib/drafts.js';
+  import Icon from './Icon.svelte';
   import { toast } from '../lib/toast.svelte.js';
   import Sheet from './Sheet.svelte';
   import { captureVoice, placeBlock, transcriptBlock, voiceToken, voiceTokens } from '../lib/voice.js';
@@ -21,8 +22,9 @@
   // carried over from the last one.
   // alongside: buttons beside Send that send what is typed their own way,
   // { label, cmd, title, wrap(text) }; wrap turns the text (maybe empty)
-  // into the message, so they work with the box empty too.
-  let { voiceNode = '', draft = '', id = undefined, label, placeholder, send, hint = '', quick = [], sendLabel = 'Send', target = null, compose = null, ready = false, alongside = [] } = $props();
+  // into the message, so they work with the box empty too. linked: other
+  // drafts that Discard drops with this box's (a question's picks).
+  let { voiceNode = '', draft = '', id = undefined, label, placeholder, send, hint = '', quick = [], sendLabel = 'Send', target = null, compose = null, ready = false, alongside = [], linked = [] } = $props();
   let text = $state('');
   let busy = $state(false);
   let menu = $state(false);
@@ -203,6 +205,35 @@
 
   let draftOf = null; // the box whose text is in the field
   let stopWatch = () => {};
+  // This box's draft changed outside the field (Discard, its Undo, another
+  // component): show it. linkedTick follows the linked drafts.
+  let linkedTick = $state(0);
+  function fromLocal() {
+    const v = loadDraft(draftOf);
+    const next = typeof v === 'string' ? v : '';
+    if (next === text) return;
+    text = next;
+    for (const { id } of voiceTokens(text)) {
+      if (!voiceDraft.some((item) => item.id === id)) voiceDraft.push({ id });
+    }
+  }
+  $effect(() =>
+    onDraftChange((key) => {
+      if (key === draftOf) fromLocal();
+      if (linked.includes(key)) linkedTick++;
+    }),
+  );
+  const linkedFilled = $derived.by(() => {
+    void linkedTick;
+    return linked.some((k) => filled(loadDraft(k)));
+  });
+  // Drop this box's draft (and the linked ones) everywhere, with Undo.
+  function discard() {
+    const restore = discardDrafts([draftOf, 'voice:' + draftOf, ...linked]);
+    text = '';
+    voiceDraft = [];
+    toast('Draft discarded.', 'ok', 8000, { label: 'Undo', run: restore });
+  }
   // The desk has a newer draft for this box, typed on another device (or
   // null: sent or emptied there).
   function fromDesk(k, v) {
@@ -426,6 +457,11 @@
       </button>
       <button class="btn ghost small attach" onclick={() => (recordingBin = true)}>Recordings</button>
     {/if}
+    {#if text.trim() || linkedFilled}
+      <button data-cmd="draft-discard" class="btn ghost small discard" disabled={busy} onclick={discard} title={tip(linked.length ? 'Discard this draft: the text and your picks (Undo brings it back)' : 'Discard this draft (Undo brings it back)', 'draft-discard')}>
+        <Icon name="trash" size={13} /> Discard
+      </button>
+    {/if}
     {#each quick as q (q.label)}
       <button data-cmd="quick" class="btn small" disabled={busy} onclick={() => submit(q.text)} title={tip(q.text, 'quick')}>{q.label}</button>
     {/each}
@@ -592,6 +628,12 @@
     align-items: center;
     gap: 6px;
     flex-wrap: wrap;
+  }
+  .discard {
+    color: var(--muted);
+  }
+  .discard:hover:not(:disabled) {
+    color: var(--blocked);
   }
   .alongside {
     border-color: color-mix(in srgb, var(--deliverable) 45%, var(--line));

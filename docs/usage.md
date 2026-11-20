@@ -583,6 +583,18 @@ box drops its draft everywhere; an untouched draft goes after 30 days.
 Drafts stay on the desk that serves the dashboard: `merge` does not copy
 them to other machines' desks.
 
+An item with a draft (a message or answer with more than spaces in it, or a
+question's picks or notes) stays in the list, undimmed and marked **Draft**,
+until you send or discard the draft, even once it is read. The dashboard
+does not mark it read by itself: opening it, moving on from it, and the
+mark-all and selection Mark read buttons leave it unread (the toast says how
+many stayed), and its own Mark read button says why and offers to discard.
+Opening an unread item still reads it at once, so a draft started after
+that keeps it listed but read. **Discard** beside a box with a draft drops
+it everywhere, with Undo (`SPC i x`); on a question it drops your picks and
+notes with the text. Sending or discarding reads an unread item, as opening
+it would have.
+
 An item shows its conversation under it: your messages and answers, each
 with what happened to it ("joined the running turn", "queued, position 2",
 "waiting for a merge to host-b", a fallback note when the behaviour you asked

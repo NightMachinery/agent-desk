@@ -7,7 +7,7 @@
   import Markdown from './Markdown.svelte';
   import { tip } from '../lib/shortcuts.js';
   import { onDestroy } from 'svelte';
-  import { loadDraft, saveDraft, watchDraft } from '../lib/drafts.js';
+  import { loadDraft, onDraftChange, saveDraft, watchDraft } from '../lib/drafts.js';
 
   // draft names the question ("choices:q-7f3a"): picks and notes are saved
   // until sent, and another question starts from its own.
@@ -19,6 +19,16 @@
   let ansOf = null; // the question whose picks are in ans
   let stopWatch = () => {};
   onDestroy(() => stopWatch());
+  // The picks were discarded or put back from outside (the answer box's
+  // Discard and its Undo).
+  $effect(() =>
+    onDraftChange((key) => {
+      if (key !== draft) return;
+      const now = JSON.stringify($state.snapshot(ans));
+      const v = fresh(loadDraft(draft));
+      if (JSON.stringify(v) !== now) ans = v;
+    }),
+  );
   const fresh = (d) => (Array.isArray(d) && d.length === qs.length ? d : qs.map(() => ({ picked: [], text: '' })));
   $effect(() => {
     const k = draft + '#' + qs.length;

@@ -6,7 +6,7 @@
   import { post } from '../lib/api.js';
   import { toast } from '../lib/toast.svelte.js';
   import { chooseSendCache } from '../lib/cache.svelte.js';
-  import { clearDraft } from '../lib/drafts.js';
+  import { clearDraft, discardDrafts, hasDraft, itemDraftKeys, onDraftChange } from '../lib/drafts.js';
   import { pendingMessages, queueMessage } from '../lib/outbox.svelte.js';
   import { desk } from '../lib/desk.svelte.js';
   import { agentName, copy, deliverableURL, kindLabel, kindOf, sessionOf, short, slotName, titleOf, viaText } from '../lib/format.js';
@@ -55,9 +55,15 @@
 
   // Opening an item reads it. Not a question: reading one dismisses it.
   // Nor an item the page moved to by itself (arrival.js): that is read once
-  // the user acts on it or moves on.
+  // the user acts on it or moves on. Nor one with a draft (here or on the
+  // desk): it stays unread until the draft is sent or discarded, and is
+  // read then.
+  let draftTick = $state(0);
+  $effect(() => onDraftChange(() => draftTick++));
   $effect(() => {
+    void draftTick;
     if (!it || isQuestion || !it.unread || autoRead.has(e.id)) return;
+    if (hasDraft(it.display_id) || (it.draft && draftTick === 0)) return;
     if (arrival.id === it.display_id) {
       arrival.pending = true;
       return;
@@ -153,6 +159,17 @@
     return queued;
   }
   async function mark(read) {
+    if (read && !isQuestion && hasDraft(it.display_id)) {
+      const display = it.display_id;
+      toast('It has a draft, so it stays unread until you send or discard it.', 'info', 8000, {
+        label: 'Discard and mark read',
+        run: () => {
+          const restore = discardDrafts(itemDraftKeys(display));
+          toast('Draft discarded.', 'ok', 8000, { label: 'Undo', run: restore });
+        },
+      });
+      return;
+    }
     cancelArrival(it.display_id); // the user said read or unread
     try {
       await post(read ? 'read' : 'unread', read ? { target: it.display_id } : { id: it.display_id });
@@ -354,6 +371,7 @@
         <Composer
           id="answer-box"
           draft={'answer:' + it.display_id}
+          linked={e.meta?.choices ? ['choices:' + it.display_id] : []}
           voiceNode={['set', 'clear', 'link'].includes(e.kind) ? e.path.slice(0, e.path.lastIndexOf('/')) : e.path}
           label={e.meta?.choices ? 'A message with your answers (optional)' : 'Answer'}
           placeholder={e.meta?.choices ? 'Anything that is not about one question…' : 'Type your answer…'}
