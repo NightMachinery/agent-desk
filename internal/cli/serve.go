@@ -73,6 +73,11 @@ type server struct {
 	quotaMu   sync.Mutex
 	quotaAt   time.Time
 	quotaResp map[string]any
+	// The provider choices for Replace (apiProviders).
+	provMu         sync.Mutex
+	provResp       []ProviderChoice
+	provAt         time.Time
+	provRefreshing bool
 	// The cached desk contains only store-derived state. Each request gets
 	// its own time and live statuses.
 	readMu    sync.Mutex
@@ -183,6 +188,7 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("POST /api/push", s.apiPushAct)
 	mux.HandleFunc("GET /api/quota", s.apiQuota)
 	mux.HandleFunc("POST /api/quota", s.action(s.apiQuotaAct))
+	mux.HandleFunc("GET /api/providers", s.apiProviders)
 	mux.HandleFunc("GET /api/auto-continue", s.apiAutoContinue)
 	s.voiceRoutes(mux)
 	mux.HandleFunc("GET /api/cache", s.apiCache)

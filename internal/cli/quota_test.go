@@ -256,3 +256,75 @@ func TestQuotaSeat(t *testing.T) {
 		t.Fatalf("usable seat: %+v", u)
 	}
 }
+
+// Replace offers every enabled, available Paseo provider with its models
+// and the quota of the account it runs on, learnt from the agents on it.
+func TestProviderChoices(t *testing.T) {
+	h := newHarness(t)
+	rec := func(id, provider string) {
+		b, _ := json.Marshal(map[string]any{"id": id, "title": id, "provider": provider, "labels": map[string]string{},
+			"config": map[string]string{"model": "m", "thinkingOptionId": "high"}})
+		dir := filepath.Join(h.paseo, "agents", "Users-example-code")
+		must(t, os.MkdirAll(dir, 0o755))
+		must(t, os.WriteFile(filepath.Join(dir, id+".json"), b, 0o644))
+	}
+	rec("a1", "claude")
+	rec("a2", "work-claude")
+	rec("a3", "work-claude")
+	rec("a4", "codex")
+	reset := 1795050000.0
+	fakeKeeper(t, h, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/agents":
+			writeJSON(w, keeper.List{Enabled: true, Agents: []keeper.Agent{
+				{ID: "a1", Seat: &keeper.Seat{Account: "claude:default"}},
+				{ID: "a2", Seat: &keeper.Seat{Account: "claude:work"}},
+				{ID: "a3", Seat: &keeper.Seat{Account: "claude:work"}},
+			}})
+		case "/v1/accounts":
+			writeJSON(w, map[string]any{"accounts": []keeper.Account{
+				{ID: "claude:default", Label: "default", Verdict: "blocked", BlockedUntil: &reset, BlockedReasons: []string{"weekly at 100%"}},
+				{ID: "claude:work", Label: "work", Verdict: "usable"},
+			}})
+		}
+	})
+	h.respond = func(name string, args []string) (string, error) {
+		if name != "paseo" {
+			return "{}", nil
+		}
+		switch strings.Join(args, " ") {
+		case "provider ls --json":
+			return `[{"provider":"claude","label":"Claude","status":"available","enabled":"Enabled"},
+				{"provider":"codex","label":"Codex","status":"unavailable","enabled":"Disabled"},
+				{"provider":"work-claude","label":"Claude (Work)","status":"available","enabled":"Enabled"},
+				{"provider":"broken","label":"Broken","status":"available","enabled":"Enabled"}]`, nil
+		case "provider models claude --json", "provider models work-claude --json":
+			return `[{"model":"Opus","id":"opus","description":"d","thinkingOptionIds":["low","high"],"defaultThinkingOptionId":"high"},
+				{"model":"Haiku","id":"haiku","thinkingOptionIds":null}]`, nil
+		}
+		return "", os.ErrNotExist
+	}
+	_, hd := testServer(t, h)
+	code, body, _ := do(t, hd, "GET", "/api/providers", "", nil)
+	if code != 200 {
+		t.Fatalf("api/providers: %d %s", code, body)
+	}
+	var resp struct {
+		Providers []ProviderChoice `json:"providers"`
+	}
+	must(t, json.Unmarshal([]byte(body), &resp))
+	ps := resp.Providers
+	if len(ps) != 3 || ps[0].ID != "claude" || ps[1].ID != "work-claude" || ps[2].ID != "broken" {
+		t.Fatalf("providers: %s", body)
+	}
+	if c := ps[0]; c.Account != "claude:default" || c.Verdict != "blocked" || c.AvailableAt == nil || len(c.Reasons) != 1 ||
+		len(c.Models) != 2 || c.Models[0].DefaultThinking != "high" || len(c.Models[1].Thinking) != 0 || c.Models[1].Thinking == nil {
+		t.Fatalf("claude: %+v", c)
+	}
+	if w := ps[1]; w.Account != "claude:work" || w.AccountLabel != "work" || w.Verdict != "usable" || w.AvailableAt != nil {
+		t.Fatalf("work-claude: %+v", w)
+	}
+	if b := ps[2]; len(b.Models) != 0 || b.Account != "" {
+		t.Fatalf("a provider whose models fail is still offered, without models: %+v", b)
+	}
+}

@@ -51,9 +51,11 @@ type Seat struct {
 // BlockedUntil is the latest reset among its blocking windows (Unix
 // seconds), when it is blocked.
 type Account struct {
-	ID           string   `json:"id"`
-	Verdict      string   `json:"verdict"`
-	BlockedUntil *float64 `json:"blocked_until"`
+	ID             string   `json:"id"`
+	Label          string   `json:"label"`
+	Verdict        string   `json:"verdict"`
+	BlockedUntil   *float64 `json:"blocked_until"`
+	BlockedReasons []string `json:"blocked_reasons"`
 }
 
 // Accounts reads every account's last snapshot (no refresh).

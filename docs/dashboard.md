@@ -141,8 +141,9 @@ The API, all JSON:
   `title`, `provider`, `last_active`, `parent`, `children`, `nodes` (every
   desk node its session holds, in join order; a session may hold several),
   `scopes` (the nodes it is filtered under: its own, else its nearest
-  ancestor's), `auto_continue` and `dismissed`), whether `auto_continue` and
-  `launch_ready` are configured, and `profiles` (the Replace menu). Under a
+  ancestor's), `model` and `thinking` it was started with, `auto_continue`
+  and `dismissed`), whether `auto_continue` and `launch_ready` are
+  configured, and `profiles` (presets in the Replace dialog). Under a
   focus only the agents with a scope inside it are listed, unless
   `unfocused=1`. (`nodes` and `scopes` are lists since agents could hold
   several nodes; they replace the single `node` and `scope`.)
@@ -150,6 +151,13 @@ The API, all JSON:
   `auto-continue-off`, `ask-parent`, `replace`, `dismiss` or `undismiss`.
   Dismiss and Undismiss also accept `targets` for multiple agent ids.
   `quota_activity` carries the last activity shown for each selected agent.
+- `GET api/providers?fresh=`: the providers the Replace dialog offers:
+  each enabled, available Paseo provider as `{id, label, models: [{id,
+  label, description, thinking, default_thinking}], account, account_label,
+  verdict, available_at, reasons}`. The account is the keeper account most
+  of the provider's live agents are seated on (the keeper names accounts
+  per agent, not per Paseo provider). Served from a five-minute cache,
+  refreshed in the background; `fresh=1` waits for Paseo.
   Dismissal flags are applied to every quota response, including cached lists.
 - `GET api/auto-continue?paseo=`: `{available, on}` for one agent, for the
   node panel's checkbox.

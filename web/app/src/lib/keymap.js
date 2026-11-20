@@ -344,6 +344,7 @@ C('node-read-all', 'Mark everything under the node read', () => click('read-all'
 C('node-settings', "The node's notify settings", () => click('node-settings'), tagged('node-settings', 'a node page'));
 C('list-read-all', 'Mark every unread item in the list read', () => click('mark-all-read'), tagged('mark-all-read', 'unread items in the list'));
 C('quota-copy-ids', 'Out of quota: copy the picked agent ids', () => click('quota-copy-ids'), tagged('quota-copy-ids', 'the Out of quota section'));
+C('quota-replace', 'Out of quota: replace the first agent (pick its provider, model and effort)', () => click('quota-replace'), tagged('quota-replace', 'an agent out of quota that can be replaced'));
 
 // Selecting.
 C('select', 'Select or unselect the item', () => (route.item ? toggle(route.item) : say('Nothing open')));

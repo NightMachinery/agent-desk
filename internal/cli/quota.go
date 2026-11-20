@@ -30,6 +30,8 @@ type QuotaAgent struct {
 	Paseo      string     `json:"paseo"`
 	Title      string     `json:"title"`
 	Provider   string     `json:"provider"`
+	Model      string     `json:"model,omitempty"`    // as started, for Replace's defaults
+	Thinking   string     `json:"thinking,omitempty"` // likewise
 	Cwd        string     `json:"cwd"`
 	LastActive string     `json:"last_active,omitempty"`
 	Parent     *AgentRef  `json:"parent,omitempty"`
@@ -106,7 +108,7 @@ func (a *App) quotaAgents(ctx context.Context, d *desk.Desk, c config.Config) ([
 		if !ok {
 			continue // archived since, or not this daemon's
 		}
-		q := QuotaAgent{Paseo: id, Title: r.Title, Provider: r.Provider, Cwd: r.Cwd, LastActive: r.LastActive,
+		q := QuotaAgent{Paseo: id, Title: r.Title, Provider: r.Provider, Model: r.Config.Model, Thinking: r.Config.Thinking, Cwd: r.Cwd, LastActive: r.LastActive,
 			Children: []AgentRef{}, Nodes: nodes(id), Scopes: []string{}, AutoContinue: auto[id]}
 		if at, ok := hidden[id]; ok && at == r.LastActive {
 			q.Dismissed = true

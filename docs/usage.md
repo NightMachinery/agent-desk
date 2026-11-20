@@ -921,8 +921,18 @@ each of them. For each:
   agent's work, takes over all of its desk nodes in one step (`agent-desk
   takeover <its Paseo id>`, which also drops them from the stopped session;
   with several it then writes with `--node`), tells its parent and subagents, and archives it.
-  The caret beside Replace picks the profile: the default, the ones listed
-  in `[quota] profiles`, or another typed as `provider[/model][@thinking]`.
+  **Replace…** opens a dialog listing every enabled, available Paseo
+  provider (`paseo provider ls`), each with its account's quota where the
+  keeper knows it ("work · quota left", "default · out of quota, back Mon
+  15:00"). Picking a provider fills in its model and effort, both still
+  editable: the stopped agent's own model and effort when the provider
+  offers that model, else what you last started on that provider, else
+  Paseo's first model at its default effort. The dialog preselects a
+  provider with quota that offers the agent's model on another account
+  (Claude to Claude (Work)), else the one you last used, else the first with
+  quota. The `[quota] profiles` show as presets. The dashboard remembers
+  your last choice per provider in the browser. The keyboard command is
+  `quota-replace` (`SPC SPC` or `M-x`).
 - The id icon copies its Paseo id. To copy several, select them (the list's
   Select mode shows a checkbox on each; ⌘/Ctrl-click a card also selects it,
   and shift-click a range), then **Copy Paseo IDs** copies the selected ids,

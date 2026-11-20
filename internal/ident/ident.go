@@ -111,6 +111,11 @@ type paseoRecord struct {
 	Persistence struct {
 		NativeHandle string `json:"nativeHandle"`
 	} `json:"persistence"`
+	// Config is what the agent was started with.
+	Config struct {
+		Model    string `json:"model"`
+		Thinking string `json:"thinkingOptionId"`
+	} `json:"config"`
 }
 
 // Parent is the Paseo agent that started this one, if any.

@@ -11,6 +11,7 @@
   import { SvelteSet } from 'svelte/reactivity';
   import CopyIds from './CopyIds.svelte';
   import CacheControl from './CacheControl.svelte';
+  import ReplaceDialog from './ReplaceDialog.svelte';
   import { sel } from '../lib/select.svelte.js';
   import { get, post } from '../lib/api.js';
   import { toast } from '../lib/toast.svelte.js';
@@ -19,7 +20,7 @@
   let { stamp = '', path = '', collapsed = false, count = $bindable(0), hiddenCount = $bindable(0) } = $props();
   let data = $state({ agents: [], profiles: [] });
   let busy = $state('');
-  let menu = $state(''); // the agent whose Replace menu is open
+  let replacing = $state(null); // the agent the Replace dialog is open for
   let showDismissed = $state(false);
   let revision = 0;
   let loadSeq = 0;
@@ -121,7 +122,6 @@
 
   async function act(a, action, label, profile = '') {
     busy = a.paseo + action;
-    menu = '';
     try {
       const res = await post('quota', { action, id: a.paseo, profile });
       toast(res.note || label, 'ok', 6000);
@@ -131,10 +131,6 @@
     } finally {
       busy = '';
     }
-  }
-  function custom(a) {
-    const p = prompt('Profile for the new agent: provider[/model][@thinking], e.g. codex/gpt-6.1-terra@high');
-    if (p?.trim()) act(a, 'replace', 'Started a replacement.', p.trim());
   }
   // Re-render the reset countdown every half minute.
   let now = $state(Date.now());
@@ -148,8 +144,6 @@
     return m < 60 ? `${m}m ago` : m < 1440 ? `${Math.round(m / 60)}h ago` : `${Math.round(m / 1440)}d ago`;
   };
 </script>
-
-<svelte:window onclick={() => (menu = '')} />
 
 <div class="rows" class:hidden={collapsed}>
   {#if picking && shown.length}
@@ -214,29 +208,17 @@
             onclick={() => act(a, 'ask-parent', 'Asked its parent.')}>Ask parent to reassign</button>
         {/if}
         {#if data.launch_ready}
-          <div class="split">
-            <button class="btn small main" disabled={!!busy} title="Start a new agent, with launch_command's default profile, that recovers its partial work, takes over its role and archives it (prompt: replace-agent.md)"
-              onclick={() => act(a, 'replace', 'Started a replacement.')}>Replace</button>
-            <button class="btn small caret" disabled={!!busy} aria-label="Replace with another profile" title="Replace with another profile"
-              onclick={(e) => { e.stopPropagation(); menu = menu === a.paseo ? '' : a.paseo; }}>
-              <svg width="10" height="10" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
-            </button>
-            {#if menu === a.paseo}
-              <div class="menu" role="menu" tabindex="-1" onclick={(e) => e.stopPropagation()}>
-                <div class="menu-head faint">Replace with a new agent on</div>
-                <button role="menuitem" onclick={() => act(a, 'replace', 'Started a replacement.')}>The default profile</button>
-                {#each data.profiles ?? [] as p (p)}
-                  <button role="menuitem" class="mono" onclick={() => act(a, 'replace', 'Started a replacement.', p)}>{p}</button>
-                {/each}
-                <button role="menuitem" onclick={() => custom(a)}>Another profile…</button>
-              </div>
-            {/if}
-          </div>
+          <button class="btn small" data-cmd="quota-replace" disabled={!!busy}
+            title="Start a new agent on a provider you pick, that recovers its partial work, takes over its role and archives it (prompt: replace-agent.md)"
+            onclick={() => (replacing = a)}>Replace…</button>
         {/if}
         </div>
       </div>
     </div>
   {/each}
+  {#if replacing}
+    <ReplaceDialog agent={replacing} presets={data.profiles ?? []} onclose={() => (replacing = null)} ondone={() => load(true)} />
+  {/if}
   {#if dismissed}
     <button class="more faint" onclick={() => (showDismissed = !showDismissed)}>
       {showDismissed ? 'Hide' : 'Show'} {dismissed} dismissed
@@ -363,53 +345,6 @@
     align-items: center;
     font-size: 13px;
     cursor: pointer;
-  }
-  .split {
-    position: relative;
-    display: inline-flex;
-  }
-  .split .main {
-    border-top-right-radius: 0;
-    border-bottom-right-radius: 0;
-  }
-  .split .caret {
-    border-top-left-radius: 0;
-    border-bottom-left-radius: 0;
-    border-left: 0;
-    padding-left: 6px;
-    padding-right: 6px;
-  }
-  .menu {
-    position: absolute;
-    right: 0;
-    top: calc(100% + 4px);
-    z-index: 20;
-    min-width: 230px;
-    padding: 4px;
-    border-radius: 10px;
-    background: var(--panel);
-    border: 1px solid var(--line);
-    box-shadow: 0 8px 24px rgb(0 0 0 / 0.14);
-    display: flex;
-    flex-direction: column;
-  }
-  .menu-head {
-    font-size: 11.5px;
-    padding: 4px 8px 2px;
-  }
-  .menu button {
-    text-align: left;
-    border: 0;
-    background: transparent;
-    padding: 6px 8px;
-    border-radius: 6px;
-    font: inherit;
-    font-size: 13px;
-    color: inherit;
-    cursor: pointer;
-  }
-  .menu button:hover {
-    background: var(--sunken);
   }
   .more {
     align-self: flex-start;
