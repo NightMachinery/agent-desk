@@ -42,7 +42,7 @@ On a phone there is one pane at a time: the list, or the open item.
 - `j` / `k`: the next or previous item, opened as you move (it is marked
   read, as a click would). `gg` / `G`: the first or last item.
 - `}` / `{`: the first item of the next or previous section (Needs you,
-  Pinned, Responses to you, New).
+  Out of quota, Deliverables, Pinned, Responses to you, New).
 - `za` folds or unfolds the section the open item is in; `zc` / `zo` fold
   or unfold it, `zM` / `zR` every section. A folded section stays folded on
   this device, and `j` / `k` skip its items. Clicking a section's title does

@@ -446,6 +446,12 @@ func (w *Writer) View(v View) {
 		w.h(1, fmt.Sprintf("Messages awaiting your response (%d)", count(v.Awaiting)))
 		w.groups(2, v.Awaiting, w.Message)
 	}
+	w.h(1, fmt.Sprintf("Needs you (%d)", count(v.NeedsYou)))
+	w.groups(2, v.NeedsYou, w.Question)
+	if len(v.Deliverables) > 0 {
+		w.h(1, fmt.Sprintf("Deliverables (%d)", count(v.Deliverables)))
+		w.groups(2, v.Deliverables, w.Notice)
+	}
 	if len(v.Pinned) > 0 {
 		w.h(1, fmt.Sprintf("Pinned (%d)", len(v.Pinned)))
 		for _, it := range v.Pinned {
@@ -455,12 +461,6 @@ func (w *Writer) View(v View) {
 				w.Notice(2, it)
 			}
 		}
-	}
-	w.h(1, fmt.Sprintf("Needs you (%d)", count(v.NeedsYou)))
-	w.groups(2, v.NeedsYou, w.Question)
-	if len(v.Deliverables) > 0 {
-		w.h(1, fmt.Sprintf("Deliverables (%d)", count(v.Deliverables)))
-		w.groups(2, v.Deliverables, w.Notice)
 	}
 	if len(v.Responses) > 0 {
 		w.h(1, fmt.Sprintf("Responses to you (%d)", count(v.Responses)))

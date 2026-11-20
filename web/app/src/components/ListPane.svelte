@@ -92,7 +92,7 @@
   // Folded sections drop out of j/k and previous/next.
   const shown = (name, ids) => (ui.collapsed[name] ? [] : ids);
   const allIds = $derived([
-    ...new Set([...shown('needs', needIds), ...shown('pinned', pinnedIds), ...shown('deliverables', deliverableIds), ...shown('responses', responseIds), ...shown('new', freshIds)]),
+    ...new Set([...shown('needs', needIds), ...shown('deliverables', deliverableIds), ...shown('pinned', pinnedIds), ...shown('responses', responseIds), ...shown('new', freshIds)]),
   ]);
   // Pinned items in any section, including a pinned question under Needs.
   const pinnedAll = $derived(
@@ -217,18 +217,6 @@
       <QuotaHit stamp={view.stamp} path={route.path} collapsed={!!ui.collapsed.quota} bind:count={quotaCount} bind:hiddenCount={quotaHidden} />
     </div>
 
-    {#if pinned.length}
-      <h2 class="section-title" data-section="pinned">
-        {@render fold('pinned', 'Pinned')}
-        <span class="count">{pinned.length}</span>
-      </h2>
-      {#if !ui.collapsed.pinned}
-        <div class="rows">
-          {#each pinned as it (it.event.id)}<ItemRow item={it} base={route.path} />{/each}
-        </div>
-      {/if}
-    {/if}
-
     {#if deliverables.length}
       <h2 class="section-title" data-section="deliverables">
         {@render fold('deliverables', 'Deliverables')}
@@ -243,6 +231,18 @@
             {#each g.items as it (it.event.id)}<ItemRow item={it} base={baseOf(g)} />{/each}
           </div>
         {/each}
+      {/if}
+    {/if}
+
+    {#if pinned.length}
+      <h2 class="section-title" data-section="pinned">
+        {@render fold('pinned', 'Pinned')}
+        <span class="count">{pinned.length}</span>
+      </h2>
+      {#if !ui.collapsed.pinned}
+        <div class="rows">
+          {#each pinned as it (it.event.id)}<ItemRow item={it} base={route.path} />{/each}
+        </div>
       {/if}
     {/if}
 

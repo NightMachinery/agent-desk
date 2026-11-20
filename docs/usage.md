@@ -340,7 +340,7 @@ not write anyway.
     agent-desk read t-k2m9 s-p4d1            # several at once
     agent-desk read m-4c2d                   # clear a message's "no response yet" flag
     agent-desk unread t-k2m9                 # undo a read mark or a dismissal
-    agent-desk pin t-k2m9 s-p4d1             # keep on top of every view; unpin to undo
+    agent-desk pin t-k2m9 s-p4d1             # keep under Pinned in every view; unpin to undo
     agent-desk search cache
     agent-desk sets define work agent-desk private/linear-finetune   # a project set
     agent-desk focus work                    # show and notify only for it; focus off ends it
@@ -523,14 +523,15 @@ hides that needs you (hover it for the breakdown); clicking it leaves the
 focus.
 
 The same sections as the inbox, on a desktop in three panes and on a phone
-in one column: Needs you, Pinned (when anything is), Responses to you (the
-agents' answers to what you asked), New, and the run tree. Click a section's
+in one column: Needs you, Out of quota, Deliverables, Pinned, Responses to
+you (the agents' answers to what you asked), New, and the run tree; a
+section with nothing in it is left out, Needs you and New excepted. Click a section's
 title to fold it. Each row names its project, run and agent below what the
 view or its group heading already says. Opening an item marks it read (a
 question excepted: reading one dismisses it), but the row stays where it
 is, dimmed once you open another, for a minute (Settings: "Keep a read item
 in the list for", per device). The icon beside its id marks it unread
-again, and the pin icon keeps it on top. Items you mark read with a
+again, and the pin icon keeps it under Pinned. Items you mark read with a
 section's mark-all button or the selection's Mark read leave the list at
 once; if the desk refuses, they come back with the error.
 An item id written in any text on the desk ("see q-8tqk", or `` `q-8tqk` ``

@@ -184,7 +184,7 @@ User side:
                                       the web dashboard (default 127.0.0.1:7740)
   agent-desk read <id|path-prefix>... [--host H]
   agent-desk unread <id>...
-  agent-desk pin <id>... | unpin <id>...   keep items on top (a slot stays pinned as it changes)
+  agent-desk pin <id>... | unpin <id>...   keep items under Pinned (a slot stays pinned as it changes)
   agent-desk search <text> [--host H]
   agent-desk pref set <key> <value> [--scope PATH] [--class C]
   agent-desk pref unset <key> [--scope PATH] [--class C]
@@ -848,7 +848,7 @@ func (a *App) cmdTell(args []string) error {
 	})
 }
 
-// cmdPin pins items to the top of every view, or unpins them. A pin on a
+// cmdPin lists items under Pinned in every view, or unpins them. A pin on a
 // slot holds the slot, whatever its current text.
 func (a *App) cmdPin(args []string, unpin bool) error {
 	o, err := parse(args, nil, nil, 1, -1)
