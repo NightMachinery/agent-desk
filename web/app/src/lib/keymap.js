@@ -405,6 +405,7 @@ C('list-read-all', 'Mark every unread item in the list read', () => click('mark-
 C('quota-copy-ids', 'Out of quota: copy the picked agent ids', () => click('quota-copy-ids'), tagged('quota-copy-ids', 'the Out of quota section'));
 C('deliverable-open', 'Deliverable: open its link', () => click('deliverable-open'), tagged('deliverable-open', 'a deliverable with a link'));
 C('task-status', 'Task: ask whoever works on it where it stands', () => click('task-status'), tagged('task-status', 'an open task'));
+C('push-logs', "Push: copy this device's push logs", () => click('push-logs'), tagged('push-logs', 'Settings, Push to this device'));
 C('task-reopen', 'Task: reopen it, saying what is still wrong', () => click('task-reopen'), tagged('task-reopen', 'a finished task'));
 C('deliverable-download', 'Deliverable: download its first file', () => click('deliverable-download'), tagged('deliverable-download', 'a deliverable with a file'));
 // Discard the draft in the box that has focus, else the first box with one.

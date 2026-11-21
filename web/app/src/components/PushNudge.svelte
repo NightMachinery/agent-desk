@@ -6,7 +6,7 @@
   // holds is registered again silently instead (ensureRegistered).
   import { get } from '../lib/api.js';
   import { toast } from '../lib/toast.svelte.js';
-  import { ensureRegistered, pushSupported, subscribeHere } from '../lib/push.js';
+  import { copyPushLogs, ensureRegistered, pushSupported, subscribeHere } from '../lib/push.js';
 
   const KEY = 'agent-desk:push-nudge-off';
   const QUIET = 30 * 24 * 3600 * 1000;
@@ -44,7 +44,7 @@
       show = false;
       toast('Push is on for this device. Settings has a Test button.', 'ok');
     } catch (e) {
-      toast(e.message, 'error', 9000);
+      toast(e.message, 'error', 12000, { label: 'Copy logs', run: copyPushLogs });
     } finally {
       busy = false;
     }

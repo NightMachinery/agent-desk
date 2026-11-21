@@ -205,4 +205,11 @@ func TestPush(t *testing.T) {
 			t.Fatalf("push/log lacks %q:\n%s", want, log)
 		}
 	}
+	// Copy logs reads its tail through the API.
+	if _, body, _ := do(t, hd, "GET", "/api/push?log=1", "", nil); !strings.Contains(body, `"log":[`) || !strings.Contains(body, "remove "+id) {
+		t.Fatalf("api/push?log=1: %s", body)
+	}
+	if _, body, _ := do(t, hd, "GET", "/api/push", "", nil); strings.Contains(body, `"log"`) {
+		t.Fatalf("api/push without log=1 carries it: %s", body)
+	}
 }

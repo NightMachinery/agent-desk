@@ -247,6 +247,8 @@ type PushDevice struct {
 
 // apiPush (GET) is the key a browser subscribes with and the devices that
 // did; a browser tells whether it is one of them by hashing its endpoint.
+// With log=1 it adds the last lines of push/log, for the dashboard's Copy
+// logs.
 func (s *server) apiPush(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	c, err := s.a.config()
@@ -269,7 +271,27 @@ func (s *server) apiPush(w http.ResponseWriter, r *http.Request) {
 	for _, x := range subs {
 		devs = append(devs, PushDevice{ID: push.ID(x.Endpoint), Label: labelOf(x), Created: x.Created, LastOK: x.LastOK, LastErr: x.LastErr})
 	}
-	writeJSON(w, map[string]any{"key": public, "off": c.Push.Off, "host": s.a.Host, "devices": devs})
+	out := map[string]any{"key": public, "off": c.Push.Off, "host": s.a.Host, "devices": devs}
+	if r.URL.Query().Get("log") == "1" {
+		out["log"] = pushLogTail(filepath.Join(string(s.a.pushDir()), "log"), pushLogLines)
+	}
+	writeJSON(w, out)
+}
+
+// pushLogLines is how many of push/log's last lines Copy logs carries.
+const pushLogLines = 40
+
+// pushLogTail is the last n lines of the log at path; none when unreadable.
+func pushLogTail(path string, n int) []string {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return []string{}
+	}
+	lines := strings.Split(strings.TrimRight(string(b), "\n"), "\n")
+	if len(lines) > n {
+		lines = lines[len(lines)-n:]
+	}
+	return lines
 }
 
 type pushRequest struct {

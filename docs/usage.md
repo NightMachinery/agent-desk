@@ -764,6 +764,17 @@ that still holds a subscription the desk no longer lists registers it again
 by itself, without the strip, and when the browser replaces its
 subscription the service worker subscribes again and tells the desk.
 
+When **Turn on** fails, the card says what to do and keeps the browser's
+own words. The common case is Brave, which leaves Google's push service off:
+"Registration failed - push service error" means turning on "Use Google
+services for push messaging" in `brave://settings/privacy`, relaunching
+Brave, and pressing Turn on again. **Copy logs** (in the card's heading,
+and on the failure) copies a report to send with a problem: the browser,
+its permission and service worker state, each step of the last Turn on
+with its error, and the desk's devices and the tail of `push/log`. It holds
+no push endpoint, only its host. Where the browser will not copy, the
+report is shown to select by hand.
+
 - What is pushed is the `notify.push` setting: `off`, `away` or `always`,
   per class. Built in: blocked questions, always. To add done reports:
   `agent-desk pref set notify.push always --class done`.

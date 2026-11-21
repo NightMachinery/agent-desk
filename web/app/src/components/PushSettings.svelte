@@ -1,10 +1,13 @@
 <script>
   // Push to this device: subscribes the browser to the desk's Web Push
   // messages (internal/cli/push.go), and lists the devices that did. The
-  // notify.push setting decides which kinds of item are pushed.
+  // notify.push setting decides which kinds of item are pushed. A failed
+  // Turn on stays shown, saying what to do; Copy logs copies a report of
+  // this browser's push state and the desk's push log (push.js).
   import { get, post } from '../lib/api.js';
   import { toast } from '../lib/toast.svelte.js';
-  import { current, ensureRegistered, idOf, ios, pushSupported, subscribeHere } from '../lib/push.js';
+  import { copy } from '../lib/format.js';
+  import { brave, copyPushLogs, current, ensureRegistered, idOf, ios, pushSupported, subscribeHere } from '../lib/push.js';
 
   let { stamp = '' } = $props();
 
@@ -14,6 +17,8 @@
   let mine = $state(''); // this browser's subscription id, if it has one
   let busy = $state(false);
   let error = $state('');
+  let failure = $state(/** @type {{ message: string, raw: string } | null} */ (null));
+  let report = $state(''); // shown when the browser would not copy it
   const subscribed = $derived(!!mine && !!info?.devices.some((d) => d.id === mine));
   const blocked = $derived(supported && typeof Notification !== 'undefined' && Notification.permission === 'denied');
 
@@ -40,10 +45,12 @@
     busy = true;
     try {
       mine = await subscribeHere(info);
+      failure = null;
       toast('Push is on for this device. Try Test.', 'ok');
       await load();
     } catch (e) {
-      toast(e.message, 'error');
+      failure = { message: e.message, raw: e.raw ?? '' };
+      toast(e.message, 'error', 12000, { label: 'Copy logs', run: copyLogs });
     } finally {
       busy = false;
     }
@@ -77,13 +84,24 @@
       busy = false;
     }
   }
+  async function copyLogs() {
+    const { ok, text } = await copyPushLogs();
+    report = ok ? '' : text;
+  }
+  async function copySettings() {
+    const ok = await copy('brave://settings/privacy');
+    toast(ok ? 'Copied: paste it into the address bar.' : 'The browser would not copy it.', ok ? 'ok' : 'error');
+  }
   const when = (ts) => (ts ? new Date(ts.split(' ')[0]).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : '');
 </script>
 
 <div class="key">
   <div class="key-head">
     <span class="key-name">Push to this device</span>
-    <span class="mono faint">this device</span>
+    <span class="head-acts">
+      <button class="btn ghost small" onclick={copyLogs} data-cmd="push-logs" title="Copy a report of this browser's push state and the desk's push log, to send with a problem">Copy logs</button>
+      <span class="mono faint">this device</span>
+    </span>
   </div>
   {#if !supported}
     <div class="faint note">
@@ -101,6 +119,17 @@
       {/if}
       <span class="faint">{subscribed ? 'On' : blocked ? 'Notifications are blocked for this site in the browser' : 'Off'}</span>
     </div>
+    {#if failure && !subscribed}
+      <div class="failure" role="alert">
+        <div><strong>Push could not be turned on here.</strong> {failure.message}</div>
+        {#if failure.raw && failure.raw !== failure.message}<div class="faint">The browser said: <span class="mono">{failure.raw}</span></div>{/if}
+        <div class="row">
+          <button class="btn small" onclick={copyLogs}>Copy logs</button>
+          {#if brave && /brave:\/\/settings/.test(failure.message)}<button class="btn ghost small" onclick={copySettings}>Copy brave://settings/privacy</button>{/if}
+          <button class="btn ghost small" onclick={() => (failure = null)}>Dismiss</button>
+        </div>
+      </div>
+    {/if}
     <div class="faint note">
       Turn this on once on each phone or browser that should get the desk's notifications; allowing notifications in the phone's
       settings alone is not enough. Which items are pushed is the “When to push” setting above, the same for every device (built
@@ -126,9 +155,43 @@
   {:else}
     <div class="faint note">Reading…</div>
   {/if}
+  {#if report}
+    <div class="report">
+      <div class="faint">The browser would not copy the logs; select them here instead.</div>
+      <textarea class="input mono" readonly rows="10" onfocus={(e) => e.currentTarget.select()}>{report}</textarea>
+      <button class="btn ghost small" onclick={() => (report = '')}>Hide</button>
+    </div>
+  {/if}
 </div>
 
 <style>
+  .head-acts {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .failure {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 8px 0;
+    padding: 10px 12px;
+    border: 1px solid var(--blocked);
+    border-radius: var(--radius);
+    background: var(--blocked-soft);
+    overflow-wrap: anywhere;
+  }
+  .report {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    margin-top: 8px;
+  }
+  .report textarea {
+    width: 100%;
+    font-size: 11.5px;
+  }
   .key {
     display: flex;
     flex-direction: column;
