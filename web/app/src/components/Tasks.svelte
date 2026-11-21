@@ -225,7 +225,10 @@
     const filed = target?.for
       ? `The user filed a ${what} at ${node} on the desk, and you are the coordinator working under it: ${named}.`
       : `The user filed a ${what} for you on the desk: ${named}.`;
-    return filed + (brief.trim() ? `\n\n${brief.trim()}` : '') +
+    // Their words go in a quote, apart from the instructions around them;
+    // a quote holds anything pasted, code fences included.
+    const quoted = brief.trim() ? `\n\nWhat they wrote:\n\n${brief.trim().split('\n').map((l) => (l.trim() ? '> ' + l : '>')).join('\n')}` : '';
+    return filed + quoted +
       (title.trim() ? '' : `\n\nGive it a short title first: agent-desk task title ${id} 'Title'.`) +
       `\n\nIf it has several parts, split it first: file each as a step under it (agent-desk task add --parent ${id} --title '...'), and work through them.` +
       `\n\nIt is on your task list (agent-desk task list). Mark it with agent-desk task start ${id}, and when finished agent-desk task done ${id} --note 'how it was done and checked'.`;
