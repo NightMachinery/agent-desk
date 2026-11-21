@@ -190,7 +190,7 @@ The API, all JSON:
 - `GET api/dashboard-prefs`: the dashboard settings shared by every device,
   `{"sections": [...]}` once the order of the list's sections is set.
   `POST api/dashboard-prefs {key: "sections", data: [...]}` sets it (each of
-  needs, quota, deliverables, pinned, responses, new, tasks, runs, deferred at most
+  needs, quota, deliverables, pinned, responses, tasks, new, runs, deferred at most
   once; one left out keeps its default place), and a null `data` puts back
   the default. `{key: "render", data: {enabled, debounce}}` is when the
   server renders the org files: on or off, and the seconds (1 to 600) the

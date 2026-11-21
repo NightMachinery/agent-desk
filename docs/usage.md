@@ -540,7 +540,7 @@ focus.
 
 The same sections as the inbox, on a desktop in three panes and on a phone
 in one column: Needs you, Out of quota, Deliverables, Pinned, Responses to
-you (the agents' answers to what you asked), New, Tasks, and the run tree; a
+you (the agents' answers to what you asked), Tasks, New, and the run tree; a
 section with nothing in it is left out, Needs you, New and Tasks excepted.
 Tasks lists the open and started tasks under the current view, started
 first, eight at most: a row opens the task, its box checks it off (Undo in

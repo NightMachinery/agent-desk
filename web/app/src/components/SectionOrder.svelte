@@ -12,8 +12,8 @@
     deliverables: 'Deployments and packages to try',
     pinned: 'What you pinned',
     responses: "Agents' answers to your messages",
-    new: 'Notices, reports and slots',
     tasks: 'Open and started tasks here',
+    new: 'Notices, reports and slots',
     runs: 'Projects, runs and agents',
     deferred: 'Tasks waiting for quota',
   };
@@ -23,8 +23,8 @@
     deliverables: 'var(--deliverable)',
     pinned: 'var(--default)',
     responses: 'var(--response)',
-    new: 'var(--notice)',
     tasks: 'var(--ok)',
+    new: 'var(--notice)',
     runs: 'var(--muted)',
     deferred: 'var(--faint)',
   };

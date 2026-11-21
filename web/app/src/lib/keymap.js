@@ -84,7 +84,7 @@ function sectionHere() {
   while (el && !el.matches?.('h2.section-title')) el = el.previousElementSibling || el.parentElement;
   return el?.dataset.section || paneEl('list')?.querySelector('h2.section-title')?.getAttribute('data-section') || 'needs';
 }
-const sections = ['needs', 'quota', 'deliverables', 'pinned', 'responses', 'new', 'tasks', 'runs', 'deferred'];
+const sections = ['needs', 'quota', 'deliverables', 'pinned', 'responses', 'tasks', 'new', 'runs', 'deferred'];
 function foldAll(open) {
   for (const s of sections) toggleSection(s, open);
 }

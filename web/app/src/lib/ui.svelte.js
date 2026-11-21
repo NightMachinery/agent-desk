@@ -23,8 +23,8 @@ export const sectionNames = {
   deliverables: 'Deliverables',
   pinned: 'Pinned',
   responses: 'Responses to you',
-  new: 'New',
   tasks: 'Tasks',
+  new: 'New',
   runs: 'Runs',
   deferred: 'Deferred for quota',
 };
