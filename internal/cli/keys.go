@@ -1,6 +1,7 @@
 package cli
 
 import (
+	_ "embed"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -21,8 +22,38 @@ import (
 // maxKeysFile bounds the file the dashboard is sent; it rejects larger ones too.
 const maxKeysFile = 64 << 10
 
+// keysTemplate is the file serve creates where there is none: comments that
+// teach the format, and examples left commented out, so it changes nothing
+// until edited. keyfile.test.js checks that it and its examples build.
+//
+//go:embed keys-template.edn
+var keysTemplate string
+
 func (a *App) keysPath() string {
 	return filepath.Join(filepath.Dir(config.Path(a.Env.Getenv, a.Env.Home)), "keys.edn")
+}
+
+// ensureKeysFile creates the user's keys file from keysTemplate when there
+// is none (serve does, at start), and never touches one that exists.
+func (a *App) ensureKeysFile() (string, error) {
+	p := a.keysPath()
+	if _, err := os.Lstat(p); !errors.Is(err, fs.ErrNotExist) {
+		return "", nil
+	}
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		return "", err
+	}
+	f, err := os.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if errors.Is(err, fs.ErrExist) {
+		return "", nil
+	} else if err != nil {
+		return "", err
+	}
+	if _, err := f.WriteString(keysTemplate); err != nil {
+		f.Close()
+		return "", err
+	}
+	return p, f.Close()
 }
 
 // keysStamp names the file's version (its modification time and size), or

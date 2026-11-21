@@ -1,0 +1,23 @@
+; Your keys for the agent-desk dashboard, laid over the built-in ones.
+; Saving applies them at once, on every device. Nothing below is active
+; until you remove its ";;". If any entry is wrong, none of the file
+; applies and the dashboard names the bad entry.
+;
+; Each map takes a chord to what it does:
+;   "C-c t" :task-add   a command (replaces the built-in key on that chord)
+;   "g c"   nil         no key: remove the built-in one
+;   "SPC b" "items"     a group's name in the key guide
+; Chords are Doom's: "SPC d f", "C-x", "M-x", "G", "RET", "<f5>".
+; On the dashboard, SPC h f shows a command's name and keys, SPC h k what
+; a key runs, SPC h b every key in use.
+;
+; The maps: :normal (everywhere), :list :detail :side (one pane), :dialog
+; (a sheet), :insert (a text box: C- and M- chords only), and the keys
+; after "," or "SPC m" for what is open: :task :deliverable :screen
+; :message :quota :settings :verbatim.
+; More: https://github.com/NightMachinery/agent-desk/blob/main/docs/keyboard.md#your-own-keys
+{
+ ;; :normal {"C-c t" :task-add     ; C-c t files a task
+ ;;          "g c"   nil}          ; g c no longer opens Tasks
+ ;; :task   {"f"     :task-done}   ; , f marks the open task done
+}

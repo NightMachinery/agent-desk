@@ -157,3 +157,13 @@ test('the built-in scheme: each leader entry reuses its short key, and every con
     assert.ok([...n.keys()].some((k) => k.startsWith(chord + ' ')), `${chord} starts something`);
   }
 });
+
+test('the keys file serve creates (internal/cli/keys-template.edn) builds, and so do its examples', () => {
+  const tpl = readFileSync(new URL('../../../../internal/cli/keys-template.edn', here), 'utf8');
+  const km = build(tpl);
+  assert.equal(km.maps.get('normal').binds.get('g c'), 'tasks', 'as shipped it changes nothing');
+  const on = build(tpl.replace(/^(\s*);; /gm, '$1'));
+  assert.equal(on.maps.get('normal').binds.get('C-c t'), 'task-add');
+  assert.equal(on.maps.get('normal').binds.has('g c'), false);
+  assert.equal(on.maps.get('task').binds.get('f'), 'task-done');
+});

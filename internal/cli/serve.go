@@ -1492,6 +1492,13 @@ func (a *App) cmdServe(args []string) error {
 	if err != nil {
 		return err
 	}
+	// The user's keys file, made where missing so there is one to edit. A
+	// failure here only costs the template.
+	if p, err := a.ensureKeysFile(); err != nil {
+		fmt.Fprintf(a.Stderr, "agent-desk: could not create the keys file: %v\n", err)
+	} else if p != "" {
+		fmt.Fprintf(a.Stderr, "agent-desk: created %s, your keys over the built-in ones\n", a.tilde(p))
+	}
 	if brand.Title != "" || brand.Device != "" || brand.Color != "" {
 		base, err := fs.ReadFile(s.ui, "manifest.json")
 		if err != nil {

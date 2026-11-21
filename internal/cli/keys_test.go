@@ -86,3 +86,28 @@ func TestKeysFile(t *testing.T) {
 		t.Fatalf("removed file still has a stamp: %q", d)
 	}
 }
+
+// serve creates the keys file from the template where there is none, and
+// leaves an existing one alone.
+func TestEnsureKeysFile(t *testing.T) {
+	h := newHarness(t)
+	p := filepath.Join(h.home, ".config", "agent-desk", "keys.edn")
+	a, _, _ := h.app(nil, "")
+	got, err := a.ensureKeysFile()
+	must(t, err)
+	if got != p {
+		t.Fatalf("created %q, want %q", got, p)
+	}
+	b, err := os.ReadFile(p)
+	must(t, err)
+	if string(b) != keysTemplate || !strings.Contains(keysTemplate, ";; :normal") {
+		t.Fatalf("template not written: %q", b)
+	}
+	must(t, os.WriteFile(p, []byte("{}\n"), 0o644))
+	if got, err := a.ensureKeysFile(); err != nil || got != "" {
+		t.Fatalf("second call: %q %v", got, err)
+	}
+	if b, _ := os.ReadFile(p); string(b) != "{}\n" {
+		t.Fatalf("an existing file was overwritten: %q", b)
+	}
+}

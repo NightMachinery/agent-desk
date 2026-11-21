@@ -2,7 +2,7 @@
   import { cheatsheetNow } from '../lib/shortcuts.js';
   // What the keyboard layer draws: the mode line, the which-key popup, the
   // list of every binding, the M-x palette and the link hints.
-  import { keys, pane, continuations, activeBindings, matches, closePalette, paletteHistory, labelOf, description, describeCommand } from '../lib/keys.svelte.js';
+  import { keys, keymap, pane, continuations, activeBindings, matches, closePalette, paletteHistory, labelOf, description, describeCommand } from '../lib/keys.svelte.js';
   import { PANES, CONTEXTS } from '../lib/keyfile.js';
   import { route } from '../lib/route.svelte.js';
   import { position } from '../lib/nav.svelte.js';
@@ -123,6 +123,7 @@
       </div>
       <p class="faint kh-note">
         Keys are commands until a text box has focus. The which-key popup after <kbd>SPC</kbd> or <kbd>g</kbd> lists what can follow; every button's tooltip names its key.
+        {#if keymap.path}Your own keys go in <span class="mono">{keymap.path}</span> on the desk machine{keymap.error ? ', which has an error, so the built-in keys are in use' : ''}.{/if}
       </p>
     </div>
   </div>

@@ -217,7 +217,10 @@ Verbatim log, then the search.
 Put a keys file next to the desk's `config.toml`, normally
 `~/.config/agent-desk/keys.edn`, on the machine the desk runs on. It holds
 only your changes, and every device uses it. Saving it applies it at once,
-without reloading the page. The format is the evilify skill's shared EDN
+without reloading the page. When `agent-desk serve` starts and finds no
+such file, it creates one that changes nothing: short comments on the
+format and a few examples, commented out (the template is
+`internal/cli/keys-template.edn`). The cheatsheet (`?`) names the file. The format is the evilify skill's shared EDN
 keymap format (`evilify/keymap-edn.md` in the
 [evilify skill](https://github.com/NightMachinery/evilify-skill)):
 
