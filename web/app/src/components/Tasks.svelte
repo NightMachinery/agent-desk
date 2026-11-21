@@ -213,7 +213,7 @@
     target = null;
     targetFor = '';
     if (!adding || !at) return;
-    get('target', { to: at, coordinator: '1' }).then(
+    get('target', { to: at }).then(
       (t) => node === at && ((target = t), (targetFor = at)),
       () => node === at && (targetFor = at),
     );

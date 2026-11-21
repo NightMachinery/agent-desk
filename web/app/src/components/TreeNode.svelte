@@ -16,11 +16,17 @@
   let open = $state(null);
   const shown = $derived(open ?? (!!route.q || node.state === 'waiting on you' || node.depth === 1));
   // Row tools (shown on hover, always on touch screens): copy its Paseo id,
-  // message its agent, mark everything under it read.
+  // message its agent (for a project or a run, the coordinator working
+  // under it), mark everything under it read.
   function message() {
     go({ path: node.path, item: '', session: '', q: '' });
-    setTimeout(() => document.getElementById('reply-box')?.focus(), 250);
+    setTimeout(() => {
+      const box = document.getElementById('reply-box');
+      if (box) box.focus();
+      else toast(`No agent works under ${node.name} to message.`, 'info');
+    }, 400);
   }
+  const whom = $derived(node.depth >= 3 ? node.name : `the coordinator under ${node.name}`);
   async function readAll() {
     try {
       const res = await post('read', { target: node.path });
@@ -53,9 +59,7 @@
     {#if node.paseo}<CacheControl paseo={node.paseo} />{/if}
     <div class="tools">
       {#if node.paseo}<CopyIds paseo={node.paseo} keys={false} />{/if}
-      {#if node.depth >= 3}
-        <button class="btn ghost small iconbtn" title={`Message ${node.name}`} aria-label={`Message ${node.name}`} onclick={message}><Icon name="message" /></button>
-      {/if}
+      <button class="btn ghost small iconbtn" title={`Message ${whom}`} aria-label={`Message ${whom}`} onclick={message}><Icon name="message" /></button>
       <!-- Mark read keeps the last slot, read or not, so the icons line up. -->
       {#if node.unread}
         <button class="btn ghost small iconbtn" title={`Mark everything under ${node.name} read`} aria-label="Mark everything under it read" onclick={readAll}><Icon name="readall" /></button>

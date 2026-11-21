@@ -109,6 +109,7 @@
     <div class="coord faint">
       Coordinator: {agentName(target.agent)} <span class="mono">{short(target.paseo || target.session)}</span>
       {#if target.host}· {target.host}{/if}
+      {#if target.for}· at <a class="mono" href={href({ path: target.node, item: '' })} title="No agent holds {target.for}, so messages and new tasks here go to the coordinator working under it">{target.node.slice(target.for.length + 1) || target.node}</a>{/if}
       <CopyIds paseo={target.paseo} resume={target.resume} keys={false} />
       {#if target.paseo && !compact}<AutoContinue paseo={target.paseo} />{/if}
       {#if target.paseo && target.host === desk.host}<CacheControl paseo={target.paseo} showUnavailable={!compact} />{/if}
