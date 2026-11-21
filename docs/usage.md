@@ -643,8 +643,12 @@ with what happened to it ("joined the running turn", "queued, position 2",
 for was unavailable), then "responded" or, 15 minutes after delivery, "no
 response yet"; the agents' responses follow in order. Only related
 messages share a conversation: each message you send to a node about no
-item starts one of its own, and the node page lists them (Conversations,
-the newest active first). Messages the desk generates (about a task you
+item starts one of its own. The node page does not list them: a message is
+an item like any other, its response arrives in Responses to you and hides
+once read, and the response's page shows the whole conversation. The node
+page shows only your messages that have not been delivered yet (queued,
+waiting for compaction or transcription, or failed, with Retry), each until
+it is delivered. Your own messages never count as unread. Messages the desk generates (about a task you
 filed, your task changes, a Status or velocity request) show as one folded
 line, and the agent's response to one hangs from the item it was about. A response in the list reads "Response to
 m-4c2d", and its page shows the conversation it belongs to. Every entry in a

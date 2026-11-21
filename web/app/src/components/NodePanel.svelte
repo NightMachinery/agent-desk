@@ -4,12 +4,12 @@
   import { href, route } from '../lib/route.svelte.js';
   import { post } from '../lib/api.js';
   import { toast } from '../lib/toast.svelte.js';
-  import { pendingMessages, queueMessage } from '../lib/outbox.svelte.js';
-  import { voiceTokens } from '../lib/voice.js';
+  import { acknowledgeMessages, pendingMessages, queueMessage } from '../lib/outbox.svelte.js';
   import { agentName, short, stateClass, viaText } from '../lib/format.js';
   import Composer from './Composer.svelte';
   import Markdown from './Markdown.svelte';
   import Thread from './Thread.svelte';
+  import { untrack } from 'svelte';
   import Sheet from './Sheet.svelte';
   import Settings from './Settings.svelte';
   import AutoContinue from './AutoContinue.svelte';
@@ -17,14 +17,14 @@
   import { chooseSendCache } from '../lib/cache.svelte.js';
   import { desk } from '../lib/desk.svelte.js';
   import { archiveAgent } from '../lib/agents.js';
-  import ReplyingTo from './ReplyingTo.svelte';
-  import { focusBoxIn, replyRef } from '../lib/replyto.js';
-  import { syncMode } from '../lib/keys.svelte.js';
 
   // conversations: the node's threads, one per message sent to it about no
-  // item, newest first (api/view).
+  // item, newest first (api/view). The panel does not list them: a message
+  // is an item like any other, and its response arrives in Responses to you
+  // and hides once read. Only your messages not delivered yet show here.
   let { node, target, conversations = [], stamp = '', onchange, compact = false } = $props();
   const allEntries = $derived(conversations.flatMap((c) => c.entries));
+  const undelivered = $derived(allEntries.filter((x) => x.kind === 'message' && !x.delivery && x.source !== 'chat' && x.pending));
   let settingsOpen = $state(false);
 
   const order = { status: 0, next: 1, done: 2, velocity: 3, findings: 4, artifacts: 5 };
@@ -34,41 +34,25 @@
   const kind = $derived(node.depth === 1 ? 'Project' : node.depth === 2 ? 'Run' : 'Agent');
   const label = $derived(node.state === 'active' || node.state === 'quiet' ? `${node.state} ${node.age}` : node.state);
   let writing = $state(false);
-  let conversationOpen = $state(false);
-  let wasWaitingForDelivery = false;
+
+  // A message from the box starts a thread of its own. The send queue lets
+  // go of a message once the desk lists it, wherever this panel shows it.
+  const pending = $derived(pendingMessages([node.path], allEntries));
   $effect(() => {
-    const waiting = allEntries.some((entry) => entry.voice_failure || ['waiting for transcription', 'waiting for compaction'].includes(entry.pending));
-    if (compact && waiting && !wasWaitingForDelivery) conversationOpen = true;
-    wasWaitingForDelivery = waiting;
+    const entries = allEntries;
+    untrack(() => acknowledgeMessages(entries));
   });
 
-  // A message from the box starts a thread of its own; one sent with an
-  // entry's reply button goes about that entry, staying in its thread.
-  const pending = $derived(pendingMessages([node.path, ...allEntries.map((x) => x.event.id)], allEntries));
-  let replyingTo = $state(/** @type {ReturnType<typeof replyRef> | null} */ (null));
-  let actEl = $state();
-  function replyToEntry(t) {
-    replyingTo = replyRef(t);
-    writing = true;
-    focusBoxIn(actEl, syncMode);
-  }
-
   async function queueReply(body) {
-    const to = (!body.prompt && replyingTo?.id) || node.path;
+    const to = node.path;
     const page = route.path;
     const choice = await chooseSendCache('reply', to);
     if (choice === 'cancel' || route.path !== page) return false;
-    const queued = queueMessage('reply', { to, ...body, ...(choice === 'compact' && { after_compaction: true }) });
-    if (queued && choice === 'compact') conversationOpen = true;
-    if (queued && to !== node.path) replyingTo = null;
-    return queued;
+    return queueMessage('reply', { to, ...body, ...(choice === 'compact' && { after_compaction: true }) });
   }
   async function reply(text, opts = {}) {
     const queued = await queueReply({ text, ...opts });
-    if (queued) {
-      writing = false;
-      if (voiceTokens(text).length) conversationOpen = true;
-    }
+    if (queued) writing = false;
     return queued;
   }
   // The prompt is rendered on the server, using the node's current status.
@@ -163,25 +147,9 @@
     </details>
   {/if}
 
-  {#snippet threads()}
-    {#if pending.length}<Thread entries={[]} {pending} remoteLabel={target?.remote_label} />{/if}
-    {#each conversations as c, i (c.root)}
-      <details class="convo-item" open={i === 0}>
-        <summary><span class="ctitle">{c.title}</span> <span class="faint">{c.entries.length} · {c.age} ago</span></summary>
-        <Thread entries={c.entries} remoteLabel={target?.remote_label} replyingTo={replyingTo?.display ?? ''} onreply={target ? replyToEntry : null} />
-      </details>
-    {/each}
-  {/snippet}
-  {#if conversations.length || pending.length}
-    {#if compact && !pending.length}
-      <details class="convo" bind:open={conversationOpen}>
-        <summary>Conversations ({conversations.length})</summary>
-        {@render threads()}
-      </details>
-    {:else}
-      <div class="section-title">Conversations</div>
-      {@render threads()}
-    {/if}
+  {#if undelivered.length || pending.length}
+    <div class="section-title" title="Your messages to this node that have not reached its agent yet. Each leaves this list once delivered; the agent's response comes in Responses to you.">Not delivered yet</div>
+    <Thread entries={undelivered} {pending} remoteLabel={target?.remote_label} />
   {/if}
 
   {#if target}
@@ -191,17 +159,14 @@
         {#if node.unread}<button data-cmd="read-all" class="btn small" title={tip('Mark everything under it read', 'read-all')} onclick={readAll}>Mark all read</button>{/if}
       </div>
     {:else}
-      <div class="act" bind:this={actEl}>
-        {#if replyingTo}
-          <ReplyingTo to={replyingTo} back={`the ${kind.toLowerCase()}'s coordinator, as a new conversation`} oncancel={() => (replyingTo = null)} />
-        {/if}
+      <div class="act">
         <Composer
           id={compact ? undefined : 'reply-box'}
           draft={'node:' + node.path}
           voiceNode={node.path}
-          label={replyingTo ? `Reply to ${replyingTo.display}` : `Message the ${kind.toLowerCase()}'s coordinator`}
-          placeholder={replyingTo ? `Your reply about ${replyingTo.display}…` : 'A new conversation: tell it something, steer it, or ask what it is doing…'}
-          hint={replyingTo ? '' : viaText(target)}
+          label={`Message the ${kind.toLowerCase()}'s coordinator`}
+          placeholder="A new conversation: tell it something, steer it, or ask what it is doing…"
+          hint={viaText(target)}
           {target}
           send={reply}
         />
@@ -240,12 +205,6 @@
     font: inherit;
     font-size: 11.5px;
     font-weight: 600;
-  }
-  .convo summary {
-    cursor: pointer;
-    margin: 14px 0 8px;
-    font-size: 12.5px;
-    color: var(--muted);
   }
   .chip-btn:hover:not(:disabled) {
     background: var(--line);
@@ -398,17 +357,6 @@
   }
   .kid .name {
     flex: 1;
-    font-weight: 600;
-  }
-  .convo-item {
-    margin-bottom: 8px;
-  }
-  .convo-item > summary {
-    cursor: pointer;
-    padding: 4px 0;
-    font-size: 13px;
-  }
-  .convo-item .ctitle {
     font-weight: 600;
   }
 </style>
