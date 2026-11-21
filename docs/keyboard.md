@@ -211,9 +211,11 @@ is open.
 
 ## Back out with Esc
 
-Outside a text box, `Esc` (or `C-g`) undoes one thing at a time: the selected
-box, then visual mode, then the selection, then the open item, then the settings page or the
-Verbatim log, then the search.
+Outside a text box, `Esc` (or `C-g`) undoes one thing at a time: visual
+mode, then the selection, then the open item, then the settings page or the
+Verbatim log, then the search. The selected box loses its outline with the
+first of these, so leaving a reply box and closing its item takes two
+presses.
 
 ## Your own keys
 

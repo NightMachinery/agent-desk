@@ -253,9 +253,11 @@ async function yankEvent(el) {
   yank(`${id}: ${text}`, id);
 }
 
+// The selected box's outline goes with whatever Esc backs out of next: alone
+// it only told `i` where to go, which is not worth a keypress of its own.
 function escape() {
-  if (selectedField()) selectField(null);
-  else if (keys.anchor) {
+  selectField(null);
+  if (keys.anchor) {
     setVisual('');
     clear();
   } else if (sel.ids.size || sel.mode) clear();
