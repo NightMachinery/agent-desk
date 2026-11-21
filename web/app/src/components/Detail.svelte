@@ -13,7 +13,7 @@
   import Composer from './Composer.svelte';
   import Markdown from './Markdown.svelte';
   import Attachments from './Attachments.svelte';
-  import { hold } from '../lib/linger.svelte.js';
+  import { hold, release } from '../lib/linger.svelte.js';
   import Icon from './Icon.svelte';
   import Thread from './Thread.svelte';
   import { autoRead, nav, position, step } from '../lib/nav.svelte.js';
@@ -66,13 +66,17 @@
     if (hasDraft(it.display_id) || (it.draft && draftTick === 0)) return;
     if (arrival.id === it.display_id) {
       arrival.pending = true;
+      arrival.event = e.id;
       return;
     }
     autoRead.add(e.id);
     const id = e.id, display = it.display_id;
+    // Held first: the live stream can reload the list before this request
+    // returns, and the row must not drop out meanwhile.
+    hold(id, display);
     post('read', { target: display })
-      .then(() => (hold(id, display), onchange()))
-      .catch(() => autoRead.delete(e.id));
+      .then(() => onchange())
+      .catch(() => (autoRead.delete(id), release(id)));
   });
 
   const prevId = $derived(step(-1, route.item));

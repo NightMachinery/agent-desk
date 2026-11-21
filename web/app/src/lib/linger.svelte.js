@@ -1,7 +1,9 @@
 // Rows read by opening them stay in the list for a while: in place while
 // open, then dimmed for ui.lingerSeconds after you move to another item, so
 // a row never vanishes from under the cursor. The read itself is recorded at
-// once; only the list waits.
+// once; only the list waits. A row is held before its read is sent: the
+// desk can report the change (and the list reload) before the read's own
+// request returns.
 import { ui } from './ui.svelte.js';
 import { route } from './route.svelte.js';
 
@@ -17,8 +19,14 @@ export function onLingerEnd(f) {
 export function hold(eventId, display) {
   if (ui.lingerSeconds <= 0) return;
   linger.items[eventId] = { display, until: 0 };
-  // The read can land after a quick j has moved on.
+  // Held once the user has moved on (an auto arrival, read on leaving it):
+  // its clock starts now.
   if (route.item !== display) moved(route.item);
+}
+
+/** The read failed: the row is unread, and listed without help. */
+export function release(eventId) {
+  delete linger.items[eventId];
 }
 
 /** Full ids of the rows kept, for the view request. */

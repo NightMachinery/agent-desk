@@ -563,7 +563,8 @@ The toast's Back (Undo for a dismissal) returns to it. Settings, "Move to the
 next item" (per device), turns either case off, so you stay on the item.
 An item the page moved you to is not marked read just by being shown: it
 becomes read once you act on it (answer, message) or move on from it (to
-another item or the list). Back or Undo leaves it unread, and so does
+another item or the list), and its row stays, dimmed, like any item read by
+opening it. Back or Undo leaves it unread, and so does
 marking it read or unread yourself, which settles it. The search filters every section, and the run tree by project, run
 or agent name and by the session or Paseo id of whoever joined a node.
 A row of the run tree has icons on its right (on hover with a mouse, always

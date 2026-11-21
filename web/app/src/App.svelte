@@ -8,7 +8,7 @@
   import { toasts } from './lib/toast.svelte.js';
   import { desk } from './lib/desk.svelte.js';
   import { untrack } from 'svelte';
-  import { lingerIds, moved, onLingerEnd } from './lib/linger.svelte.js';
+  import { hold, lingerIds, moved, onLingerEnd } from './lib/linger.svelte.js';
   import { arrivalHooks, routeMoved } from './lib/arrival.js';
   import { post } from './lib/api.js';
   import { keys, ctx, pane, onkeydown } from './lib/keys.svelte.js';
@@ -39,13 +39,17 @@
     const params = { path: route.path, session: route.session, host: route.host, all: route.all ? '1' : '', q: route.q, deliverables: ui.deliverablesShow };
     // Rows just read stay listed for a while; reading the list of them must
     // not make every hold refetch the view.
-    params.linger = untrack(lingerIds).join(',');
+    const asked = untrack(lingerIds);
+    params.linger = asked.join(',');
     try {
       const scoped = get('view', params);
       const filtered = params.path || params.session || params.all || params.q || params.linger;
       const global = filtered ? get('view', { host: params.host }) : scoped;
       const [v, g] = await Promise.all([scoped, global]);
       if (my !== seq) return;
+      // A row held after this was asked for may be read already and left
+      // out: ask again rather than drop it from the list for a moment.
+      if (untrack(lingerIds).some((id) => !asked.includes(id))) return void loadView();
       view = v;
       globalView = g;
       desk.host = v.host;
@@ -109,7 +113,7 @@
     untrack(() => moved(cur));
   });
   // Leaving an item the page moved to by itself reads it (arrival.js).
-  arrivalHooks({ poster: (id) => post('read', { target: id }), onRead: () => refresh(), kept: hasDraft });
+  arrivalHooks({ poster: (id) => post('read', { target: id }), onRead: () => refresh(), kept: hasDraft, hold });
   // A draft started or dropped changes what the list keeps (an item with a
   // draft stays listed): look again once it has reached the desk.
   $effect(() => onDraftChange(() => setTimeout(() => loadView(), 1600)));

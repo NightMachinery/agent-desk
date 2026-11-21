@@ -74,3 +74,16 @@ test('an auto arrival with a draft stays unread when the user leaves it', async 
   assert.deepEqual(sent, []);
   arrivalHooks({ kept: () => false });
 });
+
+test('settling keeps the row listed before the read goes out', async () => {
+  reset();
+  const order = [];
+  arrivalHooks({ poster: async (id) => (order.push('read ' + id), sent.push(id)), hold: (ev, id) => order.push(`hold ${ev} ${id}`) });
+  arrivedAuto('t-1');
+  arrival.pending = true;
+  arrival.event = 'e-full-1';
+  routeMoved('t-1', 't-2');
+  await Promise.resolve();
+  assert.deepEqual(order, ['hold e-full-1 t-1', 'read t-1']);
+  arrivalHooks({ poster: async (id) => sent.push(id), hold: () => {} });
+});
