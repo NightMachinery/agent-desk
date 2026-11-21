@@ -136,7 +136,9 @@ its own.
 
 `-` goes up one level of the path, `gh` to everything, `gs` to the settings
 for the current view, `gS` to the global settings, `gv` to the Verbatim log
-for the current view, `gV` to the whole Verbatim log, `gr` refreshes. On the
+for the current view, `gV` to the whole Verbatim log, `gr` refreshes, `gR`
+reloads the page (drafts are kept), as the "dashboard has been updated"
+strip's Reload does. On the
 Verbatim log, `/` focuses its search box.
 
 ## Sheets

@@ -211,7 +211,7 @@
     {#if build.stale}
       <div class="update" role="status">
         <span>The dashboard has been updated; this page still runs the old version.</span>
-        <button class="btn small primary" data-cmd="reload-page" onclick={() => location.reload()} title="Reload the page; drafts are kept">Reload</button>
+        <button class="btn small primary" data-cmd="reload-page" onclick={() => location.reload()} title={tip('Reload the page; drafts are kept', 'reload-page')}>Reload</button>
       </div>
     {/if}
     <PushNudge />

@@ -423,7 +423,7 @@ C('list-read-all', 'Mark every unread item in the list read', () => click('mark-
 C('quota-copy-ids', 'Out of quota: copy the picked agent ids', () => click('quota-copy-ids'), tagged('quota-copy-ids', 'the Out of quota section'));
 C('deliverable-open', 'Deliverable: open its link', () => click('deliverable-open'), tagged('deliverable-open', 'a deliverable with a link'));
 C('task-status', 'Task: ask whoever works on it where it stands', () => click('task-status'), tagged('task-status', 'an open task'));
-C('reload-page', 'Reload the page for the new dashboard version', () => click('reload-page'), tagged('reload-page', 'a newer dashboard than this page runs'));
+C('reload-page', 'Reload the page (drafts are kept): how a page left open gets a newer dashboard', () => location.reload());
 C('push-logs', "Push: copy this device's push logs", () => click('push-logs'), tagged('push-logs', 'Settings, Push to this device'));
 C('push-brave-setting', "Push: copy the address of Brave's push setting", () => click('push-brave-setting'), tagged('push-brave-setting', 'Settings, Push to this device, in Brave'));
 C('task-reopen', 'Task: reopen it, saying what is still wrong', () => click('task-reopen'), tagged('task-reopen', 'a finished task'));
@@ -543,6 +543,7 @@ bind('g S', 'settings-global');
 bind('g v', 'verbatim');
 bind('g V', 'verbatim-all');
 bind('g r', 'refresh');
+bind('g R', 'reload-page');
 bind('g o', 'open-node');
 bind('g w', 'session');
 bind('g t', 'thread-root');

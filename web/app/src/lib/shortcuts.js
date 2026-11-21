@@ -30,6 +30,7 @@ export const cmdKeys = {
   'deliverable-open': 'SPC i g',
   'task-status': 'SPC i s',
   'reply-entry': 'R',
+  'reload-page': 'g R',
   'message-node': 'SPC n m',
   'read-all': 'SPC n r',
   'velocity-report': 'SPC n v',
