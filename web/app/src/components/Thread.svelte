@@ -73,6 +73,16 @@
       retrying = '';
     }
   }
+  // A generated message (meta.auto: the message about a task you filed, a
+  // task change, a prepared prompt) is how the desk reached the agent, not
+  // your words: one line, its text folded, unless its delivery failed.
+  const AUTO = {
+    'task-filed': 'Told about the new task',
+    'task-changes': 'Told about your task changes',
+    'task-status': 'Asked where it stands',
+    'velocity-report': 'Asked for a velocity report',
+  };
+  const compactAuto = (t) => !fromAgent(t) && t.event.meta?.auto && !t.failure && !t.voice_failure;
   function copy(text) {
     navigator.clipboard?.writeText(text).then(() => toast('Copied.', 'ok'), () => toast('Could not copy.', 'error'));
   }
@@ -80,6 +90,21 @@
 
 <ol class="thread">
   {#each entries as t (t.event.id)}
+    {#if compactAuto(t)}
+    <li id={'e-' + t.display_id} class="entry auto" class:current={t.display_id === current}>
+      <details>
+        <summary class="head">
+          <span>{AUTO[t.event.meta.auto] ?? 'Generated message'}</span>
+          {#if t.by}<span class="faint">{t.by}</span>{/if}
+          <span class="faint">{t.age} ago</span>
+          {#if t.delivery}<span class="chip ok" title={deliveryTitle(t.delivery)}>delivered</span>{:else if t.pending}<span class="chip waiting">{t.pending}</span>{/if}
+          {#if t.status === 'responded'}<span class="chip response">responded</span>{:else if t.status === 'no_response'}<span class="chip blocked">no response yet</span>{/if}
+          <a class="mono faint idlink" href={href({ item: t.display_id })}>{t.display_id}</a>
+        </summary>
+        {#if t.event.body}<Markdown text={t.event.body} />{/if}
+      </details>
+    </li>
+    {:else}
     <li id={'e-' + t.display_id} class="entry {t.kind}" class:has-default={t.kind === 'question' && t.event.level !== 'blocked'} class:current={t.display_id === current}>
       <div class="head">
         <strong>{label(t)}</strong>
@@ -173,6 +198,7 @@
       {#if t.event.body}<Markdown text={t.event.body} />{/if}
       <Attachments media={t.media} />
     </li>
+    {/if}
   {/each}
   {#each pending as message (message.key)}
     <li class="entry" class:answer={message.kind === 'answer'} class:message={message.kind === 'reply'}>
@@ -238,6 +264,17 @@
     background: var(--panel);
     border-color: var(--line);
     border-left: 3px solid var(--response);
+  }
+  .entry.auto {
+    padding: 4px 12px;
+    font-size: 12.5px;
+  }
+  .entry.auto summary {
+    cursor: pointer;
+    list-style-position: inside;
+  }
+  .entry.auto .chip {
+    font-size: 11px;
   }
   .entry.current {
     box-shadow: 0 0 0 2px var(--focus);

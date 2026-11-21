@@ -202,7 +202,7 @@
     <div class="skeleton short"></div>
   {:else}
     {#if view.node}
-      <div class="phone-node"><LazyPanel view={import('./NodePanel.svelte')} node={view.node} target={view.target} conversation={view.conversation} stamp={view.stamp} {onchange} compact /></div>
+      <div class="phone-node"><LazyPanel view={import('./NodePanel.svelte')} node={view.node} target={view.target} conversations={view.conversations ?? []} stamp={view.stamp} {onchange} compact /></div>
     {/if}
 
     <PushNudge />

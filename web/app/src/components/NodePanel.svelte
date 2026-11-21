@@ -17,8 +17,14 @@
   import { chooseSendCache } from '../lib/cache.svelte.js';
   import { desk } from '../lib/desk.svelte.js';
   import { archiveAgent } from '../lib/agents.js';
+  import ReplyingTo from './ReplyingTo.svelte';
+  import { focusBoxIn, replyRef } from '../lib/replyto.js';
+  import { syncMode } from '../lib/keys.svelte.js';
 
-  let { node, target, conversation = [], stamp = '', onchange, compact = false } = $props();
+  // conversations: the node's threads, one per message sent to it about no
+  // item, newest first (api/view).
+  let { node, target, conversations = [], stamp = '', onchange, compact = false } = $props();
+  const allEntries = $derived(conversations.flatMap((c) => c.entries));
   let settingsOpen = $state(false);
 
   const order = { status: 0, next: 1, done: 2, velocity: 3, findings: 4, artifacts: 5 };
@@ -31,20 +37,30 @@
   let conversationOpen = $state(false);
   let wasWaitingForDelivery = false;
   $effect(() => {
-    const waiting = conversation.some((entry) => entry.voice_failure || ['waiting for transcription', 'waiting for compaction'].includes(entry.pending));
+    const waiting = allEntries.some((entry) => entry.voice_failure || ['waiting for transcription', 'waiting for compaction'].includes(entry.pending));
     if (compact && waiting && !wasWaitingForDelivery) conversationOpen = true;
     wasWaitingForDelivery = waiting;
   });
 
-  const pending = $derived(pendingMessages([node.path], conversation));
+  // A message from the box starts a thread of its own; one sent with an
+  // entry's reply button goes about that entry, staying in its thread.
+  const pending = $derived(pendingMessages([node.path, ...allEntries.map((x) => x.event.id)], allEntries));
+  let replyingTo = $state(/** @type {ReturnType<typeof replyRef> | null} */ (null));
+  let actEl = $state();
+  function replyToEntry(t) {
+    replyingTo = replyRef(t);
+    writing = true;
+    focusBoxIn(actEl, syncMode);
+  }
 
   async function queueReply(body) {
-    const to = node.path;
+    const to = (!body.prompt && replyingTo?.id) || node.path;
     const page = route.path;
     const choice = await chooseSendCache('reply', to);
     if (choice === 'cancel' || route.path !== page) return false;
     const queued = queueMessage('reply', { to, ...body, ...(choice === 'compact' && { after_compaction: true }) });
     if (queued && choice === 'compact') conversationOpen = true;
+    if (queued && to !== node.path) replyingTo = null;
     return queued;
   }
   async function reply(text, opts = {}) {
@@ -146,15 +162,24 @@
     </details>
   {/if}
 
-  {#if conversation.length || pending.length}
+  {#snippet threads()}
+    {#if pending.length}<Thread entries={[]} {pending} remoteLabel={target?.remote_label} />{/if}
+    {#each conversations as c, i (c.root)}
+      <details class="convo-item" open={i === 0}>
+        <summary><span class="ctitle">{c.title}</span> <span class="faint">{c.entries.length} · {c.age} ago</span></summary>
+        <Thread entries={c.entries} remoteLabel={target?.remote_label} replyingTo={replyingTo?.display ?? ''} onreply={target ? replyToEntry : null} />
+      </details>
+    {/each}
+  {/snippet}
+  {#if conversations.length || pending.length}
     {#if compact && !pending.length}
       <details class="convo" bind:open={conversationOpen}>
-        <summary>Conversation ({conversation.length})</summary>
-        <Thread entries={conversation} {pending} remoteLabel={target?.remote_label} />
+        <summary>Conversations ({conversations.length})</summary>
+        {@render threads()}
       </details>
     {:else}
-      <div class="section-title">Conversation</div>
-      <Thread entries={conversation} {pending} remoteLabel={target?.remote_label} />
+      <div class="section-title">Conversations</div>
+      {@render threads()}
     {/if}
   {/if}
 
@@ -165,14 +190,17 @@
         {#if node.unread}<button data-cmd="read-all" class="btn small" title={tip('Mark everything under it read', 'read-all')} onclick={readAll}>Mark all read</button>{/if}
       </div>
     {:else}
-      <div class="act">
+      <div class="act" bind:this={actEl}>
+        {#if replyingTo}
+          <ReplyingTo to={replyingTo} back={`the ${kind.toLowerCase()}'s coordinator, as a new conversation`} oncancel={() => (replyingTo = null)} />
+        {/if}
         <Composer
           id={compact ? undefined : 'reply-box'}
           draft={'node:' + node.path}
           voiceNode={node.path}
-          label={`Message the ${kind.toLowerCase()}'s coordinator`}
-          placeholder="Tell it something, steer it, or ask what it is doing…"
-          hint={viaText(target)}
+          label={replyingTo ? `Reply to ${replyingTo.display}` : `Message the ${kind.toLowerCase()}'s coordinator`}
+          placeholder={replyingTo ? `Your reply about ${replyingTo.display}…` : 'A new conversation: tell it something, steer it, or ask what it is doing…'}
+          hint={replyingTo ? '' : viaText(target)}
           {target}
           send={reply}
         />
@@ -369,6 +397,17 @@
   }
   .kid .name {
     flex: 1;
+    font-weight: 600;
+  }
+  .convo-item {
+    margin-bottom: 8px;
+  }
+  .convo-item > summary {
+    cursor: pointer;
+    padding: 4px 0;
+    font-size: 13px;
+  }
+  .convo-item .ctitle {
     font-weight: 600;
   }
 </style>

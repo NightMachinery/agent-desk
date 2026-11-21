@@ -235,3 +235,82 @@ func lastOf(t *testing.T, h *harness, k string) string {
 	}
 	return id
 }
+
+// Only related messages share a thread: each message sent to a node about
+// no item roots its own, and a reply to it stays there. A response to a
+// generated message about a task (meta.auto) hangs from the task, and the
+// message still counts as answered.
+func TestMessageThreads(t *testing.T) {
+	h := newHarness(t)
+	const uuid = "22222222-0000-4000-8000-0000000000c1"
+	writePaseoRecord(t, h.paseo, uuid, sessA, "", "Coordinator")
+	env := map[string]string{"AI_AGENT": "claude-code", "CLAUDE_CODE_SESSION_ID": sessA, "PASEO_AGENT_ID": uuid}
+	h.ok(env, "", "join", "r1/coord")
+	h.respond = func(name string, args []string) (string, error) { return `{"status":"sent"}`, nil }
+
+	m1 := h.ok(nil, "", "reply", "example-proj/r1/coord", "how are the seeds?")
+	m2 := h.ok(nil, "", "reply", "example-proj/r1/coord", "unrelated: rename the repo")
+	r1 := h.ok(env, "Seeds 1-4 done.", "tell", "--re", m1)
+	follow := h.ok(nil, "", "reply", m1, "and seed 5?") // a reply to the message: same thread
+	d := h.loadDesk()
+	ids := func(evs []store.Event) string {
+		var out []string
+		for _, e := range evs {
+			if e.Kind != "delivered" {
+				out = append(out, d.Display(e.ID))
+			}
+		}
+		return strings.Join(out, " ")
+	}
+	e1, _ := d.Resolve(m1)
+	e2, _ := d.Resolve(m2)
+	if got := ids(d.Thread(e1.ID, "")); got != m1+" "+r1+" "+follow {
+		t.Fatalf("m1's thread: %s", got)
+	}
+	if got := ids(d.Thread(e2.ID, "")); got != m2 {
+		t.Fatalf("m2's thread: %s", got)
+	}
+	if got := ids(d.MessageThreads("example-proj/r1/coord")); got != m1+" "+m2 {
+		t.Fatalf("node threads: %s", got)
+	}
+	f, _ := d.Resolve(follow)
+	if f.Ref != e1.ID || !strings.Contains(ReplyText(d, f), "following up on their message "+m1+` ("how are the seeds?")`) {
+		t.Fatalf("follow-up: ref %s\n%s", d.Display(f.Ref), ReplyText(d, f))
+	}
+	if r, _ := d.Resolve(r1); r.Title != "Re: how are the seeds?" {
+		t.Fatalf("response title %q", r.Title)
+	}
+
+	// A generated message about a task: the prompt names the task, and the
+	// response, though it names the message, hangs from the task.
+	task := h.ok(env, "", "task", "add", "--title", "Seed 5", "--brief", "Rerun seed 5.")
+	_, hd := testServer(t, h)
+	if code, body, _ := do(t, hd, "POST", "/api/reply", `{"to":"`+task+`","text":"The user filed a task.","auto":"task-filed"}`, dashboard); code != 200 {
+		t.Fatalf("task-filed: %d %s", code, body)
+	}
+	if code, body, _ := do(t, hd, "POST", "/api/reply", `{"to":"`+task+`","text":"x","auto":"bogus"}`, dashboard); code != 400 {
+		t.Fatalf("bogus auto: %d %s", code, body)
+	}
+	d = h.loadDesk()
+	var auto store.Event
+	for _, e := range d.Events {
+		if e.Kind == "reply" && desk.MetaString(e, "auto") == "task-filed" {
+			auto = e
+		}
+	}
+	if !strings.HasSuffix(ReplyText(d, auto), "agent-desk tell --re "+task+")") {
+		t.Fatalf("prompt:\n%s", ReplyText(d, auto))
+	}
+	resp := h.ok(env, "On it.", "tell", "--re", d.Display(auto.ID))
+	direct := h.ok(env, "Seed 5 is running.", "tell", "--re", task)
+	d = h.loadDesk()
+	r, _ := d.Resolve(resp)
+	tk, _ := d.Resolve(task)
+	if r.Ref != tk.ID || desk.MetaString(r, "answers") != auto.ID || d.Awaiting(auto.ID) {
+		t.Fatalf("redirected response: ref %s answers %s awaiting %v", d.Display(r.Ref), desk.MetaString(r, "answers"), d.Awaiting(auto.ID))
+	}
+	if got := ids(d.Thread(tk.ID, "")); got != d.Display(auto.ID)+" "+resp+" "+direct {
+		t.Fatalf("task thread: %s", got)
+	}
+	h.fails(h.as(sessB), "x", "does not work on", "tell", "--re", task)
+}

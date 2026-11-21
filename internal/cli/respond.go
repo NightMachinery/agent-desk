@@ -61,15 +61,7 @@ func (r responding) apply(d *desk.Desk, node string, extra map[string]any) (ref,
 	if r.re == "" {
 		return "", "", nil
 	}
-	target, err := d.Resolve(r.re)
-	if err != nil {
-		return "", "", err
-	}
-	def, err := respondsTo(d, target, node)
-	if err != nil {
-		return "", "", err
-	}
-	return target.ID, def, nil
+	return linkResponse(d, r.re, node, extra)
 }
 
 // cmdDeliverable files a deliverable: something the user can open or

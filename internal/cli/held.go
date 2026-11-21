@@ -224,8 +224,13 @@ func (a *App) reNode(re string) (string, error) {
 		return "", err
 	}
 	node := e.Path
-	if e.Kind == "answer" {
+	switch e.Kind {
+	case "answer":
 		node = desk.NodeOf(d.ByID[e.Ref])
+	case "task":
+		if _, _, n, _, err := replyTarget(d, e.ID); err == nil {
+			node = n
+		}
 	}
 	for _, p := range heldPaths(a.held(d, ident.Resolve(a.Env))) {
 		if p == node {

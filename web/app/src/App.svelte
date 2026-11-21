@@ -214,7 +214,7 @@
     {:else if route.tasks}
       <LazyPanel view={import('./components/Tasks.svelte')} path={route.path} stamp={view?.stamp} runs={globalView?.view?.runs ?? []} />
     {:else if view?.node}
-      <LazyPanel view={import('./components/NodePanel.svelte')} node={view.node} target={view.target} conversation={view.conversation} stamp={view.stamp} onchange={refresh} />
+      <LazyPanel view={import('./components/NodePanel.svelte')} node={view.node} target={view.target} conversations={view.conversations ?? []} stamp={view.stamp} onchange={refresh} />
     {:else}
       <div class="placeholder">
         <svg viewBox="0 0 32 32" width="40" height="40" aria-hidden="true"

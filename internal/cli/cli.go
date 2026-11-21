@@ -758,18 +758,14 @@ func (a *App) cmdAsk(args []string) error {
 	return a.agentWrite(o.vals["project"], nodeArg, "ask", func(from ident.From, node string, d *desk.Desk) ([]store.Event, error) {
 		ref := ""
 		if re != "" {
-			target, err := d.Resolve(re)
-			if err != nil {
-				return nil, err
-			}
-			def, err := respondsTo(d, target, node)
-			if err != nil {
+			var def string
+			var err error
+			if ref, def, err = linkResponse(d, re, node, extra); err != nil {
 				return nil, err
 			}
 			if title == "" {
 				title = def
 			}
-			ref = target.ID
 		}
 		e := a.event("ask", node, from, "cli", extra)
 		e.Level, e.Title, e.Body, e.Ref = level, title, body, ref
@@ -832,18 +828,14 @@ func (a *App) cmdTell(args []string) error {
 		}
 		ref := ""
 		if re != "" {
-			target, err := d.Resolve(re)
-			if err != nil {
-				return nil, err
-			}
-			def, err := respondsTo(d, target, node)
-			if err != nil {
+			var def string
+			var err error
+			if ref, def, err = linkResponse(d, re, node, extra); err != nil {
 				return nil, err
 			}
 			if title == "" {
 				title = def
 			}
-			ref = target.ID
 		}
 		e := a.event("tell", node, from, "cli", extra)
 		e.Level, e.Title, e.Body, e.Ref = level, title, body, ref

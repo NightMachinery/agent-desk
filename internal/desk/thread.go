@@ -1,6 +1,7 @@
 package desk
 
 import (
+	"strings"
 	"time"
 
 	"github.com/NightMachinery/agent-desk/internal/store"
@@ -9,7 +10,14 @@ import (
 // Threads are derived from ref, never stored: a message (reply) refers to
 // what it is about, an answer to its question, and a response to the
 // message or answer it responds to. Following ref upwards from any of them
-// reaches the root item; a message with no ref belongs to its node's thread.
+// reaches the root item. A message with no ref (sent to a node, about no
+// item) is the root of its own thread: only related messages share one.
+//
+// A generated message (meta.auto: the message about a task the user filed,
+// a task change, a prepared prompt) is how the desk reaches an agent, not
+// something the user wrote. A response to one that is about an item refers
+// to that item, with the message in meta.answers (see Answers): it hangs
+// from the item, and the message still counts as answered.
 //
 // Every kind an agent files for the user (AgentItem: a notice, a question,
 // a done report, a deliverable) can be a response: given a ref (--re) or
@@ -66,14 +74,14 @@ func inThread(e store.Event) bool {
 	return e.Kind == "reply" || e.Kind == "answer" || IsResponse(e)
 }
 
-// Root is the item e's thread hangs from. ok is false for a node thread: a
-// message with no ref, or anything leading back to one. A response to a
-// question asked in chat has no ref either, but it is an item of its own:
-// messages about it hang from it.
+// Root is the item e's thread hangs from: an item, or a message sent with
+// no ref, which roots its own thread. A response to a question asked in chat
+// has no ref either, but it is an item of its own: messages about it hang
+// from it. ok is false only for what leads nowhere (a missing ref).
 func (d *Desk) Root(e store.Event) (root store.Event, ok bool) {
 	for i := 0; i < 64 && inThread(e); i++ {
 		if e.Ref == "" {
-			if i > 0 && IsResponse(e) {
+			if e.Kind == "reply" || (i > 0 && IsResponse(e)) {
 				return e, true
 			}
 			return store.Event{}, false
@@ -95,6 +103,7 @@ type threadKey struct {
 
 type threadIndex struct {
 	entries   map[threadKey][]int
+	nodeRoots map[string][]string // node path: ids of the messages with no ref sent to it, oldest first
 	responses map[string][]int
 	delivered map[string]int
 	failed    map[string]int
@@ -104,6 +113,7 @@ type threadIndex struct {
 func (d *Desk) indexThreads() {
 	d.threads = threadIndex{
 		entries:   map[threadKey][]int{},
+		nodeRoots: map[string][]string{},
 		responses: map[string][]int{},
 		delivered: map[string]int{},
 		failed:    map[string]int{},
@@ -136,12 +146,15 @@ func (d *Desk) indexThreads() {
 			continue
 		}
 		if IsResponse(e) {
-			d.threads.responses[e.Ref] = append(d.threads.responses[e.Ref], i)
+			to := Answers(e)
+			d.threads.responses[to] = append(d.threads.responses[to], i)
 		}
 		root, ok := d.Root(x)
 		k := threadKey{id: root.ID}
 		if !ok {
 			k = threadKey{path: NodeOf(x)}
+		} else if root.ID == x.ID && x.Kind == "reply" && x.ID == e.ID {
+			d.threads.nodeRoots[x.Path] = append(d.threads.nodeRoots[x.Path], x.ID)
 		}
 		d.threads.entries[k] = append(d.threads.entries[k], i)
 	}
@@ -165,6 +178,45 @@ func (d *Desk) Thread(id, path string) []store.Event {
 		path = ""
 	}
 	return d.threadEvents(d.threads.entries[threadKey{id: id, path: path}])
+}
+
+// MessageThreads are the messages sent to node path with no ref, oldest
+// first: each roots a thread of its own (Thread(id, "")).
+func (d *Desk) MessageThreads(path string) []store.Event {
+	ids := d.threads.nodeRoots[path]
+	out := make([]store.Event, 0, len(ids))
+	for _, id := range ids {
+		out = append(out, d.ByID[id])
+	}
+	return out
+}
+
+// Answers is the message or answer response e answers: meta.answers when
+// its ref was moved from a generated message to that message's item, else
+// its ref.
+func Answers(e store.Event) string {
+	if m := MetaString(e, "answers"); m != "" {
+		return m
+	}
+	return e.Ref
+}
+
+// ThreadTitle names the thread root heads: a slot's name, an item's title,
+// or a message's first line (a message has no title).
+func ThreadTitle(root store.Event) string {
+	switch {
+	case IsSlotKind(root.Kind):
+		return SlotName(root)
+	case root.Title != "":
+		return root.Title
+	case root.Kind == "reply":
+		line := strings.TrimSpace(strings.SplitN(strings.TrimSpace(root.Body), "\n", 2)[0])
+		if r := []rune(line); len(r) > 80 {
+			line = string(r[:79]) + "…"
+		}
+		return line
+	}
+	return ""
 }
 
 // ResponsesTo are the responses to message or answer id, oldest first.

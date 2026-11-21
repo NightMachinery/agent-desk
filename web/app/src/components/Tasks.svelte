@@ -250,7 +250,7 @@
         const to = res.id;
         const choice = await chooseSendCache('reply', to);
         if (choice !== 'cancel') {
-          queueMessage('reply', { to, text: message(res.id), ...(media.length && { media }), ...(choice === 'compact' && { after_compaction: true }) }, to, { quiet: true });
+          queueMessage('reply', { to, text: message(res.id), auto: 'task-filed', ...(media.length && { media }), ...(choice === 'compact' && { after_compaction: true }) }, to, { quiet: true });
           told = ` and told ${target.node}`;
         }
       }

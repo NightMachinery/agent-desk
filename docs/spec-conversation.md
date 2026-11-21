@@ -87,12 +87,22 @@ New kinds and fields; all other kinds are unchanged.
 
 Thread root of an event: follow `ref` upwards through replies, answers and
 responses. The first event that is none of those is the root item. A reply
-with no `ref` belongs to its node's thread.
+with no `ref` (a message to a node about no item) is the root of its own
+thread, so only related messages share one; a reply to such a message
+refers to it and stays in its thread.
+
+A generated message carries `meta.auto`: `task-filed` (the dashboard's
+message about a task the user filed), `task-changes`, or the name of a
+prepared prompt (`task-status`, `velocity-report`). It is how the desk
+reaches an agent, not the user's words. Its typed text asks for the
+response on the item it is about, and a response that names the message
+anyway refers to that item instead, with the message in `meta.answers`. The
+views show it as one folded line ("Told about the new task").
 
 Derived state:
 
 - A message is **responded** when any agent item (a `tell`, `ask`, `done`
-  or `deliverable`) refers to it.
+  or `deliverable`) refers to it, or names it in `meta.answers`.
 - A response is unread like any `tell`. `read` on a root item also marks its
   unread responses read. `read` on a message clears its "no response" flag.
 - A delivered message with no response after 15 minutes is flagged
@@ -106,6 +116,12 @@ Derived state:
     Message m-9a1e from the user via agent-desk, to example-proj/rerun-nov/coord: pause after seed 4
     (Respond on the desk: agent-desk tell --re m-9a1e)
 
+    Message m-3b7c from the user via agent-desk, following up on their message m-9a1e ("pause after seed 4"): and seed 5
+    (Respond on the desk: agent-desk tell --re m-3b7c)
+
+    Message m-5d0a from the user via agent-desk, about w-8f2a "Seed 5": The user filed a task ...
+    (Respond on the desk: agent-desk tell --re w-8f2a)
+
 Answers keep their text (`Answer to q-7f3a "...": B`) and expect no response.
 
 ## Commands
@@ -118,8 +134,9 @@ Answers keep their text (`Answer to q-7f3a "...": B`) and expect no response.
     agent-desk pref show [<path>] [--class <class>] [--format json]
     agent-desk whoami            #: the calling session's node, or exit 1
 
-- `tell --re` without `--title` uses "Re: " plus the root item's title, or
-  the first line of the body in a node thread.
+- `tell --re` takes a message, an answer, or a task the node works on.
+  Without `--title` it uses "Re: " plus the root's title (a message's first
+  line when the root is a message).
 - `show --mine` gains a section "Messages awaiting your response".
 - `pref show` prints each key's resolved value and where it comes from.
 - `answer` takes `--behavior` too.
@@ -257,7 +274,10 @@ Web dashboard:
   a new turn", "queued, position 2", "interrupted the turn", "revived the
   session"), a fallback note when there is one, then "responded" or, after
   15 minutes, "no response yet". Responses render with their body.
-- Node page: a "Conversation" section with the node thread, newest last.
+- Node page: a "Conversations" section listing the node's threads, one per
+  message sent to it about no item, the newest active first and open. Every
+  entry has a reply button, which makes the box reply about that entry; a
+  message typed in the box without it starts a new thread.
 - Composer: one Send button using the resolved behaviour, and a menu beside
   it with the other behaviours. An unsupported one is disabled with its
   reason. "Stop and send" (interrupt) asks for confirmation. A "Notify me"

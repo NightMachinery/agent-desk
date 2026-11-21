@@ -314,7 +314,11 @@ func (a *App) preview(d *desk.Desk, st inboxState, key string) string {
 			}
 			b.WriteString("\n")
 		}
-		b.WriteString(a.threadText(d, d.Thread("", path), "Conversation with this node", ""))
+		roots := d.MessageThreads(path)
+		for i := len(roots) - 1; i >= 0 && i >= len(roots)-5; i-- { // the newest five
+			r := roots[i]
+			b.WriteString(a.threadText(d, d.Thread(r.ID, ""), "Conversation "+d.Display(r.ID)+": "+desk.ThreadTitle(r), ""))
+		}
 		b.WriteString("\n" + dim("ctrl-r marks everything under it read · enter folds · alt-m message") + "\n")
 	default:
 		e, ok := d.ByID[key]
@@ -387,11 +391,7 @@ func itemThread(d *desk.Desk, e store.Event) ([]store.Event, string) {
 		return d.Thread(e.ID, ""), "Conversation"
 	}
 	if root, ok := d.Root(e); ok {
-		title := root.Title
-		if desk.IsSlotKind(root.Kind) {
-			title = desk.SlotName(root)
-		}
-		return d.Thread(root.ID, ""), fmt.Sprintf("Conversation on %s %s", d.Display(root.ID), title)
+		return d.Thread(root.ID, ""), fmt.Sprintf("Conversation on %s %s", d.Display(root.ID), desk.ThreadTitle(root))
 	}
 	return d.Thread("", desk.NodeOf(e)), "Conversation with " + desk.NodeOf(e)
 }
@@ -700,7 +700,7 @@ func (a *App) messagePrompt(d *desk.Desk, token, key string) error {
 	if err != nil || text == "" {
 		return err
 	}
-	if _, err := a.recordReply(token, text, "cli", "", nil); err != nil {
+	if _, err := a.recordReply(token, text, "cli", "", nil, ""); err != nil {
 		return a.pause(err.Error())
 	}
 	return a.pause("Sent.")

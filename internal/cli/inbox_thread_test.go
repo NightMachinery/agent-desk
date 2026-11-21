@@ -46,9 +46,10 @@ func TestInboxAndLedgerThreads(t *testing.T) {
 		!strings.Contains(p, "▸ "+r+"  Rerun coordinator responded to "+m) || !strings.Contains(p, "alt-m message") {
 		t.Fatalf("response preview:\n%s", p)
 	}
-	// The node's preview shows its own conversation, flagged after 15 minutes.
+	// The node's preview shows each message sent to it about no item as a
+	// conversation of its own, flagged after 15 minutes.
 	p = h.inbox(t, state, "inbox-preview", "node:example-proj/r1/coord")
-	if !strings.Contains(p, "Conversation with this node") || !strings.Contains(p, nm) ||
+	if !strings.Contains(p, "Conversation "+nm+": how are the seeds?") || !strings.Contains(p, nm+"  You → Rerun coordinator") ||
 		!strings.Contains(p, "how are the seeds?") || !strings.Contains(p, "no response yet") {
 		t.Fatalf("node preview:\n%s", p)
 	}

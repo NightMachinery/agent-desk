@@ -227,6 +227,7 @@ func (s *server) tellTaskChanges(now time.Time) (int, error) {
 			if err != nil {
 				return nil, err
 			}
+			markAuto(&e, "task-changes")
 			m := desk.Meta(e)
 			m["task_changes"] = marks
 			e.Meta = meta(m)

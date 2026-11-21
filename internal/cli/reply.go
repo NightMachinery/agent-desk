@@ -28,9 +28,12 @@ func replyTarget(d *desk.Desk, token string) (to ident.From, host, node string, 
 		if rerr == nil {
 			switch e.Kind {
 			case "answer", "reply":
-				// About what it answered or replied to, not the user's own words.
+				// About what it answered or replied to, not the user's own words;
+				// a message about no item roots its own thread, so a reply to it
+				// is about it, and stays in that thread.
 				if e.Ref == "" {
-					return replyTarget(d, desk.NodeOf(e))
+					to, host, node, _, err = replyTarget(d, desk.NodeOf(e))
+					return to, host, node, e, err
 				}
 				e = d.ByID[e.Ref]
 			case "read", "delivered", "undelivered", "pin", "pref", "notified", "retracted":
@@ -64,15 +67,59 @@ func replyTarget(d *desk.Desk, token string) (to ident.From, host, node string, 
 // ReplyText is the prompt typed into the session. It names the message's
 // own id and the command that responds to it, so the response links without
 // the agent having to remember the skill.
+//
+// A generated message about an item (meta.auto) names the item instead: the
+// response belongs to it (see desk.Answers).
 func ReplyText(d *desk.Desk, reply store.Event) string {
 	id := d.Display(reply.ID)
-	about := "to " + reply.Path
+	about, re := "to "+reply.Path, id
 	if reply.Ref != "" {
 		r := d.ByID[reply.Ref]
-		about = fmt.Sprintf("about %s \"%s\"", d.Display(r.ID), r.Title)
+		if r.Kind == "reply" {
+			about = fmt.Sprintf("following up on their message %s (\"%s\")", d.Display(r.ID), desk.ThreadTitle(r))
+		} else {
+			about = fmt.Sprintf("about %s \"%s\"", d.Display(r.ID), desk.ThreadTitle(r))
+		}
+		if desk.MetaString(reply, "auto") != "" {
+			re = d.Display(r.ID)
+		}
 	}
 	return fmt.Sprintf("Message %s from the user via agent-desk, %s: %s\n(Respond on the desk: agent-desk tell --re %s)",
-		id, about, reply.Body, id)
+		id, about, reply.Body, re)
+}
+
+// markAuto marks e as a generated message of kind auto (meta.auto): the
+// one about a task the user filed, a task change, or a prepared prompt
+// (its name). Nothing for an empty kind.
+func markAuto(e *store.Event, auto string) {
+	if auto == "" {
+		return
+	}
+	m := desk.Meta(*e)
+	m["auto"] = auto
+	e.Meta = meta(m)
+}
+
+// autoKinds are the generated messages the dashboard may mark (meta.auto).
+var autoKinds = map[string]bool{"task-filed": true}
+
+// linkResponse checks that a response from node may answer the --re target
+// (respondsTo) and returns its ref and default title. A response to a
+// generated message about an item refers to the item, keeping the message
+// in extra["answers"], so it hangs from the item and still answers it.
+func linkResponse(d *desk.Desk, re, node string, extra map[string]any) (ref, title string, err error) {
+	target, err := d.Resolve(re)
+	if err != nil {
+		return "", "", err
+	}
+	if title, err = respondsTo(d, target, node); err != nil {
+		return "", "", err
+	}
+	if target.Kind == "reply" && target.Ref != "" && desk.MetaString(target, "auto") != "" {
+		extra["answers"] = target.ID
+		return target.Ref, title, nil
+	}
+	return target.ID, title, nil
 }
 
 // respondsTo checks that a response from node may refer to e: a message to
@@ -90,15 +137,19 @@ func respondsTo(d *desk.Desk, e store.Event, node string) (string, error) {
 		if desk.NodeOf(q) != node {
 			return "", fmt.Errorf("%s answers a question of %s, not of this session's node %s", shown, desk.NodeOf(q), node)
 		}
+	case "task":
+		// A task this node works on: its own, or one routed to it.
+		if desk.NodeOf(e) != node {
+			if _, _, to, _, err := replyTarget(d, e.ID); err != nil || to != node {
+				return "", fmt.Errorf("%s is a task at %s, which this session's node %s does not work on", shown, desk.NodeOf(e), node)
+			}
+		}
+		return "Re: " + clipLine(e.Title, 60), nil
 	default:
-		return "", fmt.Errorf("%s is a %s; --re takes a message (m-...) or an answer (a-...) sent to you", shown, e.Kind)
+		return "", fmt.Errorf("%s is a %s; --re takes a message (m-...), an answer (a-...) or a task (w-...) sent to you", shown, e.Kind)
 	}
 	if root, ok := d.Root(e); ok {
-		title := root.Title
-		if root.Kind == "set" {
-			title = desk.SlotName(root)
-		}
-		return "Re: " + title, nil
+		return "Re: " + clipLine(desk.ThreadTitle(root), 60), nil
 	}
 	return "Re: " + clipLine(e.Body, 60), nil
 }
@@ -134,7 +185,7 @@ func (a *App) cmdReply(args []string) error {
 	if err != nil {
 		return err
 	}
-	_, err = a.recordReply(o.pos[0], text, "cli", beh, notify, refs...)
+	_, err = a.recordReply(o.pos[0], text, "cli", beh, notify, o.vals["prompt"], refs...)
 	return err
 }
 
@@ -200,12 +251,14 @@ func (a *App) replyTo(d *desk.Desk, to ident.From, host, node string, about stor
 	return e, nil
 }
 
-// recordReply appends a reply and delivers it for the CLI.
-func (a *App) recordReply(token, text, source, behavior string, notify map[string]string, refs ...media.Ref) (store.Event, error) {
+// recordReply appends a reply and delivers it for the CLI; auto marks a
+// generated one (markAuto).
+func (a *App) recordReply(token, text, source, behavior string, notify map[string]string, auto string, refs ...media.Ref) (store.Event, error) {
 	e, err := a.replyEvent(token, text, source, behavior, notify, refs...)
 	if err != nil {
 		return e, err
 	}
+	markAuto(&e, auto)
 	_, host := toOf(e)
 	if err := a.commit1(e); err != nil {
 		return e, err

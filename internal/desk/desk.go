@@ -418,7 +418,7 @@ func (d *Desk) item(e store.Event) Item {
 	if it.Response && e.Ref != "" {
 		it.Re = d.Display(e.Ref)
 		if root, ok := d.Root(e); ok {
-			it.Root, it.RootTitle = d.Display(root.ID), root.Title
+			it.Root, it.RootTitle = d.Display(root.ID), ThreadTitle(root)
 		}
 	}
 	return it

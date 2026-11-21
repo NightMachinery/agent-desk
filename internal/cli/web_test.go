@@ -66,14 +66,16 @@ func TestServeThreads(t *testing.T) {
 		t.Fatalf("response page: of %q %q, %d entries, item %+v", it.ThreadOf, it.ThreadTitle, len(it.Thread), it.Item)
 	}
 
-	// The node page: its own conversation, and the target's notify values.
+	// The node page: each message sent to it about no item is a thread of
+	// its own, and the target's notify values.
 	h.now = h.now.Add(16 * time.Minute)
 	_, hd = testServer(t, h)
 	var v viewResponse
 	_, body, _ = do(t, hd, "GET", "/api/view?path=example-proj/r1/coord", "", nil)
 	must(t, json.Unmarshal([]byte(body), &v))
-	if len(v.Conversation) != 1 || v.Conversation[0].ID != m2 || v.Conversation[0].Status != "no_response" {
-		t.Fatalf("conversation: %+v", v.Conversation)
+	if len(v.Conversations) != 1 || v.Conversations[0].Root != m2 || len(v.Conversations[0].Entries) != 1 ||
+		v.Conversations[0].Entries[0].ID != m2 || v.Conversations[0].Entries[0].Status != "no_response" {
+		t.Fatalf("conversations: %+v", v.Conversations)
 	}
 	if v.Target == nil || v.Target.Notify["desktop"] != "origin" || v.Target.Notify["remote"] != "away" || v.Target.Finished != "" {
 		t.Fatalf("target: %+v", v.Target)

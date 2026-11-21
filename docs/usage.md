@@ -619,8 +619,12 @@ An item shows its conversation under it: your messages and answers, each
 with what happened to it ("joined the running turn", "queued, position 2",
 "waiting for a merge to host-b", a fallback note when the behaviour you asked
 for was unavailable), then "responded" or, 15 minutes after delivery, "no
-response yet"; the agents' responses follow in order. A node shows its own
-conversation the same way. A response in the list reads "Response to
+response yet"; the agents' responses follow in order. Only related
+messages share a conversation: each message you send to a node about no
+item starts one of its own, and the node page lists them (Conversations,
+the newest active first). Messages the desk generates (about a task you
+filed, your task changes, a Status or velocity request) show as one folded
+line, and the agent's response to one hangs from the item it was about. A response in the list reads "Response to
 m-4c2d", and its page shows the conversation it belongs to. Every entry in a
 conversation has a reply button (an arrow beside its id): the message box
 then says "Replying to t-hk1t" and sends about that entry, so the message
@@ -981,9 +985,9 @@ the task (`task title`). The message also asks it to split a task with
 several parts into steps under it (`task add --parent`), and to finish with
 a note saying how it was done.
 "Message its coordinator about it" (on by default) also sends a message
-about the task, so an agent acts on it now (the message and the agent's
-responses form the task's own conversation, apart from the node's running
-one): to the node's own agent, or,
+about the task, so an agent acts on it now (the agent responds on the
+task itself, so its responses form the task's own conversation): to the
+node's own agent, or,
 for a project or a run (which no agent holds), to the coordinator working
 under it, the newest one that has not filed its done report. The form
 names that coordinator, and says in red when no agent works under the node,

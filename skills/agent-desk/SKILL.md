@@ -133,6 +133,11 @@ from the desk by a user who may not be watching your chat. Act on it, then
     Done; the old feed is fine.
     R
 
+When the message is about a task (a task the user filed, a change to one,
+a Status request), its last line names the task instead: respond with
+`agent-desk tell --re <task id>`, so the response sits on the task. `--re`
+takes any task you work on.
+
 Respond even when you also answered in chat ("Will do after the current
 seed." is enough). Add `--quiet` only for a bare acknowledgement. Without
 `--title` the response is titled "Re: " and the title of the item the

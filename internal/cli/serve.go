@@ -281,6 +281,7 @@ type request struct {
 	Text            string   `json:"text"`       // answer, reply
 	To              string   `json:"to"`         // reply: an item or a node path
 	Prompt          string   `json:"prompt"`     // reply: a prepared message instead of text (velocity-report)
+	Auto            string   `json:"auto"`       // reply: a generated message (task-filed), see markAuto
 	Target          string   `json:"target"`     // read: an item or a node path
 	Targets         []string `json:"targets"`    // read, unread: several at once
 	AfterCompaction bool     `json:"after_compaction,omitempty"`
@@ -447,10 +448,18 @@ func replyFromRequest(app *App, body request) ([]store.Event, error) {
 	if err != nil {
 		return nil, err
 	}
+	auto := body.Prompt
+	if body.Auto != "" {
+		if !autoKinds[body.Auto] || auto != "" {
+			return nil, usagef("auto is task-filed, without a prompt")
+		}
+		auto = body.Auto
+	}
 	e, err := app.replyEvent(body.To, text, "web", body.Behavior, notify, refs...)
 	if err != nil {
 		return nil, err
 	}
+	markAuto(&e, auto)
 	return []store.Event{e}, nil
 }
 
@@ -638,12 +647,13 @@ type viewResponse struct {
 	View   desk.View  `json:"view"`
 	Node   *desk.Node `json:"node,omitempty"`
 	Target *Target    `json:"target,omitempty"`
-	// Conversation is the target node's own thread: messages to the node
-	// and the responses to them, oldest first.
-	Conversation []Entry  `json:"conversation,omitempty"`
-	Session      *Session `json:"session,omitempty"`
-	Projects     []string `json:"projects"`
-	Hosts        []string `json:"hosts"`
+	// Conversations are the threads of the messages sent to the target
+	// node about no item, each message with the responses to it, newest
+	// first.
+	Conversations []Convo  `json:"conversations,omitempty"`
+	Session       *Session `json:"session,omitempty"`
+	Projects      []string `json:"projects"`
+	Hosts         []string `json:"hosts"`
 	// Deferred are the tasks waiting for quota under the path; Launch says
 	// whether launch_command is set and how many tasks one launch takes.
 	Deferred []desk.Task `json:"deferred"`
@@ -801,7 +811,7 @@ func (s *server) apiView(w http.ResponseWriter, r *http.Request) {
 		}
 		if resp.Target != nil {
 			s.behaviors(d, resp.Target)
-			resp.Conversation = entries(d, d.Thread("", resp.Target.Node), s.sshHosts())
+			resp.Conversations = conversations(d, resp.Target.Node, s.sshHosts())
 		}
 	}
 	if f.Session != "" {
@@ -1285,7 +1295,7 @@ func (s *server) apiItem(w http.ResponseWriter, r *http.Request) {
 	if e.Kind == "reply" || e.Kind == "answer" || desk.IsResponse(e) {
 		// A message or response is shown in the conversation it belongs to.
 		if root, ok := d.Root(e); ok {
-			thread, resp.ThreadOf, resp.ThreadTitle = d.Thread(root.ID, ""), d.Display(root.ID), root.Title
+			thread, resp.ThreadOf, resp.ThreadTitle = d.Thread(root.ID, ""), d.Display(root.ID), desk.ThreadTitle(root)
 		} else if e.Ref != "" || e.Kind == "reply" {
 			thread, resp.ThreadOf = d.Thread("", desk.NodeOf(e)), desk.NodeOf(e)
 		}
@@ -1656,4 +1666,35 @@ func (s *server) apiVerbatim(w http.ResponseWriter, r *http.Request) {
 	}
 	resp.Refs = refsOf(d, texts)
 	writeJSON(w, resp)
+}
+
+// Convo is one thread at a node: a message sent about no item and what
+// followed it.
+type Convo struct {
+	Root    string  `json:"root"` // the message's display id
+	Title   string  `json:"title"`
+	Age     string  `json:"age"` // since its newest entry
+	Entries []Entry `json:"entries"`
+}
+
+// maxConvos is how many of a node's threads its page shows.
+const maxConvos = 30
+
+// conversations are node's message threads, newest activity first.
+func conversations(d *desk.Desk, node string, hosts map[string]string) []Convo {
+	roots := d.MessageThreads(node)
+	out := make([]Convo, 0, len(roots))
+	for _, r := range roots {
+		th := d.Thread(r.ID, "")
+		if len(th) == 0 {
+			continue
+		}
+		out = append(out, Convo{Root: d.Display(r.ID), Title: desk.ThreadTitle(r), Age: desk.Age(d.Now.Sub(desk.Time(th[len(th)-1]))), Entries: entries(d, th, hosts)})
+	}
+	last := func(c Convo) string { return c.Entries[len(c.Entries)-1].Event.ID }
+	sort.SliceStable(out, func(i, j int) bool { return last(out[i]) > last(out[j]) })
+	if len(out) > maxConvos {
+		out = out[:maxConvos]
+	}
+	return out
 }

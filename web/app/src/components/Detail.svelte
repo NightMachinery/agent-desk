@@ -24,6 +24,8 @@
   import { keys, syncMode } from '../lib/keys.svelte.js';
   import { askStatus, noteLabel, toldText } from '../lib/taskstatus.js';
   import ReopenForm from './ReopenForm.svelte';
+  import ReplyingTo from './ReplyingTo.svelte';
+  import { focusBoxIn, replyRef } from '../lib/replyto.js';
 
   let { item, error, onchange } = $props();
 
@@ -111,22 +113,8 @@
     replyingTo = null;
   });
   function replyToEntry(t) {
-    const fromAgent = t.kind === 'response' || t.kind === 'question';
-    replyingTo =
-      t.event.id === e.id
-        ? null
-        : {
-            id: t.event.id,
-            display: t.display_id,
-            who: fromAgent ? t.by || 'its agent' : t.kind === 'answer' ? 'your answer' : 'your message',
-            snippet: (t.event.title || t.event.body || '').split('\n')[0].slice(0, 100),
-          };
-    setTimeout(() => {
-      const box = document.getElementById('reply-box');
-      box?.focus();
-      box?.scrollIntoView({ block: 'nearest' });
-      syncMode();
-    });
+    replyingTo = t.event.id === e.id ? null : replyRef(t);
+    focusBoxIn(null, syncMode);
   }
   async function taskAct(action, note = '') {
     try {
@@ -438,12 +426,7 @@
     {#if item.target}
       <section class="act">
         {#if replyingTo}
-          <div class="replying">
-            <Icon name="reply" size={13} />
-            <span>Replying to <a class="mono" href={'#e-' + replyingTo.display} onclick={(ev) => { ev.preventDefault(); document.getElementById('e-' + replyingTo.display)?.scrollIntoView({ block: 'center', behavior: 'smooth' }); }}>{replyingTo.display}</a> ({replyingTo.who}){replyingTo.snippet ? ':' : ''}</span>
-            <span class="faint snippet">{replyingTo.snippet}</span>
-            <button class="btn ghost small" data-cmd="reply-to-cancel" title={`Stop replying to ${replyingTo.display}: the message goes about ${it.display_id} again`} aria-label="Stop replying to it" onclick={() => (replyingTo = null)}>✕</button>
-          </div>
+          <ReplyingTo to={replyingTo} back={it.display_id} oncancel={() => (replyingTo = null)} />
         {/if}
         <Composer
           id="reply-box"
@@ -719,27 +702,5 @@
   .task-note {
     white-space: pre-wrap;
     overflow-wrap: anywhere;
-  }
-  .replying {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    margin-bottom: 6px;
-    padding: 5px 8px;
-    border-left: 3px solid var(--default);
-    border-radius: 6px;
-    background: var(--sunken);
-    font-size: 12.5px;
-    min-width: 0;
-  }
-  .replying .snippet {
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .replying a {
-    text-decoration: underline;
   }
 </style>
