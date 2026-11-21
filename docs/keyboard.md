@@ -56,9 +56,10 @@ On a phone there is one pane at a time: the list, or the open item.
   retraces your `n` steps, back to the item each came from, though opening
   it has read it by now; `n` then goes forward again along them. With nothing
   to retrace, `N` goes to the nearest open item before. When nothing open is
-  left anywhere, `n` says "🎉 All caught up" (pressing it again pulses that
-  toast instead of adding another); answering or sending on your last open
-  item adds the same note to its toast.
+  left anywhere, `n` says "🎉 All caught up" and opens the Tasks page here,
+  even an empty one (the toast's Back returns; pressing `n` again pulses
+  the toast instead of adding another). Answering or sending on your last
+  open item shows the same toast beside its own, with a Tasks button.
 
 ## The detail pane
 

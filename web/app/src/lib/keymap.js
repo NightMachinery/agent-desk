@@ -8,7 +8,7 @@ import { route, go, pageOpen } from './route.svelte.js';
 import { nav, step } from './nav.svelte.js';
 import { sel, toggle, toggleAll, clear } from './select.svelte.js';
 import { copy } from './format.js';
-import { toast } from './toast.svelte.js';
+import { toast, bump } from './toast.svelte.js';
 import { get, post } from './api.js';
 import { toggleSection, showDeliverables, deliverableModeLabel, showTasks, taskModeLabel } from './ui.svelte.js';
 import {
@@ -84,11 +84,21 @@ function openOpen(dir) {
     // it is a clear desk unless the item shown is itself still open.
     if (dir < 0 && moveOnTarget(nav.order, here, nav.pinned, nav.open)) return say('Nothing open before this');
     if (here && nav.open.has(here) && !nav.pinned.has(here)) return say('Nothing else open');
-    return toast(ALL_CLEAR, 'ok', 4500, null, ALL_CLEAR_KEY);
+    return clearDesk();
   }
   if (here) (dir > 0 ? back : ahead).push(here);
   if (back.length > 100) back.shift();
   openItem(id);
+}
+
+/** n on a clear desk: the next thing is the work itself, so it opens the
+ * Tasks page here, even an empty one (Back returns). A repeat pulses the
+ * toast. */
+function clearDesk() {
+  if (route.tasks) return bump(ALL_CLEAR_KEY, 6000) || toast(ALL_CLEAR, 'ok', 4500, null, ALL_CLEAR_KEY);
+  const from = { item: route.item, tasks: false };
+  tasksHere();
+  toast(`${ALL_CLEAR}: here are your tasks`, 'ok', 6000, { label: 'Back', run: () => go(from) }, ALL_CLEAR_KEY);
 }
 
 /** The first row of the section n sections away from the open item. */

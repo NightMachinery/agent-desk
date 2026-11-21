@@ -18,7 +18,7 @@
   import Icon from './Icon.svelte';
   import Thread from './Thread.svelte';
   import { autoRead, nav, position, step } from '../lib/nav.svelte.js';
-  import { moveOnTarget, ALL_CLEAR } from '../lib/moveon.js';
+  import { moveOnTarget, ALL_CLEAR, ALL_CLEAR_KEY } from '../lib/moveon.js';
   import { arrival, arrivedAuto, cancelArrival, settleArrival } from '../lib/arrival.js';
   import { ui } from '../lib/ui.svelte.js';
   import { keys, syncMode } from '../lib/keys.svelte.js';
@@ -149,7 +149,9 @@
   const wide = () => typeof matchMedia === 'function' && matchMedia('(min-width: 901px)').matches;
   function moveOn(text, back = null, enabled = ui.nextAfterQuestion) {
     settleArrival(route.item); // acting on an arrival reads it
-    if (!moveOnTarget(nav.order, route.item, nav.pinned, nav.open)) text = `${text} ${ALL_CLEAR}.`;
+    // The last open item dealt with: say so beside the usual toast, with the
+    // Tasks page one click away (n would open it).
+    if (!moveOnTarget(nav.order, route.item, nav.pinned, nav.open)) toast(ALL_CLEAR, 'ok', 6000, { label: 'Tasks', run: () => go({ item: '', tasks: true }) }, ALL_CLEAR_KEY);
     if (!enabled) {
       toast(text, 'ok', 6000, back ? { label: 'Undo', run: back } : null);
       return;
