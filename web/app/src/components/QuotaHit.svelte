@@ -17,6 +17,7 @@
   import { get, post } from '../lib/api.js';
   import { toast } from '../lib/toast.svelte.js';
   import { copy, short } from '../lib/format.js';
+  import { off, BUSY } from '../lib/why.js';
 
   let { stamp = '', path = '', collapsed = false, count = $bindable(0), hiddenCount = $bindable(0) } = $props();
   let data = $state({ agents: [], profiles: [] });
@@ -151,9 +152,9 @@
     <div class="selbar">
       <button class="btn small ghost" onclick={pickAll}>{allPicked ? 'Deselect all' : 'Select all'}</button>
       <span class="faint">{picked.size} selected</span>
-      <button class="btn small" data-cmd="quota-copy-ids" disabled={!picked.size} onclick={copyPicked}
-        title="Copy the selected agents' Paseo ids, one per line">Copy Paseo IDs</button>
-      <button class="btn small" disabled={!picked.size || !!busy} onclick={() => dismiss(shownIds.filter((id) => picked.has(id)), !showDismissed)}>
+      <button class="btn small" data-cmd="quota-copy-ids" onclick={copyPicked}
+        {...off("Copy the selected agents' Paseo ids, one per line", [!picked.size, 'Select agents first'])}>Copy Paseo IDs</button>
+      <button class="btn small" {...off(undefined, [!picked.size, 'Select agents first'], [busy, BUSY])} onclick={() => dismiss(shownIds.filter((id) => picked.has(id)), !showDismissed)}>
         {showDismissed ? 'Undismiss selected' : 'Dismiss selected'}
       </button>
       {#if picked.size && !sel.mode}
@@ -175,11 +176,11 @@
         <div class="tools">
           <CopyIds paseo={a.paseo} keys={false} />
           {#if a.dismissed}
-            <button class="icon" title="Show it again" disabled={!!busy} onclick={() => dismiss([a.paseo], false)}>
+            <button class="icon" {...off('Show it again', [busy, BUSY])} onclick={() => dismiss([a.paseo], false)}>
               <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8a5 5 0 1 0 1.5-3.5M3 2.5V5h2.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
             </button>
           {:else}
-            <button class="icon" data-cmd="quota-dismiss" title="Dismiss: hide it until it runs and stops again" disabled={!!busy} onclick={() => dismiss([a.paseo], true)}>
+            <button class="icon" data-cmd="quota-dismiss" {...off('Dismiss: hide it until it runs and stops again', [busy, BUSY])} onclick={() => dismiss([a.paseo], true)}>
               <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" /></svg>
             </button>
           {/if}
@@ -197,7 +198,7 @@
       <div class="acts">
         {#if data.auto_continue}
           <label class="toggle" title="Send it Continue. when its own quota returns (the auto-continue watcher)">
-            <input type="checkbox" checked={a.auto_continue} disabled={!!busy}
+            <input type="checkbox" checked={a.auto_continue} {...off(undefined, [busy, BUSY])}
               onchange={() => act(a, a.auto_continue ? 'auto-continue-off' : 'auto-continue-on', a.auto_continue ? 'Auto-continue off.' : 'Auto-continue on.')} />
             Auto-continue
           </label>
@@ -205,14 +206,14 @@
         <CacheControl paseo={a.paseo} />
         <div class="btns">
         {#if a.parent && !a.parent.stopped}
-          <button class="btn small" disabled={!!busy} title="Message its parent: archive it and give its role to a new subagent on an account with quota left, recovering its partial work and minding its own subagents (prompt: reassign-role.md)"
+          <button class="btn small" {...off('Message its parent: archive it and give its role to a new subagent on an account with quota left, recovering its partial work and minding its own subagents (prompt: reassign-role.md)', [busy, BUSY])}
             onclick={() => act(a, 'ask-parent', 'Asked its parent.')}>Ask parent to reassign</button>
         {/if}
-        <button class="btn small" data-cmd="quota-archive" disabled={!!busy} title="Archive it in Paseo: it leaves this list (messaging it from the desk revives it)"
+        <button class="btn small" data-cmd="quota-archive" {...off('Archive it in Paseo: it leaves this list (messaging it from the desk revives it)', [busy, BUSY])}
           onclick={async () => { if (await archiveAgent(a.paseo, a.title)) load(true); }}>Archive</button>
         {#if data.launch_ready}
-          <button class="btn small" data-cmd="quota-replace" disabled={!!busy}
-            title="Start a new agent on a provider you pick, that recovers its partial work, takes over its role and archives it (prompt: replace-agent.md)"
+          <button class="btn small" data-cmd="quota-replace"
+            {...off('Start a new agent on a provider you pick, that recovers its partial work, takes over its role and archives it (prompt: replace-agent.md)', [busy, BUSY])}
             onclick={() => (replacing = a)}>Replace…</button>
         {/if}
         </div>
@@ -304,7 +305,7 @@
     color: var(--muted);
     cursor: pointer;
   }
-  .icon:hover {
+  .icon:hover:not(:disabled) {
     background: var(--sunken);
     color: var(--text);
   }

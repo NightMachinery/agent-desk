@@ -14,6 +14,7 @@
   import Markdown from './Markdown.svelte';
   import { askStatus, noteLabel, toldText } from '../lib/taskstatus.js';
   import ReopenForm from './ReopenForm.svelte';
+  import { off, BUSY } from '../lib/why.js';
 
   let { path = '', stamp = '', runs = [], adding = $bindable(false) } = $props();
 
@@ -219,6 +220,13 @@
   // A title is optional when there are details: the agent names the task
   // (agent-desk task title), and the brief's first line stands in until then.
   const canFile = $derived(!!(title.trim() || brief.trim() || readyRefs.length) && !!node && !filing && !uploading);
+  // Why File it is disabled right now, the same conditions as canFile.
+  const fileWhy = $derived(/** @type {[unknown, string][]} */ ([
+    [filing, 'Wait: filing'],
+    [uploading, 'Wait: the files are still uploading'],
+    [!node, 'Pick where it goes first'],
+    [!(title.trim() || brief.trim() || readyRefs.length), 'Write what it is first'],
+  ]));
   function message(id) {
     const what = newType === 'task' ? 'task' : newType;
     const named = title.trim() ? `${id} "${title.trim()}"` : `${id}, without a title`;
@@ -330,7 +338,7 @@
       </div>
       <div class="files">
         <input bind:this={picker} type="file" multiple hidden onchange={(e) => (addFiles([...(e.currentTarget.files ?? [])]), (e.currentTarget.value = ''))} />
-        <button type="button" class="btn ghost small" disabled={files.length >= MAX_FILES} onclick={() => picker?.click()} title="Attach files; you can also paste or drop them on the form">Attach</button>
+        <button type="button" class="btn ghost small" onclick={() => picker?.click()} {...off('Attach files; you can also paste or drop them on the form', [files.length >= MAX_FILES, `At most ${MAX_FILES} files`])}>Attach</button>
         {#each files as f (f.key)}
           <span class="file" class:err={f.status === 'error'}>
             <span class="mono">{f.name}</span>
@@ -351,7 +359,7 @@
         {/if}
         <span class="spacer"></span>
         <span class="faint hint">⌘↵ to file · Esc twice or C-g to close</span>
-        <button class="btn small primary" type="submit" disabled={!canFile}>{filing ? 'Filing…' : 'File it'}</button>
+        <button class="btn small primary" type="submit" {...off(undefined, ...fileWhy)}>{filing ? 'Filing…' : 'File it'}</button>
       </div>
     </form>
   {/if}
@@ -393,7 +401,7 @@
     {@const dropped = t.state === 'dropped'}
     <li class="task" class:done class:dropped style={`--depth: ${depth}`}>
       <div class="line">
-        <button class="box" class:on={done} role="checkbox" aria-checked={done} disabled={busy === t.event.id || dropped}
+        <button class="box" class:on={done} role="checkbox" aria-checked={done} {...off(undefined, [busy === t.event.id, BUSY], [dropped, 'Dropped: reopen it first'])}
           title={done ? 'Reopen it' : 'Mark it done'} aria-label={done ? `Reopen ${t.display_id}` : `Mark ${t.display_id} done`}
           onclick={() => (done ? (reopening = t.event.id) : act(t, 'done'))}>
           <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="m2.5 6.2 2.3 2.3 4.7-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
@@ -418,15 +426,15 @@
           <form class="tag-edit" onsubmit={(e) => (e.preventDefault(), saveTags(t))}>
             <input class="input" placeholder="Tags: ui, phone" aria-label={`Tags of ${t.display_id}`} autocomplete="off"
               value={tagEdit[t.event.id] ?? (t.tags ?? []).join(', ')} oninput={(e) => (tagEdit[t.event.id] = e.currentTarget.value)} />
-            <button class="btn small" type="submit" disabled={!!busy || tagEdit[t.event.id] === undefined}>Save tags</button>
+            <button class="btn small" type="submit" {...off(undefined, [busy, BUSY], [tagEdit[t.event.id] === undefined, 'Change the tags first'])}>Save tags</button>
           </form>
           <div class="acts">
             {#if ACTIVE.has(t.state)}
               <button class="btn small" title="Ask whoever works on it for a short executive summary of where it stands" onclick={() => askStatus(t.event.id, t.display_id)}>Status</button>
-              {#if t.state !== 'started'}<button class="btn small" disabled={!!busy} onclick={() => act(t, 'start')}>Start</button>{/if}
-              <button class="btn small" disabled={!!busy} onclick={() => act(t, 'drop')}>Drop</button>
+              {#if t.state !== 'started'}<button class="btn small" {...off(undefined, [busy, BUSY])} onclick={() => act(t, 'start')}>Start</button>{/if}
+              <button class="btn small" {...off(undefined, [busy, BUSY])} onclick={() => act(t, 'drop')}>Drop</button>
             {:else}
-              <button class="btn small" disabled={!!busy} onclick={() => (reopening = t.event.id)}>Reopen</button>
+              <button class="btn small" {...off(undefined, [busy, BUSY])} onclick={() => (reopening = t.event.id)}>Reopen</button>
             {/if}
             <a class="btn small" href={href({ item: t.display_id })} title="The task on its own page: its conversation, messaging its agent, pinning">Full page</a>
           </div>

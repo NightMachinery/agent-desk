@@ -26,6 +26,7 @@
   import ReopenForm from './ReopenForm.svelte';
   import ReplyingTo from './ReplyingTo.svelte';
   import { focusBoxIn, replyRef } from '../lib/replyto.js';
+  import { off } from '../lib/why.js';
 
   let { item, error, onchange } = $props();
 
@@ -316,7 +317,7 @@
         <span class="spacer"></span>
         <span class="task-acts">
         {#if t.state === 'deferred' || t.state === 'open'}
-          <button class="btn small primary" disabled={!item.launch_ready} title={item.launch_ready ? 'Start an agent on this task' : 'Set launch_command under [tasks] in config.toml'} onclick={() => taskAct('launch')}>Launch</button>
+          <button class="btn small primary" {...off('Start an agent on this task', [!item.launch_ready, 'Set launch_command under [tasks] in config.toml first'])} onclick={() => taskAct('launch')}>Launch</button>
         {/if}
         {#if t.state === 'open'}<button class="btn small" onclick={() => taskAct('defer')}>Defer for quota</button>{/if}
         {#if t.state === 'done' || t.state === 'dropped'}<button data-cmd="task-reopen" class="btn small" onclick={() => (reopening = it.display_id)}>Reopen</button>
@@ -464,9 +465,9 @@
     </div>
 
     <nav class="stepper" aria-label="Previous and next">
-      <button class="btn small" title={tip('Previous item', 'prev')} disabled={!prevId} onclick={() => go({ item: prevId }, { replace: true })}><Icon name="prev" size={14} /> Previous</button>
+      <button class="btn small" {...off(tip('Previous item', 'prev'), [!prevId, 'This is the first item in the list'])} onclick={() => go({ item: prevId }, { replace: true })}><Icon name="prev" size={14} /> Previous</button>
       <span class="faint pos">{pos.at ? `${pos.at} of ${pos.of}` : ''}</span>
-      <button class="btn small" title={tip('Next item', 'next')} disabled={!nextId} onclick={() => go({ item: nextId }, { replace: true })}>Next <Icon name="next" size={14} /></button>
+      <button class="btn small" {...off(tip('Next item', 'next'), [!nextId, 'This is the last item in the list'])} onclick={() => go({ item: nextId }, { replace: true })}>Next <Icon name="next" size={14} /></button>
     </nav>
   </article>
 {/if}
@@ -618,8 +619,8 @@
     display: flex;
     gap: 5px;
   }
-  .crumbs a:hover,
-  .who:hover {
+  .crumbs a:hover:not(:disabled),
+  .who:hover:not(:disabled) {
     color: var(--text);
     text-decoration: underline;
   }

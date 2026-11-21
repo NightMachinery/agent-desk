@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { get, post } from '../lib/api.js';
   import { href } from '../lib/route.svelte.js';
+  import { off, BUSY } from '../lib/why.js';
 
   let { node = '', insert = null } = $props();
   let items = $state([]);
@@ -97,10 +98,10 @@
                   <option value={backend}>{backend}</option>
                 {/each}
               </select>
-              <button class="btn small" disabled={!!busy} onclick={() => act(item, 'retry')}>Retry transcription</button>
+              <button class="btn small" {...off(undefined, [busy, BUSY])} onclick={() => act(item, 'retry')}>Retry transcription</button>
             {/if}
             {#if confirm === item.id}
-              <button class="btn small" disabled={!!busy} onclick={() => act(item, 'delete')}>Delete recording?</button>
+              <button class="btn small" {...off(undefined, [busy, BUSY])} onclick={() => act(item, 'delete')}>Delete recording?</button>
               <button class="btn small" onclick={() => (confirm = '')}>Cancel</button>
             {:else}
               <button class="btn ghost small" onclick={() => (confirm = item.id)}>Delete</button>

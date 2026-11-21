@@ -53,7 +53,9 @@ On a phone there is one pane at a time: the list, or the open item.
   pane.
 - `n`: the next open item, where answering would move on to: the next open
   question, else the next unread item, skipping read and pinned ones. `N`:
-  the nearest open item before.
+  the nearest open item before. When nothing open is left anywhere, a toast
+  celebrates the clear desk; answering or sending on your last open item adds
+  the same note to its toast.
 
 ## The detail pane
 
@@ -182,5 +184,9 @@ component and call `click('name')`, so the key and the click cannot drift
 apart. `group('SPC i', '+item')` names a prefix for which-key.
 `lib/shortcuts.js` holds the cheatsheet and the key each `data-cmd` button's
 tooltip names (`tip(label, cmd)`); update it with a key.
+A disabled control says why in its tooltip: spread `off(title, [condition,
+reason]...)` from `lib/why.js` on it instead of writing `disabled=` and
+`title=` separately, so the reason cannot drift from the condition. Hover
+styles go on `:hover:not(:disabled)`, so a disabled button never looks live.
 `components/Keys.svelte` draws the mode line, which-key, the binding list, the
 describe sheet, the palette and the hints.

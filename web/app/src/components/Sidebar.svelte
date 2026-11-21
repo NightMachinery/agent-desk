@@ -147,7 +147,7 @@
     color: var(--muted);
     cursor: pointer;
   }
-  .edit:hover {
+  .edit:hover:not(:disabled) {
     background: var(--sunken);
     color: var(--text);
   }
@@ -191,7 +191,7 @@
     color: var(--muted);
     font-weight: 500;
   }
-  .scope:hover {
+  .scope:hover:not(:disabled) {
     background: var(--sunken);
     color: var(--text);
   }

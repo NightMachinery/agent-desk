@@ -8,6 +8,7 @@
   import { ui, saveUI } from '../lib/ui.svelte.js';
   import PushSettings from './PushSettings.svelte';
   import SectionOrder from './SectionOrder.svelte';
+  import { off, BUSY } from '../lib/why.js';
   const lingerChoices = [0, 15, 30, 60, 120, 300];
   const lingerText = (n) => (n === 0 ? 'Drop it at once' : n < 60 ? `${n} seconds` : n === 60 ? '1 minute' : `${n / 60} minutes`);
 
@@ -167,7 +168,7 @@
         {#if k.key === 'notify.remote.dest'}
           <div class="dest">
             <input class="input" bind:value={dest} placeholder="where your phone notifier sends" disabled={busy} />
-            <button class="btn small" disabled={busy || !dest.trim() || dest === k.value} onclick={() => save(k, dest.trim())}>Save</button>
+            <button class="btn small" {...off(undefined, [busy, BUSY], [!dest.trim(), 'Type where it sends first'], [dest === k.value, 'Unchanged'])} onclick={() => save(k, dest.trim())}>Save</button>
           </div>
         {:else}
           <select class="input" value={k.value} disabled={busy} onchange={(e) => save(k, e.currentTarget.value)}>
@@ -176,7 +177,7 @@
         {/if}
         <div class="origin">
           <span class="faint">{originText(k.origin, path)}{k.classless && cls !== '*' ? ' · the same for every kind' : ''}</span>
-          {#if k.here}<button class="btn ghost small" disabled={busy} onclick={() => save(k, null)}>Reset to inherited</button>{/if}
+          {#if k.here}<button class="btn ghost small" {...off(undefined, [busy, BUSY])} onclick={() => save(k, null)}>Reset to inherited</button>{/if}
         </div>
         {#if k.differs?.length}
           <div class="differs faint">
@@ -237,11 +238,11 @@
       </div>
       {#if org}
         <label class="check"><input type="checkbox" checked={org.enabled} onchange={(e) => saveOrg({ enabled: e.currentTarget.checked })} /> Keep them up to date, once the desk has been quiet for</label>
-        <select class="input" aria-label="Quiet time before the org files are rendered" value={org.debounce} disabled={!org.enabled} onchange={(e) => saveOrg({ debounce: +e.currentTarget.value })}>
+        <select class="input" aria-label="Quiet time before the org files are rendered" value={org.debounce} {...off(undefined, [!org.enabled, 'Turn on rendering the org files first'])} onchange={(e) => saveOrg({ debounce: +e.currentTarget.value })}>
           {#each quietChoices as n (n)}<option value={n}>{quietText(n)}</option>{/each}
         </select>
         <div class="org-acts">
-          <button class="btn small" data-cmd="org-render" disabled={orgBusy} onclick={renderOrg}>Render now</button>
+          <button class="btn small" data-cmd="org-render" {...off(undefined, [orgBusy, 'Wait: rendering'])} onclick={renderOrg}>Render now</button>
           <a class="btn small" data-cmd="org-export" href="./api/export" download>Export as org files</a>
         </div>
         <div class="origin">
@@ -262,7 +263,7 @@
       </div>
       {#if tc}
         <label class="check"><input type="checkbox" checked={tc.enabled} onchange={(e) => saveTc({ enabled: e.currentTarget.checked })} /> When you mark a task done, drop, reopen, start or defer it, tell the agent working on it once you have made no change for</label>
-        <select class="input" aria-label="Quiet time before agents are told of task changes" value={tc.debounce} disabled={!tc.enabled} onchange={(e) => saveTc({ debounce: +e.currentTarget.value })}>
+        <select class="input" aria-label="Quiet time before agents are told of task changes" value={tc.debounce} {...off(undefined, [!tc.enabled, 'Turn on telling agents of task changes first'])} onchange={(e) => saveTc({ debounce: +e.currentTarget.value })}>
           {#each [...new Set([...tellChoices, tc.debounce])].sort((a, b) => a - b) as n (n)}<option value={n}>{quietText(n)}</option>{/each}
         </select>
         <div class="origin">

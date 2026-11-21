@@ -14,6 +14,7 @@
   import { toast } from '../lib/toast.svelte.js';
   import Sheet from './Sheet.svelte';
   import { captureVoice, placeBlock, transcriptBlock, voiceToken, voiceTokens } from '../lib/voice.js';
+  import { off } from '../lib/why.js';
 
   // compose turns the typed text into what is sent (a question's picks plus
   // the text); ready allows sending with the box empty. draft names the box
@@ -273,6 +274,14 @@
   });
   const uploading = $derived(files.some((f) => f.status === 'uploading'));
   const readyFiles = $derived(files.filter((f) => f.status === 'ready'));
+  // Why Send is disabled right now, if it is (see lib/why.js).
+  const SENDING = 'Wait: sending';
+  const UPLOADING = 'Wait: the files are still uploading';
+  const sendWhy = $derived(/** @type {[unknown, string][]} */ ([
+    [busy, SENDING],
+    [uploading, UPLOADING],
+    [!(text.trim() || ready || readyFiles.length || hasVoice), 'Nothing to send yet: write a message, pick an option or attach a file'],
+  ]));
 
   function sizeText(n) {
     return n >= 1 << 20 ? `${(n / (1 << 20)).toFixed(1)} MB` : n >= 1024 ? `${Math.round(n / 1024)} KB` : `${n} B`;
@@ -442,31 +451,31 @@
         <li class="file {f.status}" title={f.error || ''}>
           <span class="fname">{f.name}</span>
           <span class="faint">{f.status === 'uploading' ? 'uploading…' : f.status === 'error' ? f.error : sizeText(f.ref?.size ?? f.size)}</span>
-          <button class="x" aria-label={`Remove ${f.name}`} onclick={() => removeFile(f.key)} disabled={busy}>×</button>
+          <button class="x" aria-label={`Remove ${f.name}`} onclick={() => removeFile(f.key)} {...off(undefined, [busy, SENDING])}>×</button>
         </li>
       {/each}
     </ul>
   {/if}
   <input bind:this={picker} type="file" multiple hidden onchange={(e) => { addFiles([...e.currentTarget.files]); e.currentTarget.value = ''; }} />
   <div class="bar">
-    <button data-cmd="attach" class="btn ghost small attach" disabled={busy || files.length >= MAX_FILES} onclick={() => picker.click()}
-      title={tip('Attach files: images, audio, video or anything else (you can also paste or drop them)', 'attach')} aria-label="Attach files">
+    <button data-cmd="attach" class="btn ghost small attach" onclick={() => picker.click()}
+      {...off(tip('Attach files: images, audio, video or anything else (you can also paste or drop them)', 'attach'), [busy, SENDING], [files.length >= MAX_FILES, `At most ${MAX_FILES} files per message`])} aria-label="Attach files">
       <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M10.5 4.5 5.8 9.2a1.3 1.3 0 0 0 1.9 1.9l5-5a2.7 2.7 0 0 0-3.8-3.8l-5 5a4 4 0 0 0 5.7 5.7l4.2-4.2" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" /></svg>
       Attach
     </button>
     {#if voiceNode}
-      <button class="btn ghost small attach" disabled={busy || micBusy} onclick={toggleMic}>
+      <button class="btn ghost small attach" {...off(undefined, [busy, SENDING], [micBusy, 'Wait: the recorder is starting or stopping'])} onclick={toggleMic}>
         {capture ? 'Stop recording' : 'Record voice'}
       </button>
       <button class="btn ghost small attach" onclick={() => (recordingBin = true)}>Recordings</button>
     {/if}
     {#if text.trim() || linkedFilled}
-      <button data-cmd="draft-discard" class="btn ghost small discard" disabled={busy} onclick={discard} title={tip(linked.length ? 'Discard this draft: the text and your picks (Undo brings it back)' : 'Discard this draft (Undo brings it back)', 'draft-discard')}>
+      <button data-cmd="draft-discard" class="btn ghost small discard" onclick={discard} {...off(tip(linked.length ? 'Discard this draft: the text and your picks (Undo brings it back)' : 'Discard this draft (Undo brings it back)', 'draft-discard'), [busy, SENDING])}>
         <Icon name="trash" size={13} /> Discard
       </button>
     {/if}
     {#each quick as q (q.label)}
-      <button data-cmd="quick" class="btn small" disabled={busy} onclick={() => submit(q.text)} title={tip(q.text, 'quick')}>{q.label}</button>
+      <button data-cmd="quick" class="btn small" onclick={() => submit(q.text)} {...off(tip(q.text, 'quick'), [busy, SENDING])}>{q.label}</button>
     {/each}
     {#if resolved}
       <button data-cmd="notify-menu" class="btn ghost small notify" class:set={overridden} onclick={() => (notifySheet = true)} title={tip('Where the response to this notifies you', 'notify-menu')}>
@@ -477,14 +486,14 @@
     <span class="hint faint">{hint}</span>
     <div class="sends">
     {#each alongside as a (a.label)}
-      <button data-cmd={a.cmd} class="btn small alongside" disabled={busy || uploading} title={tip(a.title, a.cmd)} onclick={() => submit(a.wrap(text.trim()))}>{a.label}</button>
+      <button data-cmd={a.cmd} class="btn small alongside" {...off(tip(a.title, a.cmd), [busy, SENDING], [uploading, UPLOADING])} onclick={() => submit(a.wrap(text.trim()))}>{a.label}</button>
     {/each}
     <div class="split">
-      <button data-cmd="send" class="btn primary small main" disabled={busy || uploading || !(text.trim() || ready || readyFiles.length || hasVoice)} onclick={() => submit()} title={tip(behaviorHelp[def] || 'Send', 'send')}>
+      <button data-cmd="send" class="btn primary small main" onclick={() => submit()} {...off(tip(behaviorHelp[def] || 'Send', 'send'), ...sendWhy)}>
         {busy ? 'Sending…' : mainLabel}
       </button>
       {#if others.length}
-        <button data-cmd="send-menu" class="btn primary small more" disabled={busy || uploading || !(text.trim() || ready || readyFiles.length || hasVoice)} aria-label="Other ways to send" title={tip('Other ways to send', 'send-menu')} onclick={() => { confirming = false; menu = true; }}>
+        <button data-cmd="send-menu" class="btn primary small more" aria-label="Other ways to send" {...off(tip('Other ways to send', 'send-menu'), ...sendWhy)} onclick={() => { confirming = false; menu = true; }}>
           <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="m2 3.5 3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
         </button>
       {/if}
@@ -514,7 +523,7 @@
       <span class="choice-help">{defSupport && !defSupport.supported ? `Unavailable: ${defSupport.why}` : behaviorHelp[def]}</span>
     </button>
     {#each others as b (b.name)}
-      <button class="choice" class:danger={b.name === 'interrupt'} disabled={!b.supported} aria-disabled={!b.supported} onclick={() => pick(b)}>
+      <button class="choice" class:danger={b.name === 'interrupt'} {...off(undefined, [!b.supported, `Unavailable: ${b.why}`])} aria-disabled={!b.supported} onclick={() => pick(b)}>
         <span class="choice-name">{behaviorLabel[b.name]}</span>
         <span class="choice-help">{b.supported ? behaviorHelp[b.name] : `Unavailable: ${b.why}`}</span>
       </button>

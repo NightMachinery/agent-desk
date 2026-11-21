@@ -7,6 +7,7 @@
   import { toast } from '../lib/toast.svelte.js';
   import { setsUi } from '../lib/sets.svelte.js';
   import { untrack } from 'svelte';
+  import { off, BUSY } from '../lib/why.js';
 
   let { sets = [], paths = [], onchange } = $props();
 
@@ -147,7 +148,7 @@
       {#if expanded.has(p.path)}
         {#each p.runs as r (r)}
           <label class="row run">
-            <input type="checkbox" checked={picked.has(r) || picked.has(p.path)} disabled={picked.has(p.path)} onchange={() => toggle(r)} />
+            <input type="checkbox" checked={picked.has(r) || picked.has(p.path)} {...off(undefined, [picked.has(p.path), 'Included: the whole project is picked'])} onchange={() => toggle(r)} />
             <span class="path">{r.slice(p.path.length + 1)}</span>
           </label>
         {/each}
@@ -159,16 +160,16 @@
 
   <form class="extra" onsubmit={(e) => (e.preventDefault(), addExtra())}>
     <input type="text" bind:value={extra} placeholder="Another path, e.g. private/linear-finetune" autocomplete="off" />
-    <button class="btn small" type="submit" disabled={!extra.trim()}>Add</button>
+    <button class="btn small" type="submit" {...off(undefined, [!extra.trim(), 'Type a path first'])}>Add</button>
   </form>
 
   <div class="foot">
     {#if editing}
-      <button class="btn small danger" disabled={busy} onclick={remove}>Delete</button>
+      <button class="btn small danger" {...off(undefined, [busy, BUSY])} onclick={remove}>Delete</button>
     {/if}
     <span class="grow"></span>
-    <button class="btn small" disabled={busy} onclick={() => save(false)}>Save</button>
-    <button class="btn small primary" disabled={busy} onclick={() => save(true)}>Save and focus</button>
+    <button class="btn small" {...off(undefined, [busy, BUSY])} onclick={() => save(false)}>Save</button>
+    <button class="btn small primary" {...off(undefined, [busy, BUSY])} onclick={() => save(true)}>Save and focus</button>
   </div>
 </Sheet>
 
@@ -236,7 +237,7 @@
     padding: 0 6px;
     border-radius: 7px;
   }
-  .row:hover {
+  .row:hover:not(:disabled) {
     background: var(--sunken);
   }
   .pick {

@@ -15,6 +15,7 @@
   import { build } from '../lib/build.svelte.js';
   import QuotaHit from './QuotaHit.svelte';
   import TaskRows from './TaskRows.svelte';
+  const NOPICK = 'Select items first (x)';
   let taskCount = $state(0);
   let taskIds = $state(/** @type {string[]} */ ([]));
   let quotaCount = $state(0);
@@ -25,6 +26,7 @@
   import { hide, show, settle, unhidden } from '../lib/hiding.svelte.js';
   import { hasDraft } from '../lib/drafts.js';
   import { runCommand } from '../lib/keys.svelte.js';
+  import { off } from '../lib/why.js';
 
 
   let { view, error, onmenu, onchange } = $props();
@@ -364,15 +366,14 @@
     <button class="btn small ghost x" aria-label="Clear the selection" title="Clear (Esc)" onclick={clear}>✕</button>
     <span class="n">{#if !picked}Tap items to select them{:else}<strong>{picked}</strong> selected{/if}{pickedQuestions ? ` · ${pickedQuestions} ${pickedQuestions === 1 ? 'question' : 'questions'} to dismiss` : ''}</span>
     {#if !allOn(allIds)}<button class="btn small ghost" onclick={() => toggleAll(allIds)}>All {allIds.length}</button>{/if}
-    <button data-cmd="bulk-pin" class="btn small" disabled={!picked} onclick={() => pinSelected(pickedPinned < picked, onchange)}
+    <button data-cmd="bulk-pin" class="btn small" {...off(undefined, [!picked, NOPICK])} onclick={() => pinSelected(pickedPinned < picked, onchange)}
       >{picked && pickedPinned === picked ? 'Unpin' : 'Pin'}</button
     >
-    <button data-cmd="bulk-unread" class="btn small" disabled={!picked} onclick={() => markSelected(false, onchange)}>Mark unread</button>
+    <button data-cmd="bulk-unread" class="btn small" {...off(undefined, [!picked, NOPICK])} onclick={() => markSelected(false, onchange)}>Mark unread</button>
     <button
       data-cmd="bulk-read"
-      disabled={!picked}
       class="btn small primary"
-      title={pickedQuestions ? 'Questions leave Needs you but stay open, so you can still answer them from Show all' : ''}
+      {...off(pickedQuestions ? 'Questions leave Needs you but stay open, so you can still answer them from Show all' : '', [!picked, NOPICK])}
       onclick={() => markSelected(true, onchange, pickedQuestions)}>Mark read</button
     >
   </div>
@@ -444,7 +445,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .crumbs a:hover,
+  .crumbs a:hover:not(:disabled),
   .crumbs a.here {
     color: var(--text);
   }
@@ -513,7 +514,7 @@
     gap: 6px;
     border-radius: 4px;
   }
-  .fold:hover {
+  .fold:hover:not(:disabled) {
     color: var(--text);
   }
   .fold:focus-visible {
@@ -558,7 +559,7 @@
     font-weight: 600;
     cursor: pointer;
   }
-  .show-pick select:hover,
+  .show-pick select:hover:not(:disabled),
   .show-pick select:focus-visible {
     border-color: var(--tone);
     outline: none;
@@ -590,7 +591,7 @@
   .mark-all.sub {
     color: var(--faint);
   }
-  .group-line:hover .pick,
+  .group-line:hover:not(:disabled) .pick,
   .group-line .pick:focus-visible {
     opacity: 1;
   }
@@ -609,7 +610,7 @@
   .pick + .mark-all {
     margin-left: 2px;
   }
-  .mark-all:hover {
+  .mark-all:hover:not(:disabled) {
     background: var(--panel);
     color: var(--text);
   }
@@ -635,7 +636,7 @@
     text-transform: none;
     transition: opacity 0.12s, background 0.12s;
   }
-  .pick:hover {
+  .pick:hover:not(:disabled) {
     background: var(--sunken);
     color: var(--text);
   }
@@ -705,7 +706,7 @@
     font-weight: 600;
     color: var(--muted);
   }
-  .group:hover {
+  .group:hover:not(:disabled) {
     color: var(--text);
   }
   .rows {

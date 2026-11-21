@@ -1,5 +1,6 @@
 <script>
   import { coldCache, finishCacheChoice } from '../lib/cache.svelte.js';
+  import { off } from '../lib/why.js';
 
   let dialog = $state();
 
@@ -18,8 +19,7 @@
   <div class="actions">
     <button class="btn" onclick={() => finishCacheChoice('cancel')}>Cancel</button>
     <button class="btn" onclick={() => finishCacheChoice('send')}>Send anyway</button>
-    <button class="btn primary" disabled={!coldCache.enabled}
-      title={coldCache.enabled ? undefined : 'Compaction is unavailable for this agent'}
+    <button class="btn primary" {...off(undefined, [!coldCache.enabled, 'Compaction is unavailable for this agent'])}
       onclick={() => finishCacheChoice('compact')}>Compact then send</button>
   </div>
 </dialog>

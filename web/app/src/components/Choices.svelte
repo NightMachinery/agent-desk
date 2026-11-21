@@ -152,7 +152,7 @@
     border-radius: 8px;
     cursor: pointer;
   }
-  .opt:hover {
+  .opt:hover:not(:disabled) {
     background: var(--hover, rgba(127, 127, 127, 0.08));
   }
   .opt.on {

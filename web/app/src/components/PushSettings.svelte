@@ -8,6 +8,7 @@
   import { toast } from '../lib/toast.svelte.js';
   import { copy } from '../lib/format.js';
   import { brave, braveSetting, copyPushLogs, current, ensureRegistered, idOf, ios, pushSupported, subscribeHere } from '../lib/push.js';
+  import { off, BUSY } from '../lib/why.js';
 
   let { stamp = '' } = $props();
 
@@ -120,10 +121,10 @@
     {/if}
     <div class="row">
       {#if subscribed}
-        <button class="btn small" disabled={busy} onclick={() => act('test', mine)} data-cmd="push-test">Test</button>
-        <button class="btn ghost small" disabled={busy} onclick={disable} data-cmd="push-off">Turn off</button>
+        <button class="btn small" {...off(undefined, [busy, BUSY])} onclick={() => act('test', mine)} data-cmd="push-test">Test</button>
+        <button class="btn ghost small" {...off(undefined, [busy, BUSY])} onclick={disable} data-cmd="push-off">Turn off</button>
       {:else}
-        <button class="btn primary small" disabled={busy || blocked} onclick={enable} data-cmd="push-on">Turn on</button>
+        <button class="btn primary small" {...off(undefined, [blocked, 'This browser blocks notifications from this site: allow them in its site settings first'], [busy, BUSY])} onclick={enable} data-cmd="push-on">Turn on</button>
       {/if}
       <span class="faint">{subscribed ? 'On' : blocked ? 'Notifications are blocked for this site in the browser' : 'Off'}</span>
     </div>
@@ -153,8 +154,8 @@
               {d.last_error ? `failed ${when(d.last_error)}` : d.last_ok ? `last push ${when(d.last_ok)}` : `added ${when(d.created)}`}
             </span>
             {#if d.id !== mine}
-              <button class="btn ghost small" disabled={busy} onclick={() => act('test', d.id)}>Test</button>
-              <button class="btn ghost small" disabled={busy} onclick={() => act('remove', d.id)}>Remove</button>
+              <button class="btn ghost small" {...off(undefined, [busy, BUSY])} onclick={() => act('test', d.id)}>Test</button>
+              <button class="btn ghost small" {...off(undefined, [busy, BUSY])} onclick={() => act('remove', d.id)}>Remove</button>
             {/if}
           </li>
         {/each}

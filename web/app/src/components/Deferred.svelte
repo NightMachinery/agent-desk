@@ -6,10 +6,12 @@
   import { post } from '../lib/api.js';
   import { toast } from '../lib/toast.svelte.js';
   import { tip } from '../lib/shortcuts.js';
+  import { off, BUSY } from '../lib/why.js';
 
   let { tasks = [], launch = { ready: false, max: 3 }, base = '', onchange } = $props();
   let picked = $state(new Set());
   let busy = $state(false);
+  const NOLAUNCH = 'Set launch_command under [tasks] in config.toml first';
   $effect(() => {
     const ids = new Set(tasks.map((t) => t.display_id));
     if ([...picked].some((x) => !ids.has(x))) picked = new Set([...picked].filter((x) => ids.has(x)));
@@ -57,15 +59,14 @@
           </span>
           {#if t.event.body}<span class="brief">{t.event.body.split('\n')[0]}</span>{/if}
         </a>
-        <button class="btn small ghost drop" title="Drop this task" aria-label="Drop" disabled={busy} onclick={() => act('drop', [t.display_id])}>✕</button>
+        <button class="btn small ghost drop" {...off('Drop this task', [busy, BUSY])} aria-label="Drop" onclick={() => act('drop', [t.display_id])}>✕</button>
       </div>
     {/each}
   </div>
   <div class="bar">
-    <button class="btn small primary" disabled={!launch.ready || busy || !picked.size || picked.size > launch.max}
-      title={picked.size > launch.max ? `At most ${launch.max} at once (max_launch)` : 'Start an agent on each picked task'}
+    <button class="btn small primary" {...off('Start an agent on each picked task', [!launch.ready, NOLAUNCH], [busy, BUSY], [!picked.size, 'Pick tasks first'], [picked.size > launch.max, `At most ${launch.max} at once (max_launch)`])}
       onclick={() => act('launch', [...picked])}>Launch {picked.size || ''} picked</button>
-    <button class="btn small" disabled={!launch.ready || busy} title={tip(`Launch the first ${top.length} by priority`)} onclick={() => act('launch', top)}>Launch top {top.length}</button>
+    <button class="btn small" {...off(`Launch the first ${top.length} by priority`, [!launch.ready, NOLAUNCH], [busy, BUSY])} onclick={() => act('launch', top)}>Launch top {top.length}</button>
   </div>
 </div>
 

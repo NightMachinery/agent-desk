@@ -6,6 +6,7 @@
   import { href, go } from '../lib/route.svelte.js';
   import { copy } from '../lib/format.js';
   import { toast } from '../lib/toast.svelte.js';
+  import { off } from '../lib/why.js';
 
   let { path = '', stamp = '' } = $props();
   const PAGE = 100;
@@ -112,7 +113,7 @@
     </ol>
   {/each}
   {#if items.length < total}
-    <button class="btn small more" data-cmd="verbatim-more" disabled={loading} onclick={() => load(true)}>{loading ? 'Loading…' : 'Show older'}</button>
+    <button class="btn small more" data-cmd="verbatim-more" {...off(undefined, [loading, 'Wait: loading'])} onclick={() => load(true)}>{loading ? 'Loading…' : 'Show older'}</button>
   {/if}
 </section>
 

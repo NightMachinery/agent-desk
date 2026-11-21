@@ -246,7 +246,7 @@
     font-size: 12.5px;
     color: var(--muted);
   }
-  .chip-btn:hover {
+  .chip-btn:hover:not(:disabled) {
     background: var(--line);
   }
   .panel {
@@ -293,7 +293,7 @@
     color: inherit;
     text-decoration: none;
   }
-  .tasks-link:hover {
+  .tasks-link:hover:not(:disabled) {
     text-decoration: underline;
   }
   .add-task {
@@ -347,7 +347,7 @@
     background: var(--sunken);
     border: 1px solid transparent;
   }
-  .slot:hover {
+  .slot:hover:not(:disabled) {
     border-color: var(--line-strong);
   }
   .slot-name {
@@ -392,7 +392,7 @@
     border-radius: 10px;
     border: 1px solid var(--line);
   }
-  .kid:hover {
+  .kid:hover:not(:disabled) {
     border-color: var(--line-strong);
   }
   .kid .name {

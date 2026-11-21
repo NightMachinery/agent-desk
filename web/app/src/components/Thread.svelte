@@ -13,6 +13,7 @@
   import { post } from '../lib/api.js';
   import { toast } from '../lib/toast.svelte.js';
   import { acknowledgeMessages, retryPost } from '../lib/outbox.svelte.js';
+  import { off } from '../lib/why.js';
 
   let { entries = [], pending = [], current = '', remoteLabel = '', replyingTo = '', onreply = null } = $props();
 
@@ -164,9 +165,9 @@
             <div><strong>Transcription failed</strong> · {t.voice_failure.error}</div>
             <div class="voice-actions">
               {#if t.voice_failure.retryable}
-                <button class="btn small" disabled={retrying === t.event.id} onclick={() => voiceAction(t, 'retry')}>Retry transcription</button>
+                <button class="btn small" {...off(undefined, [retrying === t.event.id, 'Wait: retrying'])} onclick={() => voiceAction(t, 'retry')}>Retry transcription</button>
               {/if}
-              <button class="btn small" disabled={retrying === t.event.id} onclick={() => voiceAction(t, 'omit')}>Send without recording</button>
+              <button class="btn small" {...off(undefined, [retrying === t.event.id, 'Wait: retrying'])} onclick={() => voiceAction(t, 'omit')}>Send without recording</button>
             </div>
           </div>
         {/if}
@@ -182,11 +183,11 @@
             {/if}
             {#if t.failure.uncertain}
               <div>Look for this message in the agent’s conversation before sending it again.</div>
-              <div><button class="btn small" disabled={retrying === t.event.id} onclick={() => retry(t.event.id, true, t.failure.id)}>
+              <div><button class="btn small" {...off(undefined, [retrying === t.event.id, 'Wait: retrying'])} onclick={() => retry(t.event.id, true, t.failure.id)}>
                 {retrying === t.event.id ? 'Queuing…' : 'Send again anyway'}
               </button></div>
             {:else if !t.failure.retrying}
-              <div><button class="btn small" disabled={retrying === t.event.id} onclick={() => retry(t.event.id)} data-cmd="deliver-retry">{retrying === t.event.id ? 'Queuing…' : 'Retry'}</button></div>
+              <div><button class="btn small" {...off(undefined, [retrying === t.event.id, 'Wait: retrying'])} onclick={() => retry(t.event.id)} data-cmd="deliver-retry">{retrying === t.event.id ? 'Queuing…' : 'Retry'}</button></div>
             {/if}
           </div>
         {/if}
@@ -349,7 +350,7 @@
     color: var(--muted);
     cursor: pointer;
   }
-  .reply-btn:hover,
+  .reply-btn:hover:not(:disabled),
   .reply-btn.on {
     background: var(--sunken);
     color: var(--text);

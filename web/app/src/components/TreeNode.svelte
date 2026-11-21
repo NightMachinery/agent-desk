@@ -82,7 +82,7 @@
     gap: 2px;
     border-radius: 8px;
   }
-  .line:hover,
+  .line:hover:not(:disabled),
   .line.here {
     background: var(--sunken);
   }
@@ -106,7 +106,7 @@
     .tools {
       visibility: hidden;
     }
-    .line:hover .tools,
+    .line:hover:not(:disabled) .tools,
     .line:focus-within .tools {
       visibility: visible;
     }

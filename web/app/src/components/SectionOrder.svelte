@@ -5,6 +5,7 @@
   import { flip } from 'svelte/animate';
   import { tick } from 'svelte';
   import { ui, sectionNames, defaultSections, setSectionOrder } from '../lib/ui.svelte.js';
+  import { off } from '../lib/why.js';
 
   const about = {
     needs: 'Questions waiting on you',
@@ -128,10 +129,10 @@
           <span class="about">{about[s]}</span>
         </span>
         <span class="moves">
-          <button class="nudge" aria-label={`Move ${sectionNames[s]} up`} disabled={i === 0} onclick={() => nudge(s, -1)}>
+          <button class="nudge" aria-label={`Move ${sectionNames[s]} up`} {...off(undefined, [i === 0, 'Already first'])} onclick={() => nudge(s, -1)}>
             <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="m3 7.5 3-3 3 3" /></svg>
           </button>
-          <button class="nudge" aria-label={`Move ${sectionNames[s]} down`} disabled={i === order.length - 1} onclick={() => nudge(s, 1)}>
+          <button class="nudge" aria-label={`Move ${sectionNames[s]} down`} {...off(undefined, [i === order.length - 1, 'Already last'])} onclick={() => nudge(s, 1)}>
             <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="m3 4.5 3 3 3-3" /></svg>
           </button>
         </span>
@@ -140,7 +141,7 @@
   </ol>
   <div class="foot">
     <span class="faint">Drag a card by its handle, or use the arrows. Every device shows this order.</span>
-    <button data-cmd="section-order-reset" class="btn ghost small" disabled={isDefault} onclick={() => ((order = [...defaultSections]), save())}>Reset to default</button>
+    <button data-cmd="section-order-reset" class="btn ghost small" {...off(undefined, [isDefault, 'Already in the default order'])} onclick={() => ((order = [...defaultSections]), save())}>Reset to default</button>
   </div>
 </div>
 
@@ -177,7 +178,7 @@
     background: linear-gradient(90deg, color-mix(in srgb, var(--tone) 9%, var(--panel)), var(--panel) 45%);
     transition: box-shadow 0.15s, transform 0.15s;
   }
-  .card:hover {
+  .card:hover:not(:disabled) {
     box-shadow: 0 1px 2px #0000000d, 0 2px 8px #0000000a;
   }
   .card.lifted {
@@ -201,7 +202,7 @@
   .grip svg {
     fill: currentColor;
   }
-  .grip:hover,
+  .grip:hover:not(:disabled),
   .grip:focus-visible,
   .lifted .grip {
     color: var(--tone);

@@ -4,6 +4,7 @@
   // quota returns. Hidden when the desk has no auto_continue_command.
   import { get, post } from '../lib/api.js';
   import { toast } from '../lib/toast.svelte.js';
+  import { off, BUSY } from '../lib/why.js';
 
   let { paseo = '' } = $props();
   let ac = $state({ available: false, on: false });
@@ -39,7 +40,7 @@
 
 {#if ac.available}
   <label class="toggle" title="When this agent runs out of quota, send it Continue. once its quota returns (the auto-continue watcher)">
-    <input type="checkbox" checked={ac.on} disabled={busy} onchange={toggle} data-cmd="auto-continue" />
+    <input type="checkbox" checked={ac.on} {...off(undefined, [busy, BUSY])} onchange={toggle} data-cmd="auto-continue" />
     Auto-continue
   </label>
 {/if}

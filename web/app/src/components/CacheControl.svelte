@@ -2,6 +2,7 @@
   import { post } from '../lib/api.js';
   import { cache, refreshCache } from '../lib/cache.svelte.js';
   import { toast } from '../lib/toast.svelte.js';
+  import { off, BUSY } from '../lib/why.js';
 
   let { paseo, showUnavailable = false } = $props();
   let busy = $state(false);
@@ -39,8 +40,8 @@
 </script>
 
 {#if agent}
-  <select aria-label="Cache policy" title={cache.state.message || 'Cache policy'} value={agent.policy}
-    disabled={busy || !cache.state.enabled || agent.archived} onchange={setPolicy}>
+  <select aria-label="Cache policy" value={agent.policy}
+    {...off(cache.state.message || 'Cache policy', [agent.archived, 'The agent is archived'], [!cache.state.enabled, cache.state.message || 'Cache keeping is off'], [busy, BUSY])} onchange={setPolicy}>
     {#each policies as policy (policy)}
       <option value={policy}>{agent.policy === policy ? label : policy}</option>
     {/each}

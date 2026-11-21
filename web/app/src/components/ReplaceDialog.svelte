@@ -9,6 +9,7 @@
   import { availableText } from '../lib/quotatime.js';
   import { pickProvider, pickModel, pickThinking, profileOf, parseProfile } from '../lib/replace.js';
   import { short } from '../lib/format.js';
+  import { off } from '../lib/why.js';
 
   /** agent: a card of api/quota; presets: the config's [quota] profiles. */
   let { agent = null, presets = [], onclose = () => {}, ondone = () => {} } = $props();
@@ -214,7 +215,7 @@
     <footer>
       <span class="profile faint" title="The profile handed to launch_command">{profile ? `${current?.label ?? provider} · ${modelLabel(model) || 'default model'}${thinking ? ' · ' + thinking : ''}` : ''}</span>
       <button type="button" class="btn" onclick={close}>Cancel</button>
-      <button type="submit" class="btn primary" data-cmd="replace-start" disabled={!profile || starting || loading && !providers.length}>
+      <button type="submit" class="btn primary" data-cmd="replace-start" {...off(undefined, [starting, 'Wait: starting the new agent'], [loading && !providers.length, 'Wait: loading the providers'], [!profile, 'Pick a provider first'])}>
         {starting ? 'Starting…' : 'Start replacement'}
       </button>
     </footer>
@@ -292,7 +293,7 @@
     cursor: pointer;
     font-size: 14px;
   }
-  .prov:hover {
+  .prov:hover:not(:disabled) {
     background: var(--sunken);
   }
   .prov.on {

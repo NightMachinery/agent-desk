@@ -153,7 +153,7 @@
     transform: none;
     pointer-events: auto;
   }
-  .check:hover {
+  .check:hover:not(:disabled) {
     border-color: var(--default);
   }
   .check.on {
@@ -180,7 +180,7 @@
   .row.lingering {
     opacity: 0.5;
   }
-  .row:hover {
+  .row:hover:not(:disabled) {
     border-color: var(--line-strong);
     box-shadow: var(--shadow);
   }

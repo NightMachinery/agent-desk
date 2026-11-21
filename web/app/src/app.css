@@ -123,7 +123,7 @@ button {
   transition: background 0.12s, border-color 0.12s, opacity 0.12s;
 }
 
-.btn:hover {
+.btn:hover:not(:disabled) {
   background: var(--sunken);
 }
 
@@ -138,7 +138,7 @@ button {
   color: var(--panel);
 }
 
-.btn.primary:hover {
+.btn.primary:hover:not(:disabled) {
   opacity: 0.88;
 }
 
@@ -147,7 +147,7 @@ button {
   background: transparent;
 }
 
-.btn.ghost:hover {
+.btn.ghost:hover:not(:disabled) {
   background: var(--sunken);
 }
 
