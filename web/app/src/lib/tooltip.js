@@ -41,10 +41,18 @@ export function parseTip(text) {
   return t.length <= HEAD_MAX ? { head: t, body: '', keys } : { head: '', body: t, keys };
 }
 
-/** The index of the first ": ", "; " or sentence end, or -1. */
+/** The index of the first ": ", "; " or sentence end outside brackets, or -1. */
 function firstBreak(t) {
-  const m = t.match(/[:;](?=\s)|[.!?](?=\s+[A-Z(])/);
-  return m?.index ?? -1;
+  let depth = 0;
+  for (let i = 0; i < t.length - 1; i++) {
+    const c = t[i];
+    if (c === '(' || c === '[') depth++;
+    else if ((c === ')' || c === ']') && depth) depth--;
+    else if (depth) continue;
+    else if ((c === ':' || c === ';') && /\s/.test(t[i + 1])) return i;
+    else if ('.!?'.includes(c) && /^\s+[A-Z(]/.test(t.slice(i + 1))) return i;
+  }
+  return -1;
 }
 
 /** "SPC i v" → ["SPC", "i", "v"]; ", z" → [",", "z"]. */

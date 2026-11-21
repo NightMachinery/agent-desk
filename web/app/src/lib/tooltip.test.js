@@ -20,6 +20,11 @@ test('a sentence break or a trailing note makes the body', () => {
   });
   assert.deepEqual(parseTip('Discard this draft (Undo brings it back)'), { head: 'Discard this draft', body: 'Undo brings it back', keys: [] });
   assert.deepEqual(parseTip('Unread'), { head: 'Unread', body: '', keys: [] });
+  assert.deepEqual(parseTip("Archive the coordinator's Paseo agent (stops it if running; messaging it revives it)  (SPC d a)"), {
+    head: "Archive the coordinator's Paseo agent",
+    body: 'Stops it if running; messaging it revives it',
+    keys: [['SPC', 'd', 'a']],
+  });
 });
 
 test('a long text with no early break is all body; brackets inside are not keys', () => {
