@@ -25,7 +25,7 @@ export const keys = $state({
   palette: /** @type {null | {title: string, items: any[], query: string, index: number}} */ (null),
   capture: false, // describe-key: the next sequence is described, not run
   describe: /** @type {null | {keys?: string, cmd?: string}} */ (null), // what the describe sheet shows
-  hints: /** @type {null | {typed: string, marks: {label: string, el: HTMLElement, x: number, y: number}[]}} */ (null),
+  hints: /** @type {null | {typed: string, marks: {label: string, el: HTMLElement, x: number, y: number}[], act?: (el: HTMLElement) => any}} */ (null),
   anchor: '', // visual mode's first row
   used: false, // the keyboard has driven the page: show which pane has focus
   message: '',
