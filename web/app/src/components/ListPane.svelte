@@ -12,6 +12,7 @@
   import Deferred from './Deferred.svelte';
   import ScreenStrip from './ScreenStrip.svelte';
   import PushNudge from './PushNudge.svelte';
+  import { build } from '../lib/build.svelte.js';
   import QuotaHit from './QuotaHit.svelte';
   import TaskRows from './TaskRows.svelte';
   let taskCount = $state(0);
@@ -205,6 +206,12 @@
       <div class="phone-node"><LazyPanel view={import('./NodePanel.svelte')} node={view.node} target={view.target} conversations={view.conversations ?? []} stamp={view.stamp} {onchange} compact /></div>
     {/if}
 
+    {#if build.stale}
+      <div class="update" role="status">
+        <span>The dashboard has been updated; this page still runs the old version.</span>
+        <button class="btn small primary" data-cmd="reload-page" onclick={() => location.reload()} title="Reload the page; drafts are kept">Reload</button>
+      </div>
+    {/if}
     <PushNudge />
     {#if view.screens?.length}<ScreenStrip screens={view.screens} host={view.host} {onchange} />{/if}
 
@@ -749,5 +756,17 @@
       display: block;
       margin-top: 12px;
     }
+  }
+  .update {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin: 0 0 10px;
+    padding: 8px 10px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius);
+    background: var(--accent-soft);
+    font-size: 13px;
   }
 </style>

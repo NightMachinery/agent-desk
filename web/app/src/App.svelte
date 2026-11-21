@@ -2,6 +2,7 @@
   import LazyPanel from './components/LazyPanel.svelte';
   import { route, go, pageOpen } from './lib/route.svelte.js';
   import { get, watch } from './lib/api.js';
+  import { sawBuild } from './lib/build.svelte.js';
   import { ui, loadSharedUI } from './lib/ui.svelte.js';
   import { hasDraft, onDraftChange } from './lib/drafts.js';
   import { startOutbox } from './lib/outbox.svelte.js';
@@ -143,6 +144,7 @@
         if (live === 'reconnecting' && s === 'live') refresh();
         live = s;
       },
+      sawBuild,
     ),
   );
 

@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -39,6 +40,10 @@ const DefaultListen = "127.0.0.1:7740"
 
 // server is the web dashboard: a JSON API over the store and the built page.
 type server struct {
+	// build names the dashboard this server serves (a hash of index.html,
+	// which names every hashed asset): the stream sends it, so a page left
+	// open across an upgrade offers to reload.
+	build           string
 	closing         chan struct{} // closed on shutdown: event streams end
 	closeOnce       sync.Once
 	voice           voiceHub
@@ -131,6 +136,8 @@ func newServer(a *App, ui fs.FS) (*server, error) {
 		return nil, fmt.Errorf("the dashboard is not built: %w", err)
 	}
 	s.index = index
+	sum := sha256.Sum256(index)
+	s.build = hex.EncodeToString(sum[:6])
 	s.csp = contentSecurityPolicy(index)
 	st, err := a.store()
 	if err != nil {
@@ -1325,7 +1332,7 @@ func (s *server) apiStream(w http.ResponseWriter, r *http.Request) {
 	h.Set("Cache-Control", "no-store")
 	h.Set("X-Accel-Buffering", "no")
 	last, _ := s.stamp()
-	fmt.Fprintf(w, "retry: 3000\nevent: hello\ndata: %s\n\n", last)
+	fmt.Fprintf(w, "retry: 3000\nevent: hello\ndata: %s\n\nevent: build\ndata: %s\n\n", last, s.build)
 	fl.Flush()
 	tick := time.NewTicker(s.poll)
 	defer tick.Stop()

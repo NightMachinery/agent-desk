@@ -532,6 +532,11 @@ them when Emacs is installed.
     agent-desk serve --listen unix:/path/to/desk.sock   # behind a proxy
     agent-desk serve --config config.json     # listen, pid_file, allow_hosts, origin, title, device, color from a supervisor's JSON
 
+A page left open keeps running the dashboard it loaded. When the server
+is upgraded under it (its stream names the build it serves, on every
+reconnection), a strip above the list says so with **Reload** (drafts are
+kept).
+
 The sidebar's Focus list switches the focus between your project sets (see
 Project sets and the focus); the gear beside Focus edits the focused set (or
 the first one), and creates others, by ticking projects or some of a
