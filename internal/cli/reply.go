@@ -55,9 +55,16 @@ func replyTarget(d *desk.Desk, token string) (to ident.From, host, node string, 
 		}
 	}
 	if node == "" {
+		// A node no agent holds (a project, a run) goes to the coordinator
+		// working under it, as a task filed there does.
 		owner, ok := nodeOwner(d, token)
 		if !ok {
-			return to, "", "", about, fmt.Errorf("%q is neither an id nor a joined node", token)
+			if c, cok := coordinatorUnder(d, token); cok {
+				owner, ok = nodeOwner(d, c)
+			}
+		}
+		if !ok {
+			return to, "", "", about, fmt.Errorf("%q is neither an id nor a joined node, and no coordinator works under it", token)
 		}
 		node, to, host = owner.Path, fromOf(owner), owner.Host
 	}

@@ -812,13 +812,9 @@ func (s *server) apiView(w http.ResponseWriter, r *http.Request) {
 		all := f
 		all.All = true
 		resp.Node = desk.Find(d.Tree(all), f.Prefix)
+		// A project or a run speaks through the coordinator working under it.
 		if t, err := targetOf(d, f.Prefix); err == nil {
 			resp.Target = &t
-		} else if resp.Node != nil && len(resp.Node.Children) == 1 {
-			// A run's one coordinator speaks for the run.
-			if t, err := targetOf(d, resp.Node.Children[0].Path); err == nil {
-				resp.Target = &t
-			}
 		}
 		if resp.Target != nil {
 			s.behaviors(d, resp.Target)
@@ -973,8 +969,7 @@ type Target struct {
 	// RemoteLabel is the config's name for the remote channel.
 	RemoteLabel string `json:"remote_label,omitempty"`
 	// For is the node asked for when Node is the coordinator working under
-	// it (api/target?coordinator=1 on a project or run, which no agent
-	// holds).
+	// it (a project or a run, which no agent holds).
 	For string `json:"for,omitempty"`
 	to  ident.From
 }
@@ -1024,6 +1019,11 @@ func targetOf(d *desk.Desk, token string) (Target, error) {
 		return Target{}, err
 	}
 	t := Target{Agent: to.Agent, Session: to.Session, Paseo: to.Paseo, Host: host, Node: node, Resume: ResumeCommand(to), to: to}
+	if p := strings.Trim(token, "/"); p != node {
+		if _, rerr := d.Resolve(p); rerr != nil {
+			t.For = p // a node no agent holds: the coordinator under it (replyTarget)
+		}
+	}
 	switch {
 	case host != d.Host:
 		t.Via = "merge"
@@ -1210,17 +1210,7 @@ func (s *server) apiTarget(w http.ResponseWriter, r *http.Request) {
 	if d == nil {
 		return
 	}
-	to := r.URL.Query().Get("to")
-	t, err := targetOf(d, to)
-	// Something filed at a project or a run (New task) is for the
-	// coordinator working under it.
-	if err != nil && r.URL.Query().Get("coordinator") == "1" {
-		if node, ok := coordinatorUnder(d, to); ok {
-			if t, err = targetOf(d, node); err == nil {
-				t.For = strings.Trim(to, "/")
-			}
-		}
-	}
+	t, err := targetOf(d, r.URL.Query().Get("to"))
 	if err != nil {
 		jsonError(w, http.StatusNotFound, err.Error())
 		return

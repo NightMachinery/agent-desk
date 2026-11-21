@@ -339,6 +339,7 @@ not write anyway.
     agent-desk answer q-7f3a 'B'             # record it and type it into the asking session
     agent-desk reply t-k2m9 'Check the old feed too'      # message the session behind an item
     agent-desk reply example-proj/rerun-nov/coord 'Pause after seed 4'   # or a node's coordinator
+    agent-desk reply example-proj 'Wrap up by Friday'   # a project or run: the coordinator working under it
     agent-desk reply t-k2m9 --notify-remote always 'Tell me on the phone when done'
                                              # route the notification of the response
     agent-desk reply s-v4lc --prompt velocity-report   # ask for an executive report on velocity
@@ -602,7 +603,10 @@ or agent name and by the session or Paseo id of whoever joined a node.
 A row of the run tree has icons on its right (on hover with a mouse, always
 on a touch screen): copy the Paseo id of the agent behind it (when it runs
 under Paseo on this machine), message that agent (opens its node with the
-message box ready), and mark everything under it read.
+message box ready), and mark everything under it read. A project or a run,
+which no agent holds, is messaged like a task filed there: the message goes
+to the coordinator working under it, the newest one that has not filed its
+done report, and the node page names that coordinator ("at rerun-nov/coord").
 Clicking a part of an item's path shows that subtree. Every view is a URL you can bookmark: a project, run or
 agent (`#/p/example-proj/rerun-nov`), one session's writing (`?session=`),
 one machine (`?host=`), read items too (`?all=1`), a search (`?q=`), oldest

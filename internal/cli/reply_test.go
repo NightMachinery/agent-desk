@@ -34,6 +34,14 @@ func TestReply(t *testing.T) {
 	if len(c) != 2 || !strings.Contains(c[1], "to example-proj/r1/coord: Two lines\nof text") {
 		t.Fatalf("node reply: %q", c)
 	}
+	// To a run or a project, which no agent holds: the coordinator working
+	// under it, as for a task filed there.
+	for i, at := range []string{"example-proj/r1", "example-proj"} {
+		h.ok(nil, "", "reply", at, "routed")
+		if c := *h.calls; len(c) != 3+i || !strings.Contains(c[2+i], "to example-proj/r1/coord: routed") {
+			t.Fatalf("reply at %s: %q", at, c)
+		}
+	}
 
 	// Replying to an answer replies about its question.
 	q := h.ok(env, "ctx", "ask", "--blocked", "--title", "Which split?")
