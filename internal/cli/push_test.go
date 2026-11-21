@@ -199,7 +199,7 @@ func TestPush(t *testing.T) {
 	// Every subscribe, removal and gone-drop is in push/log.
 	log, err := os.ReadFile(filepath.Join(h.desk, "push", "log"))
 	must(t, err)
-	for _, want := range []string{"subscribe " + id + " (Chrome on Android): new", "gone " + id, "remove " + id,
+	for _, want := range []string{"subscribe " + id + " (Chrome on Android): new", "sent " + id + " (Chrome on Android): show agent-desk-test", "gone " + id, "remove " + id,
 		"subscribe " + push.ID(ts.URL+"/push/dev2") + " (Chrome on Android): replaces " + id} {
 		if !strings.Contains(string(log), want) {
 			t.Fatalf("push/log lacks %q:\n%s", want, log)
@@ -211,5 +211,27 @@ func TestPush(t *testing.T) {
 	}
 	if _, body, _ := do(t, hd, "GET", "/api/push", "", nil); strings.Contains(body, `"log"`) {
 		t.Fatalf("api/push without log=1 carries it: %s", body)
+	}
+}
+
+// The push log and Copy logs keep a device's endpoint (its push address)
+// out, even from a push service's error, and from lines written before.
+func TestPushLogMasksEndpoints(t *testing.T) {
+	h := newHarness(t)
+	a, _, _ := h.app(nil, "")
+	a.pushLogID("error", "abc", `Post "https://fcm.googleapis.com/fcm/send/SECRET:APA91b": dial tcp: timeout`)
+	path := filepath.Join(string(a.pushDir()), "log")
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o600)
+	must(t, err)
+	_, _ = f.WriteString("2026-11-20T14:37:42Z error old (Chrome): Post \"https://fcm.googleapis.com/fcm/send/OLDSECRET\": di…\n")
+	must(t, f.Close())
+	b, err := os.ReadFile(path)
+	must(t, err)
+	if strings.Contains(string(b), "SECRET:APA91b") || !strings.Contains(string(b), `Post "https://fcm.googleapis.com/…": dial tcp`) {
+		t.Fatalf("log keeps the endpoint:\n%s", b)
+	}
+	tail := strings.Join(pushLogTail(path, 10), "\n")
+	if strings.Contains(tail, "SECRET") || !strings.Contains(tail, "https://fcm.googleapis.com/…") {
+		t.Fatalf("tail keeps the endpoint:\n%s", tail)
 	}
 }

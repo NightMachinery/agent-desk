@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -103,6 +104,7 @@ func (a *App) pushSend(c config.Config, n pushNote, m push.Message, only string)
 			case r == nil:
 				s.LastOK, s.LastErr = now, ""
 				sent++
+				a.pushLog("sent", s, strings.TrimSpace(n.Type+" "+n.Tag))
 			case errors.Is(r, push.ErrGone):
 				a.pushLog("gone", s, "push service says the subscription no longer exists; dropped")
 				continue
@@ -146,9 +148,18 @@ func (a *App) pushLogLine(action, id, label, detail string) {
 		line += " (" + label + ")"
 	}
 	if detail != "" {
-		line += ": " + detail
+		line += ": " + maskEndpoints(detail)
 	}
 	fmt.Fprintln(f, line)
+}
+
+// endpointRE matches a URL: in a push service's error it is the device's
+// endpoint, its push address, which the log and Copy logs keep out.
+var endpointRE = regexp.MustCompile(`(https?://[^/\s"]+)/[^\s"]*`)
+
+// maskEndpoints replaces each URL's path with "/…", keeping its host.
+func maskEndpoints(s string) string {
+	return endpointRE.ReplaceAllString(s, "$1/…")
 }
 
 func labelOf(s push.Sub) string {
@@ -290,6 +301,9 @@ func pushLogTail(path string, n int) []string {
 	lines := strings.Split(strings.TrimRight(string(b), "\n"), "\n")
 	if len(lines) > n {
 		lines = lines[len(lines)-n:]
+	}
+	for i, l := range lines {
+		lines[i] = maskEndpoints(l) // lines written before the log masked them
 	}
 	return lines
 }

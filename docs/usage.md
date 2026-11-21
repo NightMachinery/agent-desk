@@ -782,8 +782,10 @@ own words; in Brave with the setting off, that is "Registration failed -
 push service error". **Copy logs** (in the card's heading,
 and on the failure) copies a report to send with a problem: the browser,
 its permission and service worker state, each step of the last Turn on
-with its error, and the desk's devices and the tail of `push/log`. It holds
-no push endpoint, only its host. Where the browser will not copy, the
+with its error, and the desk's devices and the tail of `push/log`, which
+records each subscription, each push a device took (`sent`) and each
+failure. It holds no push endpoint, only its host: the log masks endpoints,
+even inside a push service's error. Where the browser will not copy, the
 report is shown to select by hand.
 
 - What is pushed is the `notify.push` setting: `off`, `away` or `always`,
