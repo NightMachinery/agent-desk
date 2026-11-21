@@ -9,7 +9,7 @@
   import { desk } from './lib/desk.svelte.js';
   import { untrack } from 'svelte';
   import { hold, lingerIds, moved, onLingerEnd } from './lib/linger.svelte.js';
-  import { arrivalHooks, routeMoved } from './lib/arrival.js';
+  import { arrivalHooks, cancelArrival, routeMoved } from './lib/arrival.js';
   import { post } from './lib/api.js';
   import { keys, ctx, pane, onkeydown } from './lib/keys.svelte.js';
   import './lib/keymap.js';
@@ -121,7 +121,9 @@
   $effect(() => {
     const cur = route.item;
     untrack(() => {
-      routeMoved(lastItem, cur);
+      // Moving in visual mode selects; it is not moving on, so it reads nothing.
+      if (keys.anchor) cancelArrival(lastItem);
+      else routeMoved(lastItem, cur);
       lastItem = cur;
     });
   });

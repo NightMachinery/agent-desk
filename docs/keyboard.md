@@ -13,8 +13,9 @@ tooltip names its key. This page explains the model.
   `C-g` or `C-[` leaves it, keeping the text. In a message box,
   ⌘/Ctrl+Enter sends.
 - **Visual**: `V` starts it on the open item; moving with `j`/`k` selects
-  every row from there. `d`, `U` and `p` then act on the selection; `Esc`
-  ends it and clears the selection.
+  every row from there. Moving only selects: the rows it passes stay unread
+  (opening an item reads it everywhere else). `d`, `U` and `p` then act on
+  the selection; `Esc` ends it and clears the selection, reading nothing.
 
 A number before a motion repeats it: `5j` moves five items down.
 

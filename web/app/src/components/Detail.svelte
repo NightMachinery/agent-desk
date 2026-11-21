@@ -1,4 +1,5 @@
 <script>
+  import { untrack } from 'svelte';
   import CopyIds from './CopyIds.svelte';
   import Choices from './Choices.svelte';
   import { tip } from '../lib/shortcuts.js';
@@ -20,6 +21,7 @@
   import { moveOnTarget } from '../lib/moveon.js';
   import { arrival, arrivedAuto, cancelArrival, settleArrival } from '../lib/arrival.js';
   import { ui } from '../lib/ui.svelte.js';
+  import { keys } from '../lib/keys.svelte.js';
   import { askStatus, toldText } from '../lib/taskstatus.js';
   import ReopenForm from './ReopenForm.svelte';
 
@@ -59,12 +61,15 @@
   // Nor an item the page moved to by itself (arrival.js): that is read once
   // the user acts on it or moves on. Nor one with a draft (here or on the
   // desk): it stays unread until the draft is sent or discarded, and is
-  // read then.
+  // read then. Nor one the cursor reached in visual mode: that selects rows
+  // to act on, so they stay as they were until the action (not tracked, so
+  // leaving visual mode reads nothing either).
   let draftTick = $state(0);
   $effect(() => onDraftChange(() => draftTick++));
   $effect(() => {
     void draftTick;
     if (!it || isQuestion || !it.unread || autoRead.has(e.id)) return;
+    if (untrack(() => keys.anchor)) return;
     if (hasDraft(it.display_id) || (it.draft && draftTick === 0)) return;
     if (arrival.id === it.display_id) {
       arrival.pending = true;
