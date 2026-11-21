@@ -333,7 +333,7 @@
             {:else}
               <button class="btn small" disabled={!!busy} onclick={() => act(t, 'reopen')}>Reopen</button>
             {/if}
-            <a class="btn small" href={href({ item: t.display_id })}>Open</a>
+            <a class="btn small" href={href({ item: t.display_id })} title="The task on its own page: its conversation, messaging its agent, pinning">Full page</a>
           </div>
         </div>
       {/if}

@@ -934,7 +934,7 @@ type, by tag (the dashed `#tag` pills; a row's own tags filter too), and by
 search (`/`, which also matches `#tag`). A task's tags are edited in its
 expanded row. The box checks a task off (Undo in the toast)
 or reopens it; clicking its title shows its brief with Start, Drop and
-Open. **New task** (`SPC n t`, or "+ New" on a node page) files one at any
+Full page (the task on its own page, with its conversation). **New task** (`SPC n t`, or "+ New" on a node page) files one at any
 project, run or agent: a title, a type, an optional parent, details and
 tags.
 "Message its coordinator about it" (on by default) also sends a message
