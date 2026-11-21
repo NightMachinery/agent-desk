@@ -777,5 +777,17 @@ func (s *server) apiTasks(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Query().Get("unfocused") != "1" {
 		f.Focus = d.FocusPrefixes()
 	}
-	writeJSON(w, map[string]any{"tasks": d.Tasks(f), "types": desk.TaskTypes})
+	tasks := d.Tasks(f)
+	out := make([]taskView, len(tasks))
+	for i, t := range tasks {
+		out[i] = taskView{Task: t, Media: s.a.mediaViews(d, t.Event)}
+	}
+	writeJSON(w, map[string]any{"tasks": out, "types": desk.TaskTypes})
+}
+
+// taskView is a task as the Tasks page lists it: with its files, which it
+// shows as thumbnails and download links.
+type taskView struct {
+	desk.Task
+	Media []MediaView `json:"media,omitempty"`
 }

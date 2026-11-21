@@ -177,8 +177,8 @@ The API, all JSON:
   of each key; all: every one; without it, `all=1` means all), and
   `deliverables_any` counts every deliverable in scope.
 - `GET api/tasks?path=`: every task under the path (all states), with
-  `type`, `tags`, `parent` (full id) and `parent_display`, and `types`, the
-  task types there are. `POST api/task {action: "add", to, title, type,
+  `type`, `tags`, `parent` (full id), `parent_display` and `media` (its
+  files as `api/item` gives them), and `types`, the task types there are. `POST api/task {action: "add", to, title, type,
   text, parent, tags}` files one at node `to` (a project, run or agent on
   the desk) as the user (`meta.source` `web`) and returns its `id`;
   `{action: "tags", id, tags}` replaces a task's tags.

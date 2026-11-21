@@ -337,6 +337,28 @@ func TestUntitledTask(t *testing.T) {
 	if code != 200 || !strings.Contains(body, `"Files: shot.png"`) || !strings.Contains(body, `"kind":"image"`) {
 		t.Fatalf("the task with a file: %d %s", code, body)
 	}
+	// The Tasks page gets its files too, to show as thumbnails.
+	var list struct {
+		Tasks []struct {
+			ID    string `json:"display_id"`
+			State string `json:"state"`
+			Media []struct{ Kind, URL string }
+		} `json:"tasks"`
+	}
+	code, body, _ = do(t, hd, "GET", "/api/tasks", "", nil)
+	must(t, json.Unmarshal([]byte(body), &list))
+	found := false
+	for _, tk := range list.Tasks {
+		if tk.ID == pic {
+			found = true
+			if tk.State == "" || len(tk.Media) != 1 || tk.Media[0].Kind != "image" || !strings.HasPrefix(tk.Media[0].URL, "api/media/") {
+				t.Fatalf("api/tasks: %+v", tk)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("api/tasks lacks %s: %s", pic, body)
+	}
 
 	// B named it, but A works on it: messages about it still go to A.
 	code, body, _ = do(t, hd, "GET", "/api/target?to="+id, "", nil)
