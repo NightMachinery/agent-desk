@@ -6,7 +6,7 @@
   // holds is registered again silently instead (ensureRegistered).
   import { get } from '../lib/api.js';
   import { toast } from '../lib/toast.svelte.js';
-  import { copyPushLogs, ensureRegistered, pushSupported, subscribeHere } from '../lib/push.js';
+  import { brave, copyPushLogs, ensureRegistered, pushSupported, subscribeHere } from '../lib/push.js';
 
   const KEY = 'agent-desk:push-nudge-off';
   const QUIET = 30 * 24 * 3600 * 1000;
@@ -59,7 +59,7 @@
 
 {#if show}
   <div class="nudge">
-    <span>This device does not get the desk's notifications yet.</span>
+    <span>This device does not get the desk's notifications yet.{brave ? ' Brave first needs “Use Google services for push messaging” on, in its settings under Privacy and security.' : ''}</span>
     <button class="btn small primary" disabled={busy} onclick={on} data-cmd="push-nudge-on">Turn on</button>
     <button class="btn small ghost" onclick={later}>Not now</button>
   </div>

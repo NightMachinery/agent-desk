@@ -7,7 +7,7 @@
   import { get, post } from '../lib/api.js';
   import { toast } from '../lib/toast.svelte.js';
   import { copy } from '../lib/format.js';
-  import { brave, copyPushLogs, current, ensureRegistered, idOf, ios, pushSupported, subscribeHere } from '../lib/push.js';
+  import { brave, braveSetting, copyPushLogs, current, ensureRegistered, idOf, ios, pushSupported, subscribeHere } from '../lib/push.js';
 
   let { stamp = '' } = $props();
 
@@ -89,7 +89,7 @@
     report = ok ? '' : text;
   }
   async function copySettings() {
-    const ok = await copy('brave://settings/privacy');
+    const ok = await copy(braveSetting);
     toast(ok ? 'Copied: paste it into the address bar.' : 'The browser would not copy it.', ok ? 'ok' : 'error');
   }
   const when = (ts) => (ts ? new Date(ts.split(' ')[0]).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : '');
@@ -110,6 +110,14 @@
   {:else if error}
     <div class="faint note">{error}</div>
   {:else if info}
+    {#if brave && !subscribed}
+      <div class="note brave">
+        Brave sends push only through Google's push service, which it leaves off. Before Turn on, switch on “Use Google services
+        for push messaging”: copy its address and paste it into the address bar (a page cannot open it), or find it in Brave's
+        Settings under Privacy and security. If Turn on still fails, relaunch Brave.
+        <button class="btn ghost small" onclick={copySettings} data-cmd="push-brave-setting">Copy its address</button>
+      </div>
+    {/if}
     <div class="row">
       {#if subscribed}
         <button class="btn small" disabled={busy} onclick={() => act('test', mine)} data-cmd="push-test">Test</button>
@@ -125,7 +133,7 @@
         {#if failure.raw && failure.raw !== failure.message}<div class="faint">The browser said: <span class="mono">{failure.raw}</span></div>{/if}
         <div class="row">
           <button class="btn small" onclick={copyLogs}>Copy logs</button>
-          {#if brave && /brave:\/\/settings/.test(failure.message)}<button class="btn ghost small" onclick={copySettings}>Copy brave://settings/privacy</button>{/if}
+          {#if brave && /brave:\/\/settings/.test(failure.message)}<button class="btn ghost small" onclick={copySettings}>Copy the settings address</button>{/if}
           <button class="btn ghost small" onclick={() => (failure = null)}>Dismiss</button>
         </div>
       </div>
@@ -180,6 +188,12 @@
     border-radius: var(--radius);
     background: var(--blocked-soft);
     overflow-wrap: anywhere;
+  }
+  .brave {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
   }
   .report {
     display: flex;

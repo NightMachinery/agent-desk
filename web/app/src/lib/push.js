@@ -15,6 +15,12 @@ export const pushSupported =
 export const ios = typeof navigator !== 'undefined' && /iPhone|iPad/.test(navigator.userAgent);
 /** Brave, which hides itself in its user agent but not in navigator. */
 export const brave = typeof navigator !== 'undefined' && 'brave' in navigator;
+/**
+ * Brave's settings filtered to its push toggle, "Use Google services for
+ * push messaging" (off as shipped: Brave has no push service but Google's).
+ * A page cannot open brave:// itself, so the dashboard offers to copy it.
+ */
+export const braveSetting = 'brave://settings/?search=push%20messaging';
 
 // --- what happened, for Copy logs ----------------------------------------------
 // The steps of the last Turn on, kept on the device so they survive a reload.
@@ -52,7 +58,7 @@ function explain(e) {
   if (e?.name === 'AbortError' && /push service/i.test(e.message ?? ''))
     return new PushError(
       brave
-        ? 'Brave does not use Google\'s push service until you allow it. Open brave://settings/privacy, turn on "Use Google services for push messaging", relaunch Brave, then Turn on again.'
+        ? `Brave sends push only through Google's push service, which it leaves off. Turn on "Use Google services for push messaging" (paste ${braveSetting} into the address bar), relaunch Brave, then Turn on again.`
         : 'The browser could not reach its push service (Google\'s, for Chrome). A VPN, firewall or blocker may be in the way: check that, then Turn on again.',
       raw,
     );
