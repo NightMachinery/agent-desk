@@ -103,10 +103,10 @@ Derived state:
 
 - A message is **responded** when any agent item (a `tell`, `ask`, `done`
   or `deliverable`) refers to it, or names it in `meta.answers`. A generated
-  message about an item is also responded by any later agent item that
-  refers to that item, since its text asks for exactly that
-  (`tell --re <task>`). An older message about a filed task, which names the
-  task only in its text, counts as about that task.
+  message about an item is also responded by any later response in that
+  item's thread: its text asks for `tell --re <task>`, and an agent may
+  answer the user's follow-up there instead. An older message about a filed
+  task, which names the task only in its text, sits in that task's thread.
 - A response is unread like any `tell`. `read` on a root item also marks its
   unread responses read. `read` on a message clears its "no response" flag.
 - A delivered message with no response after 15 minutes is flagged

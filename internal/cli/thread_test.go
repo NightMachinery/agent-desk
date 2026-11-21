@@ -368,4 +368,12 @@ func TestMessageThreads(t *testing.T) {
 	if d = h.loadDesk(); d.Awaiting(l2.ID) {
 		t.Fatal("older filed-task message not answered by a response about its task")
 	}
+	// The agent may answer the user's follow-up in the task's thread instead.
+	legacy3 := h.ok(nil, "", "reply", "example-proj/r1/coord", "The user filed a task for you on the desk: "+old+", again.")
+	more := h.ok(nil, "", "reply", old, "found the setting; still want a workaround")
+	h.ok(env, "Shown before Turn on now.", "tell", "--re", more)
+	d = h.loadDesk()
+	if l3, _ := d.Resolve(legacy3); d.Awaiting(l3.ID) {
+		t.Fatal("filed-task message not answered by a response to a follow-up in its thread")
+	}
 }

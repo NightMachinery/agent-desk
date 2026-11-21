@@ -19,7 +19,7 @@ import (
 // something the user wrote. A response to one that is about an item refers
 // to that item, with the message in meta.answers (see Answers): it hangs
 // from the item, and the message still counts as answered. Any later
-// response about that item (tell --re <task>) answers it too.
+// response in that item's thread (tell --re <task>) answers it too.
 //
 // Every kind an agent files for the user (AgentItem: a notice, a question,
 // a done report, a deliverable) can be a response: given a ref (--re) or
@@ -160,7 +160,7 @@ func (d *Desk) indexThreads() {
 		progress:  map[string]int{},
 	}
 	d.latestDeliverable = map[string]string{}
-	about := map[string][]string{} // item id: the generated messages about it so far
+	about := map[string][]string{} // thread root id: the generated messages in its thread so far
 	for i, e := range d.Events {
 		if k := deliverableKey(e); k != "" {
 			d.latestDeliverable[k] = e.ID
@@ -189,24 +189,23 @@ func (d *Desk) indexThreads() {
 		if IsResponse(e) {
 			to := Answers(e)
 			d.threads.responses[to] = append(d.threads.responses[to], i)
-			// A response about an item answers every generated message
-			// about it before it: the message about a filed task asks for
-			// tell --re <task>, and two such messages want one report.
-			for _, m := range about[e.Ref] {
-				if m != to {
-					d.threads.responses[m] = append(d.threads.responses[m], i)
-				}
-			}
-		} else if e.Kind == "reply" && d.AutoKind(e) != "" {
-			item := e.Ref
-			if t, ok := d.FiledTask(e); ok {
-				item = t.ID
-			}
-			if item != "" {
-				about[item] = append(about[item], e.ID)
-			}
 		}
 		root, ok := d.Root(x)
+		// A response in an item's thread answers every generated message
+		// about that item before it: the message about a filed task asks
+		// for tell --re <task>, the agent may answer the user's follow-up
+		// instead, and two such messages want one report.
+		if ok && x.ID == e.ID && root.ID != e.ID {
+			if IsResponse(e) {
+				for _, m := range about[root.ID] {
+					if m != Answers(e) {
+						d.threads.responses[m] = append(d.threads.responses[m], i)
+					}
+				}
+			} else if e.Kind == "reply" && d.AutoKind(e) != "" {
+				about[root.ID] = append(about[root.ID], e.ID)
+			}
+		}
 		k := threadKey{id: root.ID}
 		if !ok {
 			k = threadKey{path: NodeOf(x)}
