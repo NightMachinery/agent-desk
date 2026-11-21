@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -143,17 +144,17 @@ func TestTaskTypesAndOrg(t *testing.T) {
 
 	// From the dashboard: at a node on the desk, with a type and a parent.
 	app, _, _ := h.app(nil, "")
-	id, err := app.taskAddWeb("example-proj/r1/coord", "Crash on rotate", "bug", "Seen twice.", ms, nil)
+	id, err := app.taskAddWeb("example-proj/r1/coord", "Crash on rotate", "bug", "Seen twice.", ms, nil, nil)
 	must(t, err)
 	if !strings.HasPrefix(id, "w-") {
 		t.Fatalf("id %q", id)
 	}
 	for _, bad := range [][]string{{"", "t"}, {"nowhere/x", "t"}, {"example-proj/r1/coord", ""}, {"_desk/quota/nudge", "t"}} {
-		if _, err := app.taskAddWeb(bad[0], bad[1], "", "", "", nil); err == nil {
+		if _, err := app.taskAddWeb(bad[0], bad[1], "", "", "", nil, nil); err == nil {
 			t.Fatalf("filed %v", bad)
 		}
 	}
-	if _, err := app.taskAddWeb("example-proj", "t", "epic", "", "", nil); err == nil {
+	if _, err := app.taskAddWeb("example-proj", "t", "epic", "", "", nil, nil); err == nil {
 		t.Fatal("filed an unknown type")
 	}
 	d := h.loadDesk()
@@ -212,7 +213,7 @@ func TestUntitledTask(t *testing.T) {
 	h.ok(b, "", "join", "r2/coord")
 	_, hd := testServer(t, h)
 
-	if code, body, _ := do(t, hd, "POST", "/api/task", `{"action":"add","to":"example-proj/r1/coord"}`, dashboard); code != 400 || !strings.Contains(body, "a title or details") {
+	if code, body, _ := do(t, hd, "POST", "/api/task", `{"action":"add","to":"example-proj/r1/coord"}`, dashboard); code != 400 || !strings.Contains(body, "a title, details or a file") {
 		t.Fatalf("neither title nor details: %d %s", code, body)
 	}
 	long := "pasting images etc in task messages needs to work, and Esc should leave insert mode first"
@@ -245,6 +246,26 @@ func TestUntitledTask(t *testing.T) {
 	if out := h.ok(nil, "", "task", "list", "--all"); !strings.Contains(out, "Paste images into task messages") {
 		t.Fatalf("list shows the old title:\n%s", out)
 	}
+	// A file pasted into the form: kept on the task, which a file alone titles.
+	up := map[string]string{"X-Agent-Desk": "1", "Content-Type": "application/octet-stream", "Origin": "http://example.com"}
+	code, body, _ = do(t, hd, "POST", "/api/upload?name=shot.png", string(tinyPNG), up)
+	if code != 200 {
+		t.Fatalf("upload: %d %s", code, body)
+	}
+	var res struct {
+		Ref json.RawMessage `json:"ref"`
+	}
+	must(t, json.Unmarshal([]byte(body), &res))
+	code, body, _ = do(t, hd, "POST", "/api/task", `{"action":"add","to":"example-proj/r1/coord","media":[`+string(res.Ref)+`]}`, dashboard)
+	if code != 200 {
+		t.Fatalf("file only: %d %s", code, body)
+	}
+	pic := strings.Split(strings.Split(body, `"id":"`)[1], `"`)[0]
+	code, body, _ = do(t, hd, "GET", "/api/item?id="+pic, "", nil)
+	if code != 200 || !strings.Contains(body, `"Files: shot.png"`) || !strings.Contains(body, `"kind":"image"`) {
+		t.Fatalf("the task with a file: %d %s", code, body)
+	}
+
 	// B named it, but A works on it: messages about it still go to A.
 	code, body, _ = do(t, hd, "GET", "/api/target?to="+id, "", nil)
 	if code != 200 || !strings.Contains(body, pA) {

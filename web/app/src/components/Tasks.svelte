@@ -4,7 +4,8 @@
   // their parent; filtered by state, type and search. Tasks can be checked
   // off, started, dropped or reopened here, and new ones filed at any node,
   // optionally messaging its coordinator about it.
-  import { get, post } from '../lib/api.js';
+  import { get, post, upload } from '../lib/api.js';
+  import { syncMode, typing } from '../lib/keys.svelte.js';
   import { href, go } from '../lib/route.svelte.js';
   import { toast } from '../lib/toast.svelte.js';
   import { queueMessage } from '../lib/outbox.svelte.js';
@@ -149,6 +150,51 @@
   let tell = $state(true);
   let target = $state(/** @type {any} */ (null));
   let filing = $state(false);
+  /** @type {HTMLFormElement | undefined} */
+  let formEl = $state();
+
+  // Files for the new task: pasted (anywhere in the form), dropped on it or
+  // attached. Each uploads at once, like the message box's; they stay on
+  // the task and go with the message to its agent, which gets their paths.
+  const MAX_FILES = 8;
+  let files = $state(/** @type {any[]} */ ([]));
+  let fileSeq = 0;
+  /** @type {HTMLInputElement | undefined} */
+  let picker = $state();
+  const uploading = $derived(files.some((f) => f.status === 'uploading'));
+  const readyRefs = $derived(files.filter((f) => f.status === 'ready').map((f) => f.ref));
+  async function addFiles(list) {
+    for (const f of list) {
+      const key = ++fileSeq;
+      if (files.length >= MAX_FILES) {
+        files.push({ key, name: f.name, status: 'error', error: `at most ${MAX_FILES} files` });
+        break;
+      }
+      files.push({ key, name: f.name || 'pasted-file', status: 'uploading' });
+      try {
+        const res = await upload(f);
+        const x = files.find((y) => y.key === key);
+        if (x) Object.assign(x, { status: 'ready', ref: res.ref, name: res.ref.name });
+      } catch (err) {
+        const x = files.find((y) => y.key === key);
+        if (x) Object.assign(x, { status: 'error', error: err.message });
+      }
+    }
+  }
+  function onpaste(e) {
+    const list = [...(e.clipboardData?.files ?? [])];
+    if (list.length) {
+      e.preventDefault();
+      addFiles(list);
+    }
+  }
+  function ondrop(e) {
+    const list = [...(e.dataTransfer?.files ?? [])];
+    if (list.length) {
+      e.preventDefault();
+      addFiles(list);
+    }
+  }
 
   $effect(() => {
     if (!adding) return;
@@ -172,7 +218,7 @@
 
   // A title is optional when there are details: the agent names the task
   // (agent-desk task title), and the brief's first line stands in until then.
-  const canFile = $derived(!!(title.trim() || brief.trim()) && !!node && !filing);
+  const canFile = $derived(!!(title.trim() || brief.trim() || readyRefs.length) && !!node && !filing && !uploading);
   function message(id) {
     const what = newType === 'task' ? 'task' : newType;
     const named = title.trim() ? `${id} "${title.trim()}"` : `${id}, without a title`;
@@ -189,13 +235,14 @@
     if (!canFile) return;
     filing = true;
     try {
-      const res = await post('task', { action: 'add', to: node, title: title.trim(), type: newType, text: brief, parent, tags: tagList(newTags) });
+      const media = $state.snapshot(readyRefs);
+      const res = await post('task', { action: 'add', to: node, title: title.trim(), type: newType, text: brief, parent, tags: tagList(newTags), ...(media.length && { media }) });
       let told = '';
       if (tell && target) {
         const to = target.node;
         const choice = await chooseSendCache('reply', to);
         if (choice !== 'cancel') {
-          queueMessage('reply', { to, text: message(res.id), ...(choice === 'compact' && { after_compaction: true }) }, to, { quiet: true });
+          queueMessage('reply', { to, text: message(res.id), ...(media.length && { media }), ...(choice === 'compact' && { after_compaction: true }) }, to, { quiet: true });
           told = ` and told ${to}`;
         }
       }
@@ -204,6 +251,7 @@
       brief = '';
       parent = '';
       newTags = '';
+      files = [];
       adding = false;
       await load();
     } catch (err) {
@@ -212,12 +260,20 @@
       filing = false;
     }
   }
+  // The form's keys, before the page's: ⌘/Ctrl+Enter files it. Escape in
+  // a field leaves insert mode (focus moves to the form, which stays open);
+  // Escape in normal mode closes it, and so does C-g, from anywhere in it.
+  // The draft is kept until it is filed.
   function formKeys(e) {
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) file(e);
-    if (e.key === 'Escape') {
-      e.stopPropagation();
-      adding = false;
-    }
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) return file(e);
+    const quit = e.key === 'g' && e.ctrlKey && !e.metaKey && !e.altKey;
+    if (e.key !== 'Escape' && !quit) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (!quit && typing(e.target)) {
+      formEl?.focus();
+      syncMode();
+    } else adding = false;
   }
 </script>
 
@@ -237,7 +293,7 @@
 
   {#if adding}
     <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-    <form class="add" onsubmit={file} onkeydown={formKeys}>
+    <form class="add" bind:this={formEl} tabindex="-1" onsubmit={file} onkeydown={formKeys} {onpaste} {ondrop} ondragover={(e) => e.preventDefault()}>
       <!-- svelte-ignore a11y_autofocus -->
       <input id="task-title" class="input" placeholder="What needs doing? (optional with details: the agent names it)" bind:value={title} autofocus aria-label="Task title" />
       <div class="types" role="radiogroup" aria-label="Type">
@@ -264,6 +320,19 @@
         {/if}
       </div>
       <textarea class="input" rows="3" placeholder="Details: what you saw, what done looks like" bind:value={brief} aria-label="Details"></textarea>
+      <div class="files">
+        <input bind:this={picker} type="file" multiple hidden onchange={(e) => (addFiles([...(e.currentTarget.files ?? [])]), (e.currentTarget.value = ''))} />
+        <button type="button" class="btn ghost small" disabled={files.length >= MAX_FILES} onclick={() => picker?.click()} title="Attach files; you can also paste or drop them on the form">Attach</button>
+        {#each files as f (f.key)}
+          <span class="file" class:err={f.status === 'error'}>
+            <span class="mono">{f.name}</span>
+            <span class="faint">{f.status === 'uploading' ? 'uploading…' : f.status === 'error' ? f.error : ''}</span>
+            <button type="button" class="btn ghost small x" aria-label={`Remove ${f.name}`} onclick={() => (files = files.filter((x) => x.key !== f.key))}>✕</button>
+          </span>
+        {:else}
+          <span class="faint hint">or paste or drop files</span>
+        {/each}
+      </div>
       <input class="input" placeholder="Tags (optional): ui, phone" bind:value={newTags} aria-label="Tags" autocomplete="off" />
       <div class="row2">
         {#if target}
@@ -273,7 +342,7 @@
           <span class="warn">No agent works under {node}, so nobody will be told: it waits on the list until an agent looks.</span>
         {/if}
         <span class="spacer"></span>
-        <span class="faint hint">⌘↵ to file</span>
+        <span class="faint hint">⌘↵ to file · Esc twice or C-g to close</span>
         <button class="btn small primary" type="submit" disabled={!canFile}>{filing ? 'Filing…' : 'File it'}</button>
       </div>
     </form>
@@ -368,6 +437,30 @@
 </section>
 
 <style>
+  .add:focus {
+    outline: none;
+  }
+  .files {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+  }
+  .file {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 1px 2px 1px 9px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    font-size: 12px;
+  }
+  .file.err {
+    border-color: var(--blocked);
+  }
+  .file .x {
+    padding: 0 6px;
+  }
   .reopen-row {
     margin: 6px 0 2px 26px;
   }

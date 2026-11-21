@@ -525,7 +525,7 @@ func (s *server) apiSets(app *App, body request) (any, error) {
 func (s *server) apiTask(app *App, body request) (any, error) {
 	switch body.Action {
 	case "add":
-		id, err := app.taskAddWeb(body.To, body.Title, body.Type, body.Text, body.Parent, body.Tags)
+		id, err := app.taskAddWeb(body.To, body.Title, body.Type, body.Text, body.Parent, body.Tags, body.Media)
 		return map[string]string{"id": id}, err
 	case "tags":
 		d, err := app.load()

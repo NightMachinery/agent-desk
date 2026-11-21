@@ -90,7 +90,9 @@ follow, with groups in colour.
   works on it where it stands; `x` discard the draft in the box, with
   Undo).
 - Tasks: `g c` the Tasks page here, `g C` everywhere (`SPC o t`, `SPC o T`),
-  `SPC n t` a new task; on the page `/` searches. The list's Tasks section
+  `SPC n t` a new task (in its form `⌘ RET` files it, `ESC` in a field
+  leaves insert mode and a second `ESC` closes the form, `C-g` closes it
+  from anywhere); on the page `/` searches. The list's Tasks section
   folds like the others (`z a`, `z M`), `j`/`k` walk its rows, and `SPC t t`
   cycles its menu: open only, or also those finished in the last 15 minutes
   to 30 days.

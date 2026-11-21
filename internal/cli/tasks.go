@@ -16,6 +16,7 @@ import (
 	"github.com/NightMachinery/agent-desk/internal/config"
 	"github.com/NightMachinery/agent-desk/internal/desk"
 	"github.com/NightMachinery/agent-desk/internal/ident"
+	"github.com/NightMachinery/agent-desk/internal/media"
 	"github.com/NightMachinery/agent-desk/internal/prompts"
 	"github.com/NightMachinery/agent-desk/internal/store"
 )
@@ -716,11 +717,15 @@ func jsonPart(s string) string {
 // taskAddWeb files a task the user wrote in the dashboard at node path,
 // which must be a project, run or agent on the desk. It returns the task's
 // display id.
-func (a *App) taskAddWeb(path, title, typ, brief, parent string, tags []string) (string, error) {
+func (a *App) taskAddWeb(path, title, typ, brief, parent string, tags []string, refs []media.Ref) (string, error) {
 	path = strings.Trim(strings.TrimSpace(path), "/")
 	title, brief = strings.TrimSpace(title), strings.TrimSpace(brief)
-	if title == "" && brief == "" {
-		return "", usagef("a task needs a title or details")
+	if title == "" && brief == "" && len(refs) == 0 {
+		return "", usagef("a task needs a title, details or a file")
+	}
+	refs, err := a.uploaded(refs) // pasted, dropped or attached in the form
+	if err != nil {
+		return "", err
 	}
 	if path == "" {
 		return "", usagef("a task needs a node: a project, run or agent")
@@ -748,8 +753,15 @@ func (a *App) taskAddWeb(path, title, typ, brief, parent string, tags []string) 
 	}
 	m := desk.TaskMeta{Type: typ}
 	if title == "" {
-		// Titled by its brief until the agent names it (task title).
+		// Titled by its brief (or its files) until the agent names it (task title).
 		title, m.Untitled = clipLine(brief, untitledLen), true
+		if title == "" {
+			names := make([]string, len(refs))
+			for i, r := range refs {
+				names[i] = r.Name
+			}
+			title = clipLine("Files: "+strings.Join(names, ", "), untitledLen)
+		}
 	}
 	if m.Tags, err = desk.NormTags(tags); err != nil {
 		return "", usagef("%v", err)
@@ -764,6 +776,9 @@ func (a *App) taskAddWeb(path, title, typ, brief, parent string, tags []string) 
 	var extra map[string]any
 	b, _ := json.Marshal(m)
 	_ = json.Unmarshal(b, &extra)
+	if len(refs) > 0 {
+		extra["media"] = refs
+	}
 	e := a.event("task", path, ident.Resolve(a.Env), "web", extra)
 	e.Title, e.Body = title, brief
 	if err := a.commit([]store.Event{e}, "-"); err != nil {
