@@ -129,10 +129,10 @@
           <span class="about">{about[s]}</span>
         </span>
         <span class="moves">
-          <button class="nudge" aria-label={`Move ${sectionNames[s]} up`} {...off(undefined, [i === 0, 'Already first'])} onclick={() => nudge(s, -1)}>
+          <button data-keys="none" class="nudge" aria-label={`Move ${sectionNames[s]} up`} {...off(undefined, [i === 0, 'Already first'])} onclick={() => nudge(s, -1)}>
             <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="m3 7.5 3-3 3 3" /></svg>
           </button>
-          <button class="nudge" aria-label={`Move ${sectionNames[s]} down`} {...off(undefined, [i === order.length - 1, 'Already last'])} onclick={() => nudge(s, 1)}>
+          <button data-keys="none" class="nudge" aria-label={`Move ${sectionNames[s]} down`} {...off(undefined, [i === order.length - 1, 'Already last'])} onclick={() => nudge(s, 1)}>
             <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="m3 4.5 3 3 3-3" /></svg>
           </button>
         </span>

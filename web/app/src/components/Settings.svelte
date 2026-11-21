@@ -171,7 +171,7 @@
         {#if k.key === 'notify.remote.dest'}
           <div class="dest">
             <input class="input" bind:value={dest} placeholder="where your phone notifier sends" disabled={busy} />
-            <button class="btn small" {...off(undefined, [busy, BUSY], [!dest.trim(), 'Type where it sends first'], [dest === k.value, 'Unchanged'])} onclick={() => save(k, dest.trim())}>Save</button>
+            <button data-keys="none" class="btn small" {...off(undefined, [busy, BUSY], [!dest.trim(), 'Type where it sends first'], [dest === k.value, 'Unchanged'])} onclick={() => save(k, dest.trim())}>Save</button>
           </div>
         {:else}
           <select class="input" value={k.value} disabled={busy} onchange={(e) => save(k, e.currentTarget.value)}>
@@ -180,7 +180,7 @@
         {/if}
         <div class="origin">
           <span class="faint">{originText(k.origin, path)}{k.classless && cls !== '*' ? ' · the same for every kind' : ''}</span>
-          {#if k.here}<button class="btn ghost small" {...off(undefined, [busy, BUSY])} onclick={() => save(k, null)}>Reset to inherited</button>{/if}
+          {#if k.here}<button data-keys="none" class="btn ghost small" {...off(undefined, [busy, BUSY])} onclick={() => save(k, null)}>Reset to inherited</button>{/if}
         </div>
         {#if k.differs?.length}
           <div class="differs faint">

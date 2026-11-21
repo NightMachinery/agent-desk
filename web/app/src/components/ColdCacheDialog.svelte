@@ -17,9 +17,9 @@
   <h3 id="cold-cache-title">This agent’s cache is probably cold</h3>
   <p>Compaction reads the full context once and can lose detail. It can save time and tokens if more turns follow.</p>
   <div class="actions">
-    <button class="btn" onclick={() => finishCacheChoice('cancel')}>Cancel</button>
-    <button class="btn" onclick={() => finishCacheChoice('send')}>Send anyway</button>
-    <button class="btn primary" {...off(undefined, [!coldCache.enabled, 'Compaction is unavailable for this agent'])}
+    <button data-keys="none" class="btn" onclick={() => finishCacheChoice('cancel')}>Cancel</button>
+    <button data-keys="none" class="btn" onclick={() => finishCacheChoice('send')}>Send anyway</button>
+    <button data-keys="none" class="btn primary" {...off(undefined, [!coldCache.enabled, 'Compaction is unavailable for this agent'])}
       onclick={() => finishCacheChoice('compact')}>Compact then send</button>
   </div>
 </dialog>

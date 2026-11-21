@@ -43,7 +43,7 @@
 <div class="node" style="--depth: {node.depth}">
   <div class="line" class:here={route.path === node.path}>
     {#if kids.length}
-      <button class="caret" class:open={shown} aria-label={shown ? 'Fold' : 'Unfold'} onclick={() => (open = !shown)}>
+      <button data-keys="none" class="caret" class:open={shown} aria-label={shown ? 'Fold' : 'Unfold'} onclick={() => (open = !shown)}>
         <svg width="10" height="10" viewBox="0 0 10 10"><path d="M3 1.5 7 5l-4 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
       </button>
     {:else}
@@ -59,10 +59,10 @@
     {#if node.paseo}<CacheControl paseo={node.paseo} />{/if}
     <div class="tools">
       {#if node.paseo}<CopyIds paseo={node.paseo} keys={false} />{/if}
-      <button class="btn ghost small iconbtn" title={`Message ${whom}`} aria-label={`Message ${whom}`} onclick={message}><Icon name="message" /></button>
+      <button data-keys="none" class="btn ghost small iconbtn" title={`Message ${whom}`} aria-label={`Message ${whom}`} onclick={message}><Icon name="message" /></button>
       <!-- Mark read keeps the last slot, read or not, so the icons line up. -->
       {#if node.unread}
-        <button class="btn ghost small iconbtn" title={`Mark everything under ${node.name} read`} aria-label="Mark everything under it read" onclick={readAll}><Icon name="readall" /></button>
+        <button data-keys="none" class="btn ghost small iconbtn" title={`Mark everything under ${node.name} read`} aria-label="Mark everything under it read" onclick={readAll}><Icon name="readall" /></button>
       {:else}
         <span class="spacer"></span>
       {/if}

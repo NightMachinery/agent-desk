@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { normalizeStroke, normalizeChord, readKeyFile, buildKeymap, effective, lookup, allBindings, primaryKey, KeymapError } from './keyfile.js';
 
 const here = new URL('.', import.meta.url);
@@ -166,4 +166,58 @@ test('the keys file serve creates (internal/cli/keys-template.edn) builds, and s
   assert.equal(on.maps.get('normal').binds.get('C-c t'), 'task-add');
   assert.equal(on.maps.get('normal').binds.has('g c'), false);
   assert.equal(on.maps.get('task').binds.get('f'), 'task-done');
+});
+
+// --- coverage (w-f8a5): every action is reachable from the keyboard, or
+// deliberately not.
+
+/** The opening tags <name ...> in a component, skipping {...} and quotes. */
+function openTags(src, name) {
+  const out = [];
+  const open = '<' + name;
+  for (let i = src.indexOf(open); i >= 0; i = src.indexOf(open, i + 1)) {
+    if (!/[\s>]/.test(src[i + open.length])) continue;
+    let j = i + open.length;
+    for (let depth = 0, q = ''; j < src.length; j++) {
+      const ch = src[j];
+      if (q) {
+        if (ch === q && src[j - 1] !== '\\') q = '';
+      } else if (ch === '"' || ((ch === "'" || ch === '`') && depth > 0)) q = ch;
+      else if (ch === '{') depth++;
+      else if (ch === '}') depth--;
+      else if (ch === '>' && depth === 0) break;
+    }
+    out.push({ tag: src.slice(i, j + 1), line: src.slice(0, i).split('\n').length });
+  }
+  return out;
+}
+
+test('every command has a key, or is under :keyless on purpose', () => {
+  const km = build();
+  const bound = new Set(allBindings(km).map((b) => b.cmd));
+  const missing = [...CMDS.keys()].filter((c) => !bound.has(c) && !km.keyless.has(c));
+  assert.deepEqual(missing, [], 'commands with no key that :keyless does not list');
+  assert.deepEqual([...km.keyless].filter((c) => bound.has(c)), [], ':keyless commands that have a key');
+});
+
+test('every button runs a command (data-cmd) or is keyless on purpose (data-keys="none"), and every data-cmd is known', () => {
+  const keymap = readFileSync(new URL('keymap.js', here), 'utf8');
+  // Tags a command presses or checks for (click('quick'), tagged(...)).
+  const tags = new Set([...keymap.matchAll(/(?:click|has|tagged|cmdEl)\('([a-z0-9-]+)'/g)].map((m) => m[1]));
+  const sc = readFileSync(new URL('shortcuts.js', here), 'utf8');
+  const block = (name) => sc.slice(sc.indexOf(`const ${name} = {`), sc.indexOf('};', sc.indexOf(`const ${name} = {`)));
+  // Buttons whose data-cmd differs from their command's name.
+  const aliases = new Set([...`${block('buttonCmds')}\n${block('fixedKeys')}`.matchAll(/(?:^|[{,])\s*'?([a-z0-9-]+)'?\s*:/gm)].map((m) => m[1]));
+  assert.ok(aliases.has('quick') && aliases.has('send'), 'read buttonCmds and fixedKeys');
+  const known = (c) => CMDS.has(c) || tags.has(c) || aliases.has(c) || c.startsWith('fold-');
+  const dir = new URL('../components/', here);
+  const bare = [];
+  const unknown = [];
+  for (const f of readdirSync(dir).filter((f) => f.endsWith('.svelte'))) {
+    const src = readFileSync(new URL(f, dir), 'utf8');
+    for (const t of openTags(src, 'button')) if (!/data-cmd=|data-keys="none"/.test(t.tag)) bare.push(`${f}:${t.line}`);
+    for (const m of src.matchAll(/data-cmd="([^"]+)"/g)) if (!known(m[1])) unknown.push(`${f}: ${m[1]}`);
+  }
+  assert.deepEqual(bare, [], 'buttons with neither data-cmd nor data-keys="none"');
+  assert.deepEqual(unknown, [], 'data-cmd values that name no command');
 });

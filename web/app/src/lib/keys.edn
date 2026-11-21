@@ -278,6 +278,8 @@
  :quota
  {"a"       :quota-archive
   "r"       :quota-replace
+  "d"       :quota-dismiss
+  "p"       :quota-ask-parent
   "y"       :quota-copy-ids}
 
  :settings
@@ -294,5 +296,9 @@
  :verbatim
  {"m"       :verbatim-more}
 
- ; No key, on purpose: SPC t d cycles through these three.
- :keyless [:deliverables-unread :deliverables-latest :deliverables-all]}
+ ; No key, on purpose (SPC h f says so; M-x still runs them). A test fails
+ ; on any other command without a key, and on any button with neither a
+ ; command (data-cmd) nor data-keys="none".
+ :keyless [:deliverables-unread :deliverables-latest :deliverables-all ; SPC t d cycles them
+           :compose                                 ; i does it, and returns to the box Esc left
+           :deferred-launch :deferred-launch-top]}  ; they start agents: by name only

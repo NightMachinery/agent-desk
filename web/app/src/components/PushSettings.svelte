@@ -133,9 +133,9 @@
         <div><strong>Push could not be turned on here.</strong> {failure.message}</div>
         {#if failure.raw && failure.raw !== failure.message}<div class="faint">The browser said: <span class="mono">{failure.raw}</span></div>{/if}
         <div class="row">
-          <button class="btn small" onclick={copyLogs}>Copy logs</button>
-          {#if brave && /brave:\/\/settings/.test(failure.message)}<button class="btn ghost small" onclick={copySettings}>Copy the settings address</button>{/if}
-          <button class="btn ghost small" onclick={() => (failure = null)}>Dismiss</button>
+          <button data-cmd="push-logs" class="btn small" onclick={copyLogs}>Copy logs</button>
+          {#if brave && /brave:\/\/settings/.test(failure.message)}<button data-cmd="push-brave-setting" class="btn ghost small" onclick={copySettings}>Copy the settings address</button>{/if}
+          <button data-keys="none" class="btn ghost small" onclick={() => (failure = null)}>Dismiss</button>
         </div>
       </div>
     {/if}
@@ -154,8 +154,8 @@
               {d.last_error ? `failed ${when(d.last_error)}` : d.last_ok ? `last push ${when(d.last_ok)}` : `added ${when(d.created)}`}
             </span>
             {#if d.id !== mine}
-              <button class="btn ghost small" {...off(undefined, [busy, BUSY])} onclick={() => act('test', d.id)}>Test</button>
-              <button class="btn ghost small" {...off(undefined, [busy, BUSY])} onclick={() => act('remove', d.id)}>Remove</button>
+              <button data-keys="none" class="btn ghost small" {...off(undefined, [busy, BUSY])} onclick={() => act('test', d.id)}>Test</button>
+              <button data-keys="none" class="btn ghost small" {...off(undefined, [busy, BUSY])} onclick={() => act('remove', d.id)}>Remove</button>
             {/if}
           </li>
         {/each}
@@ -168,7 +168,7 @@
     <div class="report">
       <div class="faint">The browser would not copy the logs; select them here instead.</div>
       <textarea class="input mono" readonly rows="10" onfocus={(e) => e.currentTarget.select()}>{report}</textarea>
-      <button class="btn ghost small" onclick={() => (report = '')}>Hide</button>
+      <button data-keys="none" class="btn ghost small" onclick={() => (report = '')}>Hide</button>
     </div>
   {/if}
 </div>

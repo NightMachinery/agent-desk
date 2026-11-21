@@ -507,6 +507,10 @@ C('draft-discard', 'Discard the draft in this box (Undo brings it back)', discar
 C('deliverable-works', 'Deliverable: send with "This worked." in front', () => click('deliverable-works'), tagged('deliverable-works', 'a deliverable whose agent can be messaged'));
 C('quota-archive', 'Out of quota: archive the first agent in Paseo', () => click('quota-archive'), tagged('quota-archive', 'an agent out of quota'));
 C('quota-replace', 'Out of quota: replace the first agent (pick its provider, model and effort)', () => click('quota-replace'), tagged('quota-replace', 'an agent out of quota that can be replaced'));
+C('quota-dismiss', 'Out of quota: dismiss the agent (hidden until it runs and stops again)', () => click('quota-dismiss'), tagged('quota-dismiss', 'an agent out of quota'));
+C('quota-ask-parent', 'Out of quota: ask its parent to reassign its role', () => click('quota-ask-parent'), tagged('quota-ask-parent', 'an out-of-quota agent whose parent has quota'));
+C('deferred-launch', 'Deferred tasks: start an agent on each picked one', () => click('deferred-launch'), tagged('deferred-launch', 'the Deferred for quota section'));
+C('deferred-launch-top', 'Deferred tasks: start agents on the first ones by priority', () => click('deferred-launch-top'), tagged('deferred-launch-top', 'the Deferred for quota section'));
 C('task-done', 'Task: mark it done', () => click('task-done'), tagged('task-done', 'an unfinished task'));
 C('task-drop', 'Task: drop it (Reopen brings it back)', () => click('task-drop'), tagged('task-drop', 'an unfinished task'));
 C('task-start', 'Task: start an agent on it (launch_command)', () => click('task-start'), tagged('task-start', 'an open or deferred task'));

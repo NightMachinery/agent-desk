@@ -157,7 +157,8 @@ swallows the next key, so it never runs a short key by accident.
 - A message that failed: `r` retry the delivery, `t` retry the
   transcription, `s` send it without the recording.
 - An out-of-quota agent, while focus is in that section: `a` archive, `r`
-  replace, `y` copy the picked ids (also `y q`). With focus on an agent's
+  replace, `d` dismiss, `p` ask its parent to reassign it, `y` copy the
+  picked ids (also `y q`). With focus on an agent's
   card, they act on that agent, else on the first.
 - Settings: `o` / `O` the section order or back to the default, `r` render
   the org files now, `e` export the desk as one .org file, `E` as a zip, `p`
@@ -302,6 +303,13 @@ a change that adds a page, panel or action adds its command too; otherwise
 the new feature is mouse-only. Most commands press the same button a click
 would: tag the button `data-cmd="name"` in its component and call
 `click('name')`, so the key and the click cannot drift apart.
+Every action is reachable from the keyboard or deliberately not, and
+`keyfile.test.js` checks it: a command with no key fails unless `keys.edn`
+lists it under `:keyless` (with the reason in a comment), and a `<button>`
+fails unless it carries `data-cmd` (a command, a tag a command presses, or a
+`buttonCmds` alias) or `data-keys="none"`. Mark a button `data-keys="none"`
+when it acts on one row (hints reach it) or belongs to a dialog's own form
+(Tab and `RET` reach it).
 `lib/shortcuts.js` holds the cheatsheet (rows name commands, not keys) and
 `tip(label, button)`, the tooltip naming a button's key; a button whose
 `data-cmd` differs from its command's name gets an entry in its

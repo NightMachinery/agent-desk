@@ -39,7 +39,7 @@
     </button>
   </div>
   {#if sets.length}
-    <button class="scope set" class:on={!focus} onclick={() => focus && focusOn('', onchange)} aria-pressed={!focus}>
+    <button data-keys="none" class="scope set" class:on={!focus} onclick={() => focus && focusOn('', onchange)} aria-pressed={!focus}>
       <span class="ring" class:off={true}></span>
       <span class="name">All projects</span>
       {#if focus && hidCount}
@@ -47,7 +47,7 @@
       {/if}
     </button>
     {#each sets as s (s.name)}
-      <button class="scope set" class:on={focus === s.name} onclick={() => focus !== s.name && focusOn(s.name, onchange)} aria-pressed={focus === s.name} title={s.prefixes.join(', ')}>
+      <button data-keys="none" class="scope set" class:on={focus === s.name} onclick={() => focus !== s.name && focusOn(s.name, onchange)} aria-pressed={focus === s.name} title={s.prefixes.join(', ')}>
         <span class="ring"></span>
         <span class="name">{s.name}</span>
         <span class="faint n">{s.prefixes.length}</span>

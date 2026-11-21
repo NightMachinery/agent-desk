@@ -80,7 +80,7 @@
 
 <section class="verbatim">
   <div class="bar">
-    <button class="btn ghost small" onclick={() => go({ verbatim: false })}>← Back</button>
+    <button data-cmd="close" class="btn ghost small" onclick={() => go({ verbatim: false })}>← Back</button>
   </div>
   <h1>Verbatim log</h1>
   <p class="faint lede">
@@ -105,7 +105,7 @@
             {#if it.agent}<span class="agent" title={it.paseo ? 'Paseo ' + it.paseo : it.session}>{it.agent}</span>{/if}
             <a class="mono path" href={href({ path: it.path, verbatim: false })}>{it.path}</a>
             {#if it.host}<span>@{it.host}</span>{/if}
-            <button class="btn ghost small copy" onclick={() => copyText(it.text)} title="Copy the message">Copy</button>
+            <button data-keys="none" class="btn ghost small copy" onclick={() => copyText(it.text)} title="Copy the message">Copy</button>
           </div>
           <div class="text">{#each parts(it.text) as p, i (i)}{#if p.hit}<mark>{p.t}</mark>{:else}{p.t}{/if}{/each}</div>
         </li>

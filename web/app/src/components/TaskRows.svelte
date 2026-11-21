@@ -109,7 +109,7 @@
     {#each shown as t (t.event.id)}
       {@const over = finished(t)}
       <div class="task" class:selected={route.item === t.display_id} class:started={t.state === 'started'} class:done={t.state === 'done'} class:dropped={t.state === 'dropped'}>
-        <button class="box" class:on={t.state === 'done'} {...off(over ? 'Reopen it' : 'Mark it done', [busy === t.event.id, BUSY])}
+        <button data-keys="none" class="box" class:on={t.state === 'done'} {...off(over ? 'Reopen it' : 'Mark it done', [busy === t.event.id, BUSY])}
           aria-label={over ? `Reopen ${t.display_id}` : `Mark ${t.display_id} done`} onclick={() => (over ? (reopening = t.event.id) : act(t, 'done'))}>
           <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="m2.5 6.2 2.3 2.3 4.7-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
         </button>

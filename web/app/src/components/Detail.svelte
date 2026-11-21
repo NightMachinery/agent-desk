@@ -248,7 +248,7 @@
 
 {#if error}
   <div class="pad">
-    <button class="btn ghost back" onclick={() => go({ item: '' })}>← Back</button>
+    <button data-cmd="close" class="btn ghost back" onclick={() => go({ item: '' })}>← Back</button>
     <div class="empty">{error}</div>
   </div>
 {:else if !item}
@@ -256,7 +256,7 @@
 {:else}
   <article class="pad">
     <div class="toolbar">
-      <button class="btn ghost back" onclick={() => go({ item: '' })} aria-label="Close" title={tip('Close', 'close')}>
+      <button data-cmd="close" class="btn ghost back" onclick={() => go({ item: '' })} aria-label="Close" title={tip('Close', 'close')}>
         <svg width="16" height="16" viewBox="0 0 16 16"><path d="M10 3 5 8l5 5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" /></svg>
         <span class="back-label">Back</span>
       </button>
@@ -384,7 +384,7 @@
           {#each item.subtasks as s (s.display_id)}
             {@const over = s.state === 'done' || s.state === 'dropped'}
             <li class={s.state} data-event={s.display_id}>
-              <button class="box" class:on={s.state === 'done'} aria-label={`Mark ${s.display_id} done`}
+              <button data-keys="none" class="box" class:on={s.state === 'done'} aria-label={`Mark ${s.display_id} done`}
                 {...off('Mark it done', [over, `${s.state === 'done' ? 'Done' : 'Dropped'}: open it to reopen`])}
                 onclick={() => taskAct('done', '', s.display_id)}>
                 <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="m2.5 6.2 2.3 2.3 4.7-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
@@ -404,7 +404,7 @@
     {#if item.report}
       <div class="callout">
         <strong>Report:</strong> <span class="mono">{item.report}</span>
-        <button class="btn ghost small" onclick={() => copyText(item.report, 'Path')}>Copy</button>
+        <button data-keys="none" class="btn ghost small" onclick={() => copyText(item.report, 'Path')}>Copy</button>
       </div>
     {/if}
     {#if item.file}
@@ -492,9 +492,9 @@
     </div>
 
     <nav class="stepper" aria-label="Previous and next">
-      <button class="btn small" {...off(tip('Previous item', 'prev'), [!prevId, 'This is the first item in the list'])} onclick={() => go({ item: prevId }, { replace: true })}><Icon name="prev" size={14} /> Previous</button>
+      <button data-cmd="prev" class="btn small" {...off(tip('Previous item', 'prev'), [!prevId, 'This is the first item in the list'])} onclick={() => go({ item: prevId }, { replace: true })}><Icon name="prev" size={14} /> Previous</button>
       <span class="faint pos">{pos.at ? `${pos.at} of ${pos.of}` : ''}</span>
-      <button class="btn small" {...off(tip('Next item', 'next'), [!nextId, 'This is the last item in the list'])} onclick={() => go({ item: nextId }, { replace: true })}>Next <Icon name="next" size={14} /></button>
+      <button data-cmd="next" class="btn small" {...off(tip('Next item', 'next'), [!nextId, 'This is the last item in the list'])} onclick={() => go({ item: nextId }, { replace: true })}>Next <Icon name="next" size={14} /></button>
     </nav>
   </article>
 {/if}

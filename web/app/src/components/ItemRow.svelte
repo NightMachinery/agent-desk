@@ -67,7 +67,7 @@
 </script>
 
 <div class="wrap" class:picking={selecting()}>
-<button
+<button data-keys="none"
   class="check"
   class:on={picked}
   role="checkbox"

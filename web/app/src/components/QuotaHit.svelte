@@ -150,15 +150,15 @@
 <div class="rows" class:hidden={collapsed} data-context="quota">
   {#if picking && shown.length}
     <div class="selbar">
-      <button class="btn small ghost" onclick={pickAll}>{allPicked ? 'Deselect all' : 'Select all'}</button>
+      <button data-keys="none" class="btn small ghost" onclick={pickAll}>{allPicked ? 'Deselect all' : 'Select all'}</button>
       <span class="faint">{picked.size} selected</span>
       <button class="btn small" data-cmd="quota-copy-ids" onclick={copyPicked}
         {...off("Copy the selected agents' Paseo ids, one per line", [!picked.size, 'Select agents first'])}>Copy Paseo IDs</button>
-      <button class="btn small" {...off(undefined, [!picked.size, 'Select agents first'], [busy, BUSY])} onclick={() => dismiss(shownIds.filter((id) => picked.has(id)), !showDismissed)}>
+      <button data-keys="none" class="btn small" {...off(undefined, [!picked.size, 'Select agents first'], [busy, BUSY])} onclick={() => dismiss(shownIds.filter((id) => picked.has(id)), !showDismissed)}>
         {showDismissed ? 'Undismiss selected' : 'Dismiss selected'}
       </button>
       {#if picked.size && !sel.mode}
-        <button class="icon" title="Clear the selection" aria-label="Clear the selection" onclick={() => picked.clear()}>
+        <button data-keys="none" class="icon" title="Clear the selection" aria-label="Clear the selection" onclick={() => picked.clear()}>
           <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" /></svg>
         </button>
       {/if}
@@ -176,7 +176,7 @@
         <div class="tools">
           <CopyIds paseo={a.paseo} keys={false} />
           {#if a.dismissed}
-            <button class="icon" {...off('Show it again', [busy, BUSY])} onclick={() => dismiss([a.paseo], false)}>
+            <button data-keys="none" class="icon" {...off('Show it again', [busy, BUSY])} onclick={() => dismiss([a.paseo], false)}>
               <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8a5 5 0 1 0 1.5-3.5M3 2.5V5h2.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
             </button>
           {:else}
@@ -206,7 +206,7 @@
         <CacheControl paseo={a.paseo} />
         <div class="btns">
         {#if a.parent && !a.parent.stopped}
-          <button class="btn small" {...off('Message its parent: archive it and give its role to a new subagent on an account with quota left, recovering its partial work and minding its own subagents (prompt: reassign-role.md)', [busy, BUSY])}
+          <button data-cmd="quota-ask-parent" class="btn small" {...off('Message its parent: archive it and give its role to a new subagent on an account with quota left, recovering its partial work and minding its own subagents (prompt: reassign-role.md)', [busy, BUSY])}
             onclick={() => act(a, 'ask-parent', 'Asked its parent.')}>Ask parent to reassign</button>
         {/if}
         <button class="btn small" data-cmd="quota-archive" {...off('Archive it in Paseo: it leaves this list (messaging it from the desk revives it)', [busy, BUSY])}
@@ -224,7 +224,7 @@
     <ReplaceDialog agent={replacing} presets={data.profiles ?? []} onclose={() => (replacing = null)} ondone={() => load(true)} />
   {/if}
   {#if dismissed}
-    <button class="more faint" onclick={() => (showDismissed = !showDismissed)}>
+    <button data-keys="none" class="more faint" onclick={() => (showDismissed = !showDismissed)}>
       {showDismissed ? 'Hide' : 'Show'} {dismissed} dismissed
     </button>
   {/if}

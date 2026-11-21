@@ -111,9 +111,9 @@
   {#if sets.length}
     <div class="tabs" role="tablist" aria-label="Sets">
       {#each sets as s (s.name)}
-        <button role="tab" aria-selected={setsUi.name === s.name} class:on={setsUi.name === s.name} onclick={() => (setsUi.name = s.name)}>{s.name}</button>
+        <button data-keys="none" role="tab" aria-selected={setsUi.name === s.name} class:on={setsUi.name === s.name} onclick={() => (setsUi.name = s.name)}>{s.name}</button>
       {/each}
-      <button role="tab" aria-selected={!editing} class:on={!editing} onclick={() => (setsUi.name = '')}>+ New</button>
+      <button data-keys="none" role="tab" aria-selected={!editing} class:on={!editing} onclick={() => (setsUi.name = '')}>+ New</button>
     </div>
   {/if}
 
@@ -139,7 +139,7 @@
         </label>
         {#if p.runs.length}
           {@const some = p.runs.filter((r) => picked.has(r)).length}
-          <button class="runs-toggle faint" aria-expanded={expanded.has(p.path)} onclick={() => toggleRuns(p.path)}>
+          <button data-keys="none" class="runs-toggle faint" aria-expanded={expanded.has(p.path)} onclick={() => toggleRuns(p.path)}>
             {some ? `${some} of ${p.runs.length} runs` : `${p.runs.length} run${p.runs.length > 1 ? 's' : ''}`}
             <svg width="10" height="10" viewBox="0 0 10 10" class:open={expanded.has(p.path)} aria-hidden="true"><path d="M3 2l3.5 3L3 8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
           </button>
@@ -160,16 +160,16 @@
 
   <form class="extra" onsubmit={(e) => (e.preventDefault(), addExtra())}>
     <input type="text" bind:value={extra} placeholder="Another path, e.g. private/linear-finetune" autocomplete="off" />
-    <button class="btn small" type="submit" {...off(undefined, [!extra.trim(), 'Type a path first'])}>Add</button>
+    <button data-keys="none" class="btn small" type="submit" {...off(undefined, [!extra.trim(), 'Type a path first'])}>Add</button>
   </form>
 
   <div class="foot">
     {#if editing}
-      <button class="btn small danger" {...off(undefined, [busy, BUSY])} onclick={remove}>Delete</button>
+      <button data-keys="none" class="btn small danger" {...off(undefined, [busy, BUSY])} onclick={remove}>Delete</button>
     {/if}
     <span class="grow"></span>
-    <button class="btn small" {...off(undefined, [busy, BUSY])} onclick={() => save(false)}>Save</button>
-    <button class="btn small primary" {...off(undefined, [busy, BUSY])} onclick={() => save(true)}>Save and focus</button>
+    <button data-keys="none" class="btn small" {...off(undefined, [busy, BUSY])} onclick={() => save(false)}>Save</button>
+    <button data-keys="none" class="btn small primary" {...off(undefined, [busy, BUSY])} onclick={() => save(true)}>Save and focus</button>
   </div>
 </Sheet>
 

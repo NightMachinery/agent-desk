@@ -451,7 +451,7 @@
         <li class="file {f.status}" title={f.error || ''}>
           <span class="fname">{f.name}</span>
           <span class="faint">{f.status === 'uploading' ? 'uploading…' : f.status === 'error' ? f.error : sizeText(f.ref?.size ?? f.size)}</span>
-          <button class="x" aria-label={`Remove ${f.name}`} onclick={() => removeFile(f.key)} {...off(undefined, [busy, SENDING])}>×</button>
+          <button data-keys="none" class="x" aria-label={`Remove ${f.name}`} onclick={() => removeFile(f.key)} {...off(undefined, [busy, SENDING])}>×</button>
         </li>
       {/each}
     </ul>
@@ -510,20 +510,20 @@
   {#if missing}
     <p>{missing.removed.length === 1 ? '1 recording is' : `${missing.removed.length} recordings are`} no longer in the text.</p>
     <div class="bar">
-      <button class="btn small" onclick={restoreMissing}>Put {missing.removed.length === 1 ? 'it' : 'them'} at the end</button>
-      <button class="btn small" onclick={() => { const choice = missing; missing = null; missingOpen = false; submit(choice.value, choice.behavior, true); }}>Leave out</button>
+      <button data-keys="none" class="btn small" onclick={restoreMissing}>Put {missing.removed.length === 1 ? 'it' : 'them'} at the end</button>
+      <button data-keys="none" class="btn small" onclick={() => { const choice = missing; missing = null; missingOpen = false; submit(choice.value, choice.behavior, true); }}>Leave out</button>
     </div>
   {/if}
 </Sheet>
 
 <Sheet bind:open={menu} title="Send how?">
   <div class="choices">
-    <button class="choice current" onclick={() => { menu = false; submit(); }}>
+    <button data-keys="none" class="choice current" onclick={() => { menu = false; submit(); }}>
       <span class="choice-name">{behaviorLabel[def]} <span class="faint">· default</span></span>
       <span class="choice-help">{defSupport && !defSupport.supported ? `Unavailable: ${defSupport.why}` : behaviorHelp[def]}</span>
     </button>
     {#each others as b (b.name)}
-      <button class="choice" class:danger={b.name === 'interrupt'} {...off(undefined, [!b.supported, `Unavailable: ${b.why}`])} aria-disabled={!b.supported} onclick={() => pick(b)}>
+      <button data-keys="none" class="choice" class:danger={b.name === 'interrupt'} {...off(undefined, [!b.supported, `Unavailable: ${b.why}`])} aria-disabled={!b.supported} onclick={() => pick(b)}>
         <span class="choice-name">{behaviorLabel[b.name]}</span>
         <span class="choice-help">{b.supported ? behaviorHelp[b.name] : `Unavailable: ${b.why}`}</span>
       </button>
@@ -531,8 +531,8 @@
         <div class="confirm">
           <p>This cancels the agent's running turn and loses its work in progress. Stop it and send?</p>
           <div class="confirm-bar">
-            <button class="btn small" onclick={() => (confirming = false)}>Cancel</button>
-            <button class="btn small stop" onclick={() => pick(b)}>Stop and send</button>
+            <button data-keys="none" class="btn small" onclick={() => (confirming = false)}>Cancel</button>
+            <button data-keys="none" class="btn small stop" onclick={() => pick(b)}>Stop and send</button>
           </div>
         </div>
       {/if}
@@ -559,7 +559,7 @@
       </select>
     </label>
     <p class="faint small">For this message only. Standing defaults are under Settings.</p>
-    {#if overridden}<button class="btn small" onclick={() => (notify = { desktop: '', remote: '' })}>Back to the defaults</button>{/if}
+    {#if overridden}<button data-keys="none" class="btn small" onclick={() => (notify = { desktop: '', remote: '' })}>Back to the defaults</button>{/if}
   </div>
 </Sheet>
 

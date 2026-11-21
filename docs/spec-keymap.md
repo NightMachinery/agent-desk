@@ -6,8 +6,10 @@ EDN spec (evilify skill, `evilify/keymap-edn.md`) and the loader (w-chw5):
 `web/app/src/lib/keys.edn` holds the keys as they were before the redesign,
 and the user's file overlays it ([keyboard.md](keyboard.md), "Your own
 keys"). The remap (w-t1gk) is built too: `keys.edn` holds the map below,
-and [keyboard.md](keyboard.md) documents it. Next: keyless commands
-(w-4sa8). Additions since approval: `SPC b e` and `SPC d e` / `SPC d i`
+and [keyboard.md](keyboard.md) documents it. So are the keyless marks
+and the coverage test (w-4sa8): `:keyless` lists the commands without a key,
+every button carries `data-cmd` or `data-keys="none"`, and `keyfile.test.js`
+fails on anything else. Additions since approval: `SPC b e` and `SPC d e` / `SPC d i`
 export the item, the node and its inbox; `, u` undefers a task; Settings
 `, E` exports as a zip; `, ` with nothing open that has its own keys says so
 and swallows the next key.

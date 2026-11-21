@@ -116,7 +116,7 @@
         <span class="faint">{t.age} ago</span>
         <a class="mono faint idlink" href={href({ item: t.display_id })}>{t.display_id}</a>
         {#if onreply}
-          <button class="reply-btn" class:on={replyingTo === t.display_id} title={tip('Reply', 'reply-entry')} aria-label={`Reply to ${t.display_id}`} onclick={() => onreply(t)}><Icon name="reply" size={14} /></button>
+          <button data-keys="none" class="reply-btn" class:on={replyingTo === t.display_id} title={tip('Reply', 'reply-entry')} aria-label={`Reply to ${t.display_id}`} onclick={() => onreply(t)}><Icon name="reply" size={14} /></button>
         {/if}
       </div>
       {#if t.kind === 'question'}
@@ -179,12 +179,12 @@
               <div class="resume">
                 <span class="faint">Resume its session by hand:</span>
                 <code class="mono">{t.failure.resume}</code>
-                <button class="btn ghost small" onclick={() => copy(t.failure.resume)}>Copy</button>
+                <button data-keys="none" class="btn ghost small" onclick={() => copy(t.failure.resume)}>Copy</button>
               </div>
             {/if}
             {#if t.failure.uncertain}
               <div>Look for this message in the agent’s conversation before sending it again.</div>
-              <div><button class="btn small" {...off(undefined, [retrying === t.event.id, 'Wait: retrying'])} onclick={() => retry(t.event.id, true, t.failure.id)}>
+              <div><button data-keys="none" class="btn small" {...off(undefined, [retrying === t.event.id, 'Wait: retrying'])} onclick={() => retry(t.event.id, true, t.failure.id)}>
                 {retrying === t.event.id ? 'Queuing…' : 'Send again anyway'}
               </button></div>
             {:else if !t.failure.retrying}
@@ -210,8 +210,8 @@
         <div class="failure">
           <div><strong>Could not queue</strong>: {message.error}</div>
           <div>
-            <button class="btn small" onclick={() => retryPost(message.key)}>Retry</button>
-            {#if message.body.text}<button class="btn ghost small" onclick={() => copy(message.body.text)}>Copy text</button>{/if}
+            <button data-keys="none" class="btn small" onclick={() => retryPost(message.key)}>Retry</button>
+            {#if message.body.text}<button data-keys="none" class="btn ghost small" onclick={() => copy(message.body.text)}>Copy text</button>{/if}
           </div>
         </div>
       {:else}

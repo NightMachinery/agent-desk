@@ -153,7 +153,7 @@
         <p class="faint">Asking Paseo for its providers…</p>
       {:else if error}
         <p class="err">{error}</p>
-        <button type="button" class="btn small" onclick={() => load(true)}>Try again</button>
+        <button data-keys="none" type="button" class="btn small" onclick={() => load(true)}>Try again</button>
       {:else}
         {#each providers as p (p.id)}
           <label class="prov" class:on={p.id === provider} class:blocked={p.verdict === 'blocked'}>
@@ -205,7 +205,7 @@
       <div class="presets">
         <span class="faint">Presets</span>
         {#each presets as s (s)}
-          <button type="button" class="chip mono" class:on={s === profile} onclick={() => applyPreset(s)}>{s}</button>
+          <button data-keys="none" type="button" class="chip mono" class:on={s === profile} onclick={() => applyPreset(s)}>{s}</button>
         {/each}
       </div>
     {/if}
@@ -214,8 +214,8 @@
 
     <footer>
       <span class="profile faint" title="The profile handed to launch_command">{profile ? `${current?.label ?? provider} · ${modelLabel(model) || 'default model'}${thinking ? ' · ' + thinking : ''}` : ''}</span>
-      <button type="button" class="btn" onclick={close}>Cancel</button>
-      <button type="submit" class="btn primary" data-cmd="replace-start" {...off(undefined, [starting, 'Wait: starting the new agent'], [loading && !providers.length, 'Wait: loading the providers'], [!profile, 'Pick a provider first'])}>
+      <button data-keys="none" type="button" class="btn" onclick={close}>Cancel</button>
+      <button type="submit" class="btn primary" data-keys="none" {...off(undefined, [starting, 'Wait: starting the new agent'], [loading && !providers.length, 'Wait: loading the providers'], [!profile, 'Pick a provider first'])}>
         {starting ? 'Starting…' : 'Start replacement'}
       </button>
     </footer>

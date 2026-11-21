@@ -14,6 +14,8 @@ const buttonCmds = {
   'copy-resume': 'yank-resume',
   'copy-paseo': 'yank-paseo',
   quick: 'take',
+  'task-new': 'task-add',
+  'node-task-add': 'task-add',
   'message-node': 'node-message',
   'read-all': 'node-read-all',
   'velocity-report': 'node-velocity',

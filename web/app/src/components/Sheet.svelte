@@ -24,12 +24,12 @@
 
 {#if open}
   <div class="sheet-wrap">
-    <button class="scrim" aria-label="Close" onclick={() => (open = false)}></button>
+    <button data-keys="none" class="scrim" aria-label="Close" onclick={() => (open = false)}></button>
     <div class="sheet" role="dialog" aria-modal="true" aria-label={title} bind:this={box}>
       <div class="grab" aria-hidden="true"></div>
       <div class="head">
         <h3>{title}</h3>
-        <button class="btn ghost small" onclick={() => (open = false)}>Done</button>
+        <button data-cmd="sheet-close" class="btn ghost small" onclick={() => (open = false)}>Done</button>
       </div>
       <div class="content">{@render children()}</div>
     </div>

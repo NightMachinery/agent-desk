@@ -89,7 +89,7 @@
         {#if item.status !== 'recording' && item.status !== 'transcribing'}
           <div class="actions">
             {#if insert && item.text}
-              <button class="btn small" onclick={() => insert(item)}>Insert transcript</button>
+              <button data-keys="none" class="btn small" onclick={() => insert(item)}>Insert transcript</button>
             {/if}
             {#if item.audio}
               <select class="input" aria-label="Transcription backend" bind:value={choices[item.id]}>
@@ -98,13 +98,13 @@
                   <option value={backend}>{backend}</option>
                 {/each}
               </select>
-              <button class="btn small" {...off(undefined, [busy, BUSY])} onclick={() => act(item, 'retry')}>Retry transcription</button>
+              <button data-keys="none" class="btn small" {...off(undefined, [busy, BUSY])} onclick={() => act(item, 'retry')}>Retry transcription</button>
             {/if}
             {#if confirm === item.id}
-              <button class="btn small" {...off(undefined, [busy, BUSY])} onclick={() => act(item, 'delete')}>Delete recording?</button>
-              <button class="btn small" onclick={() => (confirm = '')}>Cancel</button>
+              <button data-keys="none" class="btn small" {...off(undefined, [busy, BUSY])} onclick={() => act(item, 'delete')}>Delete recording?</button>
+              <button data-keys="none" class="btn small" onclick={() => (confirm = '')}>Cancel</button>
             {:else}
-              <button class="btn ghost small" onclick={() => (confirm = item.id)}>Delete</button>
+              <button data-keys="none" class="btn ghost small" onclick={() => (confirm = item.id)}>Delete</button>
             {/if}
           </div>
         {/if}

@@ -61,8 +61,8 @@
 {#if show}
   <div class="nudge">
     <span>This device does not get the desk's notifications yet.{brave ? ' Brave first needs “Use Google services for push messaging” on, in its settings under Privacy and security.' : ''}</span>
-    <button class="btn small primary" {...off(undefined, [busy, BUSY])} onclick={on} data-cmd="push-nudge-on">Turn on</button>
-    <button class="btn small ghost" onclick={later}>Not now</button>
+    <button class="btn small primary" {...off(undefined, [busy, BUSY])} onclick={on} data-keys="none">Turn on</button>
+    <button data-keys="none" class="btn small ghost" onclick={later}>Not now</button>
   </div>
 {/if}
 

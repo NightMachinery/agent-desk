@@ -139,7 +139,7 @@
       {:else if desc.keys}
         {#if desc.cmd}
           <p><kbd>{desc.keys}</kbd> runs <b>{desc.cmd.desc}</b> <span class="faint mono">{desc.cmd.name}</span> here.</p>
-          <p><button class="btn ghost small" onclick={() => desc.cmd && describeCommand(desc.cmd.name)}>More about this command</button></p>
+          <p><button data-keys="none" class="btn ghost small" onclick={() => desc.cmd && describeCommand(desc.cmd.name)}>More about this command</button></p>
         {:else}
           <p><kbd>{desc.keys}</kbd> does nothing here.</p>
         {/if}
@@ -210,7 +210,7 @@
       </div>
       <div class="pal-list" bind:this={listEl}>
         {#each shown as it, i (it.label + i)}
-          <button class="pal-row" class:on={i === keys.palette.index} onpointerdown={(e) => e.preventDefault()} onclick={() => pick(it)}>
+          <button data-keys="none" class="pal-row" class:on={i === keys.palette.index} onpointerdown={(e) => e.preventDefault()} onclick={() => pick(it)}>
             <span class="lbl">{it.label}</span>
             {#if it.detail}<span class="faint">{it.detail}</span>{/if}
             {#if it.key}<kbd>{it.key}</kbd>{/if}

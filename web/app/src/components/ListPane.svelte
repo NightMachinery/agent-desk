@@ -145,7 +145,7 @@
 
 <header>
   <div class="top">
-    <button class="btn ghost menu" aria-label="Menu" onclick={onmenu}>
+    <button data-keys="none" class="btn ghost menu" aria-label="Menu" onclick={onmenu}>
       <svg width="18" height="18" viewBox="0 0 18 18"><path d="M2 4.5h14M2 9h14M2 13.5h14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" /></svg>
     </button>
     <nav class="crumbs" aria-label="Scope">
@@ -230,7 +230,7 @@
     <h2 class="section-title" data-section="needs">
       {@render fold('needs', 'Needs you')}
       {#if count(needs)}<span class="count hot">{count(needs)}</span>{/if}
-      {#if needIds.length > 1 && !ui.collapsed.needs}<button class="pick" onclick={() => toggleAll(needIds)}>{allOn(needIds) ? 'Deselect' : 'Select all'}</button>{/if}
+      {#if needIds.length > 1 && !ui.collapsed.needs}<button data-keys="none" class="pick" onclick={() => toggleAll(needIds)}>{allOn(needIds) ? 'Deselect' : 'Select all'}</button>{/if}
     </h2>
     {#if !ui.collapsed.needs}
       {#each needs as g (g.project + '/' + g.run)}
@@ -261,7 +261,7 @@
           </select>
           <svg width="9" height="9" viewBox="0 0 10 10" aria-hidden="true"><path d="m2 3.5 3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
         </label>
-        {#if deliverableIds.length > 1 && !ui.collapsed.deliverables}<button class="pick" onclick={() => toggleAll(deliverableIds)}>{allOn(deliverableIds) ? 'Deselect' : 'Select all'}</button>{/if}
+        {#if deliverableIds.length > 1 && !ui.collapsed.deliverables}<button data-keys="none" class="pick" onclick={() => toggleAll(deliverableIds)}>{allOn(deliverableIds) ? 'Deselect' : 'Select all'}</button>{/if}
         {#if deliverableUnread.length}{@render markAll(deliverableUnread)}{/if}
       </h2>
       {#if !ui.collapsed.deliverables}
@@ -272,7 +272,7 @@
           </div>
         {:else}
           <div class="empty">
-            {#if route.q}No deliverable matches.{:else if ui.deliverablesShow === 'unread'}Nothing new. <button class="linkish" onclick={() => showDeliverables('latest')}>Latest</button> lists the ones you have seen.{:else}No deliverables here.{/if}
+            {#if route.q}No deliverable matches.{:else if ui.deliverablesShow === 'unread'}Nothing new. <button data-cmd="deliverables-latest" class="linkish" onclick={() => showDeliverables('latest')}>Latest</button> lists the ones you have seen.{:else}No deliverables here.{/if}
           </div>
         {/each}
       {/if}
@@ -294,7 +294,7 @@
       <h2 class="section-title" data-section="responses">
         {@render fold('responses', 'Responses to you')}
         <span class="count response">{count(responses)}</span>
-        {#if responseIds.length > 1 && !ui.collapsed.responses}<button class="pick" onclick={() => toggleAll(responseIds)}>{allOn(responseIds) ? 'Deselect' : 'Select all'}</button>{/if}
+        {#if responseIds.length > 1 && !ui.collapsed.responses}<button data-keys="none" class="pick" onclick={() => toggleAll(responseIds)}>{allOn(responseIds) ? 'Deselect' : 'Select all'}</button>{/if}
         {#if responseUnread.length}{@render markAll(responseUnread)}{/if}
       </h2>
       {#if !ui.collapsed.responses}
@@ -310,7 +310,7 @@
     <h2 class="section-title" data-section="new">
       {@render fold('new', route.all ? 'Notices and slots' : 'New')}
       {#if count(fresh)}<span class="count">{count(fresh)}</span>{/if}
-      {#if freshIds.length > 1 && !ui.collapsed.new}<button class="pick" onclick={() => toggleAll(freshIds)}>{allOn(freshIds) ? 'Deselect' : 'Select all'}</button>{/if}
+      {#if freshIds.length > 1 && !ui.collapsed.new}<button data-keys="none" class="pick" onclick={() => toggleAll(freshIds)}>{allOn(freshIds) ? 'Deselect' : 'Select all'}</button>{/if}
       {#if freshUnread.length}{@render markAll(freshUnread)}{/if}
     </h2>
     {#if !ui.collapsed.new}
@@ -334,7 +334,7 @@
         <svg width="9" height="9" viewBox="0 0 10 10" aria-hidden="true"><path d="m2 3.5 3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
       </label>
       <span class="heads">
-        <button class="pick" title={tip('File a new task, bug or idea', 'task-add')} onclick={() => runCommand('task-add')}>New</button>
+        <button data-cmd="task-new" class="pick" title={tip('File a new task, bug or idea', 'task-add')} onclick={() => runCommand('task-add')}>New</button>
         <a class="pick" data-cmd="tasks" href={href({ item: '', tasks: true })} title={tip('The Tasks page: finished tasks too, filters, subtasks', 'tasks')}>All tasks</a>
       </span>
     </h2>
@@ -369,9 +369,9 @@
 
 {#if selecting()}
   <div class="bulk" role="toolbar" aria-label="Selected items">
-    <button class="btn small ghost x" aria-label="Clear the selection" title="Clear (Esc)" onclick={clear}>✕</button>
+    <button data-cmd="select-clear" class="btn small ghost x" aria-label="Clear the selection" title="Clear (Esc)" onclick={clear}>✕</button>
     <span class="n">{#if !picked}Tap items to select them{:else}<strong>{picked}</strong> selected{/if}{pickedQuestions ? ` · ${pickedQuestions} ${pickedQuestions === 1 ? 'question' : 'questions'} to dismiss` : ''}</span>
-    {#if !allOn(allIds)}<button class="btn small ghost" onclick={() => toggleAll(allIds)}>All {allIds.length}</button>{/if}
+    {#if !allOn(allIds)}<button data-cmd="select-all" class="btn small ghost" onclick={() => toggleAll(allIds)}>All {allIds.length}</button>{/if}
     <button data-cmd="bulk-pin" class="btn small" {...off(undefined, [!picked, NOPICK])} onclick={() => pinSelected(pickedPinned < picked, onchange)}
       >{picked && pickedPinned === picked ? 'Unpin' : 'Pin'}</button
     >
@@ -406,7 +406,7 @@
   {@const unread = readable && !deep ? g.items.filter((it) => it.unread).map((it) => it.display_id) : []}
   <div class="group-line">
     {#if !deep}<a class="group" href={href({ path: `${g.project}/${g.run}`, item: '' })}>{g.project} <span class="faint">/</span> {g.run}</a>{:else}<span></span>{/if}
-    {#if ids.length > 1 && (!deep || selecting())}<button class="pick" onclick={() => toggleAll(ids)}>{allOn(ids) ? 'Deselect' : 'Select'} {ids.length}</button>{/if}
+    {#if ids.length > 1 && (!deep || selecting())}<button data-keys="none" class="pick" onclick={() => toggleAll(ids)}>{allOn(ids) ? 'Deselect' : 'Select'} {ids.length}</button>{/if}
     {#if unread.length}{@render markAll(unread, `${g.project}/${g.run}`)}{/if}
   </div>
 {/snippet}

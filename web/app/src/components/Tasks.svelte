@@ -372,7 +372,7 @@
 
 <section class="tasks-page">
   <div class="bar">
-    <button class="btn ghost small" onclick={() => go({ tasks: false })}>← Back</button>
+    <button data-cmd="close" class="btn ghost small" onclick={() => go({ tasks: false })}>← Back</button>
     <span class="spacer"></span>
     <button class="btn small primary" data-cmd="task-add" title={tip('File a new task, bug or idea at a node', 'task-add')} onclick={() => (adding = !adding)}>
       {adding ? 'Cancel' : 'New task'}
@@ -393,7 +393,7 @@
       <input id="task-title" class="input" placeholder="Title (optional: the agent names it from the details)" bind:value={title} aria-label="Task title" />
       <div class="types" role="radiogroup" aria-label="Type">
         {#each types as t (t)}
-          <button type="button" role="radio" aria-checked={newType === t} class="tchip {t}" class:on={newType === t} onclick={() => (newType = t)}>{LABEL[t] ?? t}</button>
+          <button data-keys="none" type="button" role="radio" aria-checked={newType === t} class="tchip {t}" class:on={newType === t} onclick={() => (newType = t)}>{LABEL[t] ?? t}</button>
         {/each}
       </div>
       <div class="row2">
@@ -416,12 +416,12 @@
       </div>
       <div class="files">
         <input bind:this={picker} type="file" multiple hidden onchange={(e) => (addFiles([...(e.currentTarget.files ?? [])]), (e.currentTarget.value = ''))} />
-        <button type="button" class="btn ghost small" onclick={() => picker?.click()} {...off('Attach files; you can also paste or drop them on the form', [files.length >= MAX_FILES, `At most ${MAX_FILES} files`])}>Attach</button>
+        <button data-cmd="attach" type="button" class="btn ghost small" onclick={() => picker?.click()} {...off('Attach files; you can also paste or drop them on the form', [files.length >= MAX_FILES, `At most ${MAX_FILES} files`])}>Attach</button>
         {#each files as f (f.key)}
           <span class="file" class:err={f.status === 'error'}>
             <span class="mono">{f.name}</span>
             <span class="faint">{f.status === 'uploading' ? 'uploading…' : f.status === 'error' ? f.error : ''}</span>
-            <button type="button" class="btn ghost small x" aria-label={`Remove ${f.name}`} onclick={() => (files = files.filter((x) => x.key !== f.key))}>✕</button>
+            <button data-keys="none" type="button" class="btn ghost small x" aria-label={`Remove ${f.name}`} onclick={() => (files = files.filter((x) => x.key !== f.key))}>✕</button>
           </span>
         {:else}
           <span class="faint hint">or paste or drop files</span>
@@ -437,28 +437,28 @@
         {/if}
         <span class="spacer"></span>
         <span class="faint hint">⌘↵ to file · Esc twice or C-g to close</span>
-        <button class="btn small primary" type="submit" {...off(undefined, ...fileWhy)}>{filing ? 'Filing…' : 'File it'}</button>
+        <button data-cmd="send" class="btn small primary" type="submit" {...off(undefined, ...fileWhy)}>{filing ? 'Filing…' : 'File it'}</button>
       </div>
     </form>
   {/if}
 
   <div class="filters">
     <div class="seg" role="radiogroup" aria-label="State">
-      <button role="radio" aria-checked={show === 'active'} class:on={show === 'active'} onclick={() => (show = 'active')}>Open <span class="n">{totals.active}</span></button>
-      <button role="radio" aria-checked={show === 'finished'} class:on={show === 'finished'} onclick={() => (show = 'finished')}>Finished <span class="n">{totals.finished}</span></button>
-      <button role="radio" aria-checked={show === 'all'} class:on={show === 'all'} onclick={() => (show = 'all')}>All</button>
+      <button data-keys="none" role="radio" aria-checked={show === 'active'} class:on={show === 'active'} onclick={() => (show = 'active')}>Open <span class="n">{totals.active}</span></button>
+      <button data-keys="none" role="radio" aria-checked={show === 'finished'} class:on={show === 'finished'} onclick={() => (show = 'finished')}>Finished <span class="n">{totals.finished}</span></button>
+      <button data-keys="none" role="radio" aria-checked={show === 'all'} class:on={show === 'all'} onclick={() => (show = 'all')}>All</button>
     </div>
     <div class="types" role="radiogroup" aria-label="Type filter">
-      <button role="radio" aria-checked={!type} class="tchip" class:on={!type} onclick={() => (type = '')}>All types</button>
+      <button data-keys="none" role="radio" aria-checked={!type} class="tchip" class:on={!type} onclick={() => (type = '')}>All types</button>
       {#each types.filter((t) => counts[t]) as t (t)}
-        <button role="radio" aria-checked={type === t} class="tchip {t}" class:on={type === t} onclick={() => (type = type === t ? '' : t)}>{LABEL[t] ?? t} <span class="n">{counts[t]}</span></button>
+        <button data-keys="none" role="radio" aria-checked={type === t} class="tchip {t}" class:on={type === t} onclick={() => (type = type === t ? '' : t)}>{LABEL[t] ?? t} <span class="n">{counts[t]}</span></button>
       {/each}
     </div>
     {#if tagCounts.length || tag}
       <div class="types tags" role="radiogroup" aria-label="Tag filter">
-        <button role="radio" aria-checked={!tag} class="tag" class:on={!tag} onclick={() => (tag = '')}>All tags</button>
+        <button data-keys="none" role="radio" aria-checked={!tag} class="tag" class:on={!tag} onclick={() => (tag = '')}>All tags</button>
         {#each tagCounts as [g, n] (g)}
-          <button role="radio" aria-checked={tag === g} class="tag" class:on={tag === g} onclick={() => (tag = tag === g ? '' : g)}>#{g} <span class="n">{n}</span></button>
+          <button data-keys="none" role="radio" aria-checked={tag === g} class="tag" class:on={tag === g} onclick={() => (tag = tag === g ? '' : g)}>#{g} <span class="n">{n}</span></button>
         {/each}
       </div>
     {/if}
@@ -471,13 +471,13 @@
       {#each shownDrafts as d (d.key)}
         <li class="task draft" style="--depth: 0">
           <div class="line">
-            <button class="draft-open" title="Open it in the form to finish and file it" onclick={() => resume(d)}>
+            <button data-keys="none" class="draft-open" title="Open it in the form to finish and file it" onclick={() => resume(d)}>
               <span class="chip">Draft</span>
               {#if d.value?.type && d.value.type !== 'task'}<span class="tchip small {d.value.type} on">{LABEL[d.value.type] ?? d.value.type}</span>{/if}
               <span class="title">{draftTitle(d.value)}</span>
               <span class="faint">{d.value?.node || 'no node yet'} · {draftAge(d.t)}</span>
             </button>
-            <button class="icon" title="Discard this draft (Undo brings it back)" aria-label="Discard this draft" onclick={() => discard(d)}>✕</button>
+            <button data-keys="none" class="icon" title="Discard this draft (Undo brings it back)" aria-label="Discard this draft" onclick={() => discard(d)}>✕</button>
           </div>
         </li>
       {/each}
@@ -498,17 +498,17 @@
     {@const dropped = t.state === 'dropped'}
     <li class="task" class:done class:dropped style={`--depth: ${depth}`}>
       <div class="line">
-        <button class="box" class:on={done} role="checkbox" aria-checked={done} {...off(undefined, [busy === t.event.id, BUSY], [dropped, 'Dropped: reopen it first'])}
+        <button data-keys="none" class="box" class:on={done} role="checkbox" aria-checked={done} {...off(undefined, [busy === t.event.id, BUSY], [dropped, 'Dropped: reopen it first'])}
           title={done ? 'Reopen it' : 'Mark it done'} aria-label={done ? `Reopen ${t.display_id}` : `Mark ${t.display_id} done`}
           onclick={() => (done ? (reopening = t.event.id) : act(t, 'done'))}>
           <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="m2.5 6.2 2.3 2.3 4.7-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
         </button>
         {#if kindOf(t) !== 'task'}<span class="tchip small {kindOf(t)} on">{LABEL[kindOf(t)] ?? kindOf(t)}</span>{/if}
-        <button class="title" onclick={() => (expanded[t.event.id] = !expanded[t.event.id])} aria-expanded={!!expanded[t.event.id]}>{t.event.title}</button>
+        <button data-keys="none" class="title" onclick={() => (expanded[t.event.id] = !expanded[t.event.id])} aria-expanded={!!expanded[t.event.id]}>{t.event.title}</button>
         {#if t.untitled}<span class="chip" title="Filed without a title: its details' first line stands in until the agent names it">untitled</span>{/if}
         {#if t.state === 'started'}<span class="chip active">started</span>{:else if t.state === 'later' || t.state === 'deferred'}<span class="chip waiting">{stateLabel(t.state)}</span>{:else if dropped}<span class="chip">dropped</span>{/if}
         {#if t.priority === 1}<span class="chip blocked" title="Priority 1">p1</span>{/if}
-        {#each t.tags ?? [] as g (g)}<button class="tag small" class:on={tag === g} title={`Only #${g}`} onclick={() => (tag = tag === g ? '' : g)}>#{g}</button>{/each}
+        {#each t.tags ?? [] as g (g)}<button data-keys="none" class="tag small" class:on={tag === g} title={`Only #${g}`} onclick={() => (tag = tag === g ? '' : g)}>#{g}</button>{/each}
         {#if t.event.meta?.source === 'web'}<span class="faint you" title="You filed it">you</span>{/if}
         <a class="mono faint id" href={href({ item: t.display_id })}>{t.display_id}</a>
       </div>
@@ -523,18 +523,18 @@
           <form class="tag-edit" onsubmit={(e) => (e.preventDefault(), saveTags(t))}>
             <input class="input" placeholder="Tags: ui, phone" aria-label={`Tags of ${t.display_id}`} autocomplete="off"
               value={tagEdit[t.event.id] ?? (t.tags ?? []).join(', ')} oninput={(e) => (tagEdit[t.event.id] = e.currentTarget.value)} />
-            <button class="btn small" type="submit" {...off(undefined, [busy, BUSY], [tagEdit[t.event.id] === undefined, 'Change the tags first'])}>Save tags</button>
+            <button data-keys="none" class="btn small" type="submit" {...off(undefined, [busy, BUSY], [tagEdit[t.event.id] === undefined, 'Change the tags first'])}>Save tags</button>
           </form>
           <div class="acts">
             {#if ACTIVE.has(t.state)}
-              <button class="btn small" title="Ask whoever works on it for a short executive summary of where it stands" onclick={() => askStatus(t.event.id, t.display_id)}>Status</button>
-              {#if t.state !== 'started'}<button class="btn small" {...off(undefined, [busy, BUSY])} onclick={() => act(t, 'start')}>Start</button>{/if}
-              {#if t.state !== 'later'}<button class="btn small" {...off(DEFER_WHY, [busy, BUSY])} onclick={() => act(t, 'defer')}>Defer</button>{/if}
-              {#if t.state === 'open' || t.state === 'later'}<button class="btn small" {...off(QUOTA_WHY, [busy, BUSY])} onclick={() => act(t, 'defer-quota')}>Defer for quota</button>{/if}
-              {#if t.state === 'later' || t.state === 'deferred'}<button class="btn small" {...off('Back to open', [busy, BUSY])} onclick={() => act(t, 'undefer')}>Undefer</button>{/if}
-              <button class="btn small" {...off(undefined, [busy, BUSY])} onclick={() => act(t, 'drop')}>Drop</button>
+              <button data-keys="none" class="btn small" title="Ask whoever works on it for a short executive summary of where it stands" onclick={() => askStatus(t.event.id, t.display_id)}>Status</button>
+              {#if t.state !== 'started'}<button data-keys="none" class="btn small" {...off(undefined, [busy, BUSY])} onclick={() => act(t, 'start')}>Start</button>{/if}
+              {#if t.state !== 'later'}<button data-keys="none" class="btn small" {...off(DEFER_WHY, [busy, BUSY])} onclick={() => act(t, 'defer')}>Defer</button>{/if}
+              {#if t.state === 'open' || t.state === 'later'}<button data-keys="none" class="btn small" {...off(QUOTA_WHY, [busy, BUSY])} onclick={() => act(t, 'defer-quota')}>Defer for quota</button>{/if}
+              {#if t.state === 'later' || t.state === 'deferred'}<button data-keys="none" class="btn small" {...off('Back to open', [busy, BUSY])} onclick={() => act(t, 'undefer')}>Undefer</button>{/if}
+              <button data-keys="none" class="btn small" {...off(undefined, [busy, BUSY])} onclick={() => act(t, 'drop')}>Drop</button>
             {:else}
-              <button class="btn small" {...off(undefined, [busy, BUSY])} onclick={() => (reopening = t.event.id)}>Reopen</button>
+              <button data-keys="none" class="btn small" {...off(undefined, [busy, BUSY])} onclick={() => (reopening = t.event.id)}>Reopen</button>
             {/if}
             <a class="btn small" href={href({ item: t.display_id })} title="The task on its own page: its conversation, messaging its agent, pinning">Full page</a>
           </div>
