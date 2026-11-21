@@ -3,7 +3,7 @@
 // the same. Each command is defined once with command(name, ...); keys are
 // bound to its name with bind(keys, name), so M-x, SPC SPC and help list a
 // command even when it has no key.
-import { moveOnTarget } from './moveon.js';
+import { moveOnTarget, allClear } from './moveon.js';
 import { route, go, pageOpen } from './route.svelte.js';
 import { nav, step } from './nav.svelte.js';
 import { sel, toggle, toggleAll, clear } from './select.svelte.js';
@@ -65,7 +65,13 @@ function openOpen(dir) {
     const i = nav.order.indexOf(here);
     id = nav.order.slice(0, Math.max(0, i)).reverse().find((x) => nav.open.has(x) && !nav.pinned.has(x)) ?? '';
   }
-  if (!id) return say(dir > 0 ? 'Nothing open left' : 'Nothing open before this');
+  if (!id) {
+    // n looks both ways, so nothing found there means nothing else is open;
+    // it is a clear desk unless the item shown is itself still open.
+    if (dir < 0 && moveOnTarget(nav.order, here, nav.pinned, nav.open)) return say('Nothing open before this');
+    if (here && nav.open.has(here) && !nav.pinned.has(here)) return say('Nothing else open');
+    return toast(allClear(), 'ok');
+  }
   openItem(id);
 }
 

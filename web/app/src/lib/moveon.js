@@ -22,3 +22,13 @@ export function moveOnTarget(order, here, pinned, open = null) {
   const q = (/** @type {string} */ id) => id.startsWith('q-');
   return after.find(q) || before.find(q) || after[0] || before[0] || '';
 }
+
+// When nothing open is left (n finds nothing, or the last open item was just
+// dealt with), the toast celebrates instead of reporting an empty search.
+const cheers = [
+  '🎉 All caught up: nothing is waiting on you.',
+  '🎉 Clear desk! Every question answered, every item read.',
+  '🎉 Nothing open left. Well done.',
+  '🎉 Inbox zero. The agents have nothing to ask you.',
+];
+export const allClear = () => cheers[Math.floor(Math.random() * cheers.length)];
