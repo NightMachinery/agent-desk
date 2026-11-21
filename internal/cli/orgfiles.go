@@ -8,9 +8,11 @@ import (
 	"net/http"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/NightMachinery/agent-desk/internal/desk"
 	"github.com/NightMachinery/agent-desk/internal/render"
 )
 
@@ -160,12 +162,27 @@ func (s *server) apiRenderNow(_ *App, _ request) (any, error) {
 	return s.renderStatus(), nil
 }
 
-// apiExport downloads the desk as org files in a zip (GET api/export):
-// rendered fresh, the same files as <desk>/render, which it leaves alone.
+// apiExport downloads org rendered fresh (GET api/export), leaving
+// <desk>/render alone. scope is desk (the default), node (?path=), item
+// (?id=) or inbox (?path= narrows it); each is one .org file. zip=1 instead
+// packs the desk as the files <desk>/render holds.
 func (s *server) apiExport(w http.ResponseWriter, r *http.Request) {
 	d, err := s.a.load()
 	if err != nil {
 		jsonError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	q := r.URL.Query()
+	if q.Get("zip") != "1" {
+		name, org, err := exportOrg(d, q.Get("scope"), strings.Trim(q.Get("path"), "/"), q.Get("id"))
+		if err != nil {
+			jsonError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		w.Header().Set("Content-Type", "text/org; charset=utf-8")
+		w.Header().Set("Content-Disposition", `attachment; filename="`+name+"-"+s.a.Now().Format("2006-01-02-1504")+`.org"`)
+		w.Header().Set("Cache-Control", "no-store")
+		w.Write(org)
 		return
 	}
 	files := render.Files(d)
@@ -190,4 +207,31 @@ func (s *server) apiExport(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	z.Close()
+}
+
+// exportOrg renders one scope of the desk as one org file, and names it.
+func exportOrg(d *desk.Desk, scope, path, id string) (string, []byte, error) {
+	slug := func(s string) string { return strings.NewReplacer("/", "-", " ", "-").Replace(s) }
+	switch scope {
+	case "", "desk":
+		return "agent-desk", render.Whole(d), nil
+	case "inbox":
+		if path == "" {
+			return "agent-desk-inbox", render.Inbox(d, ""), nil
+		}
+		return "agent-desk-inbox-" + slug(path), render.Inbox(d, path), nil
+	case "node":
+		org, ok := render.Node(d, path)
+		if !ok {
+			return "", nil, fmt.Errorf("no node at %q", path)
+		}
+		return "agent-desk-" + slug(path), org, nil
+	case "item":
+		e, err := d.Resolve(id)
+		if err != nil {
+			return "", nil, err
+		}
+		return "agent-desk-" + d.Display(e.ID), render.Item(d, e), nil
+	}
+	return "", nil, fmt.Errorf("scope is desk, node, item or inbox")
 }

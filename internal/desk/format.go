@@ -440,36 +440,39 @@ func (w *Writer) Node(level int, n *Node) {
 }
 
 // View prints the three views.
-func (w *Writer) View(v View) {
+func (w *Writer) View(v View) { w.ViewAt(1, v) }
+
+// ViewAt prints the three views with their sections at heading level l.
+func (w *Writer) ViewAt(l int, v View) {
 	if len(v.Awaiting) > 0 {
-		w.h(1, fmt.Sprintf("Messages awaiting your response (%d)", count(v.Awaiting)))
-		w.groups(2, v.Awaiting, w.Message)
+		w.h(l, fmt.Sprintf("Messages awaiting your response (%d)", count(v.Awaiting)))
+		w.groups(l+1, v.Awaiting, w.Message)
 	}
-	w.h(1, fmt.Sprintf("Needs you (%d)", count(v.NeedsYou)))
-	w.groups(2, v.NeedsYou, w.Question)
+	w.h(l, fmt.Sprintf("Needs you (%d)", count(v.NeedsYou)))
+	w.groups(l+1, v.NeedsYou, w.Question)
 	if len(v.Deliverables) > 0 {
-		w.h(1, fmt.Sprintf("Deliverables (%d)", count(v.Deliverables)))
-		w.groups(2, v.Deliverables, w.Notice)
+		w.h(l, fmt.Sprintf("Deliverables (%d)", count(v.Deliverables)))
+		w.groups(l+1, v.Deliverables, w.Notice)
 	}
 	if len(v.Pinned) > 0 {
-		w.h(1, fmt.Sprintf("Pinned (%d)", len(v.Pinned)))
+		w.h(l, fmt.Sprintf("Pinned (%d)", len(v.Pinned)))
 		for _, it := range v.Pinned {
 			if it.Event.Kind == "ask" {
-				w.Question(2, it)
+				w.Question(l+1, it)
 			} else {
-				w.Notice(2, it)
+				w.Notice(l+1, it)
 			}
 		}
 	}
 	if len(v.Responses) > 0 {
-		w.h(1, fmt.Sprintf("Responses to you (%d)", count(v.Responses)))
-		w.groups(2, v.Responses, w.Notice)
+		w.h(l, fmt.Sprintf("Responses to you (%d)", count(v.Responses)))
+		w.groups(l+1, v.Responses, w.Notice)
 	}
-	w.h(1, fmt.Sprintf("New (%d)", count(v.New)))
-	w.groups(2, v.New, w.Notice)
-	w.h(1, "Runs")
+	w.h(l, fmt.Sprintf("New (%d)", count(v.New)))
+	w.groups(l+1, v.New, w.Notice)
+	w.h(l, "Runs")
 	for _, n := range v.Runs {
-		w.Node(2, n)
+		w.Node(l+1, n)
 	}
 }
 

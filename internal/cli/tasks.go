@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"path/filepath"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -568,71 +567,9 @@ func (a *App) taskList(args []string) error {
 	return nil
 }
 
-// writeTasksOrg prints tasks as an org checklist, one heading per node and
-// subtasks indented under their parent: what a TASKS.org file would hold.
-// Dropped tasks are left out unless all; typ keeps one type.
+// writeTasksOrg prints tasks as an org checklist (desk.TasksOrg).
 func writeTasksOrg(w io.Writer, d *desk.Desk, ts []desk.Task, typ string, all bool) error {
-	keep := func(t desk.Task) bool {
-		return (all || t.State != desk.TaskDropped) && (typ == "" || t.Kind() == typ)
-	}
-	byNode := map[string][]desk.Task{}
-	var nodes []string
-	children := map[string][]desk.Task{}
-	shown := map[string]bool{}
-	for _, t := range ts {
-		if keep(t) {
-			shown[t.Event.ID] = true
-		}
-	}
-	for _, t := range ts {
-		if !shown[t.Event.ID] {
-			continue
-		}
-		if t.Parent != "" && shown[t.Parent] {
-			children[t.Parent] = append(children[t.Parent], t)
-			continue
-		}
-		if _, ok := byNode[t.Event.Path]; !ok {
-			nodes = append(nodes, t.Event.Path)
-		}
-		byNode[t.Event.Path] = append(byNode[t.Event.Path], t)
-	}
-	sort.Strings(nodes)
-	box := map[string]string{desk.TaskDone: "[X]", desk.TaskStarted: "[-]"}
-	var item func(t desk.Task, depth int)
-	item = func(t desk.Task, depth int) {
-		b := box[t.State]
-		if b == "" {
-			b = "[ ]"
-		}
-		title := t.Event.Title
-		if t.Type != "" {
-			title = t.Type + ": " + title
-		}
-		if t.State == desk.TaskDropped {
-			title = "+" + title + "+"
-		}
-		for _, g := range t.Tags {
-			title += " #" + g
-		}
-		note := []string{t.ID}
-		if t.State != desk.TaskOpen && t.State != desk.TaskDone {
-			note = append(note, t.State)
-		}
-		if t.Priority != 0 {
-			note = append(note, fmt.Sprintf("p%d", t.Priority))
-		}
-		fmt.Fprintf(w, "%s- %s %s (%s)\n", strings.Repeat("  ", depth), b, title, strings.Join(note, ", "))
-		for _, c := range children[t.Event.ID] {
-			item(c, depth+1)
-		}
-	}
-	for _, n := range nodes {
-		fmt.Fprintf(w, "* %s\n", n)
-		for _, t := range byNode[n] {
-			item(t, 0)
-		}
-	}
+	desk.TasksOrg(w, ts, typ, all, 1)
 	return nil
 }
 

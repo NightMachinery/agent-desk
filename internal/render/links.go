@@ -12,7 +12,7 @@ var customID = regexp.MustCompile(`(?m)^:CUSTOM_ID: (\S+)$`)
 // LinkMentions turns the id mentions in an org file's text into
 // [[#q-8tqk][q-8tqk]] links to the heading with that CUSTOM_ID, for ids
 // that have a heading in the same file (a link to another file's heading
-// would not resolve). Headings, property drawers and source blocks stay as
+// would not resolve). Headings, the title, property drawers and source blocks stay as
 // they are; in a line, text inside `code` is left alone unless the span is
 // exactly one id, and existing [[links]] are kept.
 func LinkMentions(org []byte) []byte {
@@ -35,7 +35,7 @@ func LinkMentions(org []byte) []byte {
 		case strings.HasPrefix(low, "#+end_"):
 			inBlock = false
 			continue
-		case inBlock, strings.HasPrefix(line, "*"):
+		case inBlock, strings.HasPrefix(line, "*"), strings.HasPrefix(low, "#+title:"):
 			continue
 		case t == ":PROPERTIES:":
 			inDrawer = true

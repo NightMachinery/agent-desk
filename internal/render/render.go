@@ -72,10 +72,27 @@ func Files(d *desk.Desk) map[string][]byte {
 		files["board/"+n.Name+".org"] = bytes.Clone(b.Bytes())
 	}
 
-	// The ledger lists questions, notices, done reports, deliverables and cache changes by month. A
-	// conversation hangs under its root item as child headings; a message
-	// whose root is not listed (a node's own thread, or a slot) is a heading
-	// of its own, with its responses under it.
+	months, byMonth := ledger(d, func(store.Event) bool { return true })
+	for _, m := range months {
+		b.Reset()
+		w.Header("agent-desk ledger " + m)
+		for _, it := range byMonth[m] {
+			ledgerItem(w, 1, it)
+		}
+		files["ledger/"+m+".org"] = bytes.Clone(b.Bytes())
+	}
+	for name, b := range files {
+		files[name] = LinkMentions(b)
+	}
+	return files
+}
+
+// ledger is what the ledger lists, of the events keep keeps, by month (in
+// order): questions, notices, done reports, deliverables and cache changes.
+// A conversation hangs under its root item; a message whose root is not
+// listed (a node's own thread, or a slot) is an item of its own, with its
+// responses under it.
+func ledger(d *desk.Desk, keep func(store.Event) bool) ([]string, map[string][]desk.Item) {
 	months := map[string][]desk.Item{}
 	qs := map[string]int{}
 	for i, q := range d.Questions {
@@ -92,7 +109,7 @@ func Files(d *desk.Desk) map[string][]byte {
 		default:
 			continue
 		}
-		if len(e.TS) < 7 {
+		if len(e.TS) < 7 || !keep(e) {
 			continue
 		}
 		m := e.TS[:7]
@@ -109,28 +126,23 @@ func Files(d *desk.Desk) map[string][]byte {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
-	for _, m := range keys {
-		b.Reset()
-		w.Header("agent-desk ledger " + m)
-		for _, it := range months[m] {
-			switch it.Event.Kind {
-			case "ask":
-				w.Question(1, it)
-			case "reply":
-				w.Thread(1, []store.Event{it.Event})
-				w.Thread(2, d.ResponsesTo(it.Event.ID))
-				continue
-			default:
-				w.Notice(1, it)
-			}
-			w.Thread(2, d.Thread(it.Event.ID, ""))
-		}
-		files["ledger/"+m+".org"] = bytes.Clone(b.Bytes())
+	return keys, months
+}
+
+// ledgerItem writes one ledger item at level, its conversation under it.
+func ledgerItem(w *desk.Writer, level int, it desk.Item) {
+	d := w.Desk
+	switch it.Event.Kind {
+	case "ask":
+		w.Question(level, it)
+	case "reply":
+		w.Thread(level, []store.Event{it.Event})
+		w.Thread(level+1, d.ResponsesTo(it.Event.ID))
+		return
+	default:
+		w.Notice(level, it)
 	}
-	for name, b := range files {
-		files[name] = LinkMentions(b)
-	}
-	return files
+	w.Thread(level+1, d.Thread(it.Event.ID, ""))
 }
 
 // listed reports whether the ledger lists e as an item of its own.

@@ -21,7 +21,7 @@ func TestOrgFiles(t *testing.T) {
 	writePaseoRecord(t, h.paseo, uuid, sessA, "", "App coordinator")
 	env := map[string]string{"AI_AGENT": "claude-code", "CLAUDE_CODE_SESSION_ID": sessA, "PASEO_AGENT_ID": uuid}
 	h.ok(env, "", "join", "app/coord")
-	h.ok(env, "Built.", "tell", "--title", "First build")
+	firstID := h.ok(env, "Built.", "tell", "--title", "First build")
 	inbox := filepath.Join(h.desk, "render", "inbox.org")
 	if _, err := os.Stat(inbox); err == nil {
 		t.Fatal("a write rendered the org files")
@@ -62,8 +62,36 @@ func TestOrgFiles(t *testing.T) {
 		t.Fatalf("render now wrote no inbox: %v %s", err, b)
 	}
 
-	// Export: the same files, in a zip, rendered fresh.
+	// Export: by default the whole desk as one .org file, inbox, boards
+	// and ledger as top-level headings; a scope narrows it.
 	code, body, hdr := do(t, hd, "GET", "/api/export", "", nil)
+	if code != 200 || !strings.HasPrefix(hdr.Get("Content-Type"), "text/org") || !strings.Contains(hdr.Get("Content-Disposition"), `.org"`) {
+		t.Fatalf("export: %d %v", code, hdr)
+	}
+	for _, h := range []string{"\n* Inbox\n", "\n* Boards\n", "\n* Ledger\n", "First build"} {
+		if !strings.Contains(body, h) {
+			t.Fatalf("export lacks %q:\n%s", h, body)
+		}
+	}
+	first, err := h.loadDesk().Resolve(firstID)
+	must(t, err)
+	for _, q := range []string{"scope=inbox", "scope=node&path=" + first.Path, "scope=item&id=" + firstID} {
+		if code, body, _ := do(t, hd, "GET", "/api/export?"+q, "", nil); code != 200 || !strings.Contains(body, "First build") {
+			t.Fatalf("export %s: %d\n%s", q, code, body)
+		}
+	}
+	if code, _, _ := do(t, hd, "GET", "/api/export?scope=node&path=nowhere", "", nil); code != 404 {
+		t.Fatalf("export of no node: %d", code)
+	}
+	// The same from a shell, to stdout.
+	if out := h.ok(nil, "", "render", "--print", "item", firstID); !strings.Contains(out, "First build") || strings.Contains(out, "#+TITLE: agent-desk [[") {
+		t.Fatalf("render --print item:\n%s", out)
+	}
+	h.fails(nil, "", "render --print [desk", "render", "--print", "bogus")
+	h.fails(nil, "", "only with --print", "render", "node", "x")
+
+	// zip=1: the same files as <desk>/render, in a zip, rendered fresh.
+	code, body, hdr = do(t, hd, "GET", "/api/export?zip=1", "", nil)
 	if code != 200 || hdr.Get("Content-Type") != "application/zip" || !strings.Contains(hdr.Get("Content-Disposition"), "attachment") {
 		t.Fatalf("export: %d %v", code, hdr)
 	}

@@ -216,6 +216,8 @@ User side:
   agent-desk quota replace <paseo-id> [--profile P] [--dry-run]   start an agent to take over
   agent-desk open <id|path>       what a notification click runs (open_command)
   agent-desk export | import [--notify] | snapshot <file> | render
+  agent-desk render --print [node PATH | item ID | inbox [PATH]]
+                                      one scope (default the whole desk) as one org file, to stdout
   agent-desk merge <file>|ssh:<host> [--notify]
   agent-desk gc [--dry-run] [--days N]   delete attachments of old items read or answered
                                       (media_keep_days, default 30)
@@ -388,8 +390,15 @@ func (a *App) run(args []string) error {
 	case "notify-run":
 		return a.cmdNotifyRun(rest)
 	case "render":
-		if _, err := parse(rest, nil, nil, 0, 0); err != nil {
+		o, err := parse(rest, []string{"print"}, nil, 0, 2)
+		if err != nil {
 			return err
+		}
+		if o.bools["print"] {
+			return a.renderPrint(o.pos)
+		}
+		if len(o.pos) > 0 {
+			return usagef("render takes a scope only with --print")
 		}
 		return a.render()
 	}
@@ -559,6 +568,47 @@ func (a *App) render() error {
 		return err
 	}
 	return render.All(a.Home, a.load)
+}
+
+// renderPrint prints one scope of the desk as one org file: the whole desk,
+// node PATH, item ID, or inbox [PATH] (the dashboard's Export).
+func (a *App) renderPrint(pos []string) error {
+	scope, path, id := "desk", "", ""
+	if len(pos) > 0 {
+		scope = pos[0]
+	}
+	arg := ""
+	if len(pos) > 1 {
+		arg = pos[1]
+	}
+	switch scope {
+	case "desk":
+	case "inbox":
+		path = strings.Trim(arg, "/")
+	case "node":
+		if path = strings.Trim(arg, "/"); path == "" {
+			return usagef("render --print node PATH")
+		}
+	case "item":
+		if id = arg; id == "" {
+			return usagef("render --print item ID")
+		}
+	default:
+		return usagef("render --print [desk | node PATH | item ID | inbox [PATH]]")
+	}
+	if scope == "desk" && arg != "" {
+		return usagef("render --print desk takes nothing more")
+	}
+	d, err := a.load()
+	if err != nil {
+		return err
+	}
+	_, org, err := exportOrg(d, scope, path, id)
+	if err != nil {
+		return err
+	}
+	_, err = a.Stdout.Write(org)
+	return err
 }
 
 // writer resolves the node this session writes to: the --node value (a

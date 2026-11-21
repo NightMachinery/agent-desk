@@ -476,10 +476,9 @@ accepts `--host` to show one machine's events.
 The desk is also kept as plain org files, so `cat` is enough. The dashboard
 server renders them once the desk has been quiet for a moment (2 seconds,
 and at least once a minute while changes keep coming); Settings, "Org
-files", turns that off or sets the wait for every device, renders them now
-(Render now), and downloads them as a zip (Export as org files). Writes from
-the command line do not render them, so without a running server they wait
-for `agent-desk render`:
+files", turns that off or sets the wait for every device, and renders them
+now (Render now). Writes from the command line do not render them, so
+without a running server they wait for `agent-desk render`:
 
     ~/.agents/desk/render/inbox.org
     ~/.agents/desk/render/board/<project>.org
@@ -494,6 +493,19 @@ once a delivered message has waited 15 minutes), and `RE` for an agent's
 response. A message with no item to hang under (one sent to a node, or
 about a slot) is a top-level `MSG` heading with its responses under it. A
 `:no_response:` tag appears at the first render after the 15 minutes.
+
+**Export** downloads org rendered fresh, as one `.org` file: the whole desk
+(Settings, "Export as one .org file": the inbox, boards, tasks and ledger as
+top-level headings), the inbox ("Inbox only"), a node (the `.org` chip on its
+page, `SPC n e`: its board, tasks, and items with their conversations) or an
+item (the `.org` button beside its id, `SPC i e`: it and its conversation; a
+task with its subtasks). "As a zip" gives the files above instead. From a
+shell, the same goes to stdout:
+
+    agent-desk render --print                    # the whole desk
+    agent-desk render --print node example-proj/rerun-nov
+    agent-desk render --print item q-2zd4
+    agent-desk render --print inbox [PATH]
 
 ### In Emacs
 
