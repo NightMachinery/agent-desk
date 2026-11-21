@@ -1,17 +1,29 @@
 ---
 name: agent-desk
-description: File questions, notices, done reports and current-state slots for the user with the agent-desk command, so nothing meant for them is lost in a transcript. Use whenever you write anything meant for the user, such as a question, a decision you need, a finding or a report, and when you start coordinating a run. Not for messages between agents.
+description: Report to the user through the agent-desk command (questions, notices, deliverables, done reports, current-state slots and the task checklist) and respond to the messages they send from the desk, so nothing meant for them is lost in a transcript. Use whenever you write anything meant for the user, when a prompt arrives "from the user via agent-desk", and when you start coordinating a run. Not for messages between agents.
 ---
 
 # agent-desk
 
-`agent-desk` is a store on this machine that the user reads from one place: a
-terminal inbox, notifications, and answers typed back into the session that
-asked. Chat stays as it is. The desk is the record the user can find again
-after the transcript has scrolled away.
+`agent-desk` is a store on this machine that the user reads in one place: a
+dashboard (often on a phone), a terminal inbox and notifications. Chat stays
+as it is; the desk is the record the user finds again after the transcript
+has scrolled away.
 
-Every write prints one display id, such as `q-7f3a`. The letter gives the kind
-(`q` question, `t` notice, `d` done report, `s` slot text).
+Every write prints a display id whose letter gives its kind: `q` question,
+`t` notice, `b` deliverable, `d` done report, `w` task, `s` slot. The user's
+messages are `m-...`, their answers `a-...`.
+
+**In short:**
+
+1. A coordinator joins a node once; workers never write.
+2. Every desk message from the user gets a desk response: run the command
+   on its last line.
+3. A decision you need is an `ask`, with `--blocked` or `--default`.
+4. Your checklist is desk tasks: `task add --brief`, `task start`,
+   `task done --note`.
+5. Results go in `tell`, things to open in `deliverable`, the end in `done`.
+   Keep the `status` and `next` slots true.
 
 ## Who writes
 
@@ -21,61 +33,84 @@ piece of work. Join a node once, at the start:
     agent-desk join rerun-nov/coord              # the run's top coordinator
     agent-desk join rerun-nov/coord/eval-lead    # nested, under the coordinator that started you
     agent-desk join rerun-nov/coord --takeover   # replacing a coordinator that is gone
-    agent-desk takeover <paseo-id|session-id>    # replacing an agent: all the nodes it held
+    agent-desk takeover <paseo-id|session-id>    # replacing an agent: every node it held
 
-The path is `<run>/<role>[/<role>...]`: a short run slug, then role slugs (not
-agent ids). The project is the repository you are in (`--project` to
-override). A session working alone with the user can skip `join`; its first
-write joins it to `<project>/adhoc/<slug>`.
+The path is `<run>/<role>[/<role>...]`: a short run slug, then role slugs
+(not agent ids), in the project of the repository you are in (`--project`
+overrides). A session working alone with the user may skip `join`; its first
+write joins `<project>/adhoc/<slug>`.
 
-**A second, unrelated run in the same session gets its own node.** If the user
-starts you on separate work while you still coordinate a run, `join` a node for
-it (`agent-desk join ablation-dec/coord`); do not file it under the first run,
-where the user will not look for it. Join adds a node: you now hold both. From
-then on every write needs `--node` saying which run it is for:
+**Separate work gets its own node.** When the user starts you on unrelated
+work while you hold a run, `join` a node for it too, so it shows where they
+will look for it. While you hold several nodes, add `--node` to every write
+to say which one it is for (`set status '...' --node ablation-dec/coord`);
+`run/role` or the full path both work. A `--re` response needs no `--node`:
+its message already belongs to a node. `leave` a node after its `done`.
 
-    agent-desk ask --blocked --title T --node ablation-dec/coord <<'Q' ... Q
-    agent-desk set status 'seeds 3/5' --node rerun-nov/coord
-    agent-desk done --title 'Ablation finished' --node ablation-dec/coord
-    agent-desk leave ablation-dec/coord    # finished with it: back to one node
-
-`--node` takes the path relative to the project (`run/role`) or in full, and
-only nodes you hold. `tell --re` and `ask --re` need none: the message names its node. A write without it is refused with the list of your
-nodes; never guess, and leave a node once you have finished its work (after
-its `done`) so single-node writes work again. Workers still never write: a
-nested node is yours only if you joined it.
-
-**Workers do not write.** If another agent started you (a Paseo child, a tmux
-subagent), report to that agent; `agent-desk` refuses you anyway. Your parent
-can give you a node with `join` if the work calls for it. An in-process
-subagent, such as one from Claude Code's Agent tool, shares its parent's
-session, so the desk cannot tell it apart and would file as the parent: never
-run `agent-desk` from one.
+**Workers never write.** If another agent started you (a Paseo child, a tmux
+subagent), report to it; `agent-desk` refuses you anyway. An in-process
+subagent (Claude Code's Agent tool) shares its parent's session and would
+file as the parent, so never run `agent-desk` from one.
 
 ## How to write
 
-The desk is for the user's executive reading: often on a phone, often cold,
-between other things. Bodies, slots and reports render as Markdown.
+The user reads the desk cold, between other things, often on a phone. Text
+renders as Markdown.
 
-- **Lead with the point:** the decision needed, the result, the state. Detail
-  comes after, and only as much as the reader needs to act.
-- Write the way a sharp colleague would say it: plain sentences, no filler,
-  no hedging, no unexplained jargon. Name a term the first time you use it.
-- Short paragraphs, separated by a blank line. Bullet lists for options,
-  results and steps. **Bold** the recommendation or the number that matters;
-  `code` for paths, commands and ids. Headings only in long reports.
-- No tables: they do not fit a phone. Use a list.
-- Concise beats complete. Cut what the user would not miss, and link to a
-  file for the long version.
+- Lead with the point: the decision needed, the result, the state. Then
+  only the detail needed to act on it.
+- Plain sentences, no filler or hedging. Name a term the first time you use it.
+- Short paragraphs. Lists for options, results and steps. **Bold** the
+  recommendation or the number that matters; `code` for paths, commands
+  and ids. No tables: they do not fit a phone.
+- Concise beats complete: link a file for the long version.
+
+## Messages from the user
+
+A prompt that starts `Message m-4c2d from the user via agent-desk` comes from
+a user who may not be watching your chat. Act on it, then **always respond on
+the desk**, even with one line, with the command on its last line:
+
+    agent-desk tell --re m-4c2d <<'R'
+    Done; the old feed is fine.
+    R
+
+- For a message about a task (one the user filed, a change they made, a
+  status request), that last line names the task (`tell --re w-8f2a`), so
+  the response sits on the task.
+- Respond even when you also answered in chat. Add `--quiet` only to a bare
+  acknowledgement.
+- Several messages before you respond: answer each, or the last one saying
+  it covers the others. `agent-desk show --mine` lists those still waiting.
+- If you need a decision before you can act, the question is your response:
+  `agent-desk ask --re m-4c2d --blocked --title 'Which feed?'`. Never file an
+  unlinked `ask` about a desk message.
+- If it asked you to ship something, respond with the deliverable itself
+  (`deliverable --re m-4c2d`).
+- Files the user attached arrive as paths after the text; open them like any
+  file.
+
+**Answers.** One given on the desk arrives as `Answer to q-7f3a "Which
+split?": B`. It is already recorded: act on it. One given in chat (typed, or
+through a question tool) must be recorded, or the question stays open in the
+user's inbox:
+
+    agent-desk answer q-7f3a --from-chat 'B, but keep the old cache'
+
+**Chat questions.** When the user asks something in chat and your answer has
+substance (a finding, an explanation, where something stands), file it too,
+with their question in one line. Skip quick back-and-forth.
+
+    agent-desk tell --re-chat 'Why is seed 2 slow?' <<'R'
+    Seed 2 drew shard 17, which has **duplicated rows**. Re-running without it.
+    R
 
 ## Questions
 
-When you need a decision, file it, and raise it in chat as you normally would,
-with the id in the chat text:
+File a decision you need, and raise it in chat as well, with its id:
 
     agent-desk ask --blocked --title 'Which split for the rerun?' <<'Q'
-    The rerun needs a train/test split, and the cached one predates the
-    leakage fix.
+    The rerun needs a train/test split, and the cached one predates the leakage fix.
 
     - **A. Reuse the cached split.** Fast, but not comparable with runs after the fix.
     - **B. Regenerate it.** An hour longer; consistent with the fix.
@@ -83,18 +118,16 @@ with the id in the chat text:
     **I recommend B**: the rerun exists to compare against post-fix runs.
     Q
 
-- The title is the question itself, readable on a phone notification.
-- The body is everything needed to answer cold: the context, every option
-  with its tradeoffs, and your recommendation. Do not refer to earlier chat.
-- `--blocked`: you stop until answered. `--default 'B: regenerate'`: you go
-  ahead with that choice unless told otherwise; say so in chat too.
-- One question per `ask`. Do not refile a question that is still open; check
-  with `agent-desk show --mine`.
-- When several decisions are needed at once, file one `ask` with
-  `--choices FILE` instead of several asks (see below).
+- Give exactly one of `--blocked` (you stop until answered) or
+  `--default 'B: regenerate'` (you go ahead with that unless told otherwise;
+  say so in chat).
+- The title is the question itself, readable in a notification. The body
+  lets the user answer cold: the context, every option with its tradeoffs,
+  your recommendation. Never point at earlier chat.
+- One question per `ask`; never refile one still open (`show --mine`).
 
-**Choices.** `--choices FILE` adds multiple-choice
-questions, as many as needed (up to 30), each with 2 to 12 options:
+**Several decisions at once** go in one `ask` with `--choices FILE`, up to 30
+questions of 2 to 12 options each:
 
     {"questions": [
       {"text": "Which split?", "options": ["Reuse the cached split",
@@ -102,12 +135,10 @@ questions, as many as needed (up to 30), each with 2 to 12 options:
        "recommended": "B"},
       {"text": "Which seeds rerun?", "options": ["1-3", "4-5", "all"], "multi": true}]}
 
-An option is a label or `{key, label, detail}`; keys default to A, B, C.
-`multi` lets the user pick several. For each question the dashboard shows the
-options and one text field: a note on the pick, or the user's own answer when
-nothing is picked; clicking a pick again unpicks it. Below them, one message
-box takes anything that is not about a single question, and sends it with
-the picks. The answer arrives as text, one line per question, then the general message if any. Act on each line; a question marked "(no answer)" is still open, so ask it again later if you need it:
+An option is a label or `{key, label, detail}` (keys default to A, B, C);
+`multi` allows several picks. The answer is one line per question, then any
+general message. Act on each line; "(no answer)" means that question is
+still open:
 
     1. B: Regenerate. Note: keep the old cache
     2. Other: only seed 7
@@ -115,304 +146,186 @@ the picks. The answer arrives as text, one line per question, then the general m
 
     And rerun the sync tonight.
 
+## Notices and files
 
-**Record every answer you receive in chat** (typed reply or a question tool),
-or the question stays open in the user's inbox:
-
-    agent-desk answer q-7f3a --from-chat 'B, but keep the old cache around'
-
-An answer given in the inbox arrives typed into your session as
-`Answer to q-7f3a "Which split for the rerun?": B`. It is already recorded;
-just act on it.
-
-A message that starts `Message m-4c2d from the user via agent-desk` was sent
-from the desk by a user who may not be watching your chat. Act on it, then
-**always respond on the desk**, even with one line:
-
-    agent-desk tell --re m-4c2d <<'R'
-    Done; the old feed is fine.
-    R
-
-When the message is about a task (a task the user filed, a change to one,
-a Status request), its last line names the task instead: respond with
-`agent-desk tell --re <task id>`, so the response sits on the task. `--re`
-takes any task you work on.
-
-Respond even when you also answered in chat ("Will do after the current
-seed." is enough). Add `--quiet` only for a bare acknowledgement. Without
-`--title` the response is titled "Re: " and the title of the item the
-message was about. Several messages before you respond are each their own
-id: respond to each, or to the last one saying it covers the others.
-`agent-desk show --mine` lists messages still awaiting your response. Only
-the session at the message's node can respond to it; a coordinator that took
-the node over may respond to its predecessor's messages.
-
-If you cannot act on the message without a decision from the user, respond
-with the question itself rather than a `tell` followed by a separate `ask`:
-
-    agent-desk ask --re m-4c2d --blocked --title 'Which feed?' <<'Q'
-    The message says "the old feed", and there are two: **v1** (retired in
-    May) and **v2-legacy**. Which one?
-    Q
-
-That one question is your response: it marks the message responded, sits in
-the message's thread, and is answered like any question (`--default` when
-you can go ahead with a stated plan, `--choices` for options). Never file an
-unlinked `ask` about a desk message. The same works for a chat question with
-`ask --re-chat '...'`.
-
-When the user asks you something **in chat** and your answer has substance
-(a finding, an explanation, a decision, where something stands), file the
-answer too, so it is not lost in the transcript:
-
-    agent-desk tell --re-chat 'Why is seed 2 slow?' <<'R'
-    Seed 2 drew shard 17, which has **duplicated rows**. Re-running without it.
-    R
-
-Quote or paraphrase the question in one line. Skip this for quick
-back-and-forth and clarifications. Responses get their own section on the
-desk, above other notices, and notify the user unless `--quiet`.
-
-Any kind of item can be the response: `tell`, `ask`, `done` and
-`deliverable` all take `--re` and `--re-chat`. When the message asked you
-to ship something, respond with the deliverable itself, not a `tell` that
-points at it.
-
-## Notices
-
-For something the user should know but need not answer: a result, a finished
-milestone, a problem you worked around, a report written to a file.
+A notice is for what the user should know but need not answer: a result, a
+milestone, a problem you worked around.
 
     agent-desk tell --title 'Seeds 1-5 rerun: the fix holds' <<'R'
     Accuracy is **within 0.3 points** of the old run on all five seeds.
-
     Table: `results/rerun-nov.org`
     R
 
-Add `--notify` only when it is worth interrupting the user for.
+Add `--notify` only when it is worth interrupting the user.
 
-**Show, when a picture says it faster.** `ask`, `tell` and `done` take any
-file (a plot, a screenshot, a voice note, a recording, a PDF), up to 8 per
-item:
+`ask`, `tell`, `done` and `deliverable` take up to 8 files (a plot, a
+screenshot, a recording, a PDF), each followed by a `--caption` that says
+what it shows and why it matters:
 
     agent-desk tell --title 'Seed 2 diverges' \
       --attach plots/loss.png --caption 'Seed 2 (orange) leaves the others at step 400' <<'R'
     ...
     R
 
-Every `--attach` needs a `--caption` after it that says what the file shows
-and why it matters: the user reads it first, and a terminal shows only it.
-Keep the point in the text too, since old attachments are deleted after about
-a month. Images up to 10 MB, audio 50 MB, video 100 MB, other files 25 MB;
-the desk keeps its own copy.
-
-Messages and answers from the user may carry files too. They arrive as paths
-listed after the text ("The user attached these files; read them from these
-paths:"); open them like any file.
+Keep the point in the text too: files are deleted about a month after the
+item is read. Limits: images 10 MB, audio 50 MB, video 100 MB, app packages
+(APK) 256 MB, anything else 25 MB.
 
 ## Deliverables
 
-When something is ready for the user to open or install (a deployment, an
-Android APK, a release, a published page), file a **deliverable**, not a
-notice. The desk lists deliverables in their own section above responses,
-with a large Open or Download button:
+When something is ready to open or install (a deployment, an APK, a release,
+a published page), file a **deliverable**, not a notice. It gets its own
+section with an Open or Download button:
 
     agent-desk deliverable --title 'Android APK 1.4.2' --key android-apk \
       --attach build/app-release.apk --caption 'Release build, debug-signed' <<'D'
     Install it over 1.4.1; your data stays. New: dark mode in Settings.
     Checked on the emulator (API 35): login, sync and the new switch.
     D
-    agent-desk deliverable --title 'Site on staging' --url https://staging.example.org/ <<'D'
-    ...
-    D
 
-- Give `--url` (http or https), `--attach FILE --caption '...'`, or both.
-  Nothing to open or download means it is a `tell`.
-- The body says what it is, how to try it, and what you verified.
-- `--key` names what this is a version of (`android-apk`, `staging-site`).
-  A newer deliverable with the same key in the project replaces the older
-  one on the desk, so the user never installs a stale build. Reuse the key
-  for every new version.
-- An APK may be up to 150 MB.
-- The user may answer **Works** (you get "Works.") or describe a problem;
-  both arrive as a message to respond to.
+- Give `--url`, `--attach`, or both; with neither it is a `tell`.
+- The body says what it is, how to try it, and what you checked.
+- `--key` names what it is a version of. A newer deliverable with the same
+  key replaces the older one, so the user never installs a stale build.
+- The user may answer **Works** or describe a problem; either arrives as a
+  message to respond to.
 
-## Slots: what is true now
+## Tasks
 
-A slot is a named box at your node whose text you replace. The board shows the
-current text; old text is kept but out of sight.
+Your checklist lives on the desk: the user sees it, filters it and checks it
+off on the Tasks page. Keep no second list by hand; if your instructions ask
+for `TASKS.org`, write it with `agent-desk task list --org --all > TASKS.org`.
 
-    agent-desk set status 'Seeds 3/5 done. ETA 14:00.'
-    agent-desk set findings < findings.txt
-    agent-desk set next $'Finish seeds 4 and 5.\nWrite the table.'   # $'...' for line breaks
-    agent-desk clear next
-    agent-desk link tasks TASKS.org     # older runs; new ones keep desk tasks (below)
-
-On any task longer than a few turns, keep these standard slots, so every node
-reads the same:
-
-- `status`: what you are doing now (2 lines).
-- `next`: your next steps, in order (5 lines).
-- `done`: what is finished so far, one line per result, with where it lives (a
-  commit, a path); newest first, older lines merged as it fills (15 lines).
-- `velocity`, if you coordinate (you launch workers, or the run spans more than
-  a session): recent pace (what got done per hour or per phase), token and
-  quota efficiency (where tokens went: rework, polling, idle waits, oversized
-  contexts, review fan-outs) and one to three concrete suggestions to improve
-  either (15 lines). Base it on what you observed, such as commits, quota
-  readings and context sizes; say "unknown" rather than guess. Update it at
-  milestones, not every turn.
-
-Then add others as they help: `findings`, `artifacts`, or any slug.
-
-- Write what is true now, as if for someone arriving fresh. No history ("then
-  I tried..."), no diary, no progress narration step by step. `done` is a
-  summary of results, not a log.
-- Update a slot when its truth changes, not on a timer.
-- `status` holds 2 lines, `next` 5, other slots 15. A longer text is refused;
-  shorten it rather than splitting it across slots.
-- `tasks`, `user-verbatim` and `state` only take `link`, to the file that
-  already holds them.
-
-### Notes for agents only
-
-Run state you keep for yourself (what a STATE.md holds: decisions and their
-reasons, live workers and jobs, result paths, traps you hit) can live on the
-desk as a note only agents see:
-
-    agent-desk set --for agents state < STATE.md   # up to 400 lines, 64 KiB
-    agent-desk get state                            # read it back after compaction
-
-A note is never unread and never notifies; the user's views list it folded,
-by name. It is replaced whole on each `set`, like any slot, so write what is
-true now. `state` may be set this way; any other slug works too. Other agents
-read yours with `agent-desk get <name> --node <path>`.
-
-## Tasks, and work deferred for quota
-
-Your checklist lives on the desk, not in a file: the user sees it on the
-Tasks page, filters it by type and checks things off there.
-
-    agent-desk task add --title 'Ship 1.4' --brief 'Release the loader fix and the new plots; users on 1.3 lose runs.' [--priority 1]
+    agent-desk task add --title 'Ship 1.4' --brief 'Release the loader fix and the new plots; users on 1.3 lose runs.'
     agent-desk task add --title 'Login fails on Android 15' --type bug --parent w-3k9d --tag android
     agent-desk task start w-8f2a
     agent-desk task done w-8f2a --note 'Table in results.md, seeds 1-5; checked against the logs.'
+    agent-desk task drop w-8f2a --note 'Superseded by w-9c1e.'
     agent-desk task list [--all] [--type bug] [--tag android]
-    agent-desk task list --org          # the checklist as org: * node, - [ ] items
 
-- `--type` is `task` (default), `bug`, `feature`, `idea` or `chore`.
-- `--parent` makes it a step of another task (a milestone and its items).
-- `--tag` (repeatable) adds free tags beside the type, such as an area
-  (`ui`, `android`); `task tag|untag <id> TAG...` changes them later.
-- `--brief` is a short executive summary the user reads under the title:
-  what and why, in one to three sentences. `task add` refuses an agent's
-  task without one, except a step under `--parent`.
-- Start a task when you begin it and mark it done when it is, so the list
-  says what is true now. Drop what you decided not to do. `task done` and
-  `task drop` need `--note` (`--note -` reads stdin): how it was done and
-  how you checked it, or why you dropped it. The user reads it on the task,
-  so write it for them, not as a log line.
-- If your instructions also ask for a `TASKS.org` file, write it from the
-  desk (`agent-desk task list --org --all > TASKS.org`) instead of keeping
-  two lists by hand.
-- The user files tasks too, from the dashboard. When they do, you get a
-  message naming the task id: respond to it, and track the task like your
-  own. When it holds several parts, split it first: file each as a step
-  under it (`task add --parent <id>`), so the user sees them checked off.
-  When you finish it, the done note says how; report on its message as
-  well when there is more to say than a note holds. One filed without a title shows its details' first line; name it
-  first: `agent-desk task title <id> 'Short title'`.
+- `--brief` is what and why in one to three sentences, shown under the
+  title. Every task needs one except a step (`--parent`).
+- `--type` is `task` (the default), `bug`, `feature`, `idea` or `chore`.
+  `--tag` adds free tags; `task tag|untag <id> TAG...` changes them later.
+  `--priority` is 1 to 3, `--size` is S, M or L.
+- Start a task when you begin it. Finish or drop it with a `--note`
+  (`--note -` reads stdin): how it was done and checked, or why not. The
+  user reads it on the task.
+- **Tasks the user files** arrive as a message naming the task: respond on
+  the task and track it like your own. If it has several parts, first file
+  each as a step under it (`task add --parent <id>`). If it has no title,
+  name it: `agent-desk task title <id> 'Short title'`.
+- **Changes the user makes** to your tasks (done, dropped with a reason,
+  reopened, deferred) arrive as messages that say what to do.
 
-When you find work worth doing that the quota does not allow now (a cleanup,
-a deeper check, a nice-to-have), defer it for quota instead of dropping it,
-with a brief that a fresh agent can act on alone: what, why, where, how to
-check it.
+**Not now.** `task defer <id>` parks a task until someone undefers or starts
+it: it waits on a decision, or on other work. Work worth doing that the quota
+does not allow now (a cleanup, a deeper check) is deferred **for quota**
+instead of dropped. The user launches it from the dashboard when quota is
+spare, so its brief must let a fresh agent act alone: what, why, where, how
+to check.
 
     agent-desk task add --quota --title 'Profile the loader' --size M --priority 2 <<'B'
     Epoch 1 takes 40 min, later epochs 6. Find out why in loader.py ...
     B
 
-The user launches tasks deferred for quota from the dashboard when quota is
-plentiful, and the desk reminds them when a weekly window is about to reset
-unused. An agent launched on one gets a prompt telling it to join the desk
-and run `agent-desk task done <id>` when finished.
+`task defer --quota <id>` does the same for a task already filed. `task add
+--defer` files a task parked. With `--quota` or `--defer`, `task add` reads
+the brief from stdin; otherwise give `--brief TEXT` (or `--brief -`).
 
-`--defer` without `--quota` is different: "not now" for any other reason
-(waiting on a decision, blocked by other work). Nothing launches it; it waits
-until someone undefers, starts or launches it. `task defer [--quota] <id>`
-defers a task already filed. `--defer` and `--quota` read the brief from
-stdin; otherwise pass `--brief TEXT` (or `--brief -` for stdin): `task add`
-never reads stdin unasked, so it cannot hang on a held-open stdin.
+## Slots: what is true now
 
-## The screen: before you drive the GUI
+A slot is a named box at your node whose text you replace; the board shows
+the current text.
 
-Take the screen lock before anything that clicks, types into another app or
-takes focus on the user's machine (any agent may, a worker too), and release
-it the moment you are done:
+    agent-desk set status 'Seeds 3/5 done. ETA 14:00.'
+    agent-desk set next $'Finish seeds 4 and 5.\nWrite the table.'   # $'...' for line breaks
+    agent-desk set findings < findings.txt
+    agent-desk clear next
 
-    agent-desk screen take --reason 'Clicking through the settings app' [--for 20m] [--wait]
-    agent-desk screen release
+On anything longer than a few turns, keep the standard slots so every node
+reads the same:
 
-It is yours at once when the user has been idle 30 minutes (your own
-clicks while you held it do not count as theirs). Otherwise the user gets a
-request in Needs you, and `take` exits 3; `--wait` blocks until they approve
-or until the desk grants it because they stayed away 30 minutes (the answer
-also reaches you as a message: run `take` again).
-While you hold it a banner tells the user to keep off the keyboard. Do not
-take it for work that runs headless, in the background or without focus,
-such as a headless browser's screenshots: that does not disturb the user.
-If the user denies it, do not ask again at once; ask them what to do instead.
+- `status` (2 lines): what you are doing now.
+- `next` (5 lines): your next steps, in order.
+- `done` (15 lines): results so far, one line each with where it lives (a
+  commit, a path), newest first.
+- `velocity` (15 lines), if you coordinate workers or a run longer than a
+  session: recent pace, where tokens went (rework, polling, idle waits,
+  oversized contexts, review fan-outs), and one to three suggestions. Base
+  it on what you observed, write "unknown" rather than guess, and update it
+  at milestones.
 
-## Paseo prompt cache
+Add others as they help (`findings`, `artifacts`, any slug; 15 lines). Write
+what is true now, for someone arriving fresh: no diary. Update a slot when
+its truth changes. A text over the limit is refused: shorten it.
 
-When you expect to be woken within a few hours, for example after a child
-finishes, the user replies, or CI reports, run `agent-desk cache warm`. Use
-`--warm-hours N` when the default six-hour idle window does not fit. When
-you are done or are blocked on something unlikely to clear within six
-hours, run `agent-desk standby` to end warming and switch to compaction.
-These commands use your Paseo agent and need agent-quotas running locally.
+**Notes for agents.** Run state you keep for yourself (decisions and their
+reasons, live workers and jobs, result paths, traps) can be a note only
+agents see. It never shows as unread and never notifies the user.
+
+    agent-desk set --for agents state < STATE.md   # up to 400 lines, 64 KiB
+    agent-desk get state                            # read it back after compaction
+    agent-desk get state --node <path>              # another agent's
 
 ## Ending
 
-`agent-done` files your done report and sets `status` for you where it is
-installed. Otherwise, at the end of the work:
+`agent-done`, where installed, files your done report and sets `status`.
+Otherwise:
 
     agent-desk done --title 'Rerun finished' --report results/rerun-nov.org <<'S'
     All five seeds rerun; the fix holds. Two questions remain open: q-7f3a, q-b2c4.
     S
 
+## The screen
+
+Before anything that clicks, types into another app or takes focus on the
+user's machine, take the screen lock (any agent, workers too), and release it
+the moment you are done:
+
+    agent-desk screen take --reason 'Clicking through the settings app' [--for 20m] [--wait]
+    agent-desk screen release
+
+It is yours at once if the user has been idle 30 minutes. Otherwise they get
+a request and `take` exits 3; `--wait` blocks until they grant it or stay
+away 30 minutes. A banner asks them to keep off the keyboard while you hold
+it. Headless work, such as a headless browser's screenshots, needs no lock.
+If they deny it, do not ask again at once; ask what to do instead.
+
+## While you wait: the prompt cache
+
+Inside Paseo, when you expect to be woken within a few hours (a child
+finishing, the user replying, CI), run `agent-desk cache warm`
+(`--warm-hours N` when six hours does not fit). When you are done, or blocked
+on something unlikely to clear soon, run `agent-desk standby` to stop warming
+and compact instead. Both need agent-quotas running.
+
 ## Under a sandbox
 
-The store (`~/.agents/desk` by default) is outside your workspace, so a
-sandboxed Codex session cannot open it, not even to read: the command fails
-and names the sandbox. Rerun that command with escalated permissions. The
-user can avoid this for good by adding the store directory to
-`sandbox_workspace_write.writable_roots` in Codex's `config.toml`.
-
-Antigravity's sandbox lets shell commands write only temporary directories
-and has no setting to widen it: run `agent-desk` there with a request to bypass
-the sandbox.
+The store (`~/.agents/desk`) is outside your workspace. In a sandboxed Codex
+session the command fails and names the sandbox: rerun it with escalated
+permissions. The user can fix this for good by adding the store to
+`sandbox_workspace_write.writable_roots` in Codex's `config.toml`. Under
+Antigravity, run `agent-desk` with a request to bypass the sandbox.
 
 ## Settings are the user's
 
-Where notifications go and how messages reach a busy agent are the user's
-settings. `agent-desk pref` refuses an agent session, so if the user asks you
-to change one, give them the command to run, such as
-`agent-desk pref set notify.remote always --scope example-proj`, or point
+`agent-desk pref` refuses agents. If the user asks you to change where
+notifications go or how messages reach a busy agent, give them the command
+(`agent-desk pref set notify.remote always --scope example-proj`) or point
 them to the dashboard's Notify chip.
 
 ## Looking things up
 
-    agent-desk whoami                 # your nodes, one per line, or exit 1 if you hold none
-    agent-desk show --mine            # your node: open questions, slots, messages awaiting you
-    agent-desk show rerun-nov         # one run
+    agent-desk whoami                       # your nodes, or exit 1 if none
+    agent-desk show --mine                  # your node: open questions, slots, messages awaiting you
+    agent-desk show rerun-nov               # one run
+    agent-desk render --print item w-8f2a   # one item and its thread, as org
     agent-desk search 'leakage'
-    agent-desk instructions           # the user's messages to your run, word for word
+    agent-desk instructions                 # the user's messages to your run, word for word
 
-Where the prompt hook is installed, every message the user sends a session
-that has joined a node is kept on the desk, word for word; automated prompts
-(heartbeats, `Continue.`, `/compact`, other agents' messages, desk answers)
-are not. After compaction, read `agent-desk instructions` before acting: it
-is the user's own text, not a summary of it. It prints
-`(no instructions recorded ...)` when the hook is not installed; then keep
-the user's words in your own verbatim file as before.
+Where the prompt hook is installed, every message the user types to a
+session that has joined a node is kept word for word; automated prompts are
+skipped. After compaction, read `agent-desk instructions` before acting: it
+is the user's own text, not a summary. If it prints `(no instructions
+recorded ...)`, the hook is missing; keep the user's words in your own file.
