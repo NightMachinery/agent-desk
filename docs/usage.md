@@ -236,9 +236,9 @@ notice:
 It needs `--url` (http or https), `--attach`, or both. The body says what it
 is, how to try it and what you checked. `--key` names what it is a version
 of: a newer deliverable with the same key in the same project supersedes the
-older one, which leaves the Deliverables section (it stays in its thread, and
-the section's All lists it). `--re` and `--re-chat` work as for `tell`. Android packages
-(`.apk`) may be up to 150 MB.
+older one, which leaves the Deliverables section and counts as read (it
+stays in its thread, and the section's All lists it). `--re` and `--re-chat`
+work as for `tell`. Android packages (`.apk`) may be up to 256 MB.
 
 The dashboard lists deliverables in their own section, **Deliverables**,
 below Needs you and above Pinned and Responses to you. The menu in its

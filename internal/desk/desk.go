@@ -115,6 +115,11 @@ func Load(s *store.Store, host string, now time.Time) (*Desk, error) {
 	}
 	d.unread = make(map[string]bool, len(un))
 	for _, e := range un {
+		// A deliverable that a newer one of the same key replaced counts as
+		// read: only the newer one is shown, so nothing would ever clear it.
+		if e.Kind == "deliverable" && d.SupersededBy(e) != "" {
+			continue
+		}
 		d.unread[e.ID] = true
 	}
 	if d.slots, err = s.Query("slot_current", "kind != 'clear'"); err != nil {

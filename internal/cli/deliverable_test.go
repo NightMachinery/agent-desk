@@ -75,6 +75,10 @@ func TestDeliverables(t *testing.T) {
 	if !found {
 		t.Fatal("the superseded APK is not marked with --all")
 	}
+	// It counts as read: its project counts only the newer one (and the site).
+	if e1, err := d.Resolve(b1); err != nil || d.Unread(e1.ID) {
+		t.Fatal("the superseded APK still counts as unread")
+	}
 
 	// The three ways to list them: once b2 is read, unread drops it, latest
 	// keeps it (and still not b1), all lists b1 too.
