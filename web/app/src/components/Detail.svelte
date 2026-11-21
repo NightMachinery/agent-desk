@@ -117,9 +117,9 @@
     replyingTo = t.event.id === e.id ? null : replyRef(t);
     focusBoxIn(null, syncMode);
   }
-  async function taskAct(action, note = '') {
+  async function taskAct(action, note = '', id = it.display_id) {
     try {
-      const res = await post('task', { action, id: it.display_id, ...(note && { text: note }) });
+      const res = await post('task', { action, id, ...(note && { text: note }) });
       const told = toldText(res);
       toast({ launch: 'Launched.', done: 'Marked done.', drop: 'Dropped.', defer: 'Deferred for quota.', reopen: 'Reopened.', start: 'Marked started.' }[action] + told, 'ok', told ? 7000 : undefined);
       reopening = '';
@@ -372,6 +372,27 @@
     {#if !inThread}
       {#if e.body}<Markdown class="body" text={e.body} />{/if}
       <Attachments media={shownMedia} />
+    {/if}
+    {#if item.subtasks?.length}
+      {@const done = item.subtasks.filter((s) => s.state === 'done').length}
+      <section class="subtasks">
+        <h2>Subtasks <span class="faint">{done} of {item.subtasks.length} done</span></h2>
+        <ul>
+          {#each item.subtasks as s (s.display_id)}
+            {@const over = s.state === 'done' || s.state === 'dropped'}
+            <li class={s.state} data-event={s.display_id}>
+              <button class="box" class:on={s.state === 'done'} aria-label={`Mark ${s.display_id} done`}
+                {...off('Mark it done', [over, `${s.state === 'done' ? 'Done' : 'Dropped'}: open it to reopen`])}
+                onclick={() => taskAct('done', '', s.display_id)}>
+                <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="m2.5 6.2 2.3 2.3 4.7-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
+              </button>
+              <a class="sub-title" href={href({ item: s.display_id })}>{s.event.title}</a>
+              {#if s.state !== 'open'}<span class="chip" class:ok={s.state === 'done'} class:active={s.state === 'started'}>{s.state}</span>{/if}
+              <span class="mono faint">{s.display_id}</span>
+            </li>
+          {/each}
+        </ul>
+      </section>
     {/if}
 
     {#if item.default}
@@ -713,5 +734,77 @@
   .task-note {
     white-space: pre-wrap;
     overflow-wrap: anywhere;
+  }
+  .subtasks {
+    margin-top: 14px;
+  }
+  .subtasks h2 {
+    margin: 0 0 6px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .subtasks h2 .faint {
+    font-weight: 400;
+  }
+  .subtasks ul {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .subtasks li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    font-size: 13.5px;
+  }
+  .subtasks li > .chip,
+  .subtasks li > .mono {
+    flex: none;
+    white-space: nowrap;
+  }
+  .sub-title {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: inherit;
+  }
+  .subtasks li.done .sub-title,
+  .subtasks li.dropped .sub-title {
+    color: var(--muted);
+  }
+  .subtasks li.dropped .sub-title {
+    text-decoration: line-through;
+  }
+  .box {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    border-radius: 5px;
+    border: 1.5px solid var(--line-strong);
+    background: var(--panel);
+    color: transparent;
+    cursor: pointer;
+  }
+  .box.on {
+    border-color: var(--ok);
+    background: var(--ok);
+    color: var(--panel);
+  }
+  .box:disabled {
+    cursor: default;
+  }
+  .box:hover:not(:disabled),
+  .box:focus-visible {
+    border-color: var(--ok);
+    color: var(--ok);
+    outline: none;
   }
 </style>

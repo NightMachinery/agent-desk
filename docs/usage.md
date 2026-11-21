@@ -960,7 +960,8 @@ dashboard, needs neither.
 - `--type` says what it is: `task` (the default), `bug`, `feature`, `idea`
   or `chore`.
 - `--parent w-...` makes it a step of another task, so a milestone holds
-  its items.
+  its items. The parent's page in the dashboard lists its steps, finished
+  ones too, with a box to mark each done.
 - `--tag ui --tag phone` (or `--tag 'ui, phone'`) adds free tags beside the
   type: lowercase, a letter or digit then letters, digits, `. _ / -`, at
   most 12. `task tag w-... desk` and `task untag w-... phone` change them

@@ -1245,6 +1245,8 @@ type itemResponse struct {
 	Superseded  string      `json:"superseded,omitempty"` // a newer text of this slot
 	Media       []MediaView `json:"media,omitempty"`
 	Task        *desk.Task  `json:"task,omitempty"`
+	// Subtasks are the task's steps (task add --parent), finished ones too.
+	Subtasks    []desk.Task `json:"subtasks,omitempty"`
 	LaunchReady bool        `json:"launch_ready,omitempty"`
 	// Refs resolves the id mentions in the item and its thread.
 	Refs map[string]Ref `json:"refs,omitempty"`
@@ -1274,10 +1276,17 @@ func (s *server) apiItem(w http.ResponseWriter, r *http.Request) {
 		Report: desk.MetaString(e, "report"), Default: desk.MetaString(e, "default"),
 		Answered: it.Question != nil && !it.Question.Open()}
 	if e.Kind == "task" {
-		for _, t := range d.Tasks(desk.Filter{}) {
+		for _, t := range d.Tasks(desk.Filter{All: true}) {
 			if t.Event.ID == e.ID {
 				t := t
 				resp.Task = &t
+			}
+		}
+		if resp.Task != nil {
+			for _, t := range d.Tasks(desk.Filter{All: true}) {
+				if t.ParentID == resp.Task.ID {
+					resp.Subtasks = append(resp.Subtasks, t)
+				}
 			}
 		}
 		s.mu.Lock()
