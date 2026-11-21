@@ -62,6 +62,9 @@
   const sectionOrder = $derived(orderedSections(ui.sectionOrder));
   const runs = $derived(view?.view?.runs ?? []);
   const count = (gs) => gs.reduce((n, g) => n + g.items.length, 0);
+  // A section's badge counts what is unread: an item read a moment ago
+  // stays listed (until you move on, or with Show all) but no longer counts.
+  const unreadCount = (gs) => gs.reduce((n, g) => n + g.items.filter((it) => it.unread).length, 0);
   const idsOf = (gs) => gs.flatMap((g) => g.items.map((it) => it.display_id));
   const needIds = $derived(idsOf(needs));
   const freshIds = $derived(idsOf(fresh));
@@ -254,7 +257,7 @@
     {#if deliverables.length || deliverablesAny}
       <h2 class="section-title" data-section="deliverables">
         {@render fold('deliverables', 'Deliverables')}
-        {#if deliverables.length}<span class="count deliverable">{count(deliverables)}</span>{/if}
+        {#if unreadCount(deliverables)}<span class="count deliverable">{unreadCount(deliverables)}</span>{/if}
         <label class="show-pick" title={tip('Which deliverables to list: the newest of each, unread; the newest of each; or every one, replaced ones too', 'deliverables-show')}>
           <select data-cmd="deliverables-show" aria-label="Which deliverables to list" value={ui.deliverablesShow} onchange={(e) => showDeliverables(e.currentTarget.value)}>
             {#each deliverableModes as m (m)}<option value={m}>{deliverableModeLabel[m]}</option>{/each}
@@ -293,7 +296,7 @@
     {#if responses.length}
       <h2 class="section-title" data-section="responses">
         {@render fold('responses', 'Responses to you')}
-        <span class="count response">{count(responses)}</span>
+        {#if unreadCount(responses)}<span class="count response">{unreadCount(responses)}</span>{/if}
         {#if responseIds.length > 1 && !ui.collapsed.responses}<button data-keys="none" class="pick" onclick={() => toggleAll(responseIds)}>{allOn(responseIds) ? 'Deselect' : 'Select all'}</button>{/if}
         {#if responseUnread.length}{@render markAll(responseUnread)}{/if}
       </h2>
@@ -309,7 +312,7 @@
       {:else if name === 'new'}
     <h2 class="section-title" data-section="new">
       {@render fold('new', route.all ? 'Notices and slots' : 'New')}
-      {#if count(fresh)}<span class="count">{count(fresh)}</span>{/if}
+      {#if unreadCount(fresh)}<span class="count">{unreadCount(fresh)}</span>{/if}
       {#if freshIds.length > 1 && !ui.collapsed.new}<button data-keys="none" class="pick" onclick={() => toggleAll(freshIds)}>{allOn(freshIds) ? 'Deselect' : 'Select all'}</button>{/if}
       {#if freshUnread.length}{@render markAll(freshUnread)}{/if}
     </h2>
