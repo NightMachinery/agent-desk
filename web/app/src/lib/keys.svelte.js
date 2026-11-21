@@ -342,15 +342,46 @@ export function onkeydown(e) {
 function insertKey(e, tok, el) {
   if (tok === 'ESC' || tok === 'C-g' || tok === 'C-[') {
     e.preventDefault();
-    el.blur();
+    leaveField(el);
   }
+}
+
+// The selected field: the one Escape left. It stays outlined in normal mode,
+// and `i` goes back into it, until another field takes focus, Escape backs
+// out of it, or it leaves the page.
+let field = /** @type {HTMLElement | null} */ (null);
+
+/** Marks el as the selected field (null: none). */
+export function selectField(el) {
+  if (field === el) return;
+  field?.classList.remove('kb-field');
+  field = el;
+  el?.classList.add('kb-field');
+}
+
+/** The selected field, while it is on screen and enabled; null otherwise. */
+export function selectedField() {
+  if (field && !field.isConnected) selectField(null);
+  return field && visible(field) && !field.matches(':disabled') ? field : null;
+}
+
+/** Leaves insert mode and keeps el selected. to: what takes focus instead
+ * (by default nothing does). */
+export function leaveField(el, to = /** @type {HTMLElement | null} */ (null)) {
+  if (to) to.focus();
+  else el.blur();
+  selectField(el);
+  syncMode();
 }
 
 // Mode follows focus.
 export function syncMode() {
   keys.mode = typing(document.activeElement) ? 'insert' : keys.anchor ? 'visual' : 'normal';
 }
-document.addEventListener('focusin', syncMode);
+document.addEventListener('focusin', () => {
+  if (typing(document.activeElement)) selectField(null);
+  syncMode();
+});
 document.addEventListener('focusout', () => queueMicrotask(syncMode));
 
 /** Starts or ends visual mode. */

@@ -13,7 +13,7 @@ import { get, post } from './api.js';
 import { toggleSection, showDeliverables, deliverableModeLabel, showTasks, taskModeLabel } from './ui.svelte.js';
 import {
   keys, ctx, command, bind, group, pane, paneEl, cmdEl, say, dialog, moveFocus, focusables, startHints, openPalette,
-  commands, commandItems, keysOf, applies, describeKey, describeCommand, setVisual, syncMode,
+  commands, commandItems, keysOf, applies, describeKey, describeCommand, setVisual, syncMode, selectedField, selectField,
 } from './keys.svelte.js';
 
 // --- helpers -----------------------------------------------------------------
@@ -183,6 +183,15 @@ function focusComposer() {
     setTimeout(focusComposer, 50);
   } else say('No message box here');
 }
+/** `i`: back into the field Escape left, else the first message box. */
+function insert() {
+  const el = selectedField();
+  if (!el) return focusComposer();
+  selectField(null);
+  el.focus();
+  syncMode();
+  el.scrollIntoView({ block: 'nearest' });
+}
 function message() {
   if (document.getElementById('reply-box')) return focusBox('reply-box');
   focusComposer();
@@ -244,7 +253,8 @@ async function yankEvent(el) {
 }
 
 function escape() {
-  if (keys.anchor) {
+  if (selectedField()) selectField(null);
+  else if (keys.anchor) {
     setVisual('');
     clear();
   } else if (sel.ids.size || sel.mode) clear();
@@ -373,7 +383,7 @@ C('next-open', 'Next open item: where answering moves on to (an open question, e
 C('prev-open', 'Back along your n steps (else the previous open item)', () => openOpen(-1));
 C('search', 'Search', search);
 C('search-clear', 'Clear the search', () => go({ q: '', item: '' }, { replace: true }), { when: () => !!route.q, need: 'a search' });
-C('escape', 'Back out: visual mode, selection, item, page, search', escape, { palette: false });
+C('escape', 'Back out: selected field, visual mode, selection, item, page, search', escape, { palette: false });
 
 // Going places.
 C('next-item', 'Next item', (n) => stepBy(n));
@@ -451,6 +461,7 @@ C('answer', 'Answer the question', () => focusBox('answer-box', 'Not an open que
 C('message', 'Message its agent', message);
 C('reply-to-cancel', 'Message: stop replying to a thread entry (send about the open item)', () => click('reply-to-cancel'), tagged('reply-to-cancel', 'a reply started with an entry\'s reply button'));
 C('compose', 'Write in the first message box', focusComposer);
+C('insert', 'Back into the selected field (the one Esc left), else the first message box', insert);
 C('take', 'Take the recommendation or the default', () => click('quick', 'Not an open question'), tagged('quick', 'an open question with a recommendation or default'));
 C('read', 'Mark read (a question: dismiss it)', after(markRead));
 C('unread', 'Mark unread (a question: back to Needs you)', after(markUnread));
@@ -635,7 +646,7 @@ bind('a', 'answer');
 bind('SPC i a', 'answer');
 bind('r', 'message');
 bind('SPC i r', 'message');
-bind('i', 'compose');
+bind('i', 'insert');
 bind('t', 'take');
 bind('SPC i t', 'take');
 bind('d', 'read');

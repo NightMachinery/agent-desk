@@ -10,7 +10,9 @@ tooltip names its key. This page explains the model.
 
 - **Normal** (the default): keys are commands.
 - **Insert**: a text box or a dropdown has focus, and keys type. `Esc`,
-  `C-g` or `C-[` leaves it, keeping the text. In a message box,
+  `C-g` or `C-[` leaves it, keeping the text, and the box stays *selected*
+  (a dashed outline): keys are commands again, you can move around, and `i`
+  goes back into it with the cursor where it was. In a message box,
   ⌘/Ctrl+Enter sends.
 - **Visual**: `V` starts it on the open item; moving with `j`/`k` selects
   every row from there. Moving only selects: the rows it passes stay unread
@@ -69,11 +71,11 @@ On a phone there is one pane at a time: the list, or the open item.
 ## The open item
 
 - `a`: answer the question. `t`: take the recommendation or the default.
-- `r`: message its agent (on a node page, the coordinator). `i`: the first
-  message box on the page. `R`: reply to an entry of its conversation
-  (with several, hints label the reply buttons): the box then replies to
-  that entry, until you send or press the ✕ beside "Replying to"
-  (`M-x reply-to-cancel`).
+- `r`: message its agent (on a node page, the coordinator). `i`: back into
+  the selected box (the one `Esc` left), else the first message box on the
+  page. `R`: reply to an entry of its conversation (with several, hints
+  label the reply buttons): the box then replies to that entry, until you
+  send or press the ✕ beside "Replying to" (`M-x reply-to-cancel`).
 - `d`: mark read; on a question, dismiss it. `U`: mark unread; on a dismissed
   question, put it back in Needs you. `p`: pin or unpin. With a selection,
   these act on every selected item.
@@ -161,8 +163,8 @@ is open.
 
 ## Back out with Esc
 
-Outside a text box, `Esc` (or `C-g`) undoes one thing at a time: visual mode,
-then the selection, then the open item, then the settings page or the
+Outside a text box, `Esc` (or `C-g`) undoes one thing at a time: the selected
+box, then visual mode, then the selection, then the open item, then the settings page or the
 Verbatim log, then the search.
 
 ## For developers

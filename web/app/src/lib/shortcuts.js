@@ -127,7 +127,7 @@ export const cheatsheet = [
       [['x'], 'Select the item'],
       [['V'], 'Visual mode: select by moving'],
       [['f'], 'Hints: click anything by label'],
-      [['i'], 'The first message box'],
+      [['i'], 'Back into the box Esc left, else the first message box'],
       [['⌘ RET'], 'Send'],
       [['Esc', 'C-g'], 'Leave a box; back out one step'],
     ],

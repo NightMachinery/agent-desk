@@ -5,7 +5,7 @@
   // off, started, dropped or reopened here, and new ones filed at any node,
   // optionally messaging its coordinator about it.
   import { get, post, upload } from '../lib/api.js';
-  import { syncMode, typing } from '../lib/keys.svelte.js';
+  import { leaveField, typing } from '../lib/keys.svelte.js';
   import { href, go } from '../lib/route.svelte.js';
   import { toast } from '../lib/toast.svelte.js';
   import { queueMessage } from '../lib/outbox.svelte.js';
@@ -355,7 +355,8 @@
     }
   }
   // The form's keys, before the page's: ⌘/Ctrl+Enter files it. Escape in
-  // a field leaves insert mode (focus moves to the form, which stays open);
+  // a field leaves insert mode (focus moves to the form, which stays open,
+  // and the field stays selected for `i`);
   // Escape in normal mode closes it, and so does C-g, from anywhere in it.
   // The draft is kept until it is filed.
   function formKeys(e) {
@@ -364,10 +365,8 @@
     if (e.key !== 'Escape' && !quit) return;
     e.preventDefault();
     e.stopPropagation();
-    if (!quit && typing(e.target)) {
-      formEl?.focus();
-      syncMode();
-    } else adding = false;
+    if (!quit && typing(e.target)) leaveField(/** @type {HTMLElement} */ (e.target), formEl);
+    else adding = false;
   }
 </script>
 

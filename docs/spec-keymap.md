@@ -88,8 +88,8 @@ Unchanged:
 - Moving: `j` `k`, `J` `K` (`C-j` `C-k`), `n` `N`, `g g` `G`, `}` `{`,
   `C-d` `C-u`, `C-f` `C-b`, `h` `l`, `RET` `o`, `-`.
 - The open item: `a` answer, `t` take, `r` message its agent, `R` reply to
-  an entry, `i` write in the message box, `d` read, `U` unread, `p` pin,
-  `x` select, `v` `V` visual, `q` close.
+  an entry, `i` write in the message box (or the box `Esc` left), `d` read,
+  `U` unread, `p` pin, `x` select, `v` `V` visual, `q` close.
 - Help and pickers: `?` cheatsheet, `:` and `M-x` commands, `f` hints,
   `/` search, `ESC` and `C-g` back out.
 
