@@ -29,7 +29,9 @@ func (s *server) apiDashboardPrefs(w http.ResponseWriter, r *http.Request) {
 // apiDashboardPrefPut sets one shared dashboard setting (POST
 // api/dashboard-prefs {key, data}); a null data puts back the default.
 // "sections" is the list's sections in order, each named once; "render"
-// is when the server renders the org files (orgfiles.go).
+// is when the server renders the org files (orgfiles.go); "task-changes"
+// is whether and when it tells agents of the user's task changes
+// (taskchanges.go).
 func (s *server) apiDashboardPrefPut(_ *App, body request) (any, error) {
 	switch body.Key {
 	case "sections":
@@ -56,8 +58,14 @@ func (s *server) apiDashboardPrefPut(_ *App, body request) (any, error) {
 				return nil, err
 			}
 		}
+	case "task-changes":
+		if len(body.Data) > 0 && string(body.Data) != "null" {
+			if err := checkTaskChangePrefs(body.Data); err != nil {
+				return nil, err
+			}
+		}
 	default:
-		return nil, usagef("the shared dashboard settings are sections and render")
+		return nil, usagef("the shared dashboard settings are sections, render and task-changes")
 	}
 	st, err := s.a.store()
 	if err != nil {

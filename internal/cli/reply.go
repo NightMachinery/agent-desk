@@ -173,6 +173,13 @@ func (a *App) replyEvent(token, text, source, behavior string, notify map[string
 	if err != nil {
 		return store.Event{}, err
 	}
+	return a.replyTo(d, to, host, node, about, text, source, behavior, notify, refs...)
+}
+
+// replyTo is the reply to a recipient already resolved: to on host, at node,
+// about an item (none for a message to the node itself).
+func (a *App) replyTo(d *desk.Desk, to ident.From, host, node string, about store.Event, text, source, behavior string, notify map[string]string, refs ...media.Ref) (store.Event, error) {
+	var err error
 	if behavior, err = checkBehavior(behavior); err != nil {
 		return store.Event{}, err
 	}

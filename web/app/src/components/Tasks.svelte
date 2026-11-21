@@ -11,7 +11,8 @@
   import { chooseSendCache } from '../lib/cache.svelte.js';
   import { tip } from '../lib/shortcuts.js';
   import Markdown from './Markdown.svelte';
-  import { askStatus } from '../lib/taskstatus.js';
+  import { askStatus, toldText } from '../lib/taskstatus.js';
+  import ReopenForm from './ReopenForm.svelte';
 
   let { path = '', stamp = '', runs = [], adding = $bindable(false) } = $props();
 
@@ -106,12 +107,18 @@
     }
   }
 
-  async function act(t, action) {
+  // Reopen asks first, in ReopenForm (the task's event id here), what is
+  // still wrong. An Undo puts the state back and tells nobody: the server
+  // tells each task's net change once the changes stop (taskchanges.go).
+  let reopening = $state('');
+  async function act(t, action, note = '', undo = false) {
     busy = t.event.id;
     try {
-      await post('task', { action, id: t.display_id });
-      const said = { done: 'Done', reopen: 'Reopened', start: 'Started', drop: 'Dropped', defer: 'Deferred' }[action];
-      toast(`${said}: ${t.display_id}.`, 'ok', 6000, action === 'done' || action === 'drop' ? { label: 'Undo', run: () => act(t, 'reopen') } : undefined);
+      const res = await post('task', { action, id: t.display_id, ...(note && { text: note }) });
+      const said = undo ? 'Undone' : { done: 'Done', reopen: 'Reopened', start: 'Started', drop: 'Dropped', defer: 'Deferred' }[action];
+      const canUndo = !undo && (action === 'done' || action === 'drop');
+      toast(`${said}: ${t.display_id}.${undo ? '' : toldText(res, canUndo)}`, 'ok', 7000, canUndo ? { label: 'Undo', run: () => act(t, 'reopen', '', true) } : undefined);
+      if (reopening === t.event.id) reopening = '';
       await load();
     } catch (err) {
       toast(err.message, 'error');
@@ -306,7 +313,7 @@
       <div class="line">
         <button class="box" class:on={done} role="checkbox" aria-checked={done} disabled={busy === t.event.id || dropped}
           title={done ? 'Reopen it' : 'Mark it done'} aria-label={done ? `Reopen ${t.display_id}` : `Mark ${t.display_id} done`}
-          onclick={() => act(t, done ? 'reopen' : 'done')}>
+          onclick={() => (done ? (reopening = t.event.id) : act(t, 'done'))}>
           <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="m2.5 6.2 2.3 2.3 4.7-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
         </button>
         {#if kindOf(t) !== 'task'}<span class="tchip small {kindOf(t)} on">{LABEL[kindOf(t)] ?? kindOf(t)}</span>{/if}
@@ -317,6 +324,9 @@
         {#if t.event.meta?.source === 'web'}<span class="faint you" title="You filed it">you</span>{/if}
         <a class="mono faint id" href={href({ item: t.display_id })}>{t.display_id}</a>
       </div>
+      {#if reopening === t.event.id && !ACTIVE.has(t.state)}
+        <div class="reopen-row"><ReopenForm id={t.display_id} onreopen={(note) => act(t, 'reopen', note)} oncancel={() => (reopening = '')} /></div>
+      {/if}
       {#if expanded[t.event.id]}
         <div class="more">
           {#if t.event.body}<Markdown text={t.event.body} />{/if}
@@ -333,7 +343,7 @@
               {#if t.state !== 'started'}<button class="btn small" disabled={!!busy} onclick={() => act(t, 'start')}>Start</button>{/if}
               <button class="btn small" disabled={!!busy} onclick={() => act(t, 'drop')}>Drop</button>
             {:else}
-              <button class="btn small" disabled={!!busy} onclick={() => act(t, 'reopen')}>Reopen</button>
+              <button class="btn small" disabled={!!busy} onclick={() => (reopening = t.event.id)}>Reopen</button>
             {/if}
             <a class="btn small" href={href({ item: t.display_id })} title="The task on its own page: its conversation, messaging its agent, pinning">Full page</a>
           </div>
@@ -352,6 +362,9 @@
 </section>
 
 <style>
+  .reopen-row {
+    margin: 6px 0 2px 26px;
+  }
   .warn {
     color: var(--blocked);
     font-size: 13px;

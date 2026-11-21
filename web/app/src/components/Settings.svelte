@@ -26,9 +26,30 @@
       org = null;
     }
   }
+  // Task changes (taskchanges.go): the server tells the agent working on a
+  // task when the user changes its state, once no change has come for
+  // `debounce` seconds. Shared by every device.
+  const tellChoices = [3, 5, 10, 15, 30, 60, 120, 300, 600];
+  let tc = $state(/** @type {any} */ (null));
+  async function loadTc() {
+    try {
+      tc = await get('task-changes');
+    } catch {
+      tc = null;
+    }
+  }
+  async function saveTc(over) {
+    const data = { enabled: tc.enabled, debounce: tc.debounce, ...over };
+    try {
+      await post('dashboard-prefs', { key: 'task-changes', data });
+      tc = { ...tc, ...data };
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  }
   $effect(() => {
     stamp;
-    if (!path) loadOrg();
+    if (!path) loadOrg(), loadTc();
   });
   async function saveOrg(over) {
     const data = { enabled: org.enabled, debounce: org.debounce, ...over };
@@ -232,6 +253,25 @@
         </div>
       {:else}
         <span class="faint">Cannot read the org file settings from the desk.</span>
+      {/if}
+    </div>
+    <div class="key" id="task-changes">
+      <div class="key-head">
+        <span class="key-name">Telling agents about task changes</span>
+        <span class="mono faint">every device</span>
+      </div>
+      {#if tc}
+        <label class="check"><input type="checkbox" checked={tc.enabled} onchange={(e) => saveTc({ enabled: e.currentTarget.checked })} /> When you mark a task done, drop, reopen, start or defer it, tell the agent working on it once you have made no change for</label>
+        <select class="input" aria-label="Quiet time before agents are told of task changes" value={tc.debounce} disabled={!tc.enabled} onchange={(e) => saveTc({ debounce: +e.currentTarget.value })}>
+          {#each [...new Set([...tellChoices, tc.debounce])].sort((a, b) => a - b) as n (n)}<option value={n}>{quietText(n)}</option>{/each}
+        </select>
+        <div class="origin">
+          <span class="faint">
+            Each agent gets one message for all your changes in that time; a change you undo in it is not sent. Reopen asks what is still wrong (you can leave it empty) and passes that on. The wording is <span class="mono">internal/prompts/task-changes.md</span>; a copy in <span class="mono">~/.config/agent-desk/prompts/</span> replaces it.
+          </span>
+        </div>
+      {:else}
+        <span class="faint">Cannot read this setting from the desk.</span>
       {/if}
     </div>
   {/if}

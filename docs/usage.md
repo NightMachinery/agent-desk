@@ -549,7 +549,7 @@ the toast), and the heading's New and All tasks open the Tasks page. The
 heading's menu (`SPC t t` cycles it, per device) keeps the open tasks and
 adds those finished or dropped in the last 15 minutes, hour, 6 hours, day,
 3 days, week or 30 days, newest first, checked off or struck through with
-when; their box reopens them. That is
+when; their box reopens them (asking what is still wrong). That is
 the default order: Settings, "Order of the list's sections" (`SPC o o`),
 changes it by dragging a section's card by its handle (mouse or touch), its
 arrows, or the up and down arrow keys on a focused handle. The order is kept
@@ -934,7 +934,7 @@ node with subtasks under their parent. Filter by Open, Finished or All, by
 type, by tag (the dashed `#tag` pills; a row's own tags filter too), and by
 search (`/`, which also matches `#tag`). A task's tags are edited in its
 expanded row. The box checks a task off (Undo in the toast)
-or reopens it; clicking its title shows its brief with Status, Start, Drop
+or reopens it (asking what is still wrong, see below); clicking its title shows its brief with Status, Start, Drop
 and Full page (the task on its own page, with its conversation). **New task** (`SPC n t`, or "+ New" on a node page) files one at any
 project, run or agent: a title, a type, an optional parent, details and
 tags.
@@ -955,6 +955,23 @@ executive summary of where the task stands: what is done, what is in
 progress, what is blocked or waiting on you, the next step
 (`reply w-... --prompt task-status`; edit it by copying
 `internal/prompts/task-status.md` into `~/.config/agent-desk/prompts/`).
+
+**Your task changes reach the agent too.** When you mark a task done, drop,
+reopen, start or defer it (on the dashboard, or with `agent-desk task` in a
+shell outside any agent), the dashboard server tells the agent working on
+it, found as above. It waits until you have made no task change for the
+debounce (Settings, "Telling agents about task changes": on by default, 10
+seconds, shared by every device), then sends one message per agent covering
+all your changes. What it tells is each task's net change, so a change you
+undo inside the debounce sends nothing. A message about one task threads
+under that task; one about several goes to the agent's node. Reopen first
+asks "What is still wrong?" (Enter with it empty reopens too); the note is
+kept on the task and passed on. The toast names who is told and when. An
+agent's own task changes, launches and tag edits tell nobody, and each
+host's server tells only changes made on that host, so merged desks tell
+a change once. A change made while no server ran is still told if the
+server starts within 10 minutes of it. The wording is
+`internal/prompts/task-changes.md`, overridable the same way.
 
 A deferred task waits for quota to spare. It carries a brief (stdin), and
 optionally `--size S|M|L`, `--priority 1|2|3` (1 first), `--profile NAME`

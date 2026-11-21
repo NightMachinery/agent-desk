@@ -85,6 +85,7 @@ type server struct {
 	readStamp string
 	poll      time.Duration // how often the live stream looks for new events
 	org       orgState      // the org files' renders (orgfiles.go)
+	taskRetry time.Time     // after a failed send, when to tell task changes again (taskchanges.go)
 	stamp     func() (string, error)
 	logger    io.Writer
 	// manifest replaces the built manifest.json when the supervisor names
@@ -199,6 +200,7 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("GET /api/auto-continue", s.apiAutoContinue)
 	mux.HandleFunc("GET /api/render", s.apiRender)
 	mux.HandleFunc("POST /api/render", s.action(s.apiRenderNow))
+	mux.HandleFunc("GET /api/task-changes", s.apiTaskChanges)
 	mux.HandleFunc("GET /api/export", s.apiExport)
 	s.voiceRoutes(mux)
 	mux.HandleFunc("GET /api/cache", s.apiCache)
@@ -543,8 +545,20 @@ func (s *server) apiTask(app *App, body request) (any, error) {
 	if len(ids) == 0 {
 		return nil, usagef("task needs an id")
 	}
-	err := app.run(append([]string{"task", body.Action, "--"}, ids...))
-	return map[string]string{}, err
+	args := []string{"task", body.Action}
+	if note := strings.TrimSpace(body.Text); note != "" && body.Action != "launch" {
+		args = append(args, "--note", note) // Reopen's "what is still wrong"
+	}
+	if err := app.run(append(append(args, "--"), ids...)); err != nil {
+		return nil, err
+	}
+	// Who hears of it (taskchanges.go), for the toast.
+	if len(ids) == 1 && body.Action != "launch" {
+		if told := s.taskTold(app, ids[0]); told != nil {
+			return told, nil
+		}
+	}
+	return map[string]string{}, nil
 }
 
 // list is the targets of a bulk write: one, or several.
@@ -1521,6 +1535,7 @@ func (a *App) cmdServe(args []string) error {
 	s.cacheSnapshot() // start the first keeper read before a browser opens the desk
 	go s.runSendQueue(ctx)
 	go s.renderLoop(ctx)
+	go s.taskChangeLoop(ctx)
 	drained := make(chan struct{})
 	go func() {
 		defer close(drained)

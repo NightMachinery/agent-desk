@@ -82,7 +82,7 @@ follow, with groups in colour.
 - `SPC ,` or `SPC b b`: switch to an item in the list.
 - `SPC :`, `:` or `M-x`: commands only. Every command is listed, including the
   ones with no key (screen requests, retrying a delivery, focus sets,
-  auto-continue).
+  auto-continue, reopening a finished task with a note).
 - `SPC i`: the open item (`a` answer, `r` message, `d` read, `u` unread, `p`
   pin, `t` take, `o` its node, `n` "Notify me", `m` "Send how?"; on a
   deliverable, `g` open its link, `G` download its file, `w` Works: send

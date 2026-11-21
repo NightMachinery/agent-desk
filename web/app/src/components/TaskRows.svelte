@@ -8,6 +8,8 @@
   import { get, post } from '../lib/api.js';
   import { href, route } from '../lib/route.svelte.js';
   import { toast } from '../lib/toast.svelte.js';
+  import { toldText } from '../lib/taskstatus.js';
+  import ReopenForm from './ReopenForm.svelte';
 
   let { path = '', stamp = '', base = '', collapsed = false, span = 0, count = $bindable(0), ids = $bindable([]), onchange } = $props();
 
@@ -79,11 +81,18 @@
 
   const lineage = (p) => (p === base ? '' : base && p.startsWith(base + '/') ? p.slice(base.length + 1) : p);
 
-  async function act(t, action) {
+  // The box on a finished task asks first, in ReopenForm (the task's event
+  // id here), what is still wrong. An Undo puts the state back and tells
+  // nobody: the server tells each task's net change (taskchanges.go).
+  let reopening = $state('');
+  async function act(t, action, note = '', undo = false) {
     busy = t.event.id;
     try {
-      await post('task', { action, id: t.display_id });
-      toast(action === 'done' ? `Done: ${t.display_id}.` : `Reopened: ${t.display_id}.`, 'ok', 6000, { label: 'Undo', run: () => act(t, action === 'done' ? 'reopen' : t.state === 'dropped' ? 'drop' : 'done') });
+      const res = await post('task', { action, id: t.display_id, ...(note && { text: note }) });
+      const said = undo ? 'Undone' : action === 'done' ? 'Done' : 'Reopened';
+      const back = action === 'done' ? 'reopen' : t.state === 'dropped' ? 'drop' : 'done';
+      toast(`${said}: ${t.display_id}.${undo ? '' : toldText(res, true)}`, 'ok', 7000, undo ? undefined : { label: 'Undo', run: () => act(t, back, '', true) });
+      if (reopening === t.event.id) reopening = '';
       await load();
       onchange?.();
     } catch (err) {
@@ -100,7 +109,7 @@
       {@const over = finished(t)}
       <div class="task" class:selected={route.item === t.display_id} class:started={t.state === 'started'} class:done={t.state === 'done'} class:dropped={t.state === 'dropped'}>
         <button class="box" class:on={t.state === 'done'} disabled={busy === t.event.id} title={over ? 'Reopen it' : 'Mark it done'}
-          aria-label={over ? `Reopen ${t.display_id}` : `Mark ${t.display_id} done`} onclick={() => act(t, over ? 'reopen' : 'done')}>
+          aria-label={over ? `Reopen ${t.display_id}` : `Mark ${t.display_id} done`} onclick={() => (over ? (reopening = t.event.id) : act(t, 'done'))}>
           <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="m2.5 6.2 2.3 2.3 4.7-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
         </button>
         <a class="main" data-item={t.display_id} href={href({ item: t.display_id })}>
@@ -118,6 +127,9 @@
           </span>
         </a>
       </div>
+      {#if reopening === t.event.id && over}
+        <div class="reopen-row"><ReopenForm id={t.display_id} onreopen={(note) => act(t, 'reopen', note)} oncancel={() => (reopening = '')} /></div>
+      {/if}
     {:else}
       {#if loaded}
         <div class="empty">
@@ -262,6 +274,9 @@
   .tchip.idea {
     background: var(--notice-soft);
     color: var(--notice);
+  }
+  .reopen-row {
+    margin: -2px 0 4px 28px;
   }
   .more {
     align-self: flex-start;

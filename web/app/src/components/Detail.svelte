@@ -20,7 +20,8 @@
   import { moveOnTarget } from '../lib/moveon.js';
   import { arrival, arrivedAuto, cancelArrival, settleArrival } from '../lib/arrival.js';
   import { ui } from '../lib/ui.svelte.js';
-  import { askStatus } from '../lib/taskstatus.js';
+  import { askStatus, toldText } from '../lib/taskstatus.js';
+  import ReopenForm from './ReopenForm.svelte';
 
   let { item, error, onchange } = $props();
 
@@ -94,10 +95,14 @@
     }
   }
 
-  async function taskAct(action) {
+  // Reopen asks first, in ReopenForm, what is still wrong.
+  let reopening = $state('');
+  async function taskAct(action, note = '') {
     try {
-      await post('task', { action, id: it.display_id });
-      toast({ launch: 'Launched.', done: 'Marked done.', drop: 'Dropped.', defer: 'Deferred for quota.', reopen: 'Reopened.', start: 'Marked started.' }[action], 'ok');
+      const res = await post('task', { action, id: it.display_id, ...(note && { text: note }) });
+      const told = toldText(res);
+      toast({ launch: 'Launched.', done: 'Marked done.', drop: 'Dropped.', defer: 'Deferred for quota.', reopen: 'Reopened.', start: 'Marked started.' }[action] + told, 'ok', told ? 7000 : undefined);
+      reopening = '';
       onchange();
     } catch (err) {
       toast(err.message, 'error', 9000);
@@ -289,7 +294,7 @@
           <button class="btn small primary" disabled={!item.launch_ready} title={item.launch_ready ? 'Start an agent on this task' : 'Set launch_command under [tasks] in config.toml'} onclick={() => taskAct('launch')}>Launch</button>
         {/if}
         {#if t.state === 'open'}<button class="btn small" onclick={() => taskAct('defer')}>Defer for quota</button>{/if}
-        {#if t.state === 'done' || t.state === 'dropped'}<button class="btn small" onclick={() => taskAct('reopen')}>Reopen</button>
+        {#if t.state === 'done' || t.state === 'dropped'}<button data-cmd="task-reopen" class="btn small" onclick={() => (reopening = it.display_id)}>Reopen</button>
         {:else}
           <button data-cmd="task-status" class="btn small" title={tip('Ask whoever works on it for a short executive summary of where it stands', 'task-status')} onclick={() => askStatus(e.id, it.display_id)}>Status</button>
           <button class="btn small" onclick={() => taskAct('done')}>Done</button>
@@ -297,6 +302,9 @@
         {/if}
         </span>
       </div>
+      {#if reopening === it.display_id && (t.state === 'done' || t.state === 'dropped')}
+        <div class="reopen-box"><ReopenForm id={it.display_id} onreopen={(note) => taskAct('reopen', note)} oncancel={() => (reopening = '')} /></div>
+      {/if}
       {#if t.note}<div class="faint">Note: {t.note}</div>{/if}
     {/if}
 
@@ -475,6 +483,9 @@
   }
   .task-bar .spacer {
     flex: 1;
+  }
+  .reopen-box {
+    margin: -4px 0 12px;
   }
   /* The task's buttons wrap as one group, not one by one. */
   .task-acts {
