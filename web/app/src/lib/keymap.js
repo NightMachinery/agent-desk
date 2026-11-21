@@ -10,6 +10,7 @@ import { sel, toggle, toggleAll, clear } from './select.svelte.js';
 import { copy } from './format.js';
 import { toast, bump } from './toast.svelte.js';
 import { get, post } from './api.js';
+import { exportHref, download } from './exports.js';
 import { toggleSection, showDeliverables, deliverableModeLabel, showTasks, taskModeLabel } from './ui.svelte.js';
 import {
   keys, ctx, command, bind, group, pane, paneEl, cmdEl, say, dialog, moveFocus, focusables, startHints, openPalette,
@@ -415,14 +416,11 @@ C('org-render', 'Render the org files now (inbox, boards, ledger)', async () => 
     toast(err.message, 'error');
   }
 });
-C('org-export', 'Export the desk as org files (a zip)', () => {
-  const a = document.createElement('a');
-  a.href = './api/export';
-  a.download = '';
-  document.body.append(a);
-  a.click();
-  a.remove();
-});
+C('org-export', 'Export the whole desk as one .org file', () => download(exportHref()));
+C('org-export-zip', 'Export the desk as org files in a zip (inbox, boards, ledger)', () => download(exportHref({ zip: '1' })));
+C('org-export-node', 'Export this node (board, tasks, items, conversations) as one .org file', () => download(exportHref({ scope: 'node', path: route.path })), { when: () => !!route.path, need: 'a project, run or agent page' });
+C('org-export-item', 'Export the open item with its conversation as one .org file', () => download(exportHref({ scope: 'item', id: route.item })), { when: open, need: 'an open item' });
+C('org-export-inbox', 'Export the inbox (under this page) as one .org file', () => download(exportHref({ scope: 'inbox', path: route.path })));
 C('section-order-reset', "Put the list's sections back in the default order", () => click('section-order-reset', 'Open Settings first (SPC o S)'));
 C('verbatim', 'Verbatim log: your messages to agents, here', verbatimHere);
 C('verbatim-all', 'Verbatim log: your messages to agents, everywhere', verbatimAll);
@@ -680,6 +678,8 @@ bind('SPC n m', 'node-message');
 bind('SPC n v', 'node-velocity');
 bind('SPC n r', 'node-read-all');
 bind('SPC n s', 'node-settings');
+bind('SPC n e', 'org-export-node');
+bind('SPC i e', 'org-export-item');
 bind('SPC n a', 'agent-archive');
 
 // Selecting.

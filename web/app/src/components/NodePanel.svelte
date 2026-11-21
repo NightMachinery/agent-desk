@@ -1,5 +1,6 @@
 <script>
   import { tip } from '../lib/shortcuts.js';
+  import { exportHref } from '../lib/exports.js';
   import CopyIds from './CopyIds.svelte';
   import { href, route } from '../lib/route.svelte.js';
   import { post } from '../lib/api.js';
@@ -100,6 +101,7 @@
         <svg width="11" height="11" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5a3.5 3.5 0 0 0-3.5 3.5v2.5L3 11h10l-1.5-2.5V6A3.5 3.5 0 0 0 8 2.5zM6.5 13a1.5 1.5 0 0 0 3 0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
         Notify
       </button>
+      {#if !compact}<a data-cmd="org-export-node" class="chip chip-btn" href={exportHref({ scope: 'node', path: node.path })} download title={tip(`Download ${node.path} (board, tasks, items, conversations) as one .org file`, 'org-export-node')}>.org</a>{/if}
     </div>
   </div>
 

@@ -2,6 +2,7 @@
   // The settings at one scope: one control per key, showing the resolved
   // value and where it comes from, for all kinds of event or for one.
   import { get, post } from '../lib/api.js';
+  import { exportHref } from '../lib/exports.js';
   import { toast } from '../lib/toast.svelte.js';
   import { href } from '../lib/route.svelte.js';
   import { desktopText, remoteText, pushText, originText, behaviorLabel } from '../lib/format.js';
@@ -243,11 +244,13 @@
         </select>
         <div class="org-acts">
           <button class="btn small" data-cmd="org-render" {...off(undefined, [orgBusy, 'Wait: rendering'])} onclick={renderOrg}>Render now</button>
-          <a class="btn small" data-cmd="org-export" href="./api/export" download>Export as org files</a>
+          <a class="btn small" data-cmd="org-export" href={exportHref()} download title="The inbox, boards, tasks and ledger as top-level headings of one file">Export as one .org file</a>
+          <a class="btn small ghost" data-cmd="org-export-inbox" href={exportHref({ scope: 'inbox' })} download>Inbox only</a>
+          <a class="btn small ghost" data-cmd="org-export-zip" href={exportHref({ zip: '1' })} download title="The same files as the render folder">As a zip</a>
         </div>
         <div class="origin">
           <span class="faint">
-            The inbox, a board per project and a ledger per month, as org, in <span class="mono">{org.dir}</span>: for Emacs (agent-desk.el) and <code>cat</code>. Export downloads the same files as a zip; <code>agent-desk render</code> renders them from a shell.
+            The inbox, a board per project and a ledger per month, as org, in <span class="mono">{org.dir}</span>: for Emacs (agent-desk.el) and <code>cat</code>. Export downloads them as one .org file (or the same files as a zip); a node or an item exports alone from its page (<span class="mono">SPC n e</span>, <span class="mono">SPC i e</span>); <code>agent-desk render</code> renders them from a shell.
             {#if org.last}Last rendered {orgWhen(org.last)}, in {org.took_ms} ms.{/if}
             {#if org.error}<span class="err">Last render failed: {org.error}</span>{/if}
           </span>
