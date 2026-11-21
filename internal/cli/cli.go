@@ -136,10 +136,13 @@ Agent side (only coordinators write; workers report to their parent):
                      [--brief TEXT|-] [--priority 1-3] [--size S|M|L] [--node PATH]
                                       your checklist lives here, not in a TASKS.org file; an
                                       agent's task needs --brief (what and why), but a --parent step
-  agent-desk task add --defer --title T [--size] [--priority] [--profile P] [--cwd DIR] <<'B' ... B
+  agent-desk task add --quota --title T [--size] [--priority] [--profile P] [--cwd DIR] <<'B' ... B
+                                      deferred for quota (state deferred): launched when quota is
+                                      spare; --defer instead files it just deferred (state later)
   agent-desk task start|done|drop|defer|reopen <id>... [--note TEXT|-]
                                       an agent's done or drop needs --note: how it was done and
                                       checked, or why it was dropped (the user reads it on the task)
+  agent-desk task defer [--quota] <id>...  not now (later), or not until quota is spare (deferred)
   agent-desk task tag|untag <id> TAG...   free tags beside the type (ui, phone); --tag on add
   agent-desk task title <id> TITLE...     rename a task, e.g. one the user filed without a title
   agent-desk task list [<prefix>] [--type T] [--tag T] [--deferred] [--all] [--format json] | task prompt <id>

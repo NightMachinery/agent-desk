@@ -324,17 +324,23 @@ Tasks page, filters it by type and checks things off there.
   first: `agent-desk task title <id> 'Short title'`.
 
 When you find work worth doing that the quota does not allow now (a cleanup,
-a deeper check, a nice-to-have), defer it instead of dropping it, with a
-brief that a fresh agent can act on alone: what, why, where, how to check it.
+a deeper check, a nice-to-have), defer it for quota instead of dropping it,
+with a brief that a fresh agent can act on alone: what, why, where, how to
+check it.
 
-    agent-desk task add --defer --title 'Profile the loader' --size M --priority 2 <<'B'
+    agent-desk task add --quota --title 'Profile the loader' --size M --priority 2 <<'B'
     Epoch 1 takes 40 min, later epochs 6. Find out why in loader.py ...
     B
 
-The user launches deferred tasks from the dashboard when quota is plentiful,
-and the desk reminds them when a weekly window is about to reset unused. An
-agent launched on one gets a prompt telling it to join the desk and run
-`agent-desk task done <id>` when finished. `--defer` reads the brief from
+The user launches tasks deferred for quota from the dashboard when quota is
+plentiful, and the desk reminds them when a weekly window is about to reset
+unused. An agent launched on one gets a prompt telling it to join the desk
+and run `agent-desk task done <id>` when finished.
+
+`--defer` without `--quota` is different: "not now" for any other reason
+(waiting on a decision, blocked by other work). Nothing launches it; it waits
+until someone undefers, starts or launches it. `task defer [--quota] <id>`
+defers a task already filed. `--defer` and `--quota` read the brief from
 stdin; otherwise pass `--brief TEXT` (or `--brief -` for stdin): `task add`
 never reads stdin unasked, so it cannot hang on a held-open stdin.
 

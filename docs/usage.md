@@ -944,7 +944,16 @@ they stop working once it is deleted.
 ## Tasks, and work deferred for quota
 
 A task is a work item at a node (display id `w-...`), in one of the states
-open, started, deferred, done or dropped. Desk tasks replace a `TASKS.org`
+open, started, later, deferred, done or dropped. Both later and deferred are
+"not now"; they differ in what brings the task back:
+
+- **later** (the dashboard's Defer, `task defer`, `task add --defer`): it
+  waits for you or an agent to undefer, start or launch it. The quota nudge
+  and `launch --deferred` leave it alone. Its chip reads "deferred".
+- **deferred** (Defer for quota, `task defer --quota`, `task add --quota`): it
+  waits for quota to spare, as described below. Its chip reads "for quota".
+
+ Desk tasks replace a `TASKS.org`
 checklist: agents keep theirs with `task add`, `task start`, `task done`;
 the node panel shows "Tasks: 3 of 7 done" with the open ones, and `show`
 lists the ones still active.
@@ -1033,7 +1042,7 @@ a change once. A change made while no server ran is still told if the
 server starts within 10 minutes of it. The wording is
 `internal/prompts/task-changes.md`, overridable the same way.
 
-A deferred task waits for quota to spare. It carries a brief (stdin), and
+A task deferred for quota waits for quota to spare. It carries a brief (stdin), and
 optionally `--size S|M|L`, `--priority 1|2|3` (1 first), `--profile NAME`
 (passed to the launcher) and `--cwd DIR` (default: where it was filed). The
 dashboard's "Deferred for quota" section lists them; pick some and Launch,
@@ -1067,8 +1076,10 @@ tasks are waiting, it files one notice per window and reset at
     nudge_below = 60
     nudge_hours = 24
 
-`task add` reads stdin only with `--defer` or `--brief -`, so it never waits
-on an agent shell's held-open stdin.
+`task add` reads stdin only with `--defer`, `--quota` or `--brief -`, so it
+never waits on an agent shell's held-open stdin. An agent that files with
+`--defer` alone is reminded on stderr that `--quota` is the one the launcher
+picks up.
 
 ## The screen lock
 

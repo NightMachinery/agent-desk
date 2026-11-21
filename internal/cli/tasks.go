@@ -58,7 +58,7 @@ func (a *App) cmdTask(args []string) error {
 }
 
 func (a *App) taskAdd(args []string) error {
-	o, err := parse(args, []string{"defer"}, []string{"title", "brief", "size", "profile", "priority", "cwd", "node", "project", "type", "parent", "tag"}, 0, 0)
+	o, err := parse(args, []string{"defer", "quota"}, []string{"title", "brief", "size", "profile", "priority", "cwd", "node", "project", "type", "parent", "tag"}, 0, 0)
 	if err != nil {
 		return err
 	}
@@ -66,7 +66,9 @@ func (a *App) taskAdd(args []string) error {
 	if title == "" {
 		return usagef("task add needs --title")
 	}
-	m := desk.TaskMeta{Deferred: o.bools["defer"], Profile: o.vals["profile"], Cwd: o.vals["cwd"]}
+	// --defer files it deferred; --quota (with or without --defer) deferred
+	// for quota, for an agent to launch when there is quota to spare.
+	m := desk.TaskMeta{Deferred: o.bools["quota"], Later: o.bools["defer"] && !o.bools["quota"], Profile: o.vals["profile"], Cwd: o.vals["cwd"]}
 	if t := strings.ToLower(strings.TrimSpace(o.vals["type"])); t != "" && t != "task" {
 		if !desk.ValidTaskType(t) {
 			return usagef("--type is one of %s", strings.Join(desk.TaskTypes, ", "))
@@ -112,17 +114,21 @@ func (a *App) taskAdd(args []string) error {
 		}
 	}
 	// The brief comes from stdin only when asked for (--brief -) or needed
-	// (--defer): an agent's shell may hold stdin open, and reading it
-	// unasked would hang.
+	// (--defer, --quota): an agent's shell may hold stdin open, and reading
+	// it unasked would hang.
 	brief := o.vals["brief"]
-	if brief == "-" || (m.Deferred && !o.set["brief"]) {
+	if brief == "-" || ((m.Deferred || m.Later) && !o.set["brief"]) {
 		if brief, err = a.stdinText(); err != nil {
 			return err
 		}
 	}
 	brief = strings.TrimSpace(brief)
 	if m.Deferred && brief == "" {
-		return usagef("a deferred task needs a brief on stdin: the agent that picks it up knows only what it says")
+		return usagef("a task deferred for quota needs a brief on stdin: the agent that picks it up knows only what it says")
+	}
+	if m.Later && isAgent(ident.Resolve(a.Env)) {
+		// --defer meant "for quota" before --quota existed.
+		fmt.Fprintln(a.Stderr, "agent-desk: filed deferred, not for quota. For work that waits for spare quota, file it with --quota, or run: agent-desk task defer --quota <id>")
 	}
 	if brief == "" && m.Parent == "" && isAgent(ident.Resolve(a.Env)) {
 		return usagef("task add needs --brief: a short executive summary the user reads under the title (what and why, one to three sentences; --brief - reads it from stdin). A step under --parent may go without one")
@@ -161,13 +167,20 @@ func (a *App) taskAdd(args []string) error {
 
 var markState = map[string]string{
 	"start": desk.TaskStarted, "done": desk.TaskDone, "drop": desk.TaskDropped,
-	"defer": desk.TaskDeferred, "reopen": desk.TaskOpen,
+	"defer": desk.TaskLater, "reopen": desk.TaskOpen,
 }
 
 func (a *App) taskMark(sub string, args []string) error {
-	o, err := parse(args, nil, []string{"note"}, 1, -1)
+	o, err := parse(args, []string{"quota"}, []string{"note"}, 1, -1)
 	if err != nil {
 		return err
+	}
+	state := markState[sub]
+	if o.bools["quota"] {
+		if sub != "defer" {
+			return usagef("--quota goes with task defer")
+		}
+		state = desk.TaskDeferred
 	}
 	d, err := a.load()
 	if err != nil {
@@ -195,7 +208,7 @@ func (a *App) taskMark(sub string, args []string) error {
 		if err != nil {
 			return err
 		}
-		extra := map[string]any{"state": markState[sub]}
+		extra := map[string]any{"state": state}
 		if sub == "start" && from.Session != "" {
 			extra["agent"] = agentLabel(from)
 		}
@@ -384,7 +397,7 @@ func (a *App) taskLaunch(args []string) error {
 			}
 		}
 		if len(picked) == 0 {
-			return fmt.Errorf("no deferred tasks under %q", prefix)
+			return fmt.Errorf("no tasks deferred for quota under %q", prefix)
 		}
 	} else {
 		if len(o.pos) == 0 {

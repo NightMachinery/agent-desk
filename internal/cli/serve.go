@@ -554,15 +554,18 @@ func (s *server) apiTask(app *App, body request) (any, error) {
 			return nil, err
 		}
 		return map[string]string{}, app.setTaskTags(t, body.Tags, ident.Resolve(app.Env), "web")
-	case "start", "done", "drop", "defer", "reopen", "launch":
+	case "start", "done", "drop", "defer", "defer-quota", "reopen", "launch":
 	default:
-		return nil, usagef("task action is add, tags, start, done, drop, defer, reopen or launch")
+		return nil, usagef("task action is add, tags, start, done, drop, defer, defer-quota, reopen or launch")
 	}
 	ids := body.list(body.ID)
 	if len(ids) == 0 {
 		return nil, usagef("task needs an id")
 	}
 	args := []string{"task", body.Action}
+	if body.Action == "defer-quota" {
+		args = []string{"task", "defer", "--quota"}
+	}
 	if note := strings.TrimSpace(body.Text); note != "" && body.Action != "launch" {
 		args = append(args, "--note", note) // Reopen's "what is still wrong"
 	}

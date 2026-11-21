@@ -95,12 +95,7 @@ func userTaskMark(e store.Event, host string) bool {
 
 // taskStateAt is the task's state from the events before index end.
 func taskStateAt(d *desk.Desk, task store.Event, end int) string {
-	var tm desk.TaskMeta
-	_ = json.Unmarshal(task.Meta, &tm)
-	state := desk.TaskOpen
-	if tm.Deferred {
-		state = desk.TaskDeferred
-	}
+	state := desk.FiledState(task)
 	for _, e := range d.Events[:end] {
 		if e.Kind == "taskstate" && e.Ref == task.ID {
 			if s := desk.MetaString(e, "state"); s != "" {

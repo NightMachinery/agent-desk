@@ -55,12 +55,12 @@ func TestTasks(t *testing.T) {
 		t.Fatalf("list --all:\n%s", out)
 	}
 
-	// Deferred tasks wait for quota.
-	h.fails(a, "", "needs a brief", "task", "add", "--defer", "--title", "x")
-	h.fails(a, "b", "--size is S, M or L", "task", "add", "--defer", "--title", "x", "--size", "XL")
-	d1 := h.ok(a, "Profile the loader.", "task", "add", "--defer", "--title", "Profile", "--size", "M", "--priority", "3")
-	d2 := h.ok(a, "Port the plots to the new style.", "task", "add", "--defer", "--title", "Plots", "--profile", "codex-high", "--priority", "1")
-	d3 := h.ok(nil, "Tidy the README.", "task", "add", "--defer", "--title", "README", "--node", "example-proj/r1/coord")
+	// Tasks deferred for quota wait for quota.
+	h.fails(a, "", "needs a brief", "task", "add", "--quota", "--title", "x")
+	h.fails(a, "b", "--size is S, M or L", "task", "add", "--quota", "--title", "x", "--size", "XL")
+	d1 := h.ok(a, "Profile the loader.", "task", "add", "--defer", "--quota", "--title", "Profile", "--size", "M", "--priority", "3")
+	d2 := h.ok(a, "Port the plots to the new style.", "task", "add", "--quota", "--title", "Plots", "--profile", "codex-high", "--priority", "1")
+	d3 := h.ok(nil, "Tidy the README.", "task", "add", "--quota", "--title", "README", "--node", "example-proj/r1/coord")
 	if out := h.ok(nil, "", "task", "launch", "--deferred", "--dry-run", "--max", "2"); out != d2+"  Plots\n"+d3+"  README" {
 		t.Fatalf("pick order:\n%s", out)
 	}
@@ -111,7 +111,7 @@ func TestTasks(t *testing.T) {
 	if out := h.ok(nil, "", "task", "list", "--deferred"); out != "" {
 		t.Fatalf("after drop: %q", out)
 	}
-	h.ok(nil, "", "task", "defer", d1)
+	h.ok(nil, "", "task", "defer", "--quota", d1)
 
 	// The nudge: a weekly window about to reset with quota unused.
 	reset := h.now.Add(10*3600e9 + 1800e9).Unix()
@@ -132,6 +132,61 @@ func TestTasks(t *testing.T) {
 	}
 	if out := h.ok(nil, "", "task", "nudge"); out != "no nudge due" {
 		t.Fatalf("second nudge: %q", out)
+	}
+}
+
+// Defer (state later) is not deferring for quota: the launcher and the
+// nudge leave a later task alone, and either defer turns into the other.
+func TestTaskDeferLater(t *testing.T) {
+	h := newHarness(t)
+	a := h.as(sessA)
+	h.ok(a, "", "join", "r1/coord")
+	state := func(id string) string {
+		for _, tk := range h.loadDesk().Tasks(desk.Filter{All: true}) {
+			if tk.ID == id {
+				return tk.State
+			}
+		}
+		return ""
+	}
+	l1 := h.ok(a, "Waits on the user's call.", "task", "add", "--defer", "--title", "Pick a colour")
+	l2 := h.ok(a, "", "task", "add", "--title", "Rename the flag", "--brief", "b")
+	if s := state(l1); s != desk.TaskLater {
+		t.Fatalf("add --defer: %s", s)
+	}
+	if out := h.ok(nil, "", "task", "list"); !strings.Contains(out, l1+"  later    Pick a colour") {
+		t.Fatalf("list:\n%s", out)
+	}
+	h.ok(nil, "", "task", "defer", l2)
+	if s := state(l2); s != desk.TaskLater {
+		t.Fatalf("defer: %s", s)
+	}
+	h.fails(nil, "", "--quota goes with task defer", "task", "done", "--quota", l2)
+	h.fails(nil, "", "no tasks deferred for quota", "task", "launch", "--deferred", "--dry-run")
+	if out := h.ok(nil, "", "task", "list", "--deferred"); out != "" {
+		t.Fatalf("list --deferred holds later tasks: %q", out)
+	}
+	writeConfig(t, h, "[tasks]\nquota_command = 'quota'\n")
+	h.respond = func(name string, args []string) (string, error) {
+		return `{"gauges": {"claude.default.7d": {"pct": 5, "reset": 1}}}`, nil
+	}
+	if out := h.ok(nil, "", "task", "nudge"); out != "no deferred tasks" {
+		t.Fatalf("nudge counted a later task: %q", out)
+	}
+
+	// The dashboard's two buttons.
+	_, hd := testServer(t, h)
+	if code, body, _ := do(t, hd, "POST", "/api/task", `{"action":"defer-quota","id":"`+l1+`"}`, dashboard); code != 200 {
+		t.Fatalf("defer-quota: %d %s", code, body)
+	}
+	if s := state(l1); s != desk.TaskDeferred {
+		t.Fatalf("after defer-quota: %s", s)
+	}
+	if code, body, _ := do(t, hd, "POST", "/api/task", `{"action":"defer","id":"`+l1+`"}`, dashboard); code != 200 {
+		t.Fatalf("defer: %d %s", code, body)
+	}
+	if s := state(l1); s != desk.TaskLater {
+		t.Fatalf("after defer: %s", s)
 	}
 }
 

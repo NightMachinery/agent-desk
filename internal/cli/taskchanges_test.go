@@ -114,6 +114,21 @@ func TestTaskChangesTold(t *testing.T) {
 		t.Fatal("ref is not the task")
 	}
 
+	// Defer, then defer for quota: each reads as the dashboard names it.
+	for i, c := range []struct{ action, want string }{
+		{"defer", "I deferred this task (it was open). Leave it for now, until I reopen it."},
+		{"defer-quota", "I deferred this task for quota (it was deferred). Leave it until there is quota to spare."},
+	} {
+		act(`{"action":"` + c.action + `","id":"` + one + `"}`)
+		if n := tell(time.Duration(40+10*i) * time.Second); n != 1 {
+			t.Fatalf("%s: told %d", c.action, n)
+		}
+		all := told()
+		if body := all[len(all)-1].Body; !strings.HasPrefix(body, c.want) {
+			t.Fatalf("%s:\n%s", c.action, body)
+		}
+	}
+
 	// A change from a shell outside any agent counts too.
 	h.ok(nil, "", "task", "done", undone)
 	if n := tell(time.Minute); n != 1 {

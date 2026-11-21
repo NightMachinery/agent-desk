@@ -10,9 +10,12 @@ import (
 )
 
 // Task states. A deferred task waits for quota to spare; launching it starts
-// an agent on it.
+// an agent on it, and the quota nudge counts it. A later task is deferred for
+// any other reason ("Defer" on the dashboard): it waits for someone to reopen,
+// start or launch it, and the nudge and `launch --deferred` leave it alone.
 const (
 	TaskOpen     = "open"
+	TaskLater    = "later"
 	TaskDeferred = "deferred"
 	TaskStarted  = "started"
 	TaskDone     = "done"
@@ -20,7 +23,19 @@ const (
 )
 
 // TaskStates are the states a taskstate event may set.
-var TaskStates = []string{TaskOpen, TaskDeferred, TaskStarted, TaskDone, TaskDropped}
+var TaskStates = []string{TaskOpen, TaskLater, TaskDeferred, TaskStarted, TaskDone, TaskDropped}
+
+// StateLabel is how a state reads to people: later is "deferred", and
+// deferred is "deferred for quota".
+func StateLabel(s string) string {
+	switch s {
+	case TaskLater:
+		return "deferred"
+	case TaskDeferred:
+		return "deferred for quota"
+	}
+	return s
+}
 
 // TaskTypes are the kinds of task, the first the default: what the
 // checklist item is, so the Tasks page can filter bugs from features.
@@ -42,9 +57,10 @@ type TaskMeta struct {
 	Type string `json:"type,omitempty"`
 	// Parent is the full id of the task this one is a step of.
 	Parent   string `json:"parent,omitempty"`
-	Deferred bool   `json:"deferred,omitempty"`
-	Size     string `json:"size,omitempty"`    // S, M or L
-	Profile  string `json:"profile,omitempty"` // what to launch it with, for launch_command
+	Deferred bool   `json:"deferred,omitempty"` // filed deferred for quota
+	Later    bool   `json:"later,omitempty"`    // filed deferred, not for quota
+	Size     string `json:"size,omitempty"`     // S, M or L
+	Profile  string `json:"profile,omitempty"`  // what to launch it with, for launch_command
 	Priority int    `json:"priority,omitempty"`
 	Cwd      string `json:"cwd,omitempty"`
 	// Tags are free labels beside the fixed Type ("ui", "phone"), from
@@ -127,16 +143,36 @@ func taskRank(s string) int {
 		return 0
 	case TaskOpen:
 		return 1
-	case TaskDeferred:
+	case TaskLater:
 		return 2
-	case TaskDone:
+	case TaskDeferred:
 		return 3
+	case TaskDone:
+		return 4
 	}
-	return 4
+	return 5
+}
+
+// filedState is the state a task was filed in.
+func filedState(m TaskMeta) string {
+	switch {
+	case m.Deferred:
+		return TaskDeferred
+	case m.Later:
+		return TaskLater
+	}
+	return TaskOpen
+}
+
+// FiledState is the state the task event e was filed in.
+func FiledState(e store.Event) string {
+	var m TaskMeta
+	_ = json.Unmarshal(e.Meta, &m)
+	return filedState(m)
 }
 
 // Tasks are the tasks the filter keeps, in working order: started, open,
-// deferred, then finished; by priority (1 first), then oldest first.
+// later, deferred, then finished; by priority (1 first), then oldest first.
 func (d *Desk) Tasks(f Filter) []Task {
 	byID := map[string]*Task{}
 	var order []string
@@ -148,9 +184,7 @@ func (d *Desk) Tasks(f Filter) []Task {
 			}
 			t := &Task{Event: e, ID: d.Display(e.ID), State: TaskOpen, Updated: e.TS}
 			_ = json.Unmarshal(e.Meta, &t.TaskMeta)
-			if t.Deferred {
-				t.State = TaskDeferred
-			}
+			t.State = filedState(t.TaskMeta)
 			byID[e.ID] = t
 			order = append(order, e.ID)
 		case "taskstate":
