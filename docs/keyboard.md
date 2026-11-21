@@ -4,7 +4,8 @@ The dashboard can be used without a mouse, in the style of Doom Emacs's evil
 mode: modal keys, a `SPC` leader with a which-key popup, `M-x`, and link hints
 for anything else. Press `?` on the page for a cheatsheet, and `TAB` in it
 (or `SPC h b`) for every binding that applies where you are. Every button's
-tooltip names its key. This page explains the model.
+tooltip names its key. Any key can be changed in your keys file (see "Your
+own keys"). This page explains the model.
 
 ## Modes
 
@@ -179,34 +180,97 @@ Outside a text box, `Esc` (or `C-g`) undoes one thing at a time: the selected
 box, then visual mode, then the selection, then the open item, then the settings page or the
 Verbatim log, then the search.
 
+## Your own keys
+
+Put a keys file next to the desk's `config.toml`, normally
+`~/.config/agent-desk/keys.edn`, on the machine the desk runs on. It holds
+only your changes, and every device uses it. Saving it applies it at once,
+without reloading the page. The format is the evilify skill's shared EDN
+keymap format (`evilify/keymap-edn.md` in the
+[evilify skill](https://github.com/NightMachinery/evilify-skill)):
+
+```clojure
+; ~/.config/agent-desk/keys.edn
+{:normal {"g c"   nil             ; remove a built-in key
+          "C-c t" :tasks          ; add one: a chord and a command
+          "SPC q" "quit"}         ; label a prefix in the key guide
+ :list   {"x" :fold}}             ; a key for one pane only
+```
+
+A chord maps to a command keyword, to `nil` (remove the built-in key with
+that chord in that map), or to a string, which labels a prefix. An entry
+replaces the built-in one with the same chord in the same map. `SPC h f`
+finds a command's name; the built-in keys are in
+`web/app/src/lib/keys.edn`.
+
+**The maps**, from the most specific down:
+
+- `:dialog`: while a sheet is open, only these keys work;
+- a context map for what is open, holding the keys typed after the
+  localleader: `:task`, `:deliverable`, `:screen`, `:message`, `:quota`,
+  `:settings` and `:verbatim`;
+- the focused pane's: `:list`, `:detail` or `:side`;
+- `:normal`;
+- `:insert`, inside a text box (then the only one). Its chords start with
+  `C-` or `M-`, so they never type.
+
+A key in a more specific map hides the same chord below it, and also a chord
+it collides with as a prefix: a `"z"` command in `:detail` hides `:normal`'s
+`"z ..."` keys while the detail pane has focus.
+
+**Extensions** beyond the shared format's portable subset:
+
+- `:localleader ["," "SPC m"]`: the chords that start the context maps
+  (these are the defaults);
+- `:keyless [:command ...]`: commands left without a key on purpose;
+- a string value labels a prefix;
+- an uppercase letter is `S-` with the letter (`"G"` is `"S-g"`);
+- Purple's names are aliases for Doom's: `Up`, `PgUp`, `F1`, `Backspace`,
+  `Delete` and so on, and `Ctrl+`, `Alt+`, `Shift+`, `Super+` for the
+  modifiers.
+
+**What your file may not do:** take or remove `ESC` or `C-g` (they always
+back out), or `C-[` in a text box; bind a digit at the start of a chord
+(digits start a count); bind Command (`s-`) chords, which the browser keeps;
+or remove the last key for `:m-x`.
+
+**When the file has an error** (EDN that does not parse, an unknown map or
+command, two entries with the same chord, a chord that runs a command and
+also starts a longer one, a value that is not a keyword, `nil` or a string),
+none of it applies: the built-in keys stay in use, and a strip above the list
+names the entry and its line. The file may be at most 64 KiB.
+
 ## For developers
 
 The engine is `web/app/src/lib/keys.svelte.js`: tokens, modes, panes,
-sequences, which-key, hints, the palette, the command and binding tables, and
-describe-key/describe-command. The commands and keys are in
-`web/app/src/lib/keymap.js`. Every action is a named command, defined once:
+sequences, which-key, hints, the palette, the command table, and
+describe-key/describe-command. The commands are in
+`web/app/src/lib/keymap.js`, each defined once:
 
     command('pin', 'Pin or unpin', run, { pane, when, need, palette, anywhere })
 
-and keys are bound to its name:
+Keys are bound to command names in `web/app/src/lib/keys.edn`, in the format
+above, and the user's file overlays it. `lib/keyfile.js` reads and checks
+both files and builds the effective map; it knows nothing of the page, so
+`keyfile.test.js` runs it under node, and checks that `keys.edn` builds
+against the commands in `keymap.js`.
 
-    bind('p', 'pin')
-    bind('SPC i p', 'pin')
-    bind('j', 'next-item', { pane: 'list' })
-
-`pane` limits a command (or one key) to `side`, `list`, `detail` or `dialog`
-(a sheet); `when` hides it when it does not apply (from which-key, `?`,
-`M-x` and `SPC SPC`), and `need` says what it needs, which `SPC h f` shows;
-`palette: false` keeps it out of `M-x`; `anywhere` lets it work inside a
-sheet. Dispatch, which-key, the pickers, the binding list and the describe
-sheets all read these two tables, so a new page or action needs only a
-`command()` to be reachable by name, and a `bind()` for a key. So a change that adds a page,
-panel or action adds its command too; otherwise the new feature is mouse-only. Most commands
-press the same button a click would: tag the button `data-cmd="name"` in its
-component and call `click('name')`, so the key and the click cannot drift
-apart. `group('SPC i', '+item')` names a prefix for which-key.
-`lib/shortcuts.js` holds the cheatsheet and the key each `data-cmd` button's
-tooltip names (`tip(label, cmd)`); update it with a key.
+`pane` limits a command to `side`, `list`, `detail` or `dialog` (a sheet);
+`when` hides it when it does not apply (from which-key, `?`, `M-x` and
+`SPC SPC`; its key then says what it needs), and `need` says what it needs,
+which `SPC h f` shows; `palette: false` keeps it out of `M-x`; `anywhere`
+lets it work inside a sheet (bind it in `:dialog` too). Dispatch, which-key,
+the pickers, the binding list, tooltips, the cheatsheet and the describe
+sheets all read the same effective map, so a new page or action needs only a
+`command()` to be reachable by name, and an entry in `keys.edn` for a key. So
+a change that adds a page, panel or action adds its command too; otherwise
+the new feature is mouse-only. Most commands press the same button a click
+would: tag the button `data-cmd="name"` in its component and call
+`click('name')`, so the key and the click cannot drift apart.
+`lib/shortcuts.js` holds the cheatsheet (rows name commands, not keys) and
+`tip(label, button)`, the tooltip naming a button's key; a button whose
+`data-cmd` differs from its command's name gets an entry in its
+`buttonCmds`.
 A disabled control says why in its tooltip: spread `off(title, [condition,
 reason]...)` from `lib/why.js` on it instead of writing `disabled=` and
 `title=` separately, so the reason cannot drift from the condition. Hover

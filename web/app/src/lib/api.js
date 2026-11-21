@@ -53,14 +53,20 @@ export async function uploadVoice(name, offset, audio) {
   }));
 }
 
-/** Calls onChange whenever the store changes; reports the connection and the server's build. */
-export function watch(onChange, onStatus, onBuild = () => {}) {
+/** Calls onChange whenever the store changes; reports the connection, the
+ * server's build and the version of the user's keys file.
+ * @param {() => void} onChange
+ * @param {(status: string) => void} onStatus
+ * @param {(build: string) => void} [onBuild]
+ * @param {(stamp: string) => void} [onKeys] */
+export function watch(onChange, onStatus, onBuild = () => {}, onKeys = () => {}) {
   let es;
   let closed = false;
   function open() {
     es = new EventSource('./api/stream');
     es.addEventListener('hello', () => onStatus('live'));
     es.addEventListener('build', (ev) => onBuild(ev.data));
+    es.addEventListener('keys', (ev) => onKeys(ev.data));
     es.addEventListener('change', () => onChange());
     es.onerror = () => {
       onStatus('reconnecting');

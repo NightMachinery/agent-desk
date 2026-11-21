@@ -12,7 +12,7 @@
   import { hold, lingerIds, moved, onLingerEnd } from './lib/linger.svelte.js';
   import { arrivalHooks, cancelArrival, routeMoved } from './lib/arrival.js';
   import { post } from './lib/api.js';
-  import { keys, ctx, pane, onkeydown } from './lib/keys.svelte.js';
+  import { keys, ctx, pane, onkeydown, loadUserKeys } from './lib/keys.svelte.js';
   import './lib/keymap.js';
   import Keys from './components/Keys.svelte';
   import Sidebar from './components/Sidebar.svelte';
@@ -145,8 +145,16 @@
         live = s;
       },
       sawBuild,
+      // The user's keys file: read on connecting, and again when it changes
+      // (announced, so a saved edit is seen to apply).
+      (stamp) => {
+        if (stamp === keysStamp) return;
+        loadUserKeys(keysStamp !== undefined);
+        keysStamp = stamp;
+      },
     ),
   );
+  let keysStamp;
 
   $effect(() => untrack(() => void loadSharedUI()));
   $effect(() => {

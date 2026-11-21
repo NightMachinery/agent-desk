@@ -1,8 +1,7 @@
-// The commands and their keys. Most commands press the same button a mouse
-// would (tagged data-cmd in the components), so a key and a click do exactly
-// the same. Each command is defined once with command(name, ...); keys are
-// bound to its name with bind(keys, name), so M-x, SPC SPC and help list a
-// command even when it has no key.
+// The commands. Most press the same button a mouse would (tagged data-cmd in
+// the components), so a key and a click do exactly the same. Each command is
+// defined once with command(name, ...); keys.edn binds keys to its name, so
+// M-x, SPC SPC and help list a command even when it has no key.
 import { moveOnTarget, ALL_CLEAR, ALL_CLEAR_KEY } from './moveon.js';
 import { route, go, pageOpen } from './route.svelte.js';
 import { nav, step } from './nav.svelte.js';
@@ -13,7 +12,7 @@ import { get, post } from './api.js';
 import { exportHref, download } from './exports.js';
 import { toggleSection, showDeliverables, deliverableModeLabel, showTasks, taskModeLabel } from './ui.svelte.js';
 import {
-  keys, ctx, command, bind, group, pane, paneEl, cmdEl, say, dialog, moveFocus, focusables, startHints, openPalette,
+  keys, ctx, command, pane, paneEl, cmdEl, say, dialog, moveFocus, focusables, startHints, openPalette, setKeymap,
   commands, commandItems, keysOf, applies, describeKey, describeCommand, setVisual, syncMode, selectedField, selectField,
 } from './keys.svelte.js';
 
@@ -554,195 +553,7 @@ C('sheet-first', 'First control', () => moveFocus(dialog(), -Infinity), { pane: 
 C('sheet-last', 'Last control', () => moveFocus(dialog(), Infinity), { pane: 'dialog' });
 C('sheet-close', 'Close the sheet', closeSheet, { pane: 'dialog' });
 
-// --- groups --------------------------------------------------------------------
-
-group('SPC', 'leader');
-group('SPC b', '+items');
-group('SPC h', '+help');
-group('SPC i', '+item');
-group('SPC n', '+node');
-group('SPC o', '+open');
-group('SPC p', '+project');
-group('SPC s', '+search');
-group('SPC t', '+toggle');
-group('SPC w', '+window');
-group('SPC x', '+select');
-group('g', '+go');
-group('y', '+yank');
-group('z', '+fold');
-group('C-w', '+window');
-
-// --- keys -------------------------------------------------------------------------
-
-// Everywhere.
-bind('?', 'cheatsheet');
-bind('SPC ?', 'bindings');
-bind('SPC h b', 'bindings');
-bind('SPC h k', 'describe-key');
-bind('SPC h f', 'describe-command');
-bind(':', 'm-x');
-bind('M-x', 'm-x');
-bind('SPC :', 'm-x', { anywhere: false });
-bind('SPC SPC', 'find');
-bind('SPC p p', 'go-node');
-bind('SPC ,', 'switch-item');
-bind('SPC b b', 'switch-item');
-bind('f', 'hints');
-bind('SPC j', 'hints', { anywhere: false });
-bind('/', 'search');
-bind('SPC s s', 'search');
-bind('SPC s c', 'search-clear');
-bind('ESC', 'escape');
-bind('C-g', 'escape');
-
-bind('n', 'next-open');
-bind('N', 'prev-open');
-bind('R', 'reply-entry');
-bind('J', 'next-item');
-bind('K', 'prev-item');
-bind('C-j', 'next-item');
-bind('C-k', 'prev-item');
-bind('-', 'up');
-bind('SPC p u', 'up');
-bind('g h', 'top');
-bind('SPC p h', 'top');
-bind('g s', 'settings');
-bind('g S', 'settings-global');
-bind('g v', 'verbatim');
-bind('g V', 'verbatim-all');
-bind('g r', 'refresh');
-bind('g R', 'reload-page');
-bind('g o', 'open-node');
-bind('g w', 'session');
-bind('g t', 'thread-root');
-bind('SPC o s', 'settings');
-bind('SPC o S', 'settings-global');
-bind('SPC o o', 'section-order');
-bind('SPC o v', 'verbatim');
-bind('SPC o V', 'verbatim-all');
-bind('SPC o r', 'recordings');
-bind('SPC o t', 'tasks');
-bind('SPC o T', 'tasks-all');
-bind('g c', 'tasks');
-bind('g C', 'tasks-all');
-bind('SPC n t', 'task-add');
-
-bind('SPC t a', 'toggle-all');
-bind('SPC t o', 'toggle-old');
-bind('SPC t d', 'deliverables-show');
-bind('SPC t t', 'tasks-show');
-bind('SPC t s', 'toggle-select');
-
-bind('SPC w h', 'pane-left');
-bind('SPC w l', 'pane-right');
-bind('SPC w w', 'pane-next');
-bind('SPC w s', 'pane-side');
-bind('SPC w d', 'pane-detail');
-bind('C-w h', 'pane-left');
-bind('C-w l', 'pane-right');
-bind('C-w w', 'pane-next');
-
-// The open item (or the selection).
-bind('a', 'answer');
-bind('SPC i a', 'answer');
-bind('r', 'message');
-bind('SPC i r', 'message');
-bind('i', 'insert');
-bind('t', 'take');
-bind('SPC i t', 'take');
-bind('d', 'read');
-bind('SPC i d', 'read');
-bind('U', 'unread');
-bind('SPC i u', 'unread');
-bind('p', 'pin');
-bind('SPC i p', 'pin');
-bind('SPC i o', 'open-node');
-bind('SPC i n', 'notify-menu');
-bind('SPC i m', 'send-menu');
-bind('SPC i g', 'deliverable-open');
-bind('SPC i G', 'deliverable-download');
-bind('SPC i w', 'deliverable-works');
-bind('SPC i x', 'draft-discard');
-bind('SPC i s', 'task-status');
-bind('SPC i z', 'task-defer');
-bind('SPC i Z', 'task-defer-quota');
-bind('y y', 'yank-link');
-bind('y i', 'yank-id');
-bind('y r', 'yank-resume');
-bind('y a', 'yank-paseo');
-bind('y p', 'yank-path');
-bind('y f', 'yank-hint');
-
-// The node page (nothing open).
-bind('SPC n m', 'node-message');
-bind('SPC n v', 'node-velocity');
-bind('SPC n r', 'node-read-all');
-bind('SPC n s', 'node-settings');
-bind('SPC n e', 'org-export-node');
-bind('SPC i e', 'org-export-item');
-bind('SPC n a', 'agent-archive');
-
-// Selecting.
-bind('x', 'select');
-bind('V', 'visual');
-bind('v', 'visual');
-bind('SPC x a', 'select-all');
-bind('SPC x c', 'select-clear');
-
-// The list.
-bind('j', 'next-item', { pane: 'list' });
-bind('k', 'prev-item', { pane: 'list' });
-bind('<down>', 'next-item', { pane: 'list' });
-bind('<up>', 'prev-item', { pane: 'list' });
-bind('g g', 'first-item');
-bind('G', 'last-item');
-bind('}', 'next-section');
-bind('{', 'prev-section');
-bind('z a', 'fold');
-bind('z c', 'fold-close');
-bind('z o', 'fold-open');
-bind('z M', 'fold-all');
-bind('z R', 'unfold-all');
-bind('C-d', 'list-half-down');
-bind('C-u', 'list-half-up');
-bind('RET', 'read-in-detail');
-bind('l', 'read-in-detail');
-bind('o', 'read-in-detail');
-bind('h', 'pane-side', { pane: 'list' });
-
-// The detail pane.
-bind('j', 'scroll-down');
-bind('k', 'scroll-up');
-bind('<down>', 'scroll-down');
-bind('<up>', 'scroll-up');
-bind('C-d', 'half-down');
-bind('C-u', 'half-up');
-bind('C-f', 'page-down');
-bind('C-b', 'page-up');
-bind('g g', 'scroll-top');
-bind('G', 'scroll-bottom');
-bind('h', 'back-to-list');
-bind('q', 'close');
-
-// The sidebar.
-bind('j', 'side-next');
-bind('k', 'side-prev');
-bind('<down>', 'side-next');
-bind('<up>', 'side-prev');
-bind('g g', 'side-first');
-bind('G', 'side-last');
-bind('l', 'side-open');
-bind('o', 'side-open');
-bind('RET', 'side-open');
-
-// A sheet.
-bind('j', 'sheet-next');
-bind('k', 'sheet-prev');
-bind('C-n', 'sheet-next');
-bind('C-p', 'sheet-prev');
-bind('<down>', 'sheet-next');
-bind('<up>', 'sheet-prev');
-bind('g g', 'sheet-first');
-bind('G', 'sheet-last');
-bind('C-g', 'sheet-close');
-bind('q', 'sheet-close');
+// --- keys ------------------------------------------------------------------------
+// Keys live in keys.edn (and the user's keys file over it); the commands
+// above must all be defined before the keymap is built against them.
+setKeymap();

@@ -1,7 +1,11 @@
 # Keymap redesign (w-v7ms): proposal
 
 @Opus5.5 [2026-11-21 Sat]. Status: approved with changes (q-nbpa, see
-"Decisions"); the map below already includes them. Nothing is built yet.
+"Decisions"); the map below already includes them. Built so far: the shared
+EDN spec (evilify skill, `evilify/keymap-edn.md`) and the loader (w-chw5):
+`web/app/src/lib/keys.edn` holds the keys as they were before the redesign,
+and the user's file overlays it ([keyboard.md](keyboard.md), "Your own
+keys"). Next: the remap (w-t1gk), then keyless commands (w-4sa8).
 
 The task: move every binding into an EDN file, let the user layer their own EDN
 file on top, agree the EDN format with the agent that evilified Purple (the
@@ -311,10 +315,9 @@ agent-desk's keymaps, most specific first:
 - `:normal`;
 - `:insert`, inside text boxes only.
 
-The shared draft is at
-`~/.agents/runs/agent-desk/build/keymap-edn-draft.md`. It went to Purple's
-coordinator agent, which built Purple's EDN reader. Once we agree, it goes
-into the evilify skill as `evilify/keymap-edn.md`.
+The shared format is published in the evilify skill as
+`evilify/keymap-edn.md`, agreed with Purple's coordinator agent, which built
+Purple's EDN reader.
 
 ## How it is built
 

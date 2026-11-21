@@ -1,0 +1,216 @@
+; agent-desk's built-in keymap, in the evilify skill's shared EDN format
+; (evilify/keymap-edn.md). keys.edn next to config.toml on the desk machine
+; (normally ~/.config/agent-desk/keys.edn) overlays it: an entry there
+; replaces the one here with the same chord, and nil removes it.
+; docs/keyboard.md describes the maps, their order and the extensions.
+;
+; The commands are defined in keymap.js. A string labels a prefix in the
+; key guide. Keys in a pane's map work only while that pane has focus, and
+; hide :normal's keys with the same chord.
+{:normal
+ {"SPC"     "leader"
+  "SPC b"   "items"
+  "SPC h"   "help"
+  "SPC i"   "item"
+  "SPC n"   "node"
+  "SPC o"   "open"
+  "SPC p"   "project"
+  "SPC s"   "search"
+  "SPC t"   "toggle"
+  "SPC w"   "window"
+  "SPC x"   "select"
+  "g"       "go"
+  "y"       "yank"
+  "C-w"     "window"
+
+  ; Help and pickers.
+  "?"       :cheatsheet
+  "SPC ?"   :bindings
+  "SPC h b" :bindings
+  "SPC h k" :describe-key
+  "SPC h f" :describe-command
+  ":"       :m-x
+  "M-x"     :m-x
+  "SPC :"   :m-x
+  "SPC SPC" :find
+  "SPC p p" :go-node
+  "SPC ,"   :switch-item
+  "SPC b b" :switch-item
+  "f"       :hints
+  "SPC j"   :hints
+  "/"       :search
+  "SPC s s" :search
+  "SPC s c" :search-clear
+  "ESC"     :escape
+  "C-g"     :escape
+
+  ; Moving.
+  "n"       :next-open
+  "N"       :prev-open
+  "R"       :reply-entry
+  "J"       :next-item
+  "K"       :prev-item
+  "C-j"     :next-item
+  "C-k"     :prev-item
+  "-"       :up
+  "SPC p u" :up
+  "g h"     :top
+  "SPC p h" :top
+
+  ; Pages.
+  "g s"     :settings
+  "g S"     :settings-global
+  "g v"     :verbatim
+  "g V"     :verbatim-all
+  "g r"     :refresh
+  "g R"     :reload-page
+  "g o"     :open-node
+  "g w"     :session
+  "g t"     :thread-root
+  "SPC o s" :settings
+  "SPC o S" :settings-global
+  "SPC o o" :section-order
+  "SPC o v" :verbatim
+  "SPC o V" :verbatim-all
+  "SPC o r" :recordings
+  "SPC o t" :tasks
+  "SPC o T" :tasks-all
+  "g c"     :tasks
+  "g C"     :tasks-all
+  "SPC n t" :task-add
+
+  ; Toggles.
+  "SPC t a" :toggle-all
+  "SPC t o" :toggle-old
+  "SPC t d" :deliverables-show
+  "SPC t t" :tasks-show
+  "SPC t s" :toggle-select
+
+  ; Panes.
+  "SPC w h" :pane-left
+  "SPC w l" :pane-right
+  "SPC w w" :pane-next
+  "SPC w s" :pane-side
+  "SPC w d" :pane-detail
+  "C-w h"   :pane-left
+  "C-w l"   :pane-right
+  "C-w w"   :pane-next
+
+  ; The open item (or the selection).
+  "a"       :answer
+  "SPC i a" :answer
+  "r"       :message
+  "SPC i r" :message
+  "i"       :insert
+  "t"       :take
+  "SPC i t" :take
+  "d"       :read
+  "SPC i d" :read
+  "U"       :unread
+  "SPC i u" :unread
+  "p"       :pin
+  "SPC i p" :pin
+  "SPC i o" :open-node
+  "SPC i n" :notify-menu
+  "SPC i m" :send-menu
+  "SPC i g" :deliverable-open
+  "SPC i G" :deliverable-download
+  "SPC i w" :deliverable-works
+  "SPC i x" :draft-discard
+  "SPC i s" :task-status
+  "SPC i z" :task-defer
+  "SPC i Z" :task-defer-quota
+  "y y"     :yank-link
+  "y i"     :yank-id
+  "y r"     :yank-resume
+  "y a"     :yank-paseo
+  "y p"     :yank-path
+  "y f"     :yank-hint
+
+  ; The node page.
+  "SPC n m" :node-message
+  "SPC n v" :node-velocity
+  "SPC n r" :node-read-all
+  "SPC n s" :node-settings
+  "SPC n e" :org-export-node
+  "SPC i e" :org-export-item
+  "SPC n a" :agent-archive
+
+  ; Selecting.
+  "x"       :select
+  "V"       :visual
+  "v"       :visual
+  "SPC x a" :select-all
+  "SPC x c" :select-clear}
+
+ :list
+ {"z"       "fold"
+  "j"       :next-item
+  "k"       :prev-item
+  "<down>"  :next-item
+  "<up>"    :prev-item
+  "g g"     :first-item
+  "G"       :last-item
+  "}"       :next-section
+  "{"       :prev-section
+  "z a"     :fold
+  "z c"     :fold-close
+  "z o"     :fold-open
+  "z M"     :fold-all
+  "z R"     :unfold-all
+  "C-d"     :list-half-down
+  "C-u"     :list-half-up
+  "RET"     :read-in-detail
+  "l"       :read-in-detail
+  "o"       :read-in-detail
+  "h"       :pane-side}
+
+ :detail
+ {"j"       :scroll-down
+  "k"       :scroll-up
+  "<down>"  :scroll-down
+  "<up>"    :scroll-up
+  "C-d"     :half-down
+  "C-u"     :half-up
+  "C-f"     :page-down
+  "C-b"     :page-up
+  "g g"     :scroll-top
+  "G"       :scroll-bottom
+  "h"       :back-to-list
+  "q"       :close}
+
+ :side
+ {"j"       :side-next
+  "k"       :side-prev
+  "<down>"  :side-next
+  "<up>"    :side-prev
+  "g g"     :side-first
+  "G"       :side-last
+  "l"       :side-open
+  "o"       :side-open
+  "RET"     :side-open}
+
+ ; While a sheet is open, only these keys work.
+ :dialog
+ {"j"       :sheet-next
+  "k"       :sheet-prev
+  "C-n"     :sheet-next
+  "C-p"     :sheet-prev
+  "<down>"  :sheet-next
+  "<up>"    :sheet-prev
+  "g g"     :sheet-first
+  "G"       :sheet-last
+  "C-g"     :sheet-close
+  "q"       :sheet-close
+  "?"       :cheatsheet
+  ":"       :m-x
+  "M-x"     :m-x
+  "f"       :hints}
+
+ ; Inside a text box. ESC, C-g and C-[ always leave it.
+ :insert
+ {"M-x"     :m-x}
+
+ ; The context maps (:task, :deliverable, ...) hold the keys typed after one
+ ; of these.
+ :localleader ["," "SPC m"]}

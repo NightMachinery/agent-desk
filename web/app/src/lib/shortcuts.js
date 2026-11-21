@@ -1,137 +1,135 @@
-// What people are taught about the keys: the cheatsheet `?` opens, and the
-// key each button's tooltip names. The bindings themselves are in keymap.js;
-// keep the two in step when a key changes.
+// What people are taught about the keys: the key each button's tooltip
+// names, and the cheatsheet `?` opens. Both read the keymap in use
+// (keys.edn and the user's file), so they name the user's keys.
+import { keyFor, keyIn } from './keys.svelte.js';
 
-/** The key for each command button (data-cmd), for its tooltip. */
-export const cmdKeys = {
-  pin: 'p',
-  'read-toggle': 'd · U',
-  dismiss: 'd',
-  undismiss: 'U',
-  'copy-link': 'y y',
-  'copy-id': 'y i',
-  'copy-resume': 'y r',
-  'copy-paseo': 'y a',
-  session: 'g w',
-  'open-node': 'g o',
-  'thread-root': 'g t',
-  quick: 't',
-  send: '⌘ RET',
-  'notify-menu': 'SPC i n',
-  'send-menu': 'SPC i m',
-  'node-settings': 'SPC n s',
-  'agent-archive': 'SPC n a',
-  'task-add': 'SPC n t',
-  'deliverables-show': 'SPC t d',
-  'tasks-show': 'SPC t t',
-  'section-order': 'SPC o o',
-  'draft-discard': 'SPC i x',
-  'deliverable-works': 'SPC i w',
-  'deliverable-open': 'SPC i g',
-  'task-status': 'SPC i s',
-  'task-defer': 'SPC i z',
-  'task-defer-quota': 'SPC i Z',
-  'reply-entry': 'R',
-  'reload-page': 'g R',
-  'message-node': 'SPC n m',
-  'read-all': 'SPC n r',
-  'velocity-report': 'SPC n v',
-  'select-mode': 'SPC t s',
-  'show-all': 'SPC t a',
-  sort: 'SPC t o',
-  search: '/',
-  'bulk-pin': 'p',
-  'bulk-unread': 'U',
-  'bulk-read': 'd',
-  close: 'q',
-  prev: 'K',
-  next: 'J',
-  'fold-needs': 'z a',
-  'fold-pinned': 'z a',
-  'fold-responses': 'z a',
-  'fold-new': 'z a',
-  'fold-tasks': 'z a',
-  'fold-deliverables': 'z a',
-  'fold-runs': 'z a',
-  'fold-deferred': 'z a',
-  'fold-quota': 'z a',
+/** The command a button (data-cmd) runs, where its name differs; a list
+ * names both directions of a toggle. */
+const buttonCmds = {
+  'read-toggle': ['read', 'unread'],
+  dismiss: 'read',
+  undismiss: 'unread',
+  'copy-link': 'yank-link',
+  'copy-id': 'yank-id',
+  'copy-resume': 'yank-resume',
+  'copy-paseo': 'yank-paseo',
+  quick: 'take',
+  'message-node': 'node-message',
+  'read-all': 'node-read-all',
+  'velocity-report': 'node-velocity',
+  'select-mode': 'toggle-select',
+  'show-all': 'toggle-all',
+  sort: 'toggle-old',
+  'bulk-pin': 'pin',
+  'bulk-unread': 'unread',
+  'bulk-read': 'read',
+  prev: 'prev-item',
+  next: 'next-item',
 };
+/** Buttons whose key is not a command's: the composer sends on its own. */
+const fixedKeys = { send: '⌘ RET' };
 
-/** A tooltip that teaches the key: "Pin to the top (p)". */
-export function tip(label, cmd) {
-  const k = cmdKeys[cmd];
+/** The key for a button, '' for none. */
+export function buttonKey(button) {
+  if (fixedKeys[button]) return fixedKeys[button];
+  const cmds = [buttonCmds[button] ?? (button.startsWith('fold-') ? 'fold' : button)].flat();
+  return cmds.map(keyFor).filter(Boolean).join(' · ');
+}
+
+/** A tooltip that teaches the key: "Pin to the top  (p)". */
+export function tip(label, button) {
+  const k = buttonKey(button);
   return k ? `${label}  (${k})` : label;
 }
 
-/** The cheatsheet: what is worth learning first, by task. */
-export const cheatsheet = [
+// A cheatsheet key: a command's key (in one map; prefer: the chord to show
+// while it is still bound to it), or a literal string.
+const k = (cmd, map = '', prefer = '') => ({ cmd, map, prefer });
+
+/** @typedef {string | {cmd: string, map: string, prefer: string}} SheetKey */
+/** The cheatsheet: what is worth learning first, by task.
+ * @type {{title: string, rows: [SheetKey[], string][]}[]} */
+const cheatsheet = [
   {
     title: 'Move',
     rows: [
-      [['j', 'k'], 'Next or previous item'],
-      [['J', 'K'], 'Next or previous, from any pane'],
-      [['n', 'N'], 'Next open item; N retraces your n steps'],
-      [['g g', 'G'], 'First or last item'],
-      [['}', '{'], 'Next or previous section'],
-      [['C-d', 'C-u'], 'Half a page down or up'],
+      [[k('next-item', 'list'), k('prev-item', 'list')], 'Next or previous item'],
+      [[k('next-item', 'normal'), k('prev-item', 'normal')], 'Next or previous, from any pane'],
+      [[k('next-open'), k('prev-open')], 'Next open item, or back along those steps'],
+      [[k('first-item'), k('last-item')], 'First or last item'],
+      [[k('next-section'), k('prev-section')], 'Next or previous section'],
+      [[k('list-half-down'), k('list-half-up')], 'Half a page down or up'],
       [['5j'], 'A count repeats a motion'],
     ],
   },
   {
     title: 'The open item',
     rows: [
-      [['a'], 'Answer the question'],
-      [['t'], 'Take the recommendation or default'],
-      [['R'], 'Reply to an entry of its conversation'],
-      [['r'], 'Message its agent'],
-      [['d', 'U'], 'Read (dismiss) or unread'],
-      [['p'], 'Pin or unpin'],
-      [['q'], 'Close it'],
+      [[k('answer')], 'Answer the question'],
+      [[k('take')], 'Take the recommendation or default'],
+      [[k('reply-entry')], 'Reply to an entry of its conversation'],
+      [[k('message')], 'Message its agent'],
+      [[k('read'), k('unread')], 'Read (dismiss) or unread'],
+      [[k('pin')], 'Pin or unpin'],
+      [[k('close')], 'Close it'],
     ],
   },
   {
     title: 'Copy and go',
     rows: [
-      [['y y'], 'Link to the item'],
-      [['y a'], "Its agent's Paseo id"],
-      [['y f'], 'Any event on screen, by hint: its id and text'],
-      [['y r'], "Its session's resume command"],
-      [['g o'], 'Its node'],
-      [['g w'], 'Everything its session wrote'],
-      [['-'], 'Up one level'],
+      [[k('yank-link')], 'Link to the item'],
+      [[k('yank-paseo')], "Its agent's Paseo id"],
+      [[k('yank-hint')], 'Any event on screen, by hint: its id and text'],
+      [[k('yank-resume')], "Its session's resume command"],
+      [[k('open-node')], 'Its node'],
+      [[k('session')], 'Everything its session wrote'],
+      [[k('up')], 'Up one level'],
     ],
   },
   {
     title: 'Leader',
     rows: [
-      [['SPC SPC'], 'Any command or place, by name'],
-      [['M-x', ':'], 'Commands only, by name'],
-      [['SPC ,'], 'Switch to an item'],
+      [[k('find')], 'Any command or place, by name'],
+      [[k('m-x', 'normal', 'M-x'), k('m-x', 'normal', ':')], 'Commands only, by name'],
+      [[k('switch-item')], 'Switch to an item'],
       [['SPC i', 'SPC n'], 'Item and node commands'],
-      [['g v', 'SPC o'], 'Verbatim log; open pages'],
-      [['SPC h k', 'SPC h f'], 'What a key or command does'],
+      [[k('verbatim'), 'SPC o'], 'Verbatim log; open pages'],
+      [[k('describe-key'), k('describe-command')], 'What a key or command does'],
     ],
   },
   {
     title: 'Sections and panes',
     rows: [
-      [['z a'], 'Fold or unfold this section'],
-      [['z M', 'z R'], 'Fold or unfold all'],
-      [['C-w h', 'C-w l'], 'Pane to the left or right'],
-      [['l', 'h'], 'Into the item, back to the list'],
-      [['/'], 'Search'],
-      [['g r'], 'Refresh'],
+      [[k('fold')], 'Fold or unfold this section'],
+      [[k('fold-all'), k('unfold-all')], 'Fold or unfold all'],
+      [[k('pane-left'), k('pane-right')], 'Pane to the left or right'],
+      [[k('read-in-detail', 'list', 'l'), k('back-to-list')], 'Into the item, back to the list'],
+      [[k('search')], 'Search'],
+      [[k('refresh')], 'Refresh'],
     ],
   },
   {
     title: 'Select, hints and typing',
     rows: [
-      [['x'], 'Select the item'],
-      [['V'], 'Visual mode: select by moving'],
-      [['f'], 'Hints: click anything by label'],
-      [['i'], 'Back into the box Esc left, else the first message box'],
+      [[k('select')], 'Select the item'],
+      [[k('visual')], 'Visual mode: select by moving'],
+      [[k('hints')], 'Hints: click anything by label'],
+      [[k('insert')], 'Back into the box Esc left, else the first message box'],
       [['⌘ RET'], 'Send'],
       [['Esc', 'C-g'], 'Leave a box; back out one step'],
     ],
   },
 ];
+
+/** The cheatsheet with the keys in use; a row whose commands have no key
+ * is left out. */
+export function cheatsheetNow() {
+  return cheatsheet
+    .map((c) => ({
+      title: c.title,
+      rows: c.rows
+        .map(([ks, desc]) => [ks.map((x) => (typeof x === 'string' ? x : keyIn(x.cmd, x.map, x.prefer))).filter(Boolean), desc])
+        .filter(([ks]) => ks.length),
+    }))
+    .filter((c) => c.rows.length);
+}

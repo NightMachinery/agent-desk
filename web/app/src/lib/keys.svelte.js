@@ -6,15 +6,18 @@
 // that is the start of longer bindings waits for the next key and, after a
 // moment, shows the which-key popup listing what can follow.
 //
-// Every action is a named command (command()); a key sequence is bound to a
-// command name (bind()). Dispatch, which-key, M-x, SPC SPC, the binding list
-// and describe-key/describe-command all read these two tables, so a command
-// with no key is still reachable by name. Bindings belong to a pane (side,
-// list, detail, or dialog while a sheet is open) or to all of them. The keymap
-// itself is in keymap.js.
+// Every action is a named command (command(), in keymap.js); keys are bound
+// to command names in keymap files: keys.edn, built in, and the user's file
+// over it (keyfile.js reads and checks them; docs/keyboard.md). Dispatch,
+// which-key, M-x, SPC SPC, the binding list, tooltips and
+// describe-key/describe-command all read the same effective map, so a
+// command with no key is still reachable by name.
 
 import { route, pageOpen } from './route.svelte.js';
 import { rank, narrow as narrowItems, load as loadHistory, save as saveHistory, record, step } from './mx.js';
+import { readKeyFile, buildKeymap, effective as effectiveOf, lookup, allBindings, primaryKey, KeymapError } from './keyfile.js';
+import { get } from './api.js';
+import BASE from './keys.edn?raw';
 
 export const keys = $state({
   mode: 'normal', // normal, insert, visual
@@ -41,16 +44,14 @@ export const ctx = {
   /** @returns {any} */ item: () => null,
   /** @returns {any} */ view: () => null,
   /** @returns {any[]} */ runs: () => [],
+  /** The context map for what is open (task, settings, ...), or ''. */
+  context: () => '',
 };
 
 /** @typedef {{name: string, desc: string, run: (n: number) => any, pane?: string, when?: () => any, need?: string, palette?: boolean, anywhere?: boolean}} Command */
-/** @typedef {{keys: string, seq: string[], cmd: string, desc: string, run: (n: number) => any, pane?: string, when?: () => any, anywhere?: boolean}} Binding */
+/** @typedef {import('./keyfile.js').Binding} Binding */
 /** @type {Map<string, Command>} */
 export const commands = new Map();
-/** @type {Binding[]} */
-export const bindings = [];
-/** @type {Record<string, string>} prefix -> group name */
-export const groups = {};
 
 /** Defines a command. opts: pane (it acts on that pane only), when (it
  * applies only while this is true), need (what it needs, said when it does
@@ -61,16 +62,101 @@ export function command(name, desc, run, opts = {}) {
   commands.set(name, { name, desc, run, ...opts });
 }
 
-/** Binds a key sequence to a command. opts.pane limits this key to a pane
- * (the command's own pane otherwise). */
-export function bind(seq, name, opts = {}) {
-  const c = commands.get(name);
-  if (!c) throw new Error(`bind ${seq}: no command ${name}`);
-  bindings.push({ keys: seq, seq: seq.split(' '), cmd: name, desc: c.desc, run: c.run, when: c.when, pane: opts.pane ?? c.pane, anywhere: opts.anywhere ?? c.anywhere });
+// --- the keymap ----------------------------------------------------------------
+
+/** How the keymap stands: version (bumped on every rebuild, so what shows
+ * keys recomputes), the user's file (path, whether it is applied) and why
+ * it was not (error). */
+export const keymap = $state({ version: 0, path: '', applied: false, error: '', dismissed: '' });
+/** @type {import('./keyfile.js').Keymap} */
+let km = null;
+/** @type {Binding[]} */
+let all = [];
+let effs = new Map();
+let primary = new Map();
+
+/** Builds the keymap from keys.edn and the user's file (text null: none).
+ * A user file with any error is left out whole, and keymap.error names the
+ * entry and its line. Run once the commands are defined. */
+export function setKeymap(text = null, path = '', failed = '') {
+  const base = readKeyFile(BASE); // a broken built-in file is a bug: it throws
+  let built = null;
+  let error = failed;
+  if (text != null && !error) {
+    try {
+      built = buildKeymap(base, readKeyFile(text), commands);
+    } catch (err) {
+      if (!(err instanceof KeymapError)) throw err;
+      error = err.entry ? `${err.entry}${lineOf(text, err.entry)}: ${err.reason}` : err.message;
+    }
+  }
+  km = built ?? buildKeymap(base, null, commands);
+  all = allBindings(km);
+  effs = new Map();
+  primary = new Map();
+  reset();
+  Object.assign(keymap, { version: km.version, path, applied: !!built, error });
 }
-export function group(prefix, name) {
-  groups[prefix] = name;
+
+/** " (line N)" for the first line naming the entry's chord, else "". */
+function lineOf(text, entry) {
+  const chord = /"(?:[^"\\]|\\.)*"$/.exec(entry ?? '')?.[0];
+  const map = /^:[a-z-]+/.exec(entry ?? '')?.[0];
+  const needle = chord ?? map;
+  if (!needle) return '';
+  const i = text.split('\n').findIndex((l) => l.includes(needle));
+  return i < 0 ? '' : ` (line ${i + 1})`;
 }
+
+/** Reads the user's keys file from the server and applies it. */
+export async function loadUserKeys(announce = false) {
+  let r;
+  try {
+    r = await get('keys');
+  } catch {
+    return; // offline: keep what is in use
+  }
+  const before = keymap.applied;
+  if (!r.exists) setKeymap(null, r.path);
+  else setKeymap(r.text ?? '', r.path, r.error ? `${r.error}` : '');
+  if (announce && keymap.applied) say('Your keys file is applied');
+  else if (announce && before && !r.exists) say('Your keys file is gone: the built-in keys are in use');
+}
+
+/** The state the effective map depends on. */
+function now(insert = false) {
+  const p = pane();
+  return { insert, dialog: p === 'dialog', pane: p, context: p === 'dialog' || insert ? '' : ctx.context() };
+}
+/** The effective map for state (keyfile.js), cached per state. */
+function eff(state = now()) {
+  const k = `${state.insert}|${state.dialog}|${state.pane}|${state.context}`;
+  let e = effs.get(k);
+  if (!e) effs.set(k, (e = effectiveOf(km, state)));
+  return e;
+}
+// The effective map a sequence started with: a focus change halfway through
+// a chord does not change what it means.
+let frozen = null;
+const current = () => frozen ?? eff();
+
+/** The key a tooltip names for a command ('' for none). */
+export function keyFor(name) {
+  keymap.version;
+  if (!km) return '';
+  if (!primary.has(name)) primary.set(name, primaryKey(km, name, all));
+  return primary.get(name);
+}
+/** keyFor within one map; prefer: a chord to name instead while it is still
+ * bound to the command there. */
+export function keyIn(name, map = '', prefer = '') {
+  keymap.version;
+  const bs = all.filter((b) => b.cmd === name && (!map || b.map === map));
+  if (prefer && bs.some((b) => b.keys === prefer)) return prefer;
+  return bs.sort((a, b) => a.seq.length - b.seq.length)[0]?.keys ?? '';
+}
+/** Whether a command is left without a key on purpose (:keyless). */
+export const keyless = (name) => (keymap.version, !!km?.keyless.has(name));
 
 // --- tokens ------------------------------------------------------------------
 
@@ -152,43 +238,43 @@ export function say(text, ms = 2200) {
 }
 let sayTimer;
 
-// In a sheet only its own bindings apply, and the few marked anywhere.
-const active = (b) => (b.pane ? b.pane === pane() : pane() !== 'dialog' || b.anywhere) && (!b.when || b.when());
-const starts = (seq, pre) => pre.every((t, i) => seq[i] === t);
+// A command applies in a pane (its own, if it names one; in a sheet only if
+// it works anywhere) while its condition holds.
+const active = (c) => (c.pane ? c.pane === pane() : pane() !== 'dialog' || c.anywhere) && (!c.when || c.when());
+const starts = (seq, pre) => pre.length < seq.length && pre.every((t, i) => seq[i] === t);
+const cmdOf = (b) => commands.get(b.cmd);
 
-/** The binding for seq exactly, a pane's own before the global one. */
-function exact(seq) {
-  const p = pane();
-  const hit = bindings.filter((b) => b.seq.length === seq.length && starts(b.seq, seq) && active(b));
-  return hit.find((b) => b.pane === p) ?? hit[0];
-}
-const isPrefix = (seq) => bindings.some((b) => b.seq.length > seq.length && starts(b.seq, seq) && active(b));
-
-/** What may follow prefix, for which-key: [{key, desc, group}]. */
+/** What may follow prefix, for which-key: [{key, desc, group}], leaving out
+ * commands that do not apply here. */
 export function continuations(prefix) {
+  const e = current();
   const out = new Map();
-  for (const b of bindings) {
-    if (b.seq.length <= prefix.length || !starts(b.seq, prefix) || !active(b)) continue;
+  for (const b of e.binds) {
+    if (!starts(b.seq, prefix) || !active(cmdOf(b))) continue;
     const k = b.seq[prefix.length];
     if (b.seq.length === prefix.length + 1) {
-      if (!out.has(k) || out.get(k).group) out.set(k, { key: k, desc: b.desc, group: false });
+      if (!out.has(k) || out.get(k).group) out.set(k, { key: k, desc: cmdOf(b).desc, group: false });
     } else if (!out.has(k)) {
-      out.set(k, { key: k, desc: groups[[...prefix, k].join(' ')] ?? '+prefix', group: true });
+      out.set(k, { key: k, desc: '+' + (e.labels.get([...prefix, k].join(' ')) ?? 'prefix'), group: true });
     }
   }
   return [...out.values()].sort((a, b) => sortKey(a.key).localeCompare(sortKey(b.key)));
 }
+
+/** A prefix's label in the key guide ('' for none). */
+export const labelOf = (prefix) => (keymap.version, current().labels.get(prefix) ?? '');
 // Letters before punctuation, lower case before upper, as which-key does.
 const sortKey = (k) => (/^[a-z]$/.test(k) ? '0' + k : /^[A-Z]$/.test(k) ? '1' + k.toLowerCase() + k : '2' + k);
 
-/** Every binding that applies now, for the binding list. */
-export const activeBindings = () => bindings.filter(active);
+/** Every binding that applies now, for the binding list: {keys, seq, cmd,
+ * map, desc}. */
+export const activeBindings = () => eff().binds.filter((b) => active(cmdOf(b))).map((b) => ({ ...b, desc: cmdOf(b).desc }));
 
 /** Whether a command can run here now. */
 export const applies = (c) => active(c);
 
-/** The keys that run command name here, or with all = true anywhere. */
-export const keysOf = (name, all = false) => bindings.filter((b) => b.cmd === name && (all || active(b))).map((b) => b.keys);
+/** The keys that run command name here, or with anywhere = true in any map. */
+export const keysOf = (name, anywhere = false) => (anywhere ? all : eff().binds).filter((b) => b.cmd === name).map((b) => b.keys);
 
 /** The commands offered by name: those that apply here, each with the keys
  * that run it (M-x ranks them; see mx.js). */
@@ -222,7 +308,11 @@ function captureKey(e, tok) {
     return say('Cancelled');
   }
   const seq = [...keys.pending, tok];
-  if (isPrefix(seq) || (!exact(seq) && bindings.some((b) => b.seq.length > seq.length && starts(b.seq, seq)))) {
+  const ef = current();
+  const { hit, more } = lookup(ef, seq);
+  // Keep reading while the keys start a binding here, or one elsewhere.
+  if (more || (!hit && all.some((b) => starts(b.seq, seq)))) {
+    frozen = ef;
     keys.pending = seq;
     return;
   }
@@ -244,19 +334,20 @@ export function describeCommand(name) {
  * applies here. */
 export function description(d) {
   if (!d) return null;
+  keymap.version;
   if (d.keys) {
-    const seq = d.keys.split(' ');
-    const here = exact(seq);
-    const elsewhere = bindings.filter((b) => b.keys === d.keys && b !== here);
-    return { keys: d.keys, cmd: here ? commands.get(here.cmd) : null, elsewhere: elsewhere.map((b) => ({ desc: b.desc, cmd: b.cmd, pane: b.pane })) };
+    const here = lookup(eff(), d.keys.split(' ')).hit;
+    const elsewhere = all.filter((b) => b.keys === d.keys && !(here && b.map === here.map));
+    return { keys: d.keys, cmd: here ? cmdOf(here) : null, elsewhere: elsewhere.map((b) => ({ desc: cmdOf(b).desc, cmd: b.cmd, map: b.map })) };
   }
   const c = commands.get(d.cmd ?? '');
   if (!c) return null;
   return {
     cmd: c,
     here: keysOf(c.name),
-    all: bindings.filter((b) => b.cmd === c.name).map((b) => ({ keys: b.keys, pane: b.pane })),
+    all: all.filter((b) => b.cmd === c.name).map((b) => ({ keys: b.keys, map: b.map })),
     applies: applies(c),
+    keyless: km?.keyless.has(c.name) ?? false,
   };
 }
 
@@ -264,16 +355,27 @@ export function description(d) {
 
 let whichTimer;
 function reset() {
+  frozen = null;
   keys.pending = [];
   keys.count = '';
   keys.which = false;
   clearTimeout(whichTimer);
 }
 
-function run(b, n) {
+/** Runs the command a binding names, or says why it does not apply here. */
+function fire(b, n) {
+  const c = cmdOf(b);
+  if (!active(c)) {
+    reset();
+    return say(c.need ? `Needs ${c.need}` : `${c.desc}: not here`);
+  }
+  run(c, n);
+}
+
+function run(c, n) {
   reset();
   try {
-    const r = b.run(n);
+    const r = c.run(n);
     if (r instanceof Promise) r.catch((err) => say(String(err?.message ?? err)));
   } catch (err) {
     say(String(err?.message ?? err));
@@ -316,17 +418,18 @@ export function onkeydown(e) {
     return;
   }
   const seq = [...keys.pending, tok];
-  const b = exact(seq);
-  const more = isPrefix(seq);
-  if (b && !more) {
+  const ef = current();
+  const { hit, more } = lookup(ef, seq);
+  if (hit && !more) {
     e.preventDefault();
     keys.used = true;
-    run(b, Math.max(1, parseInt(keys.count || '1', 10)));
+    fire(hit, Math.max(1, parseInt(keys.count || '1', 10)));
     return;
   }
   if (more) {
     e.preventDefault();
     keys.used = true;
+    frozen = ef;
     keys.pending = seq;
     clearTimeout(whichTimer);
     whichTimer = setTimeout(() => (keys.which = true), 300);
@@ -339,16 +442,31 @@ export function onkeydown(e) {
   reset();
 }
 
-/** Insert mode: the field keeps its keys, except those that leave it.
+/** Insert mode: the field keeps its keys, except those that leave it and
+ * the :insert map's chords (M-x: cancelling it comes back to this field).
  * Sending is the composer's own ⌘/Ctrl+Enter. */
 function insertKey(e, tok, el) {
   if (tok === 'ESC' || tok === 'C-g' || tok === 'C-[') {
     e.preventDefault();
-    leaveField(el);
-  } else if (tok === 'M-x' && commands.has('m-x')) {
-    // M-x works while typing too; cancelling it comes back to this field.
+    reset();
+    return leaveField(el);
+  }
+  const seq = [...keys.pending, tok];
+  const ef = frozen ?? eff(now(true));
+  const { hit, more } = lookup(ef, seq);
+  if (more) {
     e.preventDefault();
-    run(commands.get('m-x'), 1);
+    frozen = ef;
+    keys.pending = seq;
+    clearTimeout(whichTimer);
+    whichTimer = setTimeout(() => (keys.which = true), 300);
+  } else if (hit) {
+    e.preventDefault();
+    fire(hit, 1);
+  } else if (keys.pending.length) {
+    e.preventDefault();
+    say(`${seq.join(' ')} is undefined`);
+    reset();
   }
 }
 
@@ -384,8 +502,10 @@ export function leaveField(el, to = /** @type {HTMLElement | null} */ (null)) {
 export function syncMode() {
   keys.mode = typing(document.activeElement) ? 'insert' : keys.anchor ? 'visual' : 'normal';
 }
+// A focus change cancels a sequence halfway through.
 document.addEventListener('focusin', () => {
   if (typing(document.activeElement)) selectField(null);
+  if (keys.pending.length) reset();
   syncMode();
 });
 document.addEventListener('focusout', () => queueMicrotask(syncMode));

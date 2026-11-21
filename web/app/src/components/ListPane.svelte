@@ -25,7 +25,7 @@
   import { ui, toggleSection, deliverableModes, deliverableModeLabel, showDeliverables, orderedSections, taskModes, taskModeLabel, taskSpans, showTasks } from '../lib/ui.svelte.js';
   import { hide, show, settle, unhidden } from '../lib/hiding.svelte.js';
   import { hasDraft } from '../lib/drafts.js';
-  import { runCommand } from '../lib/keys.svelte.js';
+  import { runCommand, keymap } from '../lib/keys.svelte.js';
   import { off } from '../lib/why.js';
 
 
@@ -214,6 +214,12 @@
       <div class="update" role="status">
         <span>The dashboard has been updated; this page still runs the old version.</span>
         <button class="btn small primary" data-cmd="reload-page" onclick={() => location.reload()} title={tip('Reload the page; drafts are kept', 'reload-page')}>Reload</button>
+      </div>
+    {/if}
+    {#if keymap.error && keymap.dismissed !== keymap.error}
+      <div class="update keys-bad" role="alert">
+        <span>Your keys file <span class="mono">{keymap.path}</span> was not applied, so the built-in keys are in use. {keymap.error}</span>
+        <button class="btn small ghost" data-keys="none" onclick={() => (keymap.dismissed = keymap.error)}>Dismiss</button>
       </div>
     {/if}
     <PushNudge />
@@ -771,5 +777,8 @@
     border-radius: var(--radius);
     background: var(--accent-soft);
     font-size: 13px;
+  }
+  .keys-bad {
+    background: var(--blocked-soft);
   }
 </style>

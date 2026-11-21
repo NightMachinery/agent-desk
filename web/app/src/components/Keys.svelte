@@ -1,8 +1,9 @@
 <script>
-  import { cheatsheet } from '../lib/shortcuts.js';
+  import { cheatsheetNow } from '../lib/shortcuts.js';
   // What the keyboard layer draws: the mode line, the which-key popup, the
   // list of every binding, the M-x palette and the link hints.
-  import { keys, pane, continuations, activeBindings, matches, closePalette, paletteHistory, groups, description, describeCommand } from '../lib/keys.svelte.js';
+  import { keys, pane, continuations, activeBindings, matches, closePalette, paletteHistory, labelOf, description, describeCommand } from '../lib/keys.svelte.js';
+  import { PANES, CONTEXTS } from '../lib/keyfile.js';
   import { route } from '../lib/route.svelte.js';
   import { position } from '../lib/nav.svelte.js';
   import { sel } from '../lib/select.svelte.js';
@@ -19,6 +20,11 @@
     return pane();
   });
   const paneName = { side: 'sidebar', list: 'list', detail: 'detail', dialog: 'sheet' };
+  const ctxName = {
+    task: 'a task', deliverable: 'a deliverable', screen: 'a screen request', message: 'a message',
+    quota: 'an agent out of quota', settings: 'Settings', verbatim: 'the Verbatim log',
+  };
+  const sheet = $derived(keys.help === 'sheet' ? cheatsheetNow() : []);
 
   // The palette.
   const shown = $derived(keys.palette ? matches(keys.palette).slice(0, 200) : []);
@@ -58,14 +64,24 @@
     keys.tick;
     return keys.help === 'describe' ? description(keys.describe) : null;
   });
-  const where = (p) => (p ? `in the ${paneName[p]}` : 'everywhere');
+  // Where a binding of a named map works.
+  const where = (m) =>
+    m === 'normal' ? 'everywhere'
+    : PANES.includes(m) || m === 'dialog' ? `in the ${paneName[m]}`
+    : m === 'insert' ? 'in a text box'
+    : CONTEXTS.includes(m) ? `with ${ctxName[m]} open, after the localleader`
+    : m;
 
   // The help sheet: every binding that applies now, by context.
   const helpGroups = $derived.by(() => {
     if (keys.help !== 'all') return [];
     const by = new Map();
     for (const b of activeBindings()) {
-      const where = b.pane ? `In the ${paneName[b.pane]}` : b.seq[0] === 'SPC' ? `Leader: ${groups[b.seq.slice(0, 2).join(' ')] ?? 'SPC'}` : 'Everywhere';
+      const where =
+        CONTEXTS.includes(b.map) ? `Localleader: ${ctxName[b.map]}`
+        : b.map !== 'normal' ? `In the ${paneName[b.map] ?? b.map}`
+        : b.seq[0] === 'SPC' ? `Leader: ${labelOf(b.seq.slice(0, 2).join(' ')) || 'SPC'}`
+        : 'Everywhere';
       if (!by.has(where)) by.set(where, new Map());
       const m = by.get(where);
       m.set(b.desc, [...(m.get(b.desc) ?? []), b.keys]);
@@ -76,7 +92,7 @@
 
 {#if keys.which && which.length}
   <div class="keys-overlay whichkey" role="status">
-    <div class="wk-head"><kbd>{keys.pending.join(' ')}</kbd><span class="faint">{groups[keys.pending.join(' ')] ?? ''}</span></div>
+    <div class="wk-head"><kbd>{keys.pending.join(' ')}</kbd><span class="faint">{labelOf(keys.pending.join(' '))}</span></div>
     <div class="wk-grid">
       {#each which as w (w.key)}
         <div class="wk"><kbd>{w.key}</kbd><span class="arrow">→</span><span class:grp={w.group}>{w.desc}</span></div>
@@ -93,12 +109,12 @@
         <span class="faint"><kbd>TAB</kbd> every key for here · <kbd>q</kbd> close</span>
       </div>
       <div class="cards">
-        {#each cheatsheet as c (c.title)}
+        {#each sheet as c (c.title)}
           <section class="card">
             <h4>{c.title}</h4>
             {#each c.rows as [ks, desc] (desc)}
               <div class="cs-row">
-                <span class="cs-keys">{#each ks as k, i (k)}{#if i}<span class="or">/</span>{/if}<kbd>{k}</kbd>{/each}</span>
+                <span class="cs-keys">{#each ks as k, i (i)}{#if i}<span class="or">/</span>{/if}<kbd>{k}</kbd>{/each}</span>
                 <span>{desc}</span>
               </div>
             {/each}
@@ -129,7 +145,7 @@
         {#if desc.elsewhere.length}
           <p class="faint">Elsewhere:</p>
           <ul>
-            {#each desc.elsewhere as o, i (i)}<li>{o.desc} <span class="faint">({where(o.pane)}, <span class="mono">{o.cmd}</span>)</span></li>{/each}
+            {#each desc.elsewhere as o, i (i)}<li>{o.desc} <span class="faint">({where(o.map)}, <span class="mono">{o.cmd}</span>)</span></li>{/each}
           </ul>
         {/if}
       {:else}
@@ -142,10 +158,10 @@
         {#if desc.all.length}
           <p class="faint">Every key for it:</p>
           <ul>
-            {#each desc.all as b, i (i)}<li><kbd>{b.keys}</kbd> <span class="faint">{where(b.pane)}</span></li>{/each}
+            {#each desc.all as b, i (i)}<li><kbd>{b.keys}</kbd> <span class="faint">{where(b.map)}</span></li>{/each}
           </ul>
         {:else}
-          <p class="faint">It has no key; SPC SPC or M-x runs it by name.</p>
+          <p class="faint">It has no key{desc.keyless ? ', on purpose' : ''}; SPC SPC or M-x runs it by name.</p>
         {/if}
       {/if}
     </div>
