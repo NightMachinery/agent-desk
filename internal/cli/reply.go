@@ -245,3 +245,55 @@ func (a *App) replyPrompt(target, name string) (string, error) {
 	}
 	return prompts.Render(a.promptsDir(), file, data)
 }
+
+// coordinatorUnder is the node to tell about something filed at a node no
+// agent holds, a project or a run: the coordinator working under it. A
+// coordinator holds a node three deep (<project>/<run>/<role>); of those
+// with an agent joined, one that has not filed a done report since it
+// joined comes first, then the one whose work (its own events or its
+// workers') is newest. ok is false when no agent ever joined under it.
+func coordinatorUnder(d *desk.Desk, prefix string) (string, bool) {
+	prefix = strings.Trim(prefix, "/")
+	if prefix == "" || strings.HasPrefix(prefix, "_desk") {
+		return "", false
+	}
+	type cand struct {
+		last     int  // index of the newest event at or below it
+		joined   int  // index of its latest join, -1 for none
+		finished bool // a done at the node after that join
+	}
+	cands := map[string]*cand{}
+	for i, e := range d.Events {
+		if !desk.Under(e.Path, prefix) {
+			continue
+		}
+		parts := strings.SplitN(desk.NodeOf(e), "/", 4)
+		if len(parts) < 3 {
+			continue
+		}
+		key := strings.Join(parts[:3], "/")
+		c := cands[key]
+		if c == nil {
+			c = &cand{joined: -1}
+			cands[key] = c
+		}
+		c.last = i
+		at := desk.NodeOf(e) == key
+		switch {
+		case e.Kind == "join" && at:
+			c.joined, c.finished = i, false
+		case e.Kind == "done" && at && c.joined >= 0:
+			c.finished = true
+		}
+	}
+	best, bestC := "", (*cand)(nil)
+	for key, c := range cands {
+		if c.joined < 0 {
+			continue
+		}
+		if bestC == nil || (bestC.finished && !c.finished) || (bestC.finished == c.finished && c.last > bestC.last) {
+			best, bestC = key, c
+		}
+	}
+	return best, bestC != nil
+}

@@ -937,6 +937,10 @@ type Target struct {
 	Pushed bool `json:"pushed,omitempty"`
 	// RemoteLabel is the config's name for the remote channel.
 	RemoteLabel string `json:"remote_label,omitempty"`
+	// For is the node asked for when Node is the coordinator working under
+	// it (api/target?coordinator=1 on a project or run, which no agent
+	// holds).
+	For string `json:"for,omitempty"`
 	to          ident.From
 }
 
@@ -1171,7 +1175,17 @@ func (s *server) apiTarget(w http.ResponseWriter, r *http.Request) {
 	if d == nil {
 		return
 	}
-	t, err := targetOf(d, r.URL.Query().Get("to"))
+	to := r.URL.Query().Get("to")
+	t, err := targetOf(d, to)
+	// Something filed at a project or a run (New task) is for the
+	// coordinator working under it.
+	if err != nil && r.URL.Query().Get("coordinator") == "1" {
+		if node, ok := coordinatorUnder(d, to); ok {
+			if t, err = targetOf(d, node); err == nil {
+				t.For = strings.Trim(to, "/")
+			}
+		}
+	}
 	if err != nil {
 		jsonError(w, http.StatusNotFound, err.Error())
 		return

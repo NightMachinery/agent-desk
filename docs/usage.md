@@ -933,8 +933,12 @@ or reopens it; clicking its title shows its brief with Start, Drop and
 Open. **New task** (`SPC n t`, or "+ New" on a node page) files one at any
 project, run or agent: a title, a type, an optional parent, details and
 tags.
-When the node has a coordinator, "Message its coordinator about it" (on by
-default) also sends it a message naming the task, so it acts on it now.
+"Message its coordinator about it" (on by default) also sends a message
+naming the task, so an agent acts on it now: to the node's own agent, or,
+for a project or a run (which no agent holds), to the coordinator working
+under it, the newest one that has not filed its done report. The form
+names that coordinator, and says in red when no agent works under the node,
+so nobody would be told.
 
 A deferred task waits for quota to spare. It carries a brief (stdin), and
 optionally `--size S|M|L`, `--priority 1|2|3` (1 first), `--profile NAME`

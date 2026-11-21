@@ -146,21 +146,28 @@
     if (!adding) return;
     if (!node) node = nodes.some((n) => n.path === path) ? path : '';
   });
-  // Whether the node has a coordinator to tell.
+  // Who to tell: the node's agent, or for a project or a run (which no
+  // agent holds) the coordinator working under it. targetFor says which
+  // node is being looked up, so a stale answer never shows.
+  let targetFor = $state('');
   $effect(() => {
     const at = node;
     target = null;
+    targetFor = '';
     if (!adding || !at) return;
-    get('target', { to: at }).then(
-      (t) => node === at && (target = t),
-      () => {},
+    get('target', { to: at, coordinator: '1' }).then(
+      (t) => node === at && ((target = t), (targetFor = at)),
+      () => node === at && (targetFor = at),
     );
   });
   const parents = $derived(tasks.filter((t) => t.event.path === node && ACTIVE.has(t.state) && !t.parent));
 
   function message(id) {
     const what = newType === 'task' ? 'task' : newType;
-    return `The user filed a ${what} for you on the desk: ${id} "${title.trim()}".` + (brief.trim() ? `\n\n${brief.trim()}` : '') +
+    const filed = target?.for
+      ? `The user filed a ${what} at ${node} on the desk, and you are the coordinator working under it: ${id} "${title.trim()}".`
+      : `The user filed a ${what} for you on the desk: ${id} "${title.trim()}".`;
+    return filed + (brief.trim() ? `\n\n${brief.trim()}` : '') +
       `\n\nIt is on your task list (agent-desk task list). Mark it with agent-desk task start ${id} and agent-desk task done ${id}.`;
   }
 
@@ -172,10 +179,11 @@
       const res = await post('task', { action: 'add', to: node, title: title.trim(), type: newType, text: brief, parent, tags: tagList(newTags) });
       let told = '';
       if (tell && target) {
-        const choice = await chooseSendCache('reply', node);
+        const to = target.node;
+        const choice = await chooseSendCache('reply', to);
         if (choice !== 'cancel') {
-          queueMessage('reply', { to: node, text: message(res.id), ...(choice === 'compact' && { after_compaction: true }) }, node, { quiet: true });
-          told = ' and told its coordinator';
+          queueMessage('reply', { to, text: message(res.id), ...(choice === 'compact' && { after_compaction: true }) }, to, { quiet: true });
+          told = ` and told ${to}`;
         }
       }
       toast(`Filed ${res.id}${told}.`, 'ok', 6000);
@@ -246,9 +254,10 @@
       <input class="input" placeholder="Tags (optional): ui, phone" bind:value={newTags} aria-label="Tags" autocomplete="off" />
       <div class="row2">
         {#if target}
-          <label class="check"><input type="checkbox" bind:checked={tell} /> Message its coordinator about it</label>
-        {:else if node}
-          <span class="faint">No coordinator to message there; it waits on the list.</span>
+          <label class="check"><input type="checkbox" bind:checked={tell} />
+            <span>{#if target.for}Message <span class="mono">{target.node}</span>, the coordinator working under it, about it{:else}Message its coordinator about it{/if}</span></label>
+        {:else if node && targetFor === node}
+          <span class="warn">No agent works under {node}, so nobody will be told: it waits on the list until an agent looks.</span>
         {/if}
         <span class="spacer"></span>
         <span class="faint hint">⌘↵ to file</span>
@@ -341,6 +350,10 @@
 </section>
 
 <style>
+  .warn {
+    color: var(--blocked);
+    font-size: 13px;
+  }
   .tasks-page {
     padding: 16px 20px 40px;
     display: flex;

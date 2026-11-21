@@ -99,7 +99,10 @@ The API, all JSON:
   and `remote` resolved for class `response`), `finished` (`done` or
   `archived`: sending revives it), `pushed` (its host is in `ssh_hosts`) and
   `remote_label`.
-- `GET api/target?to=`: the target of an id or a node path.
+- `GET api/target?to=&coordinator=1`: the target of an id or a node path.
+  With `coordinator=1`, a project or run (no agent holds it) gives the
+  coordinator working under it, with `for` naming the node asked for: what
+  New task messages.
 - `GET api/prefs?path=&class=`: each setting at that scope for one class
   (none: all kinds), with its value, `origin`, `here` (an override stands at
   exactly this scope and class, so it can be reset), `differs` (the classes
