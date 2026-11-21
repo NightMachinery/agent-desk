@@ -971,8 +971,9 @@ open, started, later, deferred, done or dropped. Both later and deferred are
 
 An open task shows both Defer buttons. The one that would change nothing is
 disabled, and hovering it says why: Defer on a later task, Defer for quota
-on a deferred one, and Defer for quota on a started task, which an agent
-already has, so there is nothing to launch when quota is spare.
+on a deferred one. Deferring a started task tells its agent to stop at a
+safe point and say on the task what is done and what is left; an agent
+launched on it later is pointed at that thread.
 
  Desk tasks replace a `TASKS.org`
 checklist: agents keep theirs with `task add`, `task start`, `task done`;

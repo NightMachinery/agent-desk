@@ -2,6 +2,8 @@ This is a task filed on agent-desk to be done when there was quota to spare: {{.
 
 {{.Brief}}
 
+If an agent worked on it before, its thread says how far it got: `agent-desk render --print item {{.Display}}`.
+
 Before you start, join the desk where it was filed:
 
     agent-desk join {{.Run}}/{{.Role}} --project {{.Project}}

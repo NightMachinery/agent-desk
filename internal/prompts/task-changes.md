@@ -3,9 +3,10 @@
 {{- if eq .Now "open"}} Pick it up again{{if .Note}} and deal with what the note says{{end}}, or tell me why not.
 {{- else if eq .Now "done"}} Stop working on it; if something is still left, tell me.
 {{- else if eq .Now "dropped"}} Stop working on it and do not finish it.
-{{- else if eq .Now "later"}} Leave it for now, until I reopen it.
-{{- else if eq .Now "deferred"}} Leave it until there is quota to spare.
+{{- else if eq .Now "later"}} Leave it for now, until I reopen it.{{template "handoff" .}}
+{{- else if eq .Now "deferred"}} Leave it until there is quota to spare.{{template "handoff" .}}
 {{- end}}{{end -}}
+{{- define "handoff"}}{{if eq .Was "started"}} Stop at a safe point, and say on the task what is done and what is left (agent-desk tell --re {{.Task}}), so whoever picks it up again starts from there.{{end}}{{end -}}
 {{- define "state"}}{{if eq . "later"}}deferred{{else if eq . "deferred"}}deferred for quota{{else}}{{.}}{{end}}{{end -}}
 {{- define "verb"}}{{if eq .Now "open"}}reopened{{else if eq .Now "done"}}marked done{{else if eq .Now "started"}}marked started{{else}}{{template "state" .Now}}{{end}}{{end -}}
 {{if eq (len .Changes) 1 -}}
@@ -17,4 +18,4 @@ I changed {{len .Changes}} tasks you work on:
 {{- end}}
 {{- end}}
 
-A one-line acknowledgement (with --quiet) is enough unless you disagree.
+Unless I asked for more above, a one-line acknowledgement (with --quiet) is enough, or tell me if you disagree.

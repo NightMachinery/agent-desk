@@ -115,12 +115,15 @@ func TestTaskChangesTold(t *testing.T) {
 	}
 
 	// Defer, then defer for quota: each reads as the dashboard names it.
+	// Deferring a started task asks its agent for a handoff.
 	for i, c := range []struct{ action, want string }{
 		{"defer", "I deferred this task (it was open). Leave it for now, until I reopen it."},
-		{"defer-quota", "I deferred this task for quota (it was deferred). Leave it until there is quota to spare."},
+		{"defer-quota", "I deferred this task for quota (it was deferred). Leave it until there is quota to spare.\n"},
+		{"start", "I marked this task started (it was deferred for quota)."},
+		{"defer-quota", "I deferred this task for quota (it was started). Leave it until there is quota to spare. Stop at a safe point, and say on the task what is done and what is left (agent-desk tell --re " + one + ")"},
 	} {
 		act(`{"action":"` + c.action + `","id":"` + one + `"}`)
-		if n := tell(time.Duration(40+10*i) * time.Second); n != 1 {
+		if n := tell(time.Duration(40+5*i) * time.Second); n != 1 {
 			t.Fatalf("%s: told %d", c.action, n)
 		}
 		all := told()

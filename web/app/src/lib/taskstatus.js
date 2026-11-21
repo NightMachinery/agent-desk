@@ -54,9 +54,7 @@ export const QUOTA_WHY = 'Wait for quota to spare: the quota nudge offers it, an
  */
 export function deferOff(state, quota = false) {
   if (!quota) return state === 'later' ? 'Already deferred: Undefer brings it back' : '';
-  if (state === 'deferred') return 'Already deferred for quota: Undefer brings it back';
-  if (state === 'started') return 'Started: an agent already has it, so there is nothing to launch when quota is spare. Defer pauses it';
-  return '';
+  return state === 'deferred' ? 'Already deferred for quota: Undefer brings it back' : '';
 }
 /** How a task state reads on a chip. */
 export const stateLabel = (state) => ({ later: 'deferred', deferred: 'for quota' })[state] ?? state;
