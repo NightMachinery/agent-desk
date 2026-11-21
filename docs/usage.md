@@ -472,7 +472,13 @@ A run that is finished (its root coordinator filed a done report), has no open
 question and nothing unread is hidden unless `--all` is given. Every view
 accepts `--host` to show one machine's events.
 
-After every write the tool re-renders plain org files, so `cat` is enough:
+The desk is also kept as plain org files, so `cat` is enough. The dashboard
+server renders them once the desk has been quiet for a moment (2 seconds,
+and at least once a minute while changes keep coming); Settings, "Org
+files", turns that off or sets the wait for every device, renders them now
+(Render now), and downloads them as a zip (Export as org files). Writes from
+the command line do not render them, so without a running server they wait
+for `agent-desk render`:
 
     ~/.agents/desk/render/inbox.org
     ~/.agents/desk/render/board/<project>.org
@@ -485,9 +491,8 @@ answer you sent, tagged with its delivery state (`:pending:`, `:delivered:`,
 `:in_chat:` for an answer given in the agent's chat, plus `:no_response:`
 once a delivered message has waited 15 minutes), and `RE` for an agent's
 response. A message with no item to hang under (one sent to a node, or
-about a slot) is a top-level `MSG` heading with its responses under it. The
-files are rendered at each write, so a `:no_response:` tag appears at the
-first write after the 15 minutes. `agent-desk render` re-renders by hand.
+about a slot) is a top-level `MSG` heading with its responses under it. A
+`:no_response:` tag appears at the first render after the 15 minutes.
 
 ### In Emacs
 
@@ -495,7 +500,9 @@ first write after the 15 minutes. `agent-desk render` re-renders by hand.
 these files. Load it (`(load "/path/to/agent-desk/emacs/agent-desk.el")`) and
 every file under the render directory opens read-only, with
 `agent-desk-org-mode` on: it reverts the file when the desk changes and
-binds, in evil's normal state, the dashboard's keys:
+binds, in evil's normal state, the dashboard's keys. Each action renders the
+desk once it is done, and `agent-desk-inbox` renders before opening the
+inbox, so Emacs stays current without a dashboard server:
 
 - `a` answer the question (`t` takes its default or recommendation, after
   asking you to confirm);

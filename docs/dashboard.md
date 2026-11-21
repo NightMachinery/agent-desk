@@ -189,7 +189,14 @@ The API, all JSON:
   `POST api/dashboard-prefs {key: "sections", data: [...]}` sets it (each of
   needs, quota, deliverables, pinned, responses, new, tasks, runs, deferred at most
   once; one left out keeps its default place), and a null `data` puts back
-  the default.
+  the default. `{key: "render", data: {enabled, debounce}}` is when the
+  server renders the org files: on or off, and the seconds (1 to 600) the
+  desk must be quiet first; turning it on renders at once.
+- `GET api/render`: the org files' state for Settings, `{enabled, debounce,
+  dir, last, took_ms, error}`. `POST api/render` renders them now, whatever
+  the setting, and returns the same.
+- `GET api/export`: the desk as org files in a zip, rendered fresh (the
+  render directory is left alone), named `agent-desk-org-<date>.zip`.
 - `GET api/auto-continue?paseo=`: `{available, on}` for one agent, for the
   node panel's checkbox.
 - `GET api/cache`: cache policies and estimated expiry for local agents,

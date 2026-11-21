@@ -10,7 +10,10 @@
 
 ;; agent-desk renders its views as org files under
 ;; ${AGENT_DESK_HOME:-~/.agents/desk}/render/: inbox.org, board/<project>.org
-;; and ledger/<yyyy-mm>.org.  Each item is a heading with a :DESK_ID:
+;; and ledger/<yyyy-mm>.org.  The dashboard server renders them a moment
+;; after the desk changes (Settings, "Org files"); `agent-desk render' does
+;; it by hand, and this package runs it after each action and before
+;; opening the inbox, so the files are current without a server.  Each item is a heading with a :DESK_ID:
 ;; property, and each node a heading with a :DESK_PATH:.  This package acts
 ;; on the item at point: answer, take the recommendation, message its agent,
 ;; mark it read or unread, pin it, open it on the dashboard, copy its id.
@@ -89,7 +92,8 @@
   "Run `agent-desk-program' with ARGS, asynchronously.
 INPUT, a string, is its standard input; stdin is closed either way, since
 some commands read it when given no text.  On success call ON-SUCCESS with
-the output, and refresh the desk's buffers."
+the output, render the desk (writes no longer do; the dashboard server
+does a moment later) and refresh the desk's buffers."
   (let* ((buf (get-buffer-create agent-desk--log-buffer))
          (start (with-current-buffer buf
                   (goto-char (point-max))
@@ -111,7 +115,9 @@ the output, and refresh the desk's buffers."
                       (cond
                        ((zerop (process-exit-status p))
                         (when on-success (funcall on-success out))
-                        (agent-desk-refresh-buffers))
+                        (if (equal (car args) "render")
+                            (agent-desk-refresh-buffers)
+                          (agent-desk--run (list "render"))))
                        (t (message "agent-desk %s failed: %s" (car args)
                                    (car (last (split-string out "\n" t))))))))))))
     (when input (process-send-string proc input))
@@ -374,8 +380,9 @@ With prefix ASK, ask how to deliver."
     (message "Copied %s" target)))
 
 (defun agent-desk-inbox ()
-  "Visit the desk's inbox."
+  "Render the desk, then visit its inbox."
   (interactive)
+  (call-process agent-desk-program nil nil nil "render")
   (find-file (expand-file-name "inbox.org" agent-desk-render-directory)))
 
 (defun agent-desk-refresh ()

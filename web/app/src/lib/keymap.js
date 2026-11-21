@@ -8,6 +8,7 @@ import { nav, step } from './nav.svelte.js';
 import { sel, toggle, toggleAll, clear } from './select.svelte.js';
 import { copy } from './format.js';
 import { toast } from './toast.svelte.js';
+import { post } from './api.js';
 import { toggleSection, showDeliverables, deliverableModeLabel } from './ui.svelte.js';
 import {
   keys, ctx, command, bind, group, pane, paneEl, cmdEl, say, dialog, moveFocus, focusables, startHints, openPalette,
@@ -324,6 +325,22 @@ function sectionOrder() {
   focus();
 }
 C('section-order', "Order the list's sections (Settings; every device)", sectionOrder);
+C('org-render', 'Render the org files now (inbox, boards, ledger)', async () => {
+  try {
+    const r = await post('render', {});
+    toast(`Org files rendered in ${r.took_ms} ms.`, 'ok');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+});
+C('org-export', 'Export the desk as org files (a zip)', () => {
+  const a = document.createElement('a');
+  a.href = './api/export';
+  a.download = '';
+  document.body.append(a);
+  a.click();
+  a.remove();
+});
 C('section-order-reset', "Put the list's sections back in the default order", () => click('section-order-reset', 'Open Settings first (SPC o S)'));
 C('verbatim', 'Verbatim log: your messages to agents, here', verbatimHere);
 C('verbatim-all', 'Verbatim log: your messages to agents, everywhere', verbatimAll);

@@ -203,10 +203,8 @@ func (a *App) recordReply(token, text, source, behavior string, notify map[strin
 		a.pushTo(host, "that session is on "+host)
 		return e, nil
 	}
-	if _, err := a.deliver(e.ID); err != nil {
-		return e, err
-	}
-	return e, a.renderWarn()
+	_, err = a.deliver(e.ID)
+	return e, err
 }
 
 // toOf reads where a reply goes.

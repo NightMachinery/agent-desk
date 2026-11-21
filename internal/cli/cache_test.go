@@ -101,6 +101,7 @@ func TestKeeperPolicyAndHistory(t *testing.T) {
 			t.Errorf("cache event %d: %+v request %+v", i, e, requests[i])
 		}
 	}
+	h.ok(nil, "", "render") // writes no longer render; the server or this does
 	ledger, err := os.ReadFile(filepath.Join(h.desk, "render", "ledger", "2026-03.org"))
 	must(t, err)
 	if !strings.Contains(string(ledger), "User via the dashboard set "+queuedAgent+" to off.") {

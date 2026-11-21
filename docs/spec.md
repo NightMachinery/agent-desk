@@ -307,8 +307,9 @@ Note on `unread`: there is no deleting a `read` event. Model it as a later
 event that cancels it (`kind=read`, `meta.cancel=true`); the view takes the
 latest.
 
-After every write the tool re-renders plain files, atomically (temp file plus
-rename), so a human or a recovering agent needs only `cat`:
+The dashboard server renders plain files a moment after the desk changes
+(writes themselves do not; `agent-desk render` does it by hand), atomically
+(temp file plus rename), so a human or a recovering agent needs only `cat`:
 
     ~/.agents/desk/render/inbox.org
     ~/.agents/desk/render/board/<project>.org

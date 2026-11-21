@@ -298,7 +298,6 @@ func (a *App) setCache(id, action string, hours float64, actor, source string) (
 	if err := st.Append(e); err != nil {
 		return agent, fmt.Errorf("cache policy changed but its desk event could not be recorded: %w", err)
 	}
-	_ = a.renderWarn()
 	return agent, nil
 }
 

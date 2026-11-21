@@ -50,6 +50,7 @@ func TestIDLinks(t *testing.T) {
 	}
 
 	// 5. The org render gives item headings a CUSTOM_ID and links mentions.
+	h.ok(nil, "", "render") // writes no longer render; the server or this does
 	inbox, err := os.ReadFile(filepath.Join(h.desk, "render", "inbox.org"))
 	must(t, err)
 	s := string(inbox)

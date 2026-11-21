@@ -180,10 +180,7 @@ func (s *server) sendQueueStepContext(ctx context.Context) time.Duration {
 	if len(effects) > 0 {
 		app.maybeGC()
 	}
-	_, changed, next, err := app.deliverPending("", true)
-	if changed || len(effects) > 0 {
-		_ = app.renderWarn()
-	}
+	_, _, next, err := app.deliverPending("", true)
 	if err != nil {
 		fmt.Fprintf(s.logger, "agent-desk: send queue: %v\n", err)
 	}

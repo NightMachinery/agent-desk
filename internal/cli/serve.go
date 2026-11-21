@@ -84,6 +84,7 @@ type server struct {
 	readDesk  *desk.Desk
 	readStamp string
 	poll      time.Duration // how often the live stream looks for new events
+	org       orgState      // the org files' renders (orgfiles.go)
 	stamp     func() (string, error)
 	logger    io.Writer
 	// manifest replaces the built manifest.json when the supervisor names
@@ -196,6 +197,9 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("GET /api/dashboard-prefs", s.apiDashboardPrefs)
 	mux.HandleFunc("POST /api/dashboard-prefs", s.action(s.apiDashboardPrefPut))
 	mux.HandleFunc("GET /api/auto-continue", s.apiAutoContinue)
+	mux.HandleFunc("GET /api/render", s.apiRender)
+	mux.HandleFunc("POST /api/render", s.action(s.apiRenderNow))
+	mux.HandleFunc("GET /api/export", s.apiExport)
 	s.voiceRoutes(mux)
 	mux.HandleFunc("GET /api/cache", s.apiCache)
 	mux.HandleFunc("POST /api/cache", s.action(s.apiCachePolicy))
@@ -1502,6 +1506,7 @@ func (a *App) cmdServe(args []string) error {
 	go s.sweepScreen(ctx, time.Minute)
 	s.cacheSnapshot() // start the first keeper read before a browser opens the desk
 	go s.runSendQueue(ctx)
+	go s.renderLoop(ctx)
 	drained := make(chan struct{})
 	go func() {
 		defer close(drained)

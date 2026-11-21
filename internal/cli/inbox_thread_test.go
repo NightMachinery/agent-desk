@@ -53,8 +53,8 @@ func TestInboxAndLedgerThreads(t *testing.T) {
 		t.Fatalf("node preview:\n%s", p)
 	}
 
-	// The files are rendered at each commit, so the flag shows after one.
-	h.ok(env, "x", "tell", "--title", "Later")
+	// The flag shows in the next render.
+	h.ok(nil, "", "render")
 	ledger, err := os.ReadFile(filepath.Join(h.desk, "render", "ledger", h.now.Format("2006-01")+".org"))
 	must(t, err)
 	l := string(ledger)

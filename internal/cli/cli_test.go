@@ -207,6 +207,7 @@ func TestJoinAndWrite(t *testing.T) {
 	if len(needs) != 2 || needs[0].(map[string]any)["event"].(map[string]any)["level"] != "blocked" {
 		t.Fatalf("needs you: blocked first: %v", needs)
 	}
+	h.ok(nil, "", "render") // writes no longer render; the server or this does
 	for _, f := range []string{"inbox.org", "board/example-proj.org", "ledger/2026-03.org"} {
 		b, err := os.ReadFile(filepath.Join(h.desk, "render", f))
 		must(t, err)
@@ -473,6 +474,7 @@ func TestSearchAndLink(t *testing.T) {
 	f := filepath.Join(h.cwd, "TASKS.org")
 	must(t, os.WriteFile(f, []byte("* TODO fabricated task\n"), 0o644))
 	h.ok(a, "", "link", "tasks", "TASKS.org")
+	h.ok(nil, "", "render") // writes no longer render; the server or this does
 	board, _ := os.ReadFile(filepath.Join(h.desk, "render", "board", "example-proj.org"))
 	if !bytes.Contains(board, []byte("fabricated task")) {
 		t.Fatalf("board does not render the linked file:\n%s", board)

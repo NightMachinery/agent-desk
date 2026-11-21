@@ -93,7 +93,8 @@ func TestQuestionResponse(t *testing.T) {
 	if want := "reply delivered ask tell answer delivered"; strings.Join(kinds, " ") != want {
 		t.Fatalf("thread: %v, want %s", kinds, want)
 	}
-	h.ok(env, "x", "tell", "--title", "Later") // renders the files
+	h.ok(env, "x", "tell", "--title", "Later")
+	h.ok(nil, "", "render") // writes no longer render; the server or this does
 	ledger, err := os.ReadFile(filepath.Join(h.desk, "render", "ledger", h.now.Format("2006-01")+".org"))
 	must(t, err)
 	if !strings.Contains(string(ledger), "** ANSWERED "+q+" question to "+m+": Re: Deploy finished") {

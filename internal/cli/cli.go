@@ -538,9 +538,6 @@ func (a *App) commit(evs []store.Event, show string) error {
 		}
 		fmt.Fprintln(a.Stdout, display)
 	}
-	if err := a.render(); err != nil {
-		fmt.Fprintf(a.Stderr, "agent-desk: warning: rendering failed: %v\n", err)
-	}
 	a.announce(evs, false, false)
 	a.maybeGC()
 	return nil
@@ -1179,12 +1176,10 @@ func (a *App) recordAnswer(d *desk.Desk, q store.Event, text, source, behavior s
 		}
 		fmt.Fprintf(a.Stderr, "agent-desk: %s goes to the command it was asked with; its output is in %s\n",
 			d.Display(q.ID), filepath.Join(a.Home, "hooks.log"))
-		return a.renderWarn()
+		return nil
 	}
-	if _, err := a.deliver(q.ID); err != nil {
-		return err
-	}
-	return a.renderWarn()
+	_, err = a.deliver(q.ID)
+	return err
 }
 
 func (a *App) cmdRead(args []string) error {
@@ -1309,13 +1304,6 @@ func (a *App) readMarks(d *desk.Desk, from ident.From, f desk.Filter) []store.Ev
 		}
 	}
 	return evs
-}
-
-func (a *App) renderWarn() error {
-	if err := a.render(); err != nil {
-		fmt.Fprintf(a.Stderr, "agent-desk: warning: rendering failed: %v\n", err)
-	}
-	return nil
 }
 
 func (a *App) cmdUnread(args []string) error {
@@ -1491,9 +1479,8 @@ func (a *App) imported(added []store.Event, notify bool) error {
 	if len(added) == 0 {
 		return nil
 	}
-	err := a.renderWarn()
 	a.announce(added, true, notify)
-	return err
+	return nil
 }
 
 func (a *App) cmdImport(args []string) error {

@@ -768,7 +768,7 @@ func (a *App) cmdDeliver(args []string) error {
 	if failed > 0 {
 		return fmt.Errorf("%d answer(s) not delivered", failed)
 	}
-	return a.renderWarn()
+	return nil
 }
 
 // mergeSSH merges both ways with another machine without copying a database

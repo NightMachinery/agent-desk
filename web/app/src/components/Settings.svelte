@@ -13,6 +13,46 @@
 
   let { path = '', stamp = '', onchange = () => {} } = $props();
 
+  // The org files (orgfiles.go): the server renders them once the desk has
+  // been quiet for `debounce` seconds, when on. Shared by every device.
+  const quietChoices = [1, 2, 5, 10, 30, 60, 300];
+  const quietText = (n) => (n < 60 ? `${n} second${n === 1 ? '' : 's'}` : n === 60 ? '1 minute' : `${n / 60} minutes`);
+  let org = $state(/** @type {any} */ (null));
+  let orgBusy = $state(false);
+  async function loadOrg() {
+    try {
+      org = await get('render');
+    } catch {
+      org = null;
+    }
+  }
+  $effect(() => {
+    stamp;
+    if (!path) loadOrg();
+  });
+  async function saveOrg(over) {
+    const data = { enabled: org.enabled, debounce: org.debounce, ...over };
+    try {
+      await post('dashboard-prefs', { key: 'render', data });
+      org = { ...org, ...data };
+      setTimeout(loadOrg, 800); // turning it on renders at once
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  }
+  async function renderOrg() {
+    orgBusy = true;
+    try {
+      org = await post('render', {});
+      toast(`Org files rendered in ${org.took_ms} ms.`, 'ok');
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      orgBusy = false;
+    }
+  }
+  const orgWhen = (ts) => new Date(ts).toLocaleString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', day: 'numeric', month: 'short' });
+
   let cls = $state('*');
   let view = $state(null);
   let error = $state('');
@@ -169,10 +209,46 @@
       <label class="check"><input type="checkbox" checked={ui.nextAfterMessage} onchange={(e) => ((ui.nextAfterMessage = e.currentTarget.checked), saveUI())} /> after sending a message in a conversation</label>
       <div class="origin"><span class="faint">On a wide screen, to the next item that is not pinned; on a phone, back to the list. Off: stay on the item.</span></div>
     </div>
+    <div class="key" id="org-files">
+      <div class="key-head">
+        <span class="key-name">Org files</span>
+        <span class="mono faint">every device</span>
+      </div>
+      {#if org}
+        <label class="check"><input type="checkbox" checked={org.enabled} onchange={(e) => saveOrg({ enabled: e.currentTarget.checked })} /> Keep them up to date, once the desk has been quiet for</label>
+        <select class="input" aria-label="Quiet time before the org files are rendered" value={org.debounce} disabled={!org.enabled} onchange={(e) => saveOrg({ debounce: +e.currentTarget.value })}>
+          {#each quietChoices as n (n)}<option value={n}>{quietText(n)}</option>{/each}
+        </select>
+        <div class="org-acts">
+          <button class="btn small" data-cmd="org-render" disabled={orgBusy} onclick={renderOrg}>Render now</button>
+          <a class="btn small" data-cmd="org-export" href="./api/export" download>Export as org files</a>
+        </div>
+        <div class="origin">
+          <span class="faint">
+            The inbox, a board per project and a ledger per month, as org, in <span class="mono">{org.dir}</span>: for Emacs (agent-desk.el) and <code>cat</code>. Export downloads the same files as a zip; <code>agent-desk render</code> renders them from a shell.
+            {#if org.last}Last rendered {orgWhen(org.last)}, in {org.took_ms} ms.{/if}
+            {#if org.error}<span class="err">Last render failed: {org.error}</span>{/if}
+          </span>
+        </div>
+      {:else}
+        <span class="faint">Cannot read the org file settings from the desk.</span>
+      {/if}
+    </div>
   {/if}
 </div>
 
 <style>
+  .org-acts {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .org-acts a {
+    text-decoration: none;
+  }
+  .err {
+    color: var(--blocked);
+  }
   .check {
     display: flex;
     gap: 6px;

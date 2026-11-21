@@ -28,7 +28,8 @@ func (s *server) apiDashboardPrefs(w http.ResponseWriter, r *http.Request) {
 
 // apiDashboardPrefPut sets one shared dashboard setting (POST
 // api/dashboard-prefs {key, data}); a null data puts back the default.
-// "sections" is the list's sections in order, each named once.
+// "sections" is the list's sections in order, each named once; "render"
+// is when the server renders the org files (orgfiles.go).
 func (s *server) apiDashboardPrefPut(_ *App, body request) (any, error) {
 	switch body.Key {
 	case "sections":
@@ -49,12 +50,25 @@ func (s *server) apiDashboardPrefPut(_ *App, body request) (any, error) {
 				seen[n] = true
 			}
 		}
+	case "render":
+		if len(body.Data) > 0 && string(body.Data) != "null" {
+			if err := checkRenderPrefs(body.Data); err != nil {
+				return nil, err
+			}
+		}
 	default:
-		return nil, usagef("the shared dashboard setting is sections")
+		return nil, usagef("the shared dashboard settings are sections and render")
 	}
 	st, err := s.a.store()
 	if err != nil {
 		return nil, err
 	}
-	return map[string]string{}, st.PutDashboardPref(body.Key, body.Data, s.a.Now())
+	if err := st.PutDashboardPref(body.Key, body.Data, s.a.Now()); err != nil {
+		return nil, err
+	}
+	// Turned on: bring the files up to date now, not at the next change.
+	if body.Key == "render" && s.renderPrefs().Enabled {
+		go s.renderOrg()
+	}
+	return map[string]string{}, nil
 }

@@ -40,22 +40,36 @@ func All(dir string, load func() (*desk.Desk, error)) error {
 	if err != nil {
 		return err
 	}
+	files := Files(d)
+	names := make([]string, 0, len(files))
+	for name := range files {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		if err := atomicWrite(filepath.Join(out, filepath.FromSlash(name)), files[name]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
+// Files renders the desk's org files, by path under the render directory
+// (inbox.org, board/<project>.org, ledger/<yyyy-mm>.org): what All writes
+// and the dashboard's Export packs.
+func Files(d *desk.Desk) map[string][]byte {
+	files := map[string][]byte{}
 	var b bytes.Buffer
 	w := &desk.Writer{W: &b, Desk: d, Org: true, Props: true}
 	w.Header("agent-desk inbox")
 	w.View(d.Build(desk.Filter{}))
-	if err := atomicWrite(filepath.Join(out, "inbox.org"), b.Bytes()); err != nil {
-		return err
-	}
+	files["inbox.org"] = bytes.Clone(b.Bytes())
 
 	for _, n := range d.Tree(desk.Filter{All: true}) {
 		b.Reset()
 		w.Header("agent-desk board: " + n.Name)
 		w.Node(1, n)
-		if err := atomicWrite(filepath.Join(out, "board", n.Name+".org"), b.Bytes()); err != nil {
-			return err
-		}
+		files["board/"+n.Name+".org"] = bytes.Clone(b.Bytes())
 	}
 
 	// The ledger lists questions, notices, done reports, deliverables and cache changes by month. A
@@ -111,11 +125,12 @@ func All(dir string, load func() (*desk.Desk, error)) error {
 			}
 			w.Thread(2, d.Thread(it.Event.ID, ""))
 		}
-		if err := atomicWrite(filepath.Join(out, "ledger", m+".org"), b.Bytes()); err != nil {
-			return err
-		}
+		files["ledger/"+m+".org"] = bytes.Clone(b.Bytes())
 	}
-	return nil
+	for name, b := range files {
+		files[name] = LinkMentions(b)
+	}
+	return files
 }
 
 // listed reports whether the ledger lists e as an item of its own.
@@ -124,9 +139,6 @@ func listed(e store.Event) bool {
 }
 
 func atomicWrite(path string, data []byte) error {
-	if filepath.Ext(path) == ".org" {
-		data = LinkMentions(data)
-	}
 	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".*")
 	if err != nil {
 		return err
