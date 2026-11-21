@@ -29,7 +29,7 @@ const LaunchTimeout = 2 * time.Minute
 
 func (a *App) cmdTask(args []string) error {
 	if len(args) == 0 {
-		return usagef("task add|start|done|drop|defer|reopen|tag|untag|launch|prompt|list|nudge; see agent-desk help")
+		return usagef("task add|start|done|drop|defer|reopen|title|tag|untag|launch|prompt|list|nudge; see agent-desk help")
 	}
 	sub, rest := args[0], args[1:]
 	switch sub {
@@ -39,6 +39,8 @@ func (a *App) cmdTask(args []string) error {
 		return a.taskMark(sub, rest)
 	case "tag", "untag":
 		return a.taskTag(sub == "tag", rest)
+	case "title":
+		return a.taskTitle(rest)
 	case "launch":
 		return a.taskLaunch(rest)
 	case "list":
@@ -217,6 +219,37 @@ func (a *App) taskTag(add bool, args []string) error {
 	}
 	return a.setTaskTags(t, next, ident.Resolve(a.Env), "cli")
 }
+
+// taskTitle renames a task (task title ID TITLE...), keeping its state and
+// note: how an agent names a task the user filed without a title.
+func (a *App) taskTitle(args []string) error {
+	o, err := parse(args, nil, nil, 2, -1)
+	if err != nil {
+		return err
+	}
+	title := strings.TrimSpace(strings.Join(o.pos[1:], " "))
+	if title == "" || strings.Contains(title, "\n") {
+		return usagef("task title needs a title of one line")
+	}
+	d, err := a.load()
+	if err != nil {
+		return err
+	}
+	t, err := a.task(d, o.pos[0])
+	if err != nil {
+		return err
+	}
+	if title == t.Event.Title && !t.Untitled {
+		return nil
+	}
+	e := a.event("taskstate", t.Event.Path, ident.Resolve(a.Env), "cli", map[string]any{"title": title})
+	e.Ref = t.Event.ID
+	return a.commit([]store.Event{e}, "-")
+}
+
+// untitledLen is how much of the brief's first line titles a task filed
+// without a title, until an agent names it.
+const untitledLen = 60
 
 // setTaskTags records a task's whole new tag list.
 func (a *App) setTaskTags(t desk.Task, tags []string, from ident.From, source string) error {
@@ -685,9 +718,9 @@ func jsonPart(s string) string {
 // display id.
 func (a *App) taskAddWeb(path, title, typ, brief, parent string, tags []string) (string, error) {
 	path = strings.Trim(strings.TrimSpace(path), "/")
-	title = strings.TrimSpace(title)
-	if title == "" {
-		return "", usagef("a task needs a title")
+	title, brief = strings.TrimSpace(title), strings.TrimSpace(brief)
+	if title == "" && brief == "" {
+		return "", usagef("a task needs a title or details")
 	}
 	if path == "" {
 		return "", usagef("a task needs a node: a project, run or agent")
@@ -714,6 +747,10 @@ func (a *App) taskAddWeb(path, title, typ, brief, parent string, tags []string) 
 		return "", fmt.Errorf("%s is not a project, run or agent on the desk", path)
 	}
 	m := desk.TaskMeta{Type: typ}
+	if title == "" {
+		// Titled by its brief until the agent names it (task title).
+		title, m.Untitled = clipLine(brief, untitledLen), true
+	}
 	if m.Tags, err = desk.NormTags(tags); err != nil {
 		return "", usagef("%v", err)
 	}
@@ -728,7 +765,7 @@ func (a *App) taskAddWeb(path, title, typ, brief, parent string, tags []string) 
 	b, _ := json.Marshal(m)
 	_ = json.Unmarshal(b, &extra)
 	e := a.event("task", path, ident.Resolve(a.Env), "web", extra)
-	e.Title, e.Body = title, strings.TrimSpace(brief)
+	e.Title, e.Body = title, brief
 	if err := a.commit([]store.Event{e}, "-"); err != nil {
 		return "", err
 	}

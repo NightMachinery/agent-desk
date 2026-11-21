@@ -170,18 +170,23 @@
   });
   const parents = $derived(tasks.filter((t) => t.event.path === node && ACTIVE.has(t.state) && !t.parent));
 
+  // A title is optional when there are details: the agent names the task
+  // (agent-desk task title), and the brief's first line stands in until then.
+  const canFile = $derived(!!(title.trim() || brief.trim()) && !!node && !filing);
   function message(id) {
     const what = newType === 'task' ? 'task' : newType;
+    const named = title.trim() ? `${id} "${title.trim()}"` : `${id}, without a title`;
     const filed = target?.for
-      ? `The user filed a ${what} at ${node} on the desk, and you are the coordinator working under it: ${id} "${title.trim()}".`
-      : `The user filed a ${what} for you on the desk: ${id} "${title.trim()}".`;
+      ? `The user filed a ${what} at ${node} on the desk, and you are the coordinator working under it: ${named}.`
+      : `The user filed a ${what} for you on the desk: ${named}.`;
     return filed + (brief.trim() ? `\n\n${brief.trim()}` : '') +
+      (title.trim() ? '' : `\n\nGive it a short title first: agent-desk task title ${id} 'Title'.`) +
       `\n\nIt is on your task list (agent-desk task list). Mark it with agent-desk task start ${id} and agent-desk task done ${id}.`;
   }
 
   async function file(e) {
     e?.preventDefault();
-    if (!title.trim() || !node || filing) return;
+    if (!canFile) return;
     filing = true;
     try {
       const res = await post('task', { action: 'add', to: node, title: title.trim(), type: newType, text: brief, parent, tags: tagList(newTags) });
@@ -234,7 +239,7 @@
     <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
     <form class="add" onsubmit={file} onkeydown={formKeys}>
       <!-- svelte-ignore a11y_autofocus -->
-      <input id="task-title" class="input" placeholder="What needs doing?" bind:value={title} autofocus aria-label="Task title" />
+      <input id="task-title" class="input" placeholder="What needs doing? (optional with details: the agent names it)" bind:value={title} autofocus aria-label="Task title" />
       <div class="types" role="radiogroup" aria-label="Type">
         {#each types as t (t)}
           <button type="button" role="radio" aria-checked={newType === t} class="tchip {t}" class:on={newType === t} onclick={() => (newType = t)}>{LABEL[t] ?? t}</button>
@@ -258,7 +263,7 @@
           </label>
         {/if}
       </div>
-      <textarea class="input" rows="3" placeholder="Details (optional): what you saw, what done looks like" bind:value={brief} aria-label="Details"></textarea>
+      <textarea class="input" rows="3" placeholder="Details: what you saw, what done looks like" bind:value={brief} aria-label="Details"></textarea>
       <input class="input" placeholder="Tags (optional): ui, phone" bind:value={newTags} aria-label="Tags" autocomplete="off" />
       <div class="row2">
         {#if target}
@@ -269,7 +274,7 @@
         {/if}
         <span class="spacer"></span>
         <span class="faint hint">⌘↵ to file</span>
-        <button class="btn small primary" type="submit" disabled={!title.trim() || !node || filing}>{filing ? 'Filing…' : 'File it'}</button>
+        <button class="btn small primary" type="submit" disabled={!canFile}>{filing ? 'Filing…' : 'File it'}</button>
       </div>
     </form>
   {/if}
@@ -318,6 +323,7 @@
         </button>
         {#if kindOf(t) !== 'task'}<span class="tchip small {kindOf(t)} on">{LABEL[kindOf(t)] ?? kindOf(t)}</span>{/if}
         <button class="title" onclick={() => (expanded[t.event.id] = !expanded[t.event.id])} aria-expanded={!!expanded[t.event.id]}>{t.event.title}</button>
+        {#if t.untitled}<span class="chip" title="Filed without a title: its details' first line stands in until the agent names it">untitled</span>{/if}
         {#if t.state === 'started'}<span class="chip active">started</span>{:else if t.state === 'deferred'}<span class="chip waiting">deferred</span>{:else if dropped}<span class="chip">dropped</span>{/if}
         {#if t.priority === 1}<span class="chip blocked" title="Priority 1">p1</span>{/if}
         {#each t.tags ?? [] as g (g)}<button class="tag small" class:on={tag === g} title={`Only #${g}`} onclick={() => (tag = tag === g ? '' : g)}>#{g}</button>{/each}

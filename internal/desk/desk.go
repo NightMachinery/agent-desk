@@ -80,9 +80,20 @@ func Load(s *store.Store, host string, now time.Time) (*Desk, error) {
 	}
 	d := &Desk{Now: now, Host: host, Home: filepath.Dir(s.Path), Events: evs, ByID: make(map[string]store.Event, len(evs)), display: &displayIndex{}}
 	all := make([]string, len(evs))
+	tasks := map[string]int{}
 	for i := range evs {
-		if evs[i].Kind == "set" {
+		switch evs[i].Kind {
+		case "set":
 			evs[i].Body = SlotText(evs[i].Body)
+		case "task":
+			tasks[evs[i].ID] = i
+		case "taskstate":
+			// A task renamed (task title) shows its newest title everywhere.
+			if j, ok := tasks[evs[i].Ref]; ok {
+				if title := MetaString(evs[i], "title"); title != "" {
+					evs[j].Title = title
+				}
+			}
 		}
 	}
 	for i, e := range evs {

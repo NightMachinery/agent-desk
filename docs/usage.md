@@ -934,6 +934,10 @@ lists the ones still active.
   type: lowercase, a letter or digit then letters, digits, `. _ / -`, at
   most 12. `task tag w-... desk` and `task untag w-... phone` change them
   later without touching the task's state or note.
+- `task title w-... 'New title'` renames a task, keeping its state and note;
+  the new title shows everywhere. A task the user files without a title
+  (below) is titled by its details' first line and marked untitled until an
+  agent names it this way.
 - `task list --type bug` keeps one type, `--tag ui` one tag; `task list --org [--all]` prints
   the checklist as org, one heading per node and subtasks indented
   (`[-]` started, `[X]` done, dropped ones struck out with `--all`), for a
@@ -948,7 +952,8 @@ expanded row. The box checks a task off (Undo in the toast)
 or reopens it (asking what is still wrong, see below); clicking its title shows its brief with Status, Start, Drop
 and Full page (the task on its own page, with its conversation). **New task** (`SPC n t`, or "+ New" on a node page) files one at any
 project, run or agent: a title, a type, an optional parent, details and
-tags.
+tags. The title may be left out when there are details: the message to the
+agent asks it to name the task (`task title`).
 "Message its coordinator about it" (on by default) also sends a message
 naming the task, so an agent acts on it now: to the node's own agent, or,
 for a project or a run (which no agent holds), to the coordinator working

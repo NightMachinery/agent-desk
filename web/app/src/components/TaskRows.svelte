@@ -116,6 +116,7 @@
           <span class="line1">
             {#if LABEL[t.type]}<span class="tchip {t.type}">{LABEL[t.type]}</span>{/if}
             <span class="title">{t.event.title}</span>
+            {#if t.untitled}<span class="chip" title="Filed without a title: its details' first line stands in until the agent names it">untitled</span>{/if}
             {#if t.state === 'started'}<span class="chip active">started</span>{/if}
             {#if over}<span class="chip" title={t.updated}>{t.state} {ago(t.updated)}</span>{/if}
             {#if t.priority === 1}<span class="chip blocked" title="Priority 1">p1</span>{/if}

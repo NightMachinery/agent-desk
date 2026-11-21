@@ -305,7 +305,8 @@ Tasks page, filters it by type and checks things off there.
   two lists by hand.
 - The user files tasks too, from the dashboard. When they do, you get a
   message naming the task id: respond to it, and track the task like your
-  own.
+  own. One filed without a title shows its details' first line; name it
+  first: `agent-desk task title <id> 'Short title'`.
 
 When you find work worth doing that the quota does not allow now (a cleanup,
 a deeper check, a nice-to-have), defer it instead of dropping it, with a

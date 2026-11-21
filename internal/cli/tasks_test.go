@@ -197,3 +197,57 @@ func TestTaskTags(t *testing.T) {
 		t.Fatalf("org:\n%s", out)
 	}
 }
+
+// A task the user files without a title is titled by its brief and marked
+// untitled until an agent names it with task title, which shows everywhere,
+// keeps the note, and does not make the namer its worker.
+func TestUntitledTask(t *testing.T) {
+	h := newHarness(t)
+	const pA, pB = "66666666-0000-4000-8000-0000000000a1", "66666666-0000-4000-8000-0000000000b1"
+	writePaseoRecord(t, h.paseo, pA, sessA, "", "Coordinator A")
+	writePaseoRecord(t, h.paseo, pB, sessB, "", "Coordinator B")
+	a := map[string]string{"AI_AGENT": "claude-code", "CLAUDE_CODE_SESSION_ID": sessA, "PASEO_AGENT_ID": pA}
+	b := map[string]string{"AI_AGENT": "claude-code", "CLAUDE_CODE_SESSION_ID": sessB, "PASEO_AGENT_ID": pB}
+	h.ok(a, "", "join", "r1/coord")
+	h.ok(b, "", "join", "r2/coord")
+	_, hd := testServer(t, h)
+
+	if code, body, _ := do(t, hd, "POST", "/api/task", `{"action":"add","to":"example-proj/r1/coord"}`, dashboard); code != 400 || !strings.Contains(body, "a title or details") {
+		t.Fatalf("neither title nor details: %d %s", code, body)
+	}
+	long := "pasting images etc in task messages needs to work, and Esc should leave insert mode first"
+	code, body, _ := do(t, hd, "POST", "/api/task", `{"action":"add","to":"example-proj/r1/coord","text":"`+long+`\nmore detail"}`, dashboard)
+	if code != 200 {
+		t.Fatalf("untitled: %d %s", code, body)
+	}
+	id := strings.Split(strings.Split(body, `"id":"`)[1], `"`)[0]
+	task := func() desk.Task {
+		t.Helper()
+		for _, x := range h.loadDesk().Tasks(desk.Filter{}) {
+			if x.ID == id {
+				return x
+			}
+		}
+		t.Fatalf("no task %s", id)
+		return desk.Task{}
+	}
+	if x := task(); !x.Untitled || x.Event.Title != clipLine(long, untitledLen) || !strings.HasSuffix(x.Event.Title, "…") {
+		t.Fatalf("untitled task: %+v", x)
+	}
+
+	h.ok(a, "", "task", "start", id, "--note", "on it")
+	h.fails(b, "", "wrong number of arguments", "task", "title", id)
+	h.ok(b, "", "task", "title", id, "Paste", "images", "into", "task", "messages")
+	x := task()
+	if x.Untitled || x.Event.Title != "Paste images into task messages" || x.Note != "on it" || x.State != desk.TaskStarted {
+		t.Fatalf("named: %+v", x)
+	}
+	if out := h.ok(nil, "", "task", "list", "--all"); !strings.Contains(out, "Paste images into task messages") {
+		t.Fatalf("list shows the old title:\n%s", out)
+	}
+	// B named it, but A works on it: messages about it still go to A.
+	code, body, _ = do(t, hd, "GET", "/api/target?to="+id, "", nil)
+	if code != 200 || !strings.Contains(body, pA) {
+		t.Fatalf("target after the rename: %d %s", code, body)
+	}
+}

@@ -332,8 +332,8 @@ func coordinatorUnder(d *desk.Desk, prefix string) (string, bool) {
 func taskRecipient(d *desk.Desk, task store.Event, to ident.From, host, node string) (ident.From, string, string) {
 	for i := len(d.Events) - 1; i >= 0; i-- {
 		e := d.Events[i]
-		if e.Kind != "taskstate" || e.Ref != task.ID {
-			continue
+		if e.Kind != "taskstate" || e.Ref != task.ID || (desk.MetaString(e, "state") == "" && desk.MetaString(e, "agent") == "") {
+			continue // a tag or title edit is not working on it
 		}
 		if f := fromOf(e); f.Session != "" || f.Paseo != "" {
 			if j, ok := latestJoin(d, func(j store.Event) bool { return sessionOf(j) == f.Session && f.Session != "" }); ok {

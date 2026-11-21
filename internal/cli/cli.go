@@ -138,6 +138,7 @@ Agent side (only coordinators write; workers report to their parent):
   agent-desk task add --defer --title T [--size] [--priority] [--profile P] [--cwd DIR] <<'B' ... B
   agent-desk task start|done|drop|defer|reopen <id>... [--note TEXT]
   agent-desk task tag|untag <id> TAG...   free tags beside the type (ui, phone); --tag on add
+  agent-desk task title <id> TITLE...     rename a task, e.g. one the user filed without a title
   agent-desk task list [<prefix>] [--type T] [--tag T] [--deferred] [--all] [--format json] | task prompt <id>
   agent-desk task list [<prefix>] --org [--all]   the checklist as org (* node, - [ ] items)
   agent-desk task launch <id>... | --deferred [<prefix>] [--max N] [--dry-run]

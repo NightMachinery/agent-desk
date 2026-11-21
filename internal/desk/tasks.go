@@ -50,6 +50,10 @@ type TaskMeta struct {
 	// Tags are free labels beside the fixed Type ("ui", "phone"), from
 	// NormTags; a taskstate event with meta.tags replaces them.
 	Tags []string `json:"tags,omitempty"`
+	// Untitled marks a task the user filed without a title: its title is
+	// the brief's first line until an agent names it (task title), which a
+	// taskstate event with meta.title does, clearing this.
+	Untitled bool `json:"untitled,omitempty"`
 }
 
 // MaxTags is how many tags a task may carry.
@@ -158,12 +162,16 @@ func (d *Desk) Tasks(f Filter) []Task {
 				Tags *[]string `json:"tags"`
 			}
 			_ = json.Unmarshal(e.Meta, &tagged)
+			titled := MetaString(e, "title") != "" // Load put the title on the task
 			if tagged.Tags != nil {
 				t.Tags = *tagged.Tags
-				if MetaString(e, "state") == "" && e.Body == "" {
-					t.Updated = e.TS // only the tags changed: the note stays
-					continue
-				}
+			}
+			if titled {
+				t.Untitled = false
+			}
+			if (tagged.Tags != nil || titled) && MetaString(e, "state") == "" && e.Body == "" {
+				t.Updated = e.TS // only the tags or the title changed: the note stays
+				continue
 			}
 			if s := MetaString(e, "state"); s != "" {
 				t.State = s
