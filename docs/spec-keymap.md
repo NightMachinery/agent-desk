@@ -5,7 +5,12 @@
 EDN spec (evilify skill, `evilify/keymap-edn.md`) and the loader (w-chw5):
 `web/app/src/lib/keys.edn` holds the keys as they were before the redesign,
 and the user's file overlays it ([keyboard.md](keyboard.md), "Your own
-keys"). Next: the remap (w-t1gk), then keyless commands (w-4sa8).
+keys"). The remap (w-t1gk) is built too: `keys.edn` holds the map below,
+and [keyboard.md](keyboard.md) documents it. Next: keyless commands
+(w-4sa8). Additions since approval: `SPC b e` and `SPC d e` / `SPC d i`
+export the item, the node and its inbox; `, u` undefers a task; Settings
+`, E` exports as a zip; `, ` with nothing open that has its own keys says so
+and swallows the next key.
 
 The task: move every binding into an EDN file, let the user layer their own EDN
 file on top, agree the EDN format with the agent that evilified Purple (the

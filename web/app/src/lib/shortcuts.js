@@ -1,7 +1,7 @@
 // What people are taught about the keys: the key each button's tooltip
 // names, and the cheatsheet `?` opens. Both read the keymap in use
 // (keys.edn and the user's file), so they name the user's keys.
-import { keyFor, keyIn } from './keys.svelte.js';
+import { keyFor, keyIn, localleaders } from './keys.svelte.js';
 
 /** The command a button (data-cmd) runs, where its name differs; a list
  * names both directions of a toggle. */
@@ -43,10 +43,12 @@ export function tip(label, button) {
 }
 
 // A cheatsheet key: a command's key (in one map; prefer: the chord to show
-// while it is still bound to it), or a literal string.
+// while it is still bound to it), the localleader keys (LL), or a literal
+// string.
 const k = (cmd, map = '', prefer = '') => ({ cmd, map, prefer });
+const LL = /** @type {{localleader: true}} */ ({ localleader: true });
 
-/** @typedef {string | {cmd: string, map: string, prefer: string}} SheetKey */
+/** @typedef {string | {cmd: string, map: string, prefer: string} | {localleader: true}} SheetKey */
 /** The cheatsheet: what is worth learning first, by task.
  * @type {{title: string, rows: [SheetKey[], string][]}[]} */
 const cheatsheet = [
@@ -67,6 +69,7 @@ const cheatsheet = [
     rows: [
       [[k('answer')], 'Answer the question'],
       [[k('take')], 'Take the recommendation or default'],
+      [[LL], 'What only it has: a task, a deliverable, Settings…'],
       [[k('reply-entry')], 'Reply to an entry of its conversation'],
       [[k('message')], 'Message its agent'],
       [[k('read'), k('unread')], 'Read (dismiss) or unread'],
@@ -92,7 +95,8 @@ const cheatsheet = [
       [[k('find')], 'Any command or place, by name'],
       [[k('m-x', 'normal', 'M-x'), k('m-x', 'normal', ':')], 'Commands only, by name'],
       [[k('switch-item')], 'Switch to an item'],
-      [['SPC i', 'SPC n'], 'Item and node commands'],
+      [['SPC b', 'SPC d'], 'The open item; the node shown'],
+      [[k('task-add'), 'SPC n'], 'New task; new anything'],
       [[k('verbatim'), 'SPC o'], 'Verbatim log; open pages'],
       [[k('describe-key'), k('describe-command')], 'What a key or command does'],
     ],
@@ -128,7 +132,7 @@ export function cheatsheetNow() {
     .map((c) => ({
       title: c.title,
       rows: c.rows
-        .map(([ks, desc]) => [ks.map((x) => (typeof x === 'string' ? x : keyIn(x.cmd, x.map, x.prefer))).filter(Boolean), desc])
+        .map(([ks, desc]) => [ks.flatMap((x) => (typeof x === 'string' ? x : 'localleader' in x ? localleaders() : keyIn(x.cmd, x.map, x.prefer))).filter(Boolean), desc])
         .filter(([ks]) => ks.length),
     }))
     .filter((c) => c.rows.length);

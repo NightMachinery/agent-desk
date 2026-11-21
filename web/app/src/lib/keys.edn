@@ -2,19 +2,26 @@
 ; (evilify/keymap-edn.md). keys.edn next to config.toml on the desk machine
 ; (normally ~/.config/agent-desk/keys.edn) overlays it: an entry there
 ; replaces the one here with the same chord, and nil removes it.
-; docs/keyboard.md describes the maps, their order and the extensions.
+; docs/keyboard.md describes the maps, their order and the extensions;
+; docs/spec-keymap.md the rules these keys follow.
 ;
 ; The commands are defined in keymap.js. A string labels a prefix in the
 ; key guide. Keys in a pane's map work only while that pane has focus, and
 ; hide :normal's keys with the same chord.
+;
+; The scheme, in short: every command has a home in a group (a leader group,
+; a vim prefix, or the localleader), and frequent ones a short key too; a
+; leader entry reuses its short key's letter (p pins, so SPC b p pins);
+; Shift reverses or widens; short keys never do what cannot be undone.
 {:normal
  {"SPC"     "leader"
-  "SPC b"   "items"
+  "SPC b"   "item"
+  "SPC d"   "node"
   "SPC h"   "help"
-  "SPC i"   "item"
-  "SPC n"   "node"
+  "SPC i"   "message box"
+  "SPC n"   "new"
   "SPC o"   "open"
-  "SPC p"   "project"
+  "SPC q"   "session"
   "SPC s"   "search"
   "SPC t"   "toggle"
   "SPC w"   "window"
@@ -33,9 +40,7 @@
   "M-x"     :m-x
   "SPC :"   :m-x
   "SPC SPC" :find
-  "SPC p p" :go-node
   "SPC ,"   :switch-item
-  "SPC b b" :switch-item
   "f"       :hints
   "SPC j"   :hints
   "/"       :search
@@ -47,46 +52,102 @@
   ; Moving.
   "n"       :next-open
   "N"       :prev-open
-  "R"       :reply-entry
   "J"       :next-item
   "K"       :prev-item
   "C-j"     :next-item
   "C-k"     :prev-item
   "-"       :up
-  "SPC p u" :up
-  "g h"     :top
-  "SPC p h" :top
 
-  ; Pages.
+  ; g: go somewhere.
+  "g h"     :top
   "g s"     :settings
   "g S"     :settings-global
   "g v"     :verbatim
   "g V"     :verbatim-all
+  "g c"     :tasks
+  "g C"     :tasks-all
+  "g a"     :recordings
   "g r"     :refresh
   "g R"     :reload-page
   "g o"     :open-node
   "g w"     :session
   "g t"     :thread-root
+
+  ; SPC b: the open item (or the selection). Short keys first.
+  "a"       :answer
+  "t"       :take
+  "r"       :message
+  "R"       :reply-entry
+  "i"       :insert
+  "d"       :read
+  "U"       :unread
+  "p"       :pin
+  "x"       :select
+  "SPC b a" :answer
+  "SPC b t" :take
+  "SPC b r" :message
+  "SPC b R" :reply-entry
+  "SPC b d" :read
+  "SPC b u" :unread
+  "SPC b p" :pin
+  "SPC b x" :select
+  "SPC b n" :next-open
+  "SPC b N" :prev-open
+  "SPC b b" :switch-item
+  "SPC b o" :open-node
+  "SPC b w" :session
+  "SPC b e" :org-export-item
+
+  ; SPC i: the message box.
+  "SPC i i" :insert
+  "SPC i f" :attach
+  "SPC i v" :voice-toggle
+  "SPC i r" :voice-recordings
+  "SPC i n" :notify-menu
+  "SPC i s" :send-menu
+  "SPC i x" :draft-discard
+  "SPC i c" :reply-to-cancel
+
+  ; SPC n: new.
+  "c"       :task-add
+  "SPC n t" :task-add
+  "SPC n m" :node-message
+  "SPC n v" :node-velocity
+
+  ; SPC d: the node shown.
+  "SPC d f" :go-node
+  "SPC d u" :up
+  "SPC d h" :top
+  "SPC d d" :node-read-all
+  "SPC d s" :node-settings
+  "SPC d a" :agent-archive
+  "SPC d e" :org-export-node
+  "SPC d i" :org-export-inbox
+
+  ; SPC o: open a page.
   "SPC o s" :settings
   "SPC o S" :settings-global
-  "SPC o o" :section-order
   "SPC o v" :verbatim
   "SPC o V" :verbatim-all
-  "SPC o r" :recordings
   "SPC o t" :tasks
   "SPC o T" :tasks-all
-  "g c"     :tasks
-  "g C"     :tasks-all
-  "SPC n t" :task-add
+  "SPC o r" :recordings
+  "SPC o o" :section-order
+  "SPC o f" :edit-sets
 
-  ; Toggles.
+  ; SPC q: the session.
+  "SPC q r" :reload-page
+  "SPC q s" :screen-release
+
+  ; SPC t: toggles.
   "SPC t a" :toggle-all
   "SPC t o" :toggle-old
   "SPC t d" :deliverables-show
   "SPC t t" :tasks-show
   "SPC t s" :toggle-select
+  "SPC t c" :toggle-auto-continue
 
-  ; Panes.
+  ; SPC w and C-w: panes.
   "SPC w h" :pane-left
   "SPC w l" :pane-right
   "SPC w w" :pane-next
@@ -96,52 +157,23 @@
   "C-w l"   :pane-right
   "C-w w"   :pane-next
 
-  ; The open item (or the selection).
-  "a"       :answer
-  "SPC i a" :answer
-  "r"       :message
-  "SPC i r" :message
-  "i"       :insert
-  "t"       :take
-  "SPC i t" :take
-  "d"       :read
-  "SPC i d" :read
-  "U"       :unread
-  "SPC i u" :unread
-  "p"       :pin
-  "SPC i p" :pin
-  "SPC i o" :open-node
-  "SPC i n" :notify-menu
-  "SPC i m" :send-menu
-  "SPC i g" :deliverable-open
-  "SPC i G" :deliverable-download
-  "SPC i w" :deliverable-works
-  "SPC i x" :draft-discard
-  "SPC i s" :task-status
-  "SPC i z" :task-defer
-  "SPC i Z" :task-defer-quota
+  ; y: everything copyable.
   "y y"     :yank-link
   "y i"     :yank-id
   "y r"     :yank-resume
   "y a"     :yank-paseo
   "y p"     :yank-path
   "y f"     :yank-hint
+  "y q"     :quota-copy-ids
+  "y l"     :push-logs
+  "y b"     :push-brave-setting
 
-  ; The node page.
-  "SPC n m" :node-message
-  "SPC n v" :node-velocity
-  "SPC n r" :node-read-all
-  "SPC n s" :node-settings
-  "SPC n e" :org-export-node
-  "SPC i e" :org-export-item
-  "SPC n a" :agent-archive
-
-  ; Selecting.
-  "x"       :select
+  ; SPC x: selecting.
   "V"       :visual
   "v"       :visual
   "SPC x a" :select-all
-  "SPC x c" :select-clear}
+  "SPC x c" :select-clear
+  "SPC x d" :list-read-all}
 
  :list
  {"z"       "fold"
@@ -211,6 +243,56 @@
  :insert
  {"M-x"     :m-x}
 
- ; The context maps (:task, :deliverable, ...) hold the keys typed after one
- ; of these.
- :localleader ["," "SPC m"]}
+ ; The context maps hold the keys typed after the localleader (, or SPC m):
+ ; what only the open thing has. The same letter means the same idea across
+ ; them: o opens, r retries or replaces, y and n say yes and no.
+ :localleader ["," "SPC m"]
+
+ :task
+ {"s"       :task-status
+  "o"       :task-reopen
+  "d"       :task-done
+  "D"       :task-drop
+  "z"       :task-defer
+  "Z"       :task-defer-quota
+  "u"       :task-undefer
+  "l"       :task-start}
+
+ :deliverable
+ {"o"       :deliverable-open
+  "g"       :deliverable-download
+  "w"       :deliverable-works}
+
+ ; A question asking for the screen.
+ :screen
+ {"y"       :screen-grant
+  "n"       :screen-deny}
+
+ ; A message that failed to deliver, or whose recording failed to transcribe.
+ :message
+ {"r"       :deliver-retry
+  "t"       :voice-retry
+  "s"       :voice-omit}
+
+ ; While focus is in the Out of quota section.
+ :quota
+ {"a"       :quota-archive
+  "r"       :quota-replace
+  "y"       :quota-copy-ids}
+
+ :settings
+ {"o"       :section-order
+  "O"       :section-order-reset
+  "r"       :org-render
+  "e"       :org-export
+  "E"       :org-export-zip
+  "p"       :push-toggle
+  "t"       :push-test
+  "l"       :push-logs
+  "b"       :push-brave-setting}
+
+ :verbatim
+ {"m"       :verbatim-more}
+
+ ; No key, on purpose: SPC t d cycles through these three.
+ :keyless [:deliverables-unread :deliverables-latest :deliverables-all]}

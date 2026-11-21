@@ -10,6 +10,7 @@
   import PushSettings from './PushSettings.svelte';
   import SectionOrder from './SectionOrder.svelte';
   import { off, BUSY } from '../lib/why.js';
+  import { keyFor } from '../lib/keys.svelte.js';
   const lingerChoices = [0, 15, 30, 60, 120, 300];
   const lingerText = (n) => (n === 0 ? 'Drop it at once' : n < 60 ? `${n} seconds` : n === 60 ? '1 minute' : `${n / 60} minutes`);
 
@@ -251,7 +252,7 @@
         </div>
         <div class="origin">
           <span class="faint">
-            The inbox, a board per project and a ledger per month, as org, in <span class="mono">{org.dir}</span>: for Emacs (agent-desk.el) and <code>cat</code>. Export downloads them as one .org file (or the same files as a zip); a node or an item exports alone from its page (<span class="mono">SPC n e</span>, <span class="mono">SPC i e</span>); <code>agent-desk render</code> renders them from a shell.
+            The inbox, a board per project and a ledger per month, as org, in <span class="mono">{org.dir}</span>: for Emacs (agent-desk.el) and <code>cat</code>. Export downloads them as one .org file (or the same files as a zip); a node or an item exports alone from its page (<span class="mono">{keyFor('org-export-node') || 'M-x org-export-node'}</span>, <span class="mono">{keyFor('org-export-item') || 'M-x org-export-item'}</span>); <code>agent-desk render</code> renders them from a shell.
             {#if org.last}Last rendered {orgWhen(org.last)}, in {org.took_ms} ms.{/if}
             {#if org.error}<span class="err">Last render failed: {org.error}</span>{/if}
           </span>

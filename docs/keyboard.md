@@ -23,7 +23,7 @@ own keys"). This page explains the model.
 A number before a motion repeats it: `5j` moves five items down.
 
 The mode line along the bottom shows the mode, the pane keys act on, keys
-typed so far (`SPC i-`), the position in the list and the current view. It
+typed so far (`SPC b-`), the position in the list and the current view. It
 appears only where a mouse or trackpad is the pointer, so a phone keeps its
 layout.
 
@@ -76,62 +76,94 @@ On a phone there is one pane at a time: the list, or the open item.
   the selected box (the one `Esc` left), else the first message box on the
   page. `R`: reply to an entry of its conversation (with several, hints
   label the reply buttons): the box then replies to that entry, until you
-  send or press the ✕ beside "Replying to" (`M-x reply-to-cancel`).
+  send or press the ✕ beside "Replying to" (`SPC i c`).
 - `d`: mark read; on a question, dismiss it. `U`: mark unread; on a dismissed
   question, put it back in Needs you. `p`: pin or unpin. With a selection,
   these act on every selected item.
 - `x`: select or unselect it.
 - `yy` copies a link to it, `yi` its id, `ya` its agent's Paseo id, `yr`
-  the session's resume command, `yp` the path. The two icons beside the
-  agent's name copy the Paseo id and the resume command too.
+  the session's resume command, `yp` the path, `yf` any event on screen by
+  hint. The two icons beside the agent's name copy the Paseo id and the
+  resume command too.
+- `c` files a new task (capture).
 - `go` opens its node, `gw` shows everything its session wrote, `gt` the item
   its conversation is about.
 
 ## The leader, SPC
 
 `SPC` starts a sequence; wait a moment and the which-key popup lists what can
-follow, with groups in colour.
+follow, with groups in colour. Each group means what it means in Doom, and an
+entry reuses the letter of its short key (`p` pins, so `SPC b p` pins).
 
 - `SPC SPC`: find anything by name: every command that applies here (with its
   keys, so the palette also teaches them), then every project, run and agent.
-- `SPC p p`: places only (projects, runs and agents).
 - `SPC ,` or `SPC b b`: switch to an item in the list.
 - `SPC :`, `:` or `M-x`: commands only. Every command is listed, including the
-  ones with no key (screen requests, retrying a delivery, focus sets,
-  auto-continue, reopening a finished task with a note).
-- `SPC i`: the open item (`a` answer, `r` message, `d` read, `u` unread, `p`
-  pin, `t` take, `o` its node, `n` "Notify me", `m` "Send how?"; on a
-  deliverable, `g` open its link, `G` download its file, `w` Works: send
-  with "This worked." in front; on an open task, `s` Status: ask whoever
-  works on it where it stands, `z` Defer, `Z` Defer for quota; `e` export it
-  with its conversation as one .org file; `x` discard the draft in the box,
-  with Undo). Undefer has no key: `M-x task-undefer`.
-- Org export: `SPC n e` this node as one .org file; `M-x org-export` the
-  whole desk, `org-export-inbox`, `org-export-zip` (also in Settings).
-- Tasks: `g c` the Tasks page here, `g C` everywhere (`SPC o t`, `SPC o T`),
-  `SPC n t` a new task (in its form `⌘ RET` files it, `ESC` in a field
-  leaves insert mode and a second `ESC` closes the form, `C-g` closes it
-  from anywhere); on the page `/` searches. The list's Tasks section
-  folds like the others (`z a`, `z M`), `j`/`k` walk its rows, and `SPC t t`
-  cycles its menu: open only, or also those finished in the last 15 minutes
-  to 30 days.
-- `SPC o o`: the order of the list's sections, in Settings, with the first
-  handle focused; `↑` / `↓` on a handle move its section.
-- `SPC n`: the node page (`m` message the coordinator, `r` mark everything
-  under it read, `s` its notify settings, `v` ask for a velocity report, `a`
-  archive its coordinator's Paseo agent).
+  ones without a key.
+- `SPC b`: the open item: `a` answer, `t` take, `r` message, `R` reply to an
+  entry, `d` read, `u` unread, `p` pin, `x` select, `n` / `N` the next or
+  previous open item, `o` its node, `w` what its session wrote, `e` export it
+  with its conversation as one .org file.
+- `SPC i`: the message box: `i` write in it, `f` attach a file, `v` start or
+  stop a voice recording, `r` pick a recording to insert its transcript, `n`
+  "Notify me", `s` "Send how?", `x` discard the draft (with Undo), `c` stop
+  replying to an entry.
+- `SPC n`: new: `t` a task (also `c`; in its form `⌘ RET` files it, `ESC` in
+  a field leaves insert mode and a second `ESC` closes the form, `C-g` closes
+  it from anywhere), `m` a message to the coordinator, `v` a velocity
+  report request.
+- `SPC d`: the node shown: `f` find and go to a project, run or agent, `u`
+  up, `h` the top, `d` mark everything under it read, `s` its notify
+  settings, `a` archive its coordinator's Paseo agent, `e` export it as one
+  .org file, `i` export its inbox.
+- `SPC o`: open a page: `s` / `S` settings here or global, `v` / `V` the
+  Verbatim log here or everywhere, `t` / `T` Tasks here or everywhere, `r`
+  recordings, `o` the order of the list's sections (in Settings, with the
+  first handle focused; `↑` / `↓` on a handle move its section), `f` edit
+  focus sets.
+- `SPC q`: the session: `r` reload the page (also `g R`), `s` take the screen
+  back from an agent holding the lock.
 - `SPC s s` search, `SPC s c` clear the search; `/` searches too.
-- `SPC t a` show all, `SPC t o` oldest first, `SPC t s` select mode, `SPC t d`
-  which deliverables to list (unread latest, latest, all).
-- `SPC x a` select every item, `SPC x c` clear the selection.
-- `SPC o`: open a page: `v` the Verbatim log here, `V` everywhere, `s`
-  settings, `S` global settings, `r` recordings.
+- `SPC t`: toggles: `a` show all, `o` oldest first, `s` select mode, `d`
+  which deliverables to list (unread latest, latest, all), `t` the Tasks
+  section's menu (open only, or also those finished in the last 15 minutes
+  to 30 days), `c` auto-continue.
+- `SPC x`: selecting: `a` every item, `c` clear, `d` mark every unread item
+  in the list read.
 - `SPC w`: panes, as `C-w`.
 - `SPC h`: help. `SPC h b` (or `SPC ?`) lists every binding that applies here;
   `?` shows the cheatsheet. `SPC h k` then a key sequence says what that key
   runs here and what it does elsewhere, without running it (`C-g` cancels).
   `SPC h f` picks any command, available here or not, and shows its keys and,
   when it does not apply, what it needs.
+
+`g` goes somewhere: `g c` / `g C` Tasks here or everywhere (on the page `/`
+searches; the list's Tasks section folds like the others), `g a` recordings,
+`g s` / `g S` settings, `g v` / `g V` the Verbatim log, `g h` the top, `g r`
+refresh, `g R` reload the page.
+
+## The localleader, `,` (or `SPC m`)
+
+`,` and `SPC m` start the keys that only the open thing has. The same letter
+means the same idea across kinds: `o` opens, `r` retries or replaces, `y` and
+`n` say yes and no. With nothing open that has its own keys, `,` says so and
+swallows the next key, so it never runs a short key by accident.
+
+- A task: `s` ask where it stands, `d` done, `D` drop, `z` defer, `Z` defer
+  for quota, `u` undefer, `o` reopen with a note, `l` start an agent on it.
+- A deliverable: `o` open its link, `g` download its file, `w` Works: send
+  with "This worked." in front.
+- A question asking for the screen: `y` grant, `n` deny.
+- A message that failed: `r` retry the delivery, `t` retry the
+  transcription, `s` send it without the recording.
+- An out-of-quota agent, while focus is in that section: `a` archive, `r`
+  replace, `y` copy the picked ids (also `y q`). With focus on an agent's
+  card, they act on that agent, else on the first.
+- Settings: `o` / `O` the section order or back to the default, `r` render
+  the org files now, `e` export the desk as one .org file, `E` as a zip, `p`
+  push to this device on or off, `t` a test push, `l` copy the push logs,
+  `b` copy Brave's push setting.
+- The Verbatim log: `m` show older messages.
 
 In the pickers (`SPC SPC`, `SPC h f`, `SPC ,`, `M-x`) the words you type match in any
 order, each as plain text, a regular expression or an initialism (`mrt` for
@@ -271,6 +303,13 @@ would: tag the button `data-cmd="name"` in its component and call
 `tip(label, button)`, the tooltip naming a button's key; a button whose
 `data-cmd` differs from its command's name gets an entry in its
 `buttonCmds`.
+A command that belongs to one kind of thing (a task, a deliverable, the
+Settings page) goes in that kind's context map, after the localleader.
+`ctx.context` in `keymap.js` names the kind open now: a zone tagged
+`data-context` holding focus (the Out of quota section), else the page, else
+the open item's kind. Inside such a zone, `cmdEl` prefers the button in the
+focused card tagged `data-scope`.
+`click()` on a disabled button says its tooltip, which is the reason.
 A disabled control says why in its tooltip: spread `off(title, [condition,
 reason]...)` from `lib/why.js` on it instead of writing `disabled=` and
 `title=` separately, so the reason cannot drift from the condition. Hover

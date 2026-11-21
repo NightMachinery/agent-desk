@@ -249,8 +249,8 @@ or not) or **All** (every one, replaced ones too); `SPC t d` switches, and
 terminal. The item page shows a large **Open** button for the link and a
 download button per file. Beside its message box's Send, **Works** sends
 the message with "This worked." in front (with the box empty, just that).
-On the keyboard: `SPC i g` opens the link, `SPC i G` downloads the file,
-`SPC i w` is Works. Their notify class is `deliverable` (desktop: the
+On the keyboard: `, o` opens the link, `, g` downloads the file, `, w` is
+Works (`,` or `SPC m` starts the keys only the open item has). Their notify class is `deliverable` (desktop: the
 machine it came from; phone when away), set in Settings like any other. A done report from a run's root coordinator marks
 the run finished. `agent-done` does this for you where it is installed.
 `agent-desk show --mine` shows only the calling session's own node.
@@ -497,9 +497,9 @@ about a slot) is a top-level `MSG` heading with its responses under it. A
 
 **Export** downloads org rendered fresh, as one `.org` file: the whole desk
 (Settings, "Export as one .org file": the inbox, boards, tasks and ledger as
-top-level headings), the inbox ("Inbox only"), a node (`SPC n e` on its
+top-level headings), the inbox ("Inbox only"), a node (`SPC d e` on its
 page: its board, tasks, and items with their conversations) or an item
-(`SPC i e`: it and its conversation; a task with its subtasks). Each is also
+(`SPC b e`: it and its conversation; a task with its subtasks). Each is also
 an `M-x` command (`org-export-node`, `org-export-item`). "As a zip" gives the files above instead. From a
 shell, the same goes to stdout:
 
@@ -1007,7 +1007,7 @@ type, by tag (the dashed `#tag` pills; a row's own tags filter too), and by
 search (`/`, which also matches `#tag`). A task's tags are edited in its
 expanded row. The box checks a task off (Undo in the toast)
 or reopens it (asking what is still wrong, see below); clicking its title shows its brief with Status, Start, Drop
-and Full page (the task on its own page, with its conversation). **New task** (`SPC n t`, or "+ New" on a node page) files one at any
+and Full page (the task on its own page, with its conversation). **New task** (`c` or `SPC n t`, or "+ New" on a node page) files one at any
 project, run or agent: details (the box focused when the form opens), a
 title, a type, an optional parent, files (pasted anywhere in the form,
 dropped on it, or Attach) and tags. The files stay on the task and go with
@@ -1035,7 +1035,7 @@ started or changed it (`task start`), else the agent its `launch_command`
 started once that agent has joined, else its author, else the agent at its
 node, else the coordinator working under it (as above). The agent's
 response threads under the task. **Status** (on an open task's page and its
-row on the Tasks page; `SPC i s`) sends such a message asking for a short
+row on the Tasks page; `, s`) sends such a message asking for a short
 executive summary of where the task stands: what is done, what is in
 progress, what is blocked or waiting on you, the next step
 (`reply w-... --prompt task-status`; edit it by copying
@@ -1187,7 +1187,7 @@ each of them. For each:
   keyboard command is `quota-archive`.
 
 The node panel of any agent's node also has the **Auto-continue** checkbox,
-so you can arm it before the agent runs out, and **Archive agent** (`SPC n
+so you can arm it before the agent runs out, and **Archive agent** (`SPC d
 a`), which archives the coordinator's Paseo agent when it runs on this
 machine. The server only passes `paseo archive` an id this machine's Paseo
 has a record of (`POST api/agent` with `{"action": "archive", "id": ...}`).
