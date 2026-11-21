@@ -399,10 +399,11 @@ function labels(n) {
   return out.slice(0, n);
 }
 
-/** Labels everything clickable on screen; typing a label activates it. */
-export function startHints() {
+/** Labels everything clickable on screen (or only what matches the CSS
+ * selector only); typing a label activates it. Returns how many it labelled. */
+export function startHints(only = '') {
   const root = dialog() ?? document.body;
-  const els = /** @type {HTMLElement[]} */ ([...root.querySelectorAll(focusable + ', [role="button"], [role="checkbox"]')]).filter((el) => {
+  const els = /** @type {HTMLElement[]} */ ([...root.querySelectorAll(only || focusable + ', [role="button"], [role="checkbox"]')]).filter((el) => {
     if (!visible(el) || el.closest('[inert], .keys-overlay')) return false;
     const r = el.getBoundingClientRect();
     if (!(r.width > 0 && r.height > 0 && r.bottom > 0 && r.right > 0 && r.top < innerHeight && r.left < innerWidth)) return false;
@@ -412,7 +413,14 @@ export function startHints() {
     const top = document.elementFromPoint(x, y);
     return !!top && (top === el || el.contains(top) || top.contains(el));
   });
-  if (!els.length) return say('Nothing to click here');
+  if (!els.length) {
+    say('Nothing to click here');
+    return 0;
+  }
+  if (only && els.length === 1) {
+    els[0].click();
+    return 1;
+  }
   const ls = labels(els.length);
   keys.hints = {
     typed: '',
@@ -421,6 +429,7 @@ export function startHints() {
       return { label: ls[i], el, x: Math.max(0, r.left), y: Math.max(0, r.top) };
     }),
   };
+  return els.length;
 }
 
 function hintKey(e, tok) {

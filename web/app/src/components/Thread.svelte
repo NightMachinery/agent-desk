@@ -9,6 +9,7 @@
   import Markdown from './Markdown.svelte';
   import Attachments from './Attachments.svelte';
   import Icon from './Icon.svelte';
+  import { tip } from '../lib/shortcuts.js';
   import { post } from '../lib/api.js';
   import { toast } from '../lib/toast.svelte.js';
   import { acknowledgeMessages, retryPost } from '../lib/outbox.svelte.js';
@@ -113,7 +114,7 @@
         <span class="faint">{t.age} ago</span>
         <a class="mono faint idlink" href={href({ item: t.display_id })}>{t.display_id}</a>
         {#if onreply}
-          <button class="reply-btn" class:on={replyingTo === t.display_id} title={`Reply to ${t.display_id}: your message goes about it, to ${fromAgent(t) ? t.by || 'its agent' : 'the agent it went to'}`} aria-label={`Reply to ${t.display_id}`} onclick={() => onreply(t)}><Icon name="reply" size={14} /></button>
+          <button class="reply-btn" class:on={replyingTo === t.display_id} title={tip('Reply', 'reply-entry')} aria-label={`Reply to ${t.display_id}`} onclick={() => onreply(t)}><Icon name="reply" size={14} /></button>
         {/if}
       </div>
       {#if t.kind === 'question'}

@@ -24,7 +24,9 @@
   // { label, cmd, title, wrap(text) }; wrap turns the text (maybe empty)
   // into the message, so they work with the box empty too. linked: other
   // drafts that Discard drops with this box's (a question's picks).
-  let { voiceNode = '', draft = '', id = undefined, label, placeholder, send, hint = '', quick = [], sendLabel = 'Send', target = null, compose = null, ready = false, alongside = [], linked = [] } = $props();
+  // ondiscard(restore), when given, takes over after Discard (the item page
+  // moves on, with Undo running restore); else a toast offers Undo.
+  let { voiceNode = '', draft = '', id = undefined, label, placeholder, send, hint = '', quick = [], sendLabel = 'Send', target = null, compose = null, ready = false, alongside = [], linked = [], ondiscard = null } = $props();
   let text = $state('');
   let busy = $state(false);
   let menu = $state(false);
@@ -232,7 +234,8 @@
     const restore = discardDrafts([draftOf, 'voice:' + draftOf, ...linked]);
     text = '';
     voiceDraft = [];
-    toast('Draft discarded.', 'ok', 8000, { label: 'Undo', run: restore });
+    if (ondiscard) ondiscard(restore);
+    else toast('Draft discarded.', 'ok', 8000, { label: 'Undo', run: restore });
   }
   // The desk has a newer draft for this box, typed on another device (or
   // null: sent or emptied there).

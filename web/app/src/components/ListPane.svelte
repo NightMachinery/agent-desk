@@ -114,8 +114,10 @@
   const pinnedAll = $derived(
     new Set([...pinnedIds, ...[...needs, ...deliverables, ...responses, ...fresh].flatMap((g) => g.items.filter((it) => it.pinned).map((it) => it.display_id))]),
   );
+  // Open: what is still waiting (Needs you, and unread items elsewhere).
+  const openAll = $derived(new Set([...needIds, ...freshUnread, ...responseUnread, ...deliverableUnread, ...pinned.filter((it) => it.unread).map((it) => it.display_id)]));
   // Previous and next walk the list in the order shown.
-  $effect(() => snapshot(allIds, route.item, pinnedAll));
+  $effect(() => snapshot(allIds, route.item, pinnedAll, openAll));
   const pickedPinned = $derived(pinnedIds.filter((x) => sel.ids.has(x)).length);
   const allOn = (ids) => ids.length > 0 && ids.every((x) => sel.ids.has(x));
   $effect(() => prune(allIds));

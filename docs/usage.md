@@ -618,7 +618,8 @@ Opening an unread item still reads it at once, so a draft started after
 that keeps it listed but read. **Discard** beside a box with a draft drops
 it everywhere, with Undo (`SPC i x`); on a question it drops your picks and
 notes with the text. Sending or discarding reads an unread item, as opening
-it would have.
+it would have, and discarding moves on to the next open item as sending
+does (Undo brings the draft back).
 
 An item shows its conversation under it: your messages and answers, each
 with what happened to it ("joined the running turn", "queued, position 2",

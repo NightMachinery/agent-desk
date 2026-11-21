@@ -3,15 +3,21 @@
 // is therefore a snapshot, kept until the list changes while the open item
 // is still in it (or nothing is open).
 
-export const nav = $state({ order: /** @type {string[]} */ ([]), pinned: /** @type {Set<string>} */ (new Set()) });
+export const nav = $state({
+  order: /** @type {string[]} */ ([]),
+  pinned: /** @type {Set<string>} */ (new Set()),
+  open: /** @type {Set<string>} */ (new Set()),
+});
 
 /** Records the list's order, unless the open item has dropped out of it,
- * and which items are pinned (moving on after an answer skips them). */
-export function snapshot(ids, current, pinned = new Set()) {
+ * which items are pinned (moving on after an answer skips them) and which
+ * are open (an open question or an unread item: where moving on may go). */
+export function snapshot(ids, current, pinned = new Set(), open = new Set()) {
   const seen = new Set();
   const order = ids.filter((id) => !seen.has(id) && seen.add(id));
   if (!current || order.includes(current) || !nav.order.includes(current)) nav.order = order;
   nav.pinned = pinned;
+  nav.open = open;
 }
 
 /** The item dir (+1 or -1) steps away from current, or ''. */

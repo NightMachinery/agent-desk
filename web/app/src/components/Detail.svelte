@@ -153,7 +153,7 @@
       return;
     }
     const here = route.item;
-    const next = wide() ? moveOnTarget(nav.order, here, nav.pinned) : '';
+    const next = wide() ? moveOnTarget(nav.order, here, nav.pinned, nav.open) : '';
     arrivedAuto(next);
     setTimeout(() => go({ item: next }), 0); // after the composer has finished with its draft
     toast(text, 'ok', 6000, {
@@ -166,6 +166,11 @@
     });
   }
 
+  // Discarding a draft is done with the item, like sending: move on the
+  // same way, with Undo bringing the draft back here.
+  function discarded(restore) {
+    moveOn('Draft discarded.', restore, ui.nextAfterMessage);
+  }
   async function answer(text, opts = {}) {
     const { id } = e;
     const page = route.item;
@@ -419,6 +424,7 @@
           hint={item.target ? viaText(item.target) : ''}
           target={item.target}
           send={answer}
+          ondiscard={discarded}
         />
       </section>
     {/if}
@@ -437,6 +443,7 @@
           hint={replyingTo || (isQuestion && !item.answered) ? '' : viaText(item.target)}
           target={item.target}
           send={reply}
+          ondiscard={discarded}
           alongside={kind === 'deliverable' ? tried : []}
         />
       </section>

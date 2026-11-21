@@ -3,16 +3,20 @@
 // stay on top by choice and are not work waiting in line. Preference: the
 // next question after here, else the nearest question before it, else the
 // next item of any kind, else the nearest one before; '' (the list) when
-// only pinned items are left. Previous and Next still walk every item.
+// only pinned items are left. Only open items count (an open question, an
+// unread item): a read one still listed (lingering, or under Show all) is
+// not waiting. Previous and Next still walk every item; Next open item (n)
+// goes where this would.
 
 /**
  * @param {string[]} order the list's ids, in the order shown
  * @param {string} here the item just dealt with
  * @param {Set<string>} pinned ids of pinned items, in any section
+ * @param {Set<string> | null} open ids of open items; null counts every item
  */
-export function moveOnTarget(order, here, pinned) {
+export function moveOnTarget(order, here, pinned, open = null) {
   const i = order.indexOf(here);
-  const ok = (/** @type {string} */ id) => id !== here && !pinned.has(id);
+  const ok = (/** @type {string} */ id) => id !== here && !pinned.has(id) && (!open || open.has(id));
   const after = order.slice(i + 1).filter(ok);
   const before = order.slice(0, Math.max(0, i)).filter(ok).reverse();
   const q = (/** @type {string} */ id) => id.startsWith('q-');

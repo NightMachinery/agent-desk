@@ -51,6 +51,9 @@ On a phone there is one pane at a time: the list, or the open item.
 - `C-d` / `C-u`: scroll half a page.
 - `J` / `K` (or `C-j` / `C-k`) move to the next or previous item from any
   pane.
+- `n`: the next open item, where answering would move on to: the next open
+  question, else the next unread item, skipping read and pinned ones. `N`:
+  the nearest open item before.
 
 ## The detail pane
 
@@ -61,9 +64,10 @@ On a phone there is one pane at a time: the list, or the open item.
 
 - `a`: answer the question. `t`: take the recommendation or the default.
 - `r`: message its agent (on a node page, the coordinator). `i`: the first
-  message box on the page. Each entry in its conversation has a reply
-  button, which `f` hints reach: the box then replies to that entry, until
-  you send or press the ✕ beside "Replying to" (`M-x reply-to-cancel`).
+  message box on the page. `R`: reply to an entry of its conversation
+  (with several, hints label the reply buttons): the box then replies to
+  that entry, until you send or press the ✕ beside "Replying to"
+  (`M-x reply-to-cancel`).
 - `d`: mark read; on a question, dismiss it. `U`: mark unread; on a dismissed
   question, put it back in Needs you. `p`: pin or unpin. With a selection,
   these act on every selected item.

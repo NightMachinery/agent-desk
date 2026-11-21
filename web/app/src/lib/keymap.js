@@ -3,6 +3,7 @@
 // the same. Each command is defined once with command(name, ...); keys are
 // bound to its name with bind(keys, name), so M-x, SPC SPC and help list a
 // command even when it has no key.
+import { moveOnTarget } from './moveon.js';
 import { route, go, pageOpen } from './route.svelte.js';
 import { nav, step } from './nav.svelte.js';
 import { sel, toggle, toggleAll, clear } from './select.svelte.js';
@@ -54,6 +55,19 @@ function stepBy(n) {
   openItem(id);
 }
 const edge = (last) => openItem(last ? nav.order[nav.order.length - 1] : nav.order[0]);
+/** The next open item (dir 1: where moving on after an answer goes) or the
+ * nearest open one before (dir -1); pinned items are skipped. */
+function openOpen(dir) {
+  const here = route.item;
+  let id = '';
+  if (dir > 0) id = moveOnTarget(nav.order, here, nav.pinned, nav.open);
+  else {
+    const i = nav.order.indexOf(here);
+    id = nav.order.slice(0, Math.max(0, i)).reverse().find((x) => nav.open.has(x) && !nav.pinned.has(x)) ?? '';
+  }
+  if (!id) return say(dir > 0 ? 'Nothing open left' : 'Nothing open before this');
+  openItem(id);
+}
 
 /** The first row of the section n sections away from the open item. */
 function section(n) {
@@ -298,7 +312,10 @@ C('m-x', 'Run a command by name (M-x)', mx, { palette: false, anywhere: true });
 C('find', 'Find a command or a place (SPC SPC)', anything, { palette: false });
 C('go-node', 'Go to a project, run or agent', nodes);
 C('switch-item', 'Switch to an item in the list', items);
-C('hints', 'Click something on screen (hints)', startHints, { anywhere: true });
+C('hints', 'Click something on screen (hints)', () => startHints(), { anywhere: true });
+C('reply-entry', 'Reply to an entry of the conversation (hints on the reply buttons)', () => startHints('.reply-btn'), { when: () => !!document.querySelector('.reply-btn') });
+C('next-open', 'Next open item: where answering moves on to (an open question, else an unread item)', () => openOpen(1));
+C('prev-open', 'Previous open item', () => openOpen(-1));
 C('search', 'Search', search);
 C('search-clear', 'Clear the search', () => go({ q: '', item: '' }, { replace: true }), { when: () => !!route.q, need: 'a search' });
 C('escape', 'Back out: visual mode, selection, item, page, search', escape, { palette: false });
@@ -510,6 +527,9 @@ bind('SPC s c', 'search-clear');
 bind('ESC', 'escape');
 bind('C-g', 'escape');
 
+bind('n', 'next-open');
+bind('N', 'prev-open');
+bind('R', 'reply-entry');
 bind('J', 'next-item');
 bind('K', 'prev-item');
 bind('C-j', 'next-item');

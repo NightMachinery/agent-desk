@@ -29,6 +29,7 @@ export const cmdKeys = {
   'deliverable-works': 'SPC i w',
   'deliverable-open': 'SPC i g',
   'task-status': 'SPC i s',
+  'reply-entry': 'R',
   'message-node': 'SPC n m',
   'read-all': 'SPC n r',
   'velocity-report': 'SPC n v',
@@ -66,6 +67,7 @@ export const cheatsheet = [
     rows: [
       [['j', 'k'], 'Next or previous item'],
       [['J', 'K'], 'Next or previous, from any pane'],
+      [['n', 'N'], 'Next or previous open item, skipping read ones'],
       [['g g', 'G'], 'First or last item'],
       [['}', '{'], 'Next or previous section'],
       [['C-d', 'C-u'], 'Half a page down or up'],
@@ -77,6 +79,7 @@ export const cheatsheet = [
     rows: [
       [['a'], 'Answer the question'],
       [['t'], 'Take the recommendation or default'],
+      [['R'], 'Reply to an entry of its conversation'],
       [['r'], 'Message its agent'],
       [['d', 'U'], 'Read (dismiss) or unread'],
       [['p'], 'Pin or unpin'],
