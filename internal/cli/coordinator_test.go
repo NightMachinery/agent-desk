@@ -19,7 +19,7 @@ func TestCoordinatorUnder(t *testing.T) {
 	b := map[string]string{"AI_AGENT": "claude-code", "CLAUDE_CODE_SESSION_ID": sessB, "PASEO_AGENT_ID": pB}
 	h.ok(a, "", "join", "r1/coord")
 	h.ok(b, "", "join", "r2/coord")
-	h.ok(a, "", "set", "status", "Still going.") // r1 is newer...
+	h.ok(a, "", "set", "status", "Still going.")           // r1 is newer...
 	h.ok(a, "All done.", "done", "--title", "r1 finished") // ...but finished
 
 	_, hd := testServer(t, h)

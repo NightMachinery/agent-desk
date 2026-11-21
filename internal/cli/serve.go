@@ -941,7 +941,7 @@ type Target struct {
 	// it (api/target?coordinator=1 on a project or run, which no agent
 	// holds).
 	For string `json:"for,omitempty"`
-	to          ident.From
+	to  ident.From
 }
 
 // sshHosts is the config's ssh_hosts, under the server's lock.
