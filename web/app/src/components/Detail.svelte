@@ -274,7 +274,7 @@
       <button data-cmd="copy-link" class="btn ghost small mono" title={tip('Copy a link to this item', 'copy-link')} onclick={() => copyText(location.href, 'Link')}>{it.display_id}</button>
     </div>
 
-    <h1>{title}</h1>
+    <h1 data-event={inThread ? undefined : it.display_id}>{title}</h1>
 
     <div class="meta">
       <nav class="crumbs">

@@ -93,7 +93,7 @@
 <ol class="thread">
   {#each entries as t (t.event.id)}
     {#if compactAuto(t)}
-    <li id={'e-' + t.display_id} class="entry auto" class:current={t.display_id === current}>
+    <li id={'e-' + t.display_id} data-event={t.display_id} class="entry auto" class:current={t.display_id === current}>
       <details>
         <summary class="head">
           <span>{AUTO[t.auto] ?? 'Generated message'}</span>
@@ -107,7 +107,7 @@
       </details>
     </li>
     {:else}
-    <li id={'e-' + t.display_id} class="entry {t.kind}" class:has-default={t.kind === 'question' && t.event.level !== 'blocked'} class:current={t.display_id === current}>
+    <li id={'e-' + t.display_id} data-event={t.display_id} class="entry {t.kind}" class:has-default={t.kind === 'question' && t.event.level !== 'blocked'} class:current={t.display_id === current}>
       <div class="head">
         <strong>{label(t)}</strong>
         {#if !fromAgent(t) && t.by}<span class="faint">to {t.by}</span>{/if}

@@ -92,6 +92,7 @@ export const cheatsheet = [
     rows: [
       [['y y'], 'Link to the item'],
       [['y a'], "Its agent's Paseo id"],
+      [['y f'], 'Any event on screen, by hint: its id and text'],
       [['y r'], "Its session's resume command"],
       [['g o'], 'Its node'],
       [['g w'], 'Everything its session wrote'],

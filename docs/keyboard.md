@@ -137,6 +137,11 @@ fields, the controls inside an open sheet). Type a label to click it, or to
 focus it if it is a field. `Esc` cancels. Hints reach whatever has no key of
 its own.
 
+`yf` labels every event on screen instead: the list's rows, the entries of
+the open conversation, and the open item. Typing a label copies that event as
+its id and its text, such as `m-6599: yf should show hints…`, so a paste
+carries its reference.
+
 ## Going places
 
 `-` goes up one level of the path, `gh` to everything, `gs` to the settings

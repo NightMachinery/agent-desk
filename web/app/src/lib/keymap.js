@@ -9,7 +9,7 @@ import { nav, step } from './nav.svelte.js';
 import { sel, toggle, toggleAll, clear } from './select.svelte.js';
 import { copy } from './format.js';
 import { toast } from './toast.svelte.js';
-import { post } from './api.js';
+import { get, post } from './api.js';
 import { toggleSection, showDeliverables, deliverableModeLabel, showTasks, taskModeLabel } from './ui.svelte.js';
 import {
   keys, ctx, command, bind, group, pane, paneEl, cmdEl, say, dialog, moveFocus, focusables, startHints, openPalette,
@@ -208,6 +208,29 @@ const after = (f) => () => {
 async function yank(text, what) {
   if (!text) return say(`No ${what.toLowerCase()} here`);
   toast((await copy(text)) ? `${what} copied.` : text, 'ok');
+}
+
+// y f: hints on every event on screen (list rows, conversation entries, the
+// open item); the chosen one is copied as "id: text", so a paste carries its
+// reference. The text comes from data the page already holds, else the item
+// is fetched.
+const EVENTS = '[data-item], [data-event]';
+function shownEvent(id) {
+  const it = ctx.item();
+  const v = ctx.view();
+  const pools = [[it?.item], it?.thread, ...Object.values(v?.view ?? {}), ...(v?.conversations ?? []).map((c) => c.entries)];
+  for (const pool of pools) {
+    const hit = Array.isArray(pool) && pool.find((x) => x?.display_id === id);
+    if (hit) return hit.event;
+  }
+  return null;
+}
+async function yankEvent(el) {
+  const id = el.dataset.item || el.dataset.event || '';
+  const e = shownEvent(id) ?? (await get('item', { id }).catch(() => null))?.item?.event;
+  if (!e) return say(`Could not read ${id}`);
+  const text = [e.title, e.body].filter(Boolean).join('\n\n');
+  yank(`${id}: ${text}`, id);
 }
 
 function escape() {
@@ -434,6 +457,7 @@ C('yank-id', "Copy the item's id", () => yank(route.item, 'Id'));
 C('yank-resume', 'Copy the resume command', () => yank(ctx.item()?.resume ?? '', 'Resume command'));
 C('yank-paseo', "Copy the agent's Paseo id", () => yank(ctx.item()?.from?.paseo || ctx.view()?.target?.paseo || '', 'Paseo id'));
 C('yank-path', 'Copy the path shown', () => yank(ctx.item()?.node ?? route.path, 'Path'));
+C('yank-hint', 'Copy an event on screen by hint: its id and text', () => startHints(EVENTS, { act: yankEvent, none: 'No events on screen' }));
 
 // The node page and the list.
 C('node-message', 'Message the coordinator', message, { when: () => !!ctx.view()?.target, need: 'a node with a coordinator' });
@@ -623,6 +647,7 @@ bind('y i', 'yank-id');
 bind('y r', 'yank-resume');
 bind('y a', 'yank-paseo');
 bind('y p', 'yank-path');
+bind('y f', 'yank-hint');
 
 // The node page (nothing open).
 bind('SPC n m', 'node-message');

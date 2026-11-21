@@ -400,8 +400,9 @@ function labels(n) {
 }
 
 /** Labels everything clickable on screen (or only what matches the CSS
- * selector only); typing a label activates it. Returns how many it labelled. */
-export function startHints(only = '') {
+ * selector only); typing a label activates it, or runs act on it when given
+ * (none: what to say when nothing matches). Returns how many it labelled. */
+export function startHints(only = '', { act = null, none = 'Nothing to click here' } = {}) {
   const root = dialog() ?? document.body;
   const els = /** @type {HTMLElement[]} */ ([...root.querySelectorAll(only || focusable + ', [role="button"], [role="checkbox"]')]).filter((el) => {
     if (!visible(el) || el.closest('[inert], .keys-overlay')) return false;
@@ -414,15 +415,17 @@ export function startHints(only = '') {
     return !!top && (top === el || el.contains(top) || top.contains(el));
   });
   if (!els.length) {
-    say('Nothing to click here');
+    say(none);
     return 0;
   }
   if (only && els.length === 1) {
-    els[0].click();
+    if (act) act(els[0]);
+    else els[0].click();
     return 1;
   }
   const ls = labels(els.length);
   keys.hints = {
+    act,
     typed: '',
     marks: els.map((el, i) => {
       const r = el.getBoundingClientRect();
@@ -446,6 +449,7 @@ function hintKey(e, tok) {
   if (!hit) return void (h.typed = typed);
   keys.hints = null;
   const el = hit.el;
+  if (h.act) return void h.act(el);
   if (typing(el)) el.focus();
   else {
     el.focus({ preventScroll: true });
