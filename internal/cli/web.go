@@ -14,11 +14,14 @@ import (
 // Entry is one event in a thread: a message, an answer or a response.
 // Delivery marks are folded into the message they mark.
 type Entry struct {
-	ID     string      `json:"display_id"`
-	Event  store.Event `json:"event"`
-	Kind   string      `json:"kind"` // message, answer or response
-	Age    string      `json:"age"`
-	Source string      `json:"source,omitempty"`
+	ID    string      `json:"display_id"`
+	Event store.Event `json:"event"`
+	Kind  string      `json:"kind"` // message, answer or response
+	// Auto is the kind of generated message it is (desk.AutoKind): shown as
+	// one folded line.
+	Auto   string `json:"auto,omitempty"`
+	Age    string `json:"age"`
+	Source string `json:"source,omitempty"`
 	// By: for a response, the agent that wrote it; for a message or an
 	// answer, the session it went to.
 	By string `json:"by,omitempty"`
@@ -93,7 +96,7 @@ func entries(d *desk.Desk, thread []store.Event, pushed map[string]string) []Ent
 		if e.Kind == "delivered" {
 			continue
 		}
-		en := Entry{ID: d.Display(e.ID), Event: e, Age: desk.Age(d.Now.Sub(desk.Time(e))),
+		en := Entry{ID: d.Display(e.ID), Event: e, Auto: d.AutoKind(e), Age: desk.Age(d.Now.Sub(desk.Time(e))),
 			Source: desk.MetaString(e, "source"), Unread: d.Unread(e.ID)}
 		if desk.IsResponse(e) {
 			en.Kind, en.By = "response", agentTitle(e)

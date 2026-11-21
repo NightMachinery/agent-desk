@@ -313,4 +313,23 @@ func TestMessageThreads(t *testing.T) {
 		t.Fatalf("task thread: %s", got)
 	}
 	h.fails(h.as(sessB), "x", "does not work on", "tell", "--re", task)
+
+	// A message about a filed task from an older dashboard went to the node
+	// and names the task only in its text: it still sits in the task's
+	// thread, with the responses to it.
+	old := h.ok(env, "", "task", "add", "--title", "Old style", "--brief", "b")
+	legacy := h.ok(nil, "", "reply", "example-proj/r1/coord", "The user filed a task at example-proj/r1/coord on the desk, and you are the coordinator working under it: "+old+", without a title.\n\nDetails.")
+	lr := h.ok(env, "Named it.", "tell", "--re", legacy)
+	d = h.loadDesk()
+	ot, _ := d.Resolve(old)
+	if got := ids(d.Thread(ot.ID, "")); got != legacy+" "+lr {
+		t.Fatalf("older filed-task thread: %s", got)
+	}
+	if got := ids(d.MessageThreads("example-proj/r1/coord")); strings.Contains(got, legacy) {
+		t.Fatalf("older filed-task message listed as a node thread: %s", got)
+	}
+	le, _ := d.Resolve(legacy)
+	if d.AutoKind(le) != "task-filed" {
+		t.Fatalf("auto kind %q", d.AutoKind(le))
+	}
 }

@@ -31,11 +31,14 @@ func replyTarget(d *desk.Desk, token string) (to ident.From, host, node string, 
 				// About what it answered or replied to, not the user's own words;
 				// a message about no item roots its own thread, so a reply to it
 				// is about it, and stays in that thread.
-				if e.Ref == "" {
+				if t, ok := d.FiledTask(e); ok {
+					e = t // an older message about a filed task: about the task
+				} else if e.Ref == "" {
 					to, host, node, _, err = replyTarget(d, desk.NodeOf(e))
 					return to, host, node, e, err
+				} else {
+					e = d.ByID[e.Ref]
 				}
-				e = d.ByID[e.Ref]
 			case "read", "delivered", "undelivered", "pin", "pref", "notified", "retracted":
 				return to, "", "", e, fmt.Errorf("%s is a %s mark; reply to the item it marks", d.Display(e.ID), e.Kind)
 			}

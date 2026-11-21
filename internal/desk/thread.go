@@ -1,6 +1,7 @@
 package desk
 
 import (
+	"regexp"
 	"strings"
 	"time"
 
@@ -81,6 +82,9 @@ func inThread(e store.Event) bool {
 func (d *Desk) Root(e store.Event) (root store.Event, ok bool) {
 	for i := 0; i < 64 && inThread(e); i++ {
 		if e.Ref == "" {
+			if t, ok := d.FiledTask(e); ok {
+				return t, true
+			}
 			if e.Kind == "reply" || (i > 0 && IsResponse(e)) {
 				return e, true
 			}
@@ -93,6 +97,41 @@ func (d *Desk) Root(e store.Event) (root store.Event, ok bool) {
 		e = next
 	}
 	return e, e.ID != ""
+}
+
+// filedRE matches the text of the message the dashboard sent about a task
+// the user filed, before that message went about the task and carried
+// meta.auto: it went to the node, and names the task only in its text.
+var filedRE = regexp.MustCompile(`^The user filed an? [a-z]+ (?:at \S+ on the desk, and you are the coordinator working under it|for you on the desk): (w-[a-z0-9]+)`)
+
+// FiledTask is the task such an older message about a filed task names, so
+// that it and the responses to it sit in the task's thread like a newer
+// one's. Only a message with no ref and no meta.auto, filed after the task.
+func (d *Desk) FiledTask(e store.Event) (store.Event, bool) {
+	if e.Kind != "reply" || e.Ref != "" || MetaString(e, "auto") != "" {
+		return store.Event{}, false
+	}
+	m := filedRE.FindStringSubmatch(e.Body)
+	if m == nil {
+		return store.Event{}, false
+	}
+	t, err := d.Resolve(m[1])
+	if err != nil || t.Kind != "task" || t.ID > e.ID {
+		return store.Event{}, false
+	}
+	return t, true
+}
+
+// AutoKind is the kind of generated message e is (meta.auto, or task-filed
+// for an older message about a filed task), or "" for the user's words.
+func (d *Desk) AutoKind(e store.Event) string {
+	if a := MetaString(e, "auto"); a != "" {
+		return a
+	}
+	if _, ok := d.FiledTask(e); ok {
+		return "task-filed"
+	}
+	return ""
 }
 
 // The thread indexes hold positions in Events. Root IDs and node paths have

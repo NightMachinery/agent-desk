@@ -82,7 +82,7 @@
     'task-status': 'Asked where it stands',
     'velocity-report': 'Asked for a velocity report',
   };
-  const compactAuto = (t) => !fromAgent(t) && t.event.meta?.auto && !t.failure && !t.voice_failure;
+  const compactAuto = (t) => !fromAgent(t) && t.auto && !t.failure && !t.voice_failure;
   function copy(text) {
     navigator.clipboard?.writeText(text).then(() => toast('Copied.', 'ok'), () => toast('Could not copy.', 'error'));
   }
@@ -94,7 +94,7 @@
     <li id={'e-' + t.display_id} class="entry auto" class:current={t.display_id === current}>
       <details>
         <summary class="head">
-          <span>{AUTO[t.event.meta.auto] ?? 'Generated message'}</span>
+          <span>{AUTO[t.auto] ?? 'Generated message'}</span>
           {#if t.by}<span class="faint">{t.by}</span>{/if}
           <span class="faint">{t.age} ago</span>
           {#if t.delivery}<span class="chip ok" title={deliveryTitle(t.delivery)}>delivered</span>{:else if t.pending}<span class="chip waiting">{t.pending}</span>{/if}
