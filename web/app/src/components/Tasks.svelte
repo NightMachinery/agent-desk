@@ -387,8 +387,9 @@
   {#if adding}
     <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
     <form class="add" bind:this={formEl} tabindex="-1" onsubmit={file} onkeydown={formKeys} {onpaste} {ondrop} ondragover={(e) => e.preventDefault()}>
-      <!-- svelte-ignore a11y_autofocus -->
-      <textarea id="task-details" class="input" rows="4" placeholder="What needs doing: what you saw, what done looks like" bind:value={brief} autofocus aria-label="Details"></textarea>
+      <!-- Focused on opening even when something else has focus (a list row,
+           after SPC n t from an item), which the autofocus attribute skips. -->
+      <textarea id="task-details" class="input" rows="4" placeholder="What needs doing: what you saw, what done looks like" bind:value={brief} {@attach (el) => queueMicrotask(() => el.focus())} aria-label="Details"></textarea>
       <input id="task-title" class="input" placeholder="Title (optional: the agent names it from the details)" bind:value={title} aria-label="Task title" />
       <div class="types" role="radiogroup" aria-label="Type">
         {#each types as t (t)}
