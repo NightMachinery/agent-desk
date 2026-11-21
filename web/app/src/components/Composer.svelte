@@ -7,7 +7,7 @@
   // beside it offers the others, and "Notify me" routes the response.
   // Files can be attached (the clip button, paste or drop): each is uploaded
   // at once and sent with the message; the session gets their paths.
-  import { behaviorLabel, behaviorHelp, desktopText, remoteText } from '../lib/format.js';
+  import { behaviorLabel, behaviorHelp, desktopText, awayChoice } from '../lib/format.js';
   import { get, upload } from '../lib/api.js';
   import { clearDraft, discardDrafts, filled, loadDraft, onDraftChange, saveDraft, watchDraft } from '../lib/drafts.js';
   import Icon from './Icon.svelte';
@@ -554,7 +554,7 @@
       <span class="field-name">{remoteName}</span>
       <select class="input" value={remoteNow} onchange={(e) => setNotify('remote', e.currentTarget.value)}>
         {#each ['off', 'away', 'always'] as v (v)}
-          <option value={v}>{remoteText(v, target?.remote_label)}{v === resolved?.remote ? ' (default)' : ''}</option>
+          <option value={v}>{awayChoice(v)}{v === resolved?.remote ? ' (default)' : ''}</option>
         {/each}
       </select>
     </label>

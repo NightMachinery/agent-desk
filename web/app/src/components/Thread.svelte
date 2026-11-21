@@ -38,9 +38,10 @@
   function notifyNote(n) {
     if (!n) return '';
     const parts = [];
-    if (n.desktop) parts.push(desktopText(n.desktop));
-    if (n.remote) parts.push(remoteText(n.remote, remoteLabel));
-    return parts.length ? 'Its response notifies ' + parts.join(' and ') + '.' : '';
+    if (n.desktop && n.desktop !== 'none') parts.push(desktopText(n.desktop));
+    if (n.remote && n.remote !== 'off') parts.push(remoteText(n.remote, remoteLabel));
+    if (!parts.length) return n.desktop || n.remote ? 'Its response sends no notification.' : '';
+    return 'Its response notifies ' + parts.join(' and ') + '.';
   }
   let retrying = $state('');
   async function retry(id, force = false, failureID = '') {

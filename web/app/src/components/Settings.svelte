@@ -5,7 +5,7 @@
   import { exportHref } from '../lib/exports.js';
   import { toast } from '../lib/toast.svelte.js';
   import { href } from '../lib/route.svelte.js';
-  import { desktopText, remoteText, pushText, originText, behaviorLabel } from '../lib/format.js';
+  import { desktopText, remoteText, awayChoice, pushText, originText, behaviorLabel } from '../lib/format.js';
   import { ui, saveUI } from '../lib/ui.svelte.js';
   import PushSettings from './PushSettings.svelte';
   import SectionOrder from './SectionOrder.svelte';
@@ -114,11 +114,12 @@
     load();
   });
 
-  function valueText(key, v) {
+  // choice: the text of an option under the setting's own heading.
+  function valueText(key, v, choice = false) {
     if (key === 'deliver.behavior') return `${behaviorLabel[v] || v} (${v})`;
     if (key === 'notify.desktop') return desktopText(v);
-    if (key === 'notify.remote') return remoteText(v, view?.remote_label);
-    if (key === 'notify.push') return pushText(v);
+    if (key === 'notify.remote') return choice ? awayChoice(v) : remoteText(v, view?.remote_label);
+    if (key === 'notify.push') return choice ? awayChoice(v) : pushText(v);
     return v || 'not set';
   }
   function choices(k) {
@@ -173,7 +174,7 @@
           </div>
         {:else}
           <select class="input" value={k.value} disabled={busy} onchange={(e) => save(k, e.currentTarget.value)}>
-            {#each choices(k) as v (v)}<option value={v}>{valueText(k.key, v)}</option>{/each}
+            {#each choices(k) as v (v)}<option value={v}>{valueText(k.key, v, true)}</option>{/each}
           </select>
         {/if}
         <div class="origin">

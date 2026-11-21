@@ -149,10 +149,17 @@ export function desktopText(v) {
   return 'on ' + v.split(',').map((h) => (h === 'origin' ? 'its machine' : h)).join(', ');
 }
 
-/** A notify.remote value in words; label names the remote channel. */
+/** A notify.remote value in words, for a sentence; label names the remote
+ * channel ("no Telegram", "by Telegram when you are away"). */
 export function remoteText(v, label = '') {
   const on = label ? `by ${label}` : 'on your phone';
-  return { off: label ? `not by ${label}` : 'not on your phone', away: `${on} when you are away`, always: on }[v] || v || '';
+  return { off: label ? `no ${label}` : 'not on your phone', away: `${on} when you are away`, always: on }[v] || v || '';
+}
+
+/** A notify.remote or notify.push value as a choice under a heading that
+ * names the channel. */
+export function awayChoice(v) {
+  return { off: 'Off', away: 'When you are away', always: 'Always' }[v] || v || '';
 }
 
 /** A notify.push value in words. */
