@@ -28,6 +28,7 @@ export const cmdKeys = {
   'draft-discard': 'SPC i x',
   'deliverable-works': 'SPC i w',
   'deliverable-open': 'SPC i g',
+  'task-status': 'SPC i s',
   'message-node': 'SPC n m',
   'read-all': 'SPC n r',
   'velocity-report': 'SPC n v',

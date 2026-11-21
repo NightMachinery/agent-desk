@@ -11,6 +11,7 @@
   import { chooseSendCache } from '../lib/cache.svelte.js';
   import { tip } from '../lib/shortcuts.js';
   import Markdown from './Markdown.svelte';
+  import { askStatus } from '../lib/taskstatus.js';
 
   let { path = '', stamp = '', runs = [], adding = $bindable(false) } = $props();
 
@@ -328,6 +329,7 @@
           </form>
           <div class="acts">
             {#if ACTIVE.has(t.state)}
+              <button class="btn small" title="Ask whoever works on it for a short executive summary of where it stands" onclick={() => askStatus(t.event.id, t.display_id)}>Status</button>
               {#if t.state !== 'started'}<button class="btn small" disabled={!!busy} onclick={() => act(t, 'start')}>Start</button>{/if}
               <button class="btn small" disabled={!!busy} onclick={() => act(t, 'drop')}>Drop</button>
             {:else}

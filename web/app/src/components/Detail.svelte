@@ -20,6 +20,7 @@
   import { moveOnTarget } from '../lib/moveon.js';
   import { arrival, arrivedAuto, cancelArrival, settleArrival } from '../lib/arrival.js';
   import { ui } from '../lib/ui.svelte.js';
+  import { askStatus } from '../lib/taskstatus.js';
 
   let { item, error, onchange } = $props();
 
@@ -283,15 +284,18 @@
         {#if t.profile}<span class="chip mono">{t.profile}</span>{/if}
         {#if t.agent}<span class="faint mono" title="What launch_command printed, or the agent that started it">{t.agent}</span>{/if}
         <span class="spacer"></span>
+        <span class="task-acts">
         {#if t.state === 'deferred' || t.state === 'open'}
           <button class="btn small primary" disabled={!item.launch_ready} title={item.launch_ready ? 'Start an agent on this task' : 'Set launch_command under [tasks] in config.toml'} onclick={() => taskAct('launch')}>Launch</button>
         {/if}
         {#if t.state === 'open'}<button class="btn small" onclick={() => taskAct('defer')}>Defer for quota</button>{/if}
         {#if t.state === 'done' || t.state === 'dropped'}<button class="btn small" onclick={() => taskAct('reopen')}>Reopen</button>
         {:else}
+          <button data-cmd="task-status" class="btn small" title={tip('Ask whoever works on it for a short executive summary of where it stands', 'task-status')} onclick={() => askStatus(e.id, it.display_id)}>Status</button>
           <button class="btn small" onclick={() => taskAct('done')}>Done</button>
           <button class="btn small ghost" onclick={() => taskAct('drop')}>Drop</button>
         {/if}
+        </span>
       </div>
       {#if t.note}<div class="faint">Note: {t.note}</div>{/if}
     {/if}
@@ -471,6 +475,12 @@
   }
   .task-bar .spacer {
     flex: 1;
+  }
+  /* The task's buttons wrap as one group, not one by one. */
+  .task-acts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
   }
   .pad {
     padding: max(12px, env(safe-area-inset-top)) 24px 0;

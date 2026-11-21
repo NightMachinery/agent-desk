@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/NightMachinery/agent-desk/internal/desk"
@@ -39,6 +40,9 @@ func replyTarget(d *desk.Desk, token string) (to ident.From, host, node string, 
 			// A coordinator that took the node over since is the one to tell.
 			if owner, ok := nodeOwner(d, node); ok && owner.ID > e.ID && sessionOf(owner) != sessionOf(e) {
 				to, host = fromOf(owner), owner.Host
+			}
+			if e.Kind == "task" {
+				to, host, node = taskRecipient(d, e, to, host, node)
 			}
 		} else if !strings.HasPrefix(rerr.Error(), "no event") {
 			return to, "", "", about, rerr
@@ -221,13 +225,20 @@ func toOf(e store.Event) (ident.From, string) {
 // template in internal/prompts that the user may override.
 var ReplyPrompts = map[string]string{
 	"velocity-report": "velocity-report.md", // an executive report on velocity
+	"task-status":     "task-status.md",     // an executive summary of where a task stands
 }
 
-// replyPrompt renders the prepared message name for the node behind target.
+// replyPrompt renders the prepared message name for the node behind target
+// (task-status: for the task target is).
 func (a *App) replyPrompt(target, name string) (string, error) {
 	file, ok := ReplyPrompts[name]
 	if !ok {
-		return "", usagef("no prepared message %q; there is: velocity-report", name)
+		names := make([]string, 0, len(ReplyPrompts))
+		for n := range ReplyPrompts {
+			names = append(names, n)
+		}
+		sort.Strings(names)
+		return "", usagef("no prepared message %q; there is: %s", name, strings.Join(names, ", "))
 	}
 	d, err := a.load()
 	if err != nil {
@@ -237,11 +248,18 @@ func (a *App) replyPrompt(target, name string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	data := struct{ Node, Velocity string }{Node: node}
+	data := struct{ Node, Velocity, Task, Title, State string }{Node: node}
 	for _, sl := range d.Slots() {
 		if sl.Path == node+"/velocity" && sl.Kind == "set" {
 			data.Velocity = sl.Body
 		}
+	}
+	if name == "task-status" {
+		t, err := a.task(d, target)
+		if err != nil {
+			return "", usagef("task-status is for a task: %v", err)
+		}
+		data.Task, data.Title, data.State = t.ID, t.Event.Title, t.State
 	}
 	return prompts.Render(a.promptsDir(), file, data)
 }
@@ -296,4 +314,60 @@ func coordinatorUnder(d *desk.Desk, prefix string) (string, bool) {
 		}
 	}
 	return best, bestC != nil
+}
+
+// taskRecipient is who a message about task goes to: the agent that last
+// changed its state (started it, noted progress, finished it), else one
+// launched on it (meta.agent "paseo:<id>") once it has joined a node, else
+// its author (to, host, node as resolved for any item), else for a task
+// filed from the dashboard the node's agent or the coordinator working
+// under it. A node taken over since goes to whoever holds it now.
+func taskRecipient(d *desk.Desk, task store.Event, to ident.From, host, node string) (ident.From, string, string) {
+	for i := len(d.Events) - 1; i >= 0; i-- {
+		e := d.Events[i]
+		if e.Kind != "taskstate" || e.Ref != task.ID {
+			continue
+		}
+		if f := fromOf(e); f.Session != "" || f.Paseo != "" {
+			if j, ok := latestJoin(d, func(j store.Event) bool { return sessionOf(j) == f.Session && f.Session != "" }); ok {
+				return heldBy(d, j)
+			}
+			return f, e.Host, node
+		}
+		if p, ok := strings.CutPrefix(desk.MetaString(e, "agent"), "paseo:"); ok && p != "" {
+			if j, ok := latestJoin(d, func(j store.Event) bool { return fromOf(j).Paseo == p }); ok {
+				return heldBy(d, j)
+			}
+		}
+	}
+	if to.Session != "" || to.Paseo != "" || to.TmuxPane != "" {
+		return to, host, node
+	}
+	if owner, ok := nodeOwner(d, node); ok {
+		return fromOf(owner), owner.Host, node
+	}
+	if c, ok := coordinatorUnder(d, node); ok {
+		owner, _ := nodeOwner(d, c)
+		return fromOf(owner), owner.Host, c
+	}
+	return to, host, node
+}
+
+// latestJoin is the newest join event match accepts.
+func latestJoin(d *desk.Desk, match func(store.Event) bool) (store.Event, bool) {
+	for i := len(d.Events) - 1; i >= 0; i-- {
+		if e := d.Events[i]; e.Kind == "join" && match(e) {
+			return e, true
+		}
+	}
+	return store.Event{}, false
+}
+
+// heldBy is the agent holding join's node now: the joiner, or one that took
+// the node over since.
+func heldBy(d *desk.Desk, join store.Event) (ident.From, string, string) {
+	if owner, ok := nodeOwner(d, join.Path); ok && owner.ID > join.ID {
+		return fromOf(owner), owner.Host, join.Path
+	}
+	return fromOf(join), join.Host, join.Path
 }

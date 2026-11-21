@@ -174,10 +174,11 @@ User side:
                                       default is the deliver.behavior setting, else steer
       answer and reply take [--attach FILE [--caption C]]...: the session gets
       the files' paths
-  agent-desk reply <id|path> --prompt velocity-report
+  agent-desk reply <id|path> --prompt velocity-report|task-status
                                       send a prepared message: an executive report on the
-                                      node's velocity (internal/prompts; yours in
-                                      ~/.config/agent-desk/prompts/ replaces it)
+                                      node's velocity, or (to a task) a summary of where
+                                      it stands from whoever works on it (internal/prompts;
+                                      yours in ~/.config/agent-desk/prompts/ replaces it)
   agent-desk deliver                  retry answers and replies not yet delivered
   agent-desk deliver --force <id>      retry an unconfirmed send even if the agent already got it
   agent-desk serve [--listen ADDR|unix:PATH] [--allow-host H,...] [--allow-origin URL,...]

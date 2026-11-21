@@ -404,6 +404,7 @@ C('node-settings', "The node's notify settings", () => click('node-settings'), t
 C('list-read-all', 'Mark every unread item in the list read', () => click('mark-all-read'), tagged('mark-all-read', 'unread items in the list'));
 C('quota-copy-ids', 'Out of quota: copy the picked agent ids', () => click('quota-copy-ids'), tagged('quota-copy-ids', 'the Out of quota section'));
 C('deliverable-open', 'Deliverable: open its link', () => click('deliverable-open'), tagged('deliverable-open', 'a deliverable with a link'));
+C('task-status', 'Task: ask whoever works on it where it stands', () => click('task-status'), tagged('task-status', 'an open task'));
 C('deliverable-download', 'Deliverable: download its first file', () => click('deliverable-download'), tagged('deliverable-download', 'a deliverable with a file'));
 // Discard the draft in the box that has focus, else the first box with one.
 function discardDraft() {
@@ -568,6 +569,7 @@ bind('SPC i g', 'deliverable-open');
 bind('SPC i G', 'deliverable-download');
 bind('SPC i w', 'deliverable-works');
 bind('SPC i x', 'draft-discard');
+bind('SPC i s', 'task-status');
 bind('y y', 'yank-link');
 bind('y i', 'yank-id');
 bind('y r', 'yank-resume');

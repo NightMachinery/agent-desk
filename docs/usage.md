@@ -342,6 +342,7 @@ not write anyway.
     agent-desk reply t-k2m9 --notify-remote always 'Tell me on the phone when done'
                                              # route the notification of the response
     agent-desk reply s-v4lc --prompt velocity-report   # ask for an executive report on velocity
+    agent-desk reply w-3k9d --prompt task-status       # ask whoever works on a task where it stands
     agent-desk answer q-7f3a --notify-desktop none --notify-remote always 'B'   # answers take them too
     agent-desk read t-k2m9                   # mark one item read, with the responses in its thread
     agent-desk read example-proj/rerun-nov   # mark everything under a node read
@@ -933,8 +934,8 @@ node with subtasks under their parent. Filter by Open, Finished or All, by
 type, by tag (the dashed `#tag` pills; a row's own tags filter too), and by
 search (`/`, which also matches `#tag`). A task's tags are edited in its
 expanded row. The box checks a task off (Undo in the toast)
-or reopens it; clicking its title shows its brief with Start, Drop and
-Full page (the task on its own page, with its conversation). **New task** (`SPC n t`, or "+ New" on a node page) files one at any
+or reopens it; clicking its title shows its brief with Status, Start, Drop
+and Full page (the task on its own page, with its conversation). **New task** (`SPC n t`, or "+ New" on a node page) files one at any
 project, run or agent: a title, a type, an optional parent, details and
 tags.
 "Message its coordinator about it" (on by default) also sends a message
@@ -943,6 +944,17 @@ for a project or a run (which no agent holds), to the coordinator working
 under it, the newest one that has not filed its done report. The form
 names that coordinator, and says in red when no agent works under the node,
 so nobody would be told.
+
+**Messages about a task** go to whoever works on it: the agent that last
+started or changed it (`task start`), else the agent its `launch_command`
+started once that agent has joined, else its author, else the agent at its
+node, else the coordinator working under it (as above). The agent's
+response threads under the task. **Status** (on an open task's page and its
+row on the Tasks page; `SPC i s`) sends such a message asking for a short
+executive summary of where the task stands: what is done, what is in
+progress, what is blocked or waiting on you, the next step
+(`reply w-... --prompt task-status`; edit it by copying
+`internal/prompts/task-status.md` into `~/.config/agent-desk/prompts/`).
 
 A deferred task waits for quota to spare. It carries a brief (stdin), and
 optionally `--size S|M|L`, `--priority 1|2|3` (1 first), `--profile NAME`
