@@ -46,8 +46,9 @@ const (
 	MaxVideo = 100 << 20
 	MaxFile  = 25 << 20
 	// MaxPackage is for an app package (an Android APK), which agents file
-	// as deliverables.
-	MaxPackage = 150 << 20
+	// as deliverables. A React Native release APK with bundled native
+	// libraries already runs to about 160 MiB.
+	MaxPackage = 256 << 20
 	// MaxAny is the largest of them, the most an upload may send.
 	MaxAny = MaxVideo
 )
