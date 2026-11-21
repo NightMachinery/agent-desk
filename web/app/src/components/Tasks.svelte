@@ -12,7 +12,8 @@
   import { chooseSendCache } from '../lib/cache.svelte.js';
   import { tip } from '../lib/shortcuts.js';
   import Markdown from './Markdown.svelte';
-  import { askStatus, noteLabel, toldText, stateLabel, DEFER_WHY, QUOTA_WHY } from '../lib/taskstatus.js';
+  import Attachments from './Attachments.svelte';
+  import { askStatus, noteLabel, toldText, stateLabel, deferOff, DEFER_WHY, QUOTA_WHY } from '../lib/taskstatus.js';
   import ReopenForm from './ReopenForm.svelte';
   import { off, BUSY } from '../lib/why.js';
   import { listDrafts, loadDraft, saveDraft, clearDraft, discardDrafts } from '../lib/drafts.js';
@@ -296,6 +297,17 @@
     drafts = drafts.filter((x) => x.key !== d.key);
     toast('Draft discarded.', 'ok', 6000, { label: 'Undo', run: () => (undo(), loadDrafts()) });
   }
+  // Discard the draft in the form and close it; Undo puts it back under Drafts.
+  function discardOpen() {
+    const key = draftKey;
+    if (loadDraft(key) == null) saveDraft(key, $state.snapshot(draftValue));
+    const undo = discardDrafts([key]);
+    draftKey = '';
+    resetForm();
+    adding = false;
+    loadDrafts();
+    toast('Draft discarded.', 'ok', 6000, { label: 'Undo', run: () => (undo(), loadDrafts()) });
+  }
   const shownDrafts = $derived(drafts.filter((d) => d.key !== draftKey && (!path || !d.value?.node || d.value.node === path || d.value.node.startsWith(path + '/'))));
   const draftTitle = (v) => v?.title?.trim() || v?.brief?.trim().split('\n')[0] || (v?.files?.length ? v.files.map((f) => f.name).join(', ') : 'Untitled');
   function draftAge(t) {
@@ -374,8 +386,8 @@
   <div class="bar">
     <button data-cmd="close" class="btn ghost small" onclick={() => go({ tasks: false })}>← Back</button>
     <span class="spacer"></span>
-    <button class="btn small primary" data-cmd="task-add" title={tip('File a new task, bug or idea at a node', 'task-add')} onclick={() => (adding = !adding)}>
-      {adding ? 'Cancel' : 'New task'}
+    <button class="btn small primary" data-cmd="task-add" title={tip(adding ? 'Close the form: the draft stays under Drafts (Discard throws it away)' : 'File a new task, bug or idea at a node', 'task-add')} onclick={() => (adding = !adding)}>
+      {adding ? 'Close' : 'New task'}
     </button>
   </div>
   <h1>Tasks</h1>
@@ -437,6 +449,7 @@
         {/if}
         <span class="spacer"></span>
         <span class="faint hint">⌘↵ to file · Esc twice or C-g to close</span>
+        <button data-cmd="draft-discard" type="button" class="btn ghost small" onclick={discardOpen} {...off(tip('Discard this draft and close the form (Undo brings it back)', 'draft-discard'), [!drafted, 'Nothing to discard yet'])}>Discard</button>
         <button data-cmd="send" class="btn small primary" type="submit" {...off(undefined, ...fileWhy)}>{filing ? 'Filing…' : 'File it'}</button>
       </div>
     </form>
@@ -477,7 +490,7 @@
               <span class="title">{draftTitle(d.value)}</span>
               <span class="faint">{d.value?.node || 'no node yet'} · {draftAge(d.t)}</span>
             </button>
-            <button data-keys="none" class="icon" title="Discard this draft (Undo brings it back)" aria-label="Discard this draft" onclick={() => discard(d)}>✕</button>
+            <button data-keys="none" class="btn ghost small" title="Discard this draft (Undo brings it back)" onclick={() => discard(d)}>Discard</button>
           </div>
         </li>
       {/each}
@@ -509,6 +522,10 @@
         {#if t.state === 'started'}<span class="chip active">started</span>{:else if t.state === 'later' || t.state === 'deferred'}<span class="chip waiting">{stateLabel(t.state)}</span>{:else if dropped}<span class="chip">dropped</span>{/if}
         {#if t.priority === 1}<span class="chip blocked" title="Priority 1">p1</span>{/if}
         {#each t.tags ?? [] as g (g)}<button data-keys="none" class="tag small" class:on={tag === g} title={`Only #${g}`} onclick={() => (tag = tag === g ? '' : g)}>#{g}</button>{/each}
+        {#if t.media?.length}
+          {@const pics = t.media.filter((m) => m.kind === 'image').length}
+          <span class="chip" title={t.media.map((m) => m.name).join(', ')}>{pics === t.media.length ? `${pics} image${pics > 1 ? 's' : ''}` : `${t.media.length} file${t.media.length > 1 ? 's' : ''}`}</span>
+        {/if}
         {#if t.event.meta?.source === 'web'}<span class="faint you" title="You filed it">you</span>{/if}
         <a class="mono faint id" href={href({ item: t.display_id })}>{t.display_id}</a>
       </div>
@@ -518,6 +535,7 @@
       {#if expanded[t.event.id]}
         <div class="more">
           {#if t.event.body}<Markdown text={t.event.body} />{/if}
+          <Attachments media={t.media ?? []} compact />
           {#if t.note}<div class="task-note"><span class="faint">{noteLabel(t.state)}:</span> {t.note}</div>{/if}
           {#if t.agent}<div class="faint">Agent: <span class="mono">{t.agent}</span></div>{/if}
           <form class="tag-edit" onsubmit={(e) => (e.preventDefault(), saveTags(t))}>
@@ -529,8 +547,8 @@
             {#if ACTIVE.has(t.state)}
               <button data-keys="none" class="btn small" title="Ask whoever works on it for a short executive summary of where it stands" onclick={() => askStatus(t.event.id, t.display_id)}>Status</button>
               {#if t.state !== 'started'}<button data-keys="none" class="btn small" {...off(undefined, [busy, BUSY])} onclick={() => act(t, 'start')}>Start</button>{/if}
-              {#if t.state !== 'later'}<button data-keys="none" class="btn small" {...off(DEFER_WHY, [busy, BUSY])} onclick={() => act(t, 'defer')}>Defer</button>{/if}
-              {#if t.state === 'open' || t.state === 'later'}<button data-keys="none" class="btn small" {...off(QUOTA_WHY, [busy, BUSY])} onclick={() => act(t, 'defer-quota')}>Defer for quota</button>{/if}
+              <button data-keys="none" class="btn small" {...off(DEFER_WHY, [busy, BUSY], [!!deferOff(t.state), deferOff(t.state)])} onclick={() => act(t, 'defer')}>Defer</button>
+              <button data-keys="none" class="btn small" {...off(QUOTA_WHY, [busy, BUSY], [!!deferOff(t.state, true), deferOff(t.state, true)])} onclick={() => act(t, 'defer-quota')}>Defer for quota</button>
               {#if t.state === 'later' || t.state === 'deferred'}<button data-keys="none" class="btn small" {...off('Back to open', [busy, BUSY])} onclick={() => act(t, 'undefer')}>Undefer</button>{/if}
               <button data-keys="none" class="btn small" {...off(undefined, [busy, BUSY])} onclick={() => act(t, 'drop')}>Drop</button>
             {:else}
@@ -790,14 +808,6 @@
     flex: none;
     margin-left: auto;
     font-size: 12px;
-  }
-  .draft .icon {
-    flex: none;
-    border: 0;
-    background: none;
-    color: var(--muted);
-    cursor: pointer;
-    padding: 0 4px;
   }
   .drafts {
     margin-bottom: 4px;

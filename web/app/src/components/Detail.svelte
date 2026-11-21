@@ -22,7 +22,7 @@
   import { arrival, arrivedAuto, cancelArrival, settleArrival } from '../lib/arrival.js';
   import { ui } from '../lib/ui.svelte.js';
   import { keys, syncMode } from '../lib/keys.svelte.js';
-  import { askStatus, noteLabel, toldText, DEFER_WHY, QUOTA_WHY } from '../lib/taskstatus.js';
+  import { askStatus, noteLabel, toldText, deferOff, DEFER_WHY, QUOTA_WHY } from '../lib/taskstatus.js';
   import ReopenForm from './ReopenForm.svelte';
   import ReplyingTo from './ReplyingTo.svelte';
   import { focusBoxIn, replyRef } from '../lib/replyto.js';
@@ -323,8 +323,10 @@
         {#if t.state === 'deferred' || t.state === 'later' || t.state === 'open'}
           <button data-cmd="task-start" class="btn small primary" {...off(tip('Start an agent on this task', 'task-start'), [!item.launch_ready, 'Set launch_command under [tasks] in config.toml first'])} onclick={() => taskAct('launch')}>Launch</button>
         {/if}
-        {#if t.state === 'open' || t.state === 'started' || t.state === 'deferred'}<button data-cmd="task-defer" class="btn small" title={tip(DEFER_WHY, 'task-defer')} onclick={() => taskAct('defer')}>Defer</button>{/if}
-        {#if t.state === 'open' || t.state === 'later'}<button data-cmd="task-defer-quota" class="btn small" title={tip(QUOTA_WHY, 'task-defer-quota')} onclick={() => taskAct('defer-quota')}>Defer for quota</button>{/if}
+        {#if t.state !== 'done' && t.state !== 'dropped'}
+          <button data-cmd="task-defer" class="btn small" {...off(tip(DEFER_WHY, 'task-defer'), [!!deferOff(t.state), deferOff(t.state)])} onclick={() => taskAct('defer')}>Defer</button>
+          <button data-cmd="task-defer-quota" class="btn small" {...off(tip(QUOTA_WHY, 'task-defer-quota'), [!!deferOff(t.state, true), deferOff(t.state, true)])} onclick={() => taskAct('defer-quota')}>Defer for quota</button>
+        {/if}
         {#if t.state === 'later' || t.state === 'deferred'}<button data-cmd="task-undefer" class="btn small" title={tip('Back to open', 'task-undefer')} onclick={() => taskAct('undefer')}>Undefer</button>{/if}
         {#if t.state === 'done' || t.state === 'dropped'}<button data-cmd="task-reopen" class="btn small" onclick={() => (reopening = it.display_id)}>Reopen</button>
         {:else}

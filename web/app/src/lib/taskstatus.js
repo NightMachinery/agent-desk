@@ -45,5 +45,16 @@ export const noteLabel = (state) => (state === 'done' ? 'How it was done' : stat
 // offers it and Launch deferred starts it.
 export const DEFER_WHY = 'Not now: it waits until you undefer, start or launch it';
 export const QUOTA_WHY = 'Wait for quota to spare: the quota nudge offers it, and launching deferred tasks starts an agent on it';
+/**
+ * Why Defer (or, with quota, Defer for quota) does not apply to a task in
+ * state, or '' when it does. Both buttons stay on an open task's row,
+ * disabled with this reason, so the row keeps its shape.
+ */
+export function deferOff(state, quota = false) {
+  if (!quota) return state === 'later' ? 'Already deferred: Undefer brings it back' : '';
+  if (state === 'deferred') return 'Already deferred for quota: Undefer brings it back';
+  if (state === 'started') return 'Started: an agent already has it, so there is nothing to launch when quota is spare. Defer pauses it';
+  return '';
+}
 /** How a task state reads on a chip. */
 export const stateLabel = (state) => ({ later: 'deferred', deferred: 'for quota' })[state] ?? state;

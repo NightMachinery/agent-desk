@@ -223,7 +223,7 @@
   "o"       :side-open
   "RET"     :side-open}
 
- ; While a sheet is open, only these keys work.
+ ; While a sheet or the image viewer is open, only these keys work.
  :dialog
  {"j"       :sheet-next
   "k"       :sheet-prev
@@ -235,6 +235,10 @@
   "G"       :sheet-last
   "C-g"     :sheet-close
   "q"       :sheet-close
+  "h"       :image-prev
+  "l"       :image-next
+  "<left>"  :image-prev
+  "<right>" :image-next
   "?"       :cheatsheet
   ":"       :m-x
   "M-x"     :m-x

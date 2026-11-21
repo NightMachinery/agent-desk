@@ -242,7 +242,8 @@ finds a command's name; the built-in keys are in
 
 **The maps**, from the most specific down:
 
-- `:dialog`: while a sheet is open, only these keys work;
+- `:dialog`: while a sheet or the image viewer is open, only these keys work
+  (in the viewer `h` / `l` and the arrows step through the images);
 - a context map for what is open, holding the keys typed after the
   localleader: `:task`, `:deliverable`, `:screen`, `:message`, `:quota`,
   `:settings` and `:verbatim`;

@@ -366,7 +366,7 @@ const visual = () => {
   sel.ids.add(route.item);
 };
 const sideFocus = () => /** @type {HTMLElement} */ (document.activeElement)?.click?.();
-const closeSheet = () => dialog()?.querySelector('.head button')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+const closeSheet = () => dialog()?.querySelector('[data-cmd="sheet-close"], .head button')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 const tagged = (name, need) => ({ when: has(name), need });
 
 // Help and pickers.
@@ -496,14 +496,15 @@ C('task-defer-quota', 'Task: defer it until there is quota to spare', () => clic
 C('task-undefer', 'Task: undefer it (back to open)', () => click('task-undefer'), tagged('task-undefer', 'a deferred task'));
 C('task-reopen', 'Task: reopen it, saying what is still wrong', () => click('task-reopen'), tagged('task-reopen', 'a finished task'));
 C('deliverable-download', 'Deliverable: download its first file', () => click('deliverable-download'), tagged('deliverable-download', 'a deliverable with a file'));
-// Discard the draft in the box that has focus, else the first box with one.
+// Discard the draft in the box (or New task form) that has focus, else the first one with one.
 function discardDraft() {
-  const here = document.activeElement?.closest?.('.composer')?.querySelector('[data-cmd="draft-discard"]');
+  const here = document.activeElement?.closest?.('.composer, form.add')?.querySelector('[data-cmd="draft-discard"]');
   const el = here || cmdEl('draft-discard');
   if (!el) return say('No draft here');
+  if (el instanceof HTMLButtonElement && el.disabled) return say(el.title || 'Not available now');
   el.click();
 }
-C('draft-discard', 'Discard the draft in this box (Undo brings it back)', discardDraft);
+C('draft-discard', 'Discard the draft in this box or the New task form (Undo brings it back)', discardDraft);
 C('deliverable-works', 'Deliverable: send with "This worked." in front', () => click('deliverable-works'), tagged('deliverable-works', 'a deliverable whose agent can be messaged'));
 C('quota-archive', 'Out of quota: archive the first agent in Paseo', () => click('quota-archive'), tagged('quota-archive', 'an agent out of quota'));
 C('quota-replace', 'Out of quota: replace the first agent (pick its provider, model and effort)', () => click('quota-replace'), tagged('quota-replace', 'an agent out of quota that can be replaced'));
@@ -586,6 +587,8 @@ C('sheet-prev', 'Previous control', (n) => moveFocus(dialog(), -n), { pane: 'dia
 C('sheet-first', 'First control', () => moveFocus(dialog(), -Infinity), { pane: 'dialog' });
 C('sheet-last', 'Last control', () => moveFocus(dialog(), Infinity), { pane: 'dialog' });
 C('sheet-close', 'Close the sheet', closeSheet, { pane: 'dialog' });
+C('image-prev', 'Image viewer: the previous image', () => click('image-prev'), { pane: 'dialog', ...tagged('image-prev', 'the image viewer, on an item with several images') });
+C('image-next', 'Image viewer: the next image', () => click('image-next'), { pane: 'dialog', ...tagged('image-next', 'the image viewer, on an item with several images') });
 
 // --- keys ------------------------------------------------------------------------
 // Keys live in keys.edn (and the user's keys file over it); the commands

@@ -969,6 +969,11 @@ open, started, later, deferred, done or dropped. Both later and deferred are
 - **deferred** (Defer for quota, `task defer --quota`, `task add --quota`): it
   waits for quota to spare, as described below. Its chip reads "for quota".
 
+An open task shows both Defer buttons. The one that would change nothing is
+disabled, and hovering it says why: Defer on a later task, Defer for quota
+on a deferred one, and Defer for quota on a started task, which an agent
+already has, so there is nothing to launch when quota is spare.
+
  Desk tasks replace a `TASKS.org`
 checklist: agents keep theirs with `task add`, `task start`, `task done`;
 the node panel shows "Tasks: 3 of 7 done" with the open ones, and `show`
@@ -1005,7 +1010,11 @@ dashboard, needs neither.
 node with subtasks under their parent. Filter by Open, Finished or All, by
 type, by tag (the dashed `#tag` pills; a row's own tags filter too), and by
 search (`/`, which also matches `#tag`). A task's tags are edited in its
-expanded row. The box checks a task off (Undo in the toast)
+expanded row, which also shows its images as thumbnails and its other
+files as links; a row with files says so ("2 images"). Clicking an image
+here, on a task's page or in a conversation opens it over the page: `h` /
+`l` (or the arrows) step through the item's other images, Esc, `q` or a tap
+beside it closes it, and ⌘-click opens it in a tab instead. The box checks a task off (Undo in the toast)
 or reopens it (asking what is still wrong, see below); clicking its title shows its brief with Status, Start, Drop
 and Full page (the task on its own page, with its conversation). **New task** (`c` or `SPC n t`, or "+ New" on a node page) files one at any
 project, run or agent: details (the box focused when the form opens), a
@@ -1019,8 +1028,10 @@ a note saying how it was done.
 The form is a draft as you type, saved in the browser and on the desk like a
 message box's, so closing it (Esc twice, C-g) or switching devices loses
 nothing. Unfiled drafts are listed under **Drafts** at the top of the Tasks
-page; one opens back into the form, ✕ discards it (Undo brings it back), and
-filing drops it. Each New task starts a draft of its own.
+page; one opens back into the form, Discard throws it away (Undo brings it
+back), and filing drops it. The form's own Discard (`SPC i x`) throws away
+the draft in it and closes the form; Close keeps it. Each New task starts a
+draft of its own.
 "Message its coordinator about it" (on by default) also sends a message
 about the task, so an agent acts on it now (the agent responds on the
 task itself, so its responses form the task's own conversation): to the

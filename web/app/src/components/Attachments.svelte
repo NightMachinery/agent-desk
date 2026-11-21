@@ -1,18 +1,43 @@
 <script>
   // The files attached to an item or a message, each with its caption:
   // images, audio and video play here, anything else is a download. A file
-  // that is not on this host (collected, or not merged yet) says why.
-  let { media = [] } = $props();
+  // that is not on this host (collected, or not merged yet) says why. An
+  // image opens in the viewer (ImageViewer); compact (the Tasks list) shows
+  // images as thumbnails and other files as one line each.
+  import { openImage } from '../lib/viewer.svelte.js';
+
+  let { media = [], compact = false } = $props();
+  const images = $derived(media.filter((m) => m.kind === 'image' && m.url));
+  /** Open the image in the viewer; a modified click still opens a tab. */
+  function view(e, m) {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+    e.preventDefault();
+    openImage(images, images.indexOf(m));
+  }
 </script>
 
-{#if media.length}
+{#if media.length && compact}
+  <div class="attachments compact">
+    {#each media as m (m.sha256 + m.caption)}
+      {#if m.kind === 'image' && m.url}
+        <a class="thumb" href={'./' + m.url} target="_blank" rel="noopener" title={m.caption !== m.name ? `${m.caption} (${m.name})` : m.name} onclick={(e) => view(e, m)}>
+          <img src={'./' + m.url} alt={m.caption} loading="lazy" />
+        </a>
+      {:else if m.url}
+        <a class="line" href={'./' + m.url} download={m.name}>{m.name} <span class="file">{m.size_text}</span></a>
+      {:else}
+        <span class="line missing">{m.name}: {m.gone}</span>
+      {/if}
+    {/each}
+  </div>
+{:else if media.length}
   <div class="attachments">
     {#each media as m (m.sha256 + m.caption)}
       <figure class="att {m.kind}" class:gone={!m.url}>
         {#if !m.url}
           <div class="missing">{m.name}: {m.gone}</div>
         {:else if m.kind === 'image'}
-          <a href={'./' + m.url} target="_blank" rel="noopener" title="Open full size">
+          <a href={'./' + m.url} target="_blank" rel="noopener" title="View it larger" onclick={(e) => view(e, m)}>
             <img src={'./' + m.url} alt={m.caption} loading="lazy" />
           </a>
         {:else if m.kind === 'audio'}
@@ -51,6 +76,7 @@
   }
   .att img {
     display: block;
+    cursor: zoom-in;
     max-width: 100%;
     max-height: 60vh;
     border-radius: 4px;
@@ -93,5 +119,31 @@
   .missing {
     color: var(--muted);
     font-size: 13px;
+  }
+  .compact {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 8px 0;
+  }
+  .thumb {
+    display: block;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    overflow: hidden;
+    cursor: zoom-in;
+  }
+  .thumb img {
+    display: block;
+    height: 120px;
+    max-width: 240px;
+    object-fit: cover;
+    background: repeating-conic-gradient(var(--line) 0 25%, transparent 0 50%) 0 0 / 16px 16px;
+  }
+  .line {
+    align-self: center;
+    font-size: 13px;
+    word-break: break-all;
   }
 </style>

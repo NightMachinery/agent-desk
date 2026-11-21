@@ -15,6 +15,7 @@
   import { keys, ctx, pane, onkeydown, loadUserKeys } from './lib/keys.svelte.js';
   import './lib/keymap.js';
   import Keys from './components/Keys.svelte';
+  import ImageViewer from './components/ImageViewer.svelte';
   import Sidebar from './components/Sidebar.svelte';
   import ListPane from './components/ListPane.svelte';
   import ColdCacheDialog from './components/ColdCacheDialog.svelte';
@@ -244,6 +245,7 @@
 </div>
 
 <Keys />
+<ImageViewer />
 
 <SetEditor sets={globalView?.sets ?? []} paths={globalView?.paths ?? []} onchange={refresh} />
 
