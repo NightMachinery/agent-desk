@@ -1019,7 +1019,11 @@ expanded row, which also shows its images as thumbnails and its other
 files as links; a row with files says so ("2 images"). Clicking an image
 here, on a task's page or in a conversation opens it over the page: `h` /
 `l` (or the arrows) step through the item's other images, Esc, `q` or a tap
-beside it closes it, and ⌘-click opens it in a tab instead. The box checks a task off (Undo in the toast)
+beside it closes it, and ⌘-click opens it in a tab instead. Hovering a
+thumbnail previews it larger, and an image attached in a message box shows
+as a thumbnail on its chip, previewed on hover and opened by a click. Every
+tooltip on the page is the desk's own card: what the control does, the
+details below it, its key, and for a disabled one why it cannot now. The box checks a task off (Undo in the toast)
 or reopens it (asking what is still wrong, see below); clicking its title shows its brief with Status, Start, Drop (its arrow drops with a reason: Inconclusive, Not worth it, or your own, which becomes the drop note its agent is told; `, x` on a task's page)
 and Full page (the task on its own page, with its conversation). **New task** (`c` or `SPC n t`, or "+ New" on a node page) files one at any
 project, run or agent: details (the box focused when the form opens), a

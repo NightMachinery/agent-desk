@@ -20,7 +20,7 @@
   <div class="attachments compact">
     {#each media as m (m.sha256 + m.caption)}
       {#if m.kind === 'image' && m.url}
-        <a class="thumb" href={'./' + m.url} target="_blank" rel="noopener" title={m.caption !== m.name ? `${m.caption} (${m.name})` : m.name} onclick={(e) => view(e, m)}>
+        <a class="thumb" href={'./' + m.url} target="_blank" rel="noopener" data-tip-img={'./' + m.url} title={m.caption !== m.name ? `${m.caption} (${m.name})` : m.name} onclick={(e) => view(e, m)}>
           <img src={'./' + m.url} alt={m.caption} loading="lazy" />
         </a>
       {:else if m.url}

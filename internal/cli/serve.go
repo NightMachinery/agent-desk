@@ -157,7 +157,8 @@ func newServer(a *App, ui fs.FS) (*server, error) {
 var inlineScript = regexp.MustCompile(`(?s)<script(?:\s[^>]*)?>(.+?)</script>`)
 
 // contentSecurityPolicy allows the page's own files and, by hash, any
-// script inlined in index.html, and nothing from anywhere else.
+// script inlined in index.html, and nothing from anywhere else. blob:
+// images are the page's own previews of files about to be attached.
 func contentSecurityPolicy(index []byte) string {
 	scripts := "'self'"
 	for _, m := range inlineScript.FindAllSubmatch(index, -1) {
@@ -165,7 +166,7 @@ func contentSecurityPolicy(index []byte) string {
 		scripts += " 'sha256-" + base64.StdEncoding.EncodeToString(sum[:]) + "'"
 	}
 	return "default-src 'self'; script-src " + scripts + "; style-src 'self' 'unsafe-inline'; " +
-		"img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+		"img-src 'self' data: blob:; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
 }
 
 func (s *server) routes() http.Handler {

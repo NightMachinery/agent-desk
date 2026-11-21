@@ -8,6 +8,8 @@
   let box = $state();
   const open = $derived(viewer.at >= 0);
   const img = $derived(open ? viewer.images[viewer.at] : null);
+  // A served file is relative to the page; a local preview (blob:) is not.
+  const src = (u) => (/^(blob|data|https?):/.test(u) ? u : './' + u);
 
   $effect(() => {
     if (!open) return;
@@ -31,7 +33,7 @@
 {#if img}
   <div class="viewer" role="dialog" aria-modal="true" aria-label={img.name} bind:this={box}>
     <button data-keys="none" class="scrim" aria-label="Close" onclick={closeImage}></button>
-    <img src={'./' + img.url} alt={img.caption || img.name} />
+    <img src={src(img.url)} alt={img.caption || img.name} />
     <div class="bar">
       {#if viewer.images.length > 1}
         <button data-cmd="image-prev" class="btn small" title={tip('Previous image', 'image-prev')} onclick={() => stepImage(-1)}>‹</button>
@@ -39,7 +41,7 @@
         <button data-cmd="image-next" class="btn small" title={tip('Next image', 'image-next')} onclick={() => stepImage(1)}>›</button>
       {/if}
       <span class="name">{img.caption && img.caption !== img.name ? `${img.caption} · ` : ''}{img.name}</span>
-      <a class="btn small" href={'./' + img.url} target="_blank" rel="noopener">Open original</a>
+      <a class="btn small" href={src(img.url)} target="_blank" rel="noopener">Open original</a>
       <button data-cmd="sheet-close" class="btn small" title={tip('Close', 'sheet-close')} onclick={closeImage}>Close</button>
     </div>
   </div>

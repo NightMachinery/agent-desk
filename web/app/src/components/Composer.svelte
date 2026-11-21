@@ -15,6 +15,7 @@
   import Sheet from './Sheet.svelte';
   import { captureVoice, placeBlock, transcriptBlock, voiceToken, voiceTokens } from '../lib/voice.js';
   import { off } from '../lib/why.js';
+  import { openImage } from '../lib/viewer.svelte.js';
 
   // compose turns the typed text into what is sent (a question's picks plus
   // the text); ready allows sending with the box empty. draft names the box
@@ -35,7 +36,7 @@
   let confirming = $state(false);
   let notify = $state({ desktop: '', remote: '' }); // overrides for this message
   const MAX_FILES = 8;
-  let files = $state([]); // {key, name, size, status: uploading|ready|error, ref, error}
+  let files = $state([]); // {key, name, size, status: uploading|ready|error, ref, error, url: an image's local preview}
   let picker = $state();
   let dragging = $state(false);
   let seq = 0;
@@ -264,7 +265,7 @@
       for (const { id } of voiceTokens(text)) {
         if (!voiceDraft.some((item) => item.id === id)) voiceDraft.push({ id });
       }
-      files = [];
+      clearFiles();
       notify = { desktop: '', remote: '' };
       stopWatch();
       stopWatch = watchDraft(k, (v) => fromDesk(k, v));
@@ -293,7 +294,8 @@
         break;
       }
       const key = ++seq;
-      files.push({ key, name: file.name || 'pasted-file', size: file.size, status: 'uploading' });
+      const url = file.type?.startsWith('image/') ? URL.createObjectURL(file) : '';
+      files.push({ key, name: file.name || 'pasted-file', size: file.size, status: 'uploading', url });
       try {
         const res = await upload(file);
         const f = files.find((x) => x.key === key);
@@ -305,7 +307,18 @@
     }
   }
   function removeFile(key) {
+    for (const f of files) if (f.key === key && f.url) URL.revokeObjectURL(f.url);
     files = files.filter((f) => f.key !== key);
+  }
+  function clearFiles() {
+    for (const f of files) if (f.url) URL.revokeObjectURL(f.url);
+    files = [];
+  }
+  // An attached image stays viewable: a thumbnail on its chip, a larger
+  // preview on hover (the tooltip), and the viewer on click.
+  function viewFile(f) {
+    const images = files.filter((x) => x.url).map((x) => ({ url: x.url, name: x.name }));
+    openImage(images, images.findIndex((x) => x.url === f.url));
   }
   function onpaste(e) {
     const list = [...(e.clipboardData?.files ?? [])];
@@ -365,7 +378,7 @@
           text = '';
           rememberVoice([]);
           notify = { desktop: '', remote: '' };
-          files = [];
+          clearFiles();
         }
       }
     } finally {
@@ -448,7 +461,8 @@
   {#if files.length}
     <ul class="files">
       {#each files as f (f.key)}
-        <li class="file {f.status}" title={f.error || ''}>
+        <li class="file {f.status}" class:has-thumb={!!f.url} title={f.error || ''}>
+          {#if f.url}<button data-keys="none" class="thumb" data-tip-img={f.url} title={`${f.name}: click to view it larger`} onclick={() => viewFile(f)}><img src={f.url} alt="" /></button>{/if}
           <span class="fname">{f.name}</span>
           <span class="faint">{f.status === 'uploading' ? 'uploading…' : f.status === 'error' ? f.error : sizeText(f.ref?.size ?? f.size)}</span>
           <button data-keys="none" class="x" aria-label={`Remove ${f.name}`} onclick={() => removeFile(f.key)} {...off(undefined, [busy, SENDING])}>×</button>
@@ -602,6 +616,26 @@
     border-radius: 999px;
     background: var(--panel);
     font-size: 12.5px;
+  }
+  .file.has-thumb {
+    padding-left: 3px;
+  }
+  .thumb {
+    flex: none;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    overflow: hidden;
+    cursor: zoom-in;
+    background: var(--sunken);
+  }
+  .thumb img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
   }
   .file.error {
     border-color: var(--blocked);
