@@ -227,7 +227,8 @@
       : `The user filed a ${what} for you on the desk: ${named}.`;
     return filed + (brief.trim() ? `\n\n${brief.trim()}` : '') +
       (title.trim() ? '' : `\n\nGive it a short title first: agent-desk task title ${id} 'Title'.`) +
-      `\n\nIt is on your task list (agent-desk task list). Mark it with agent-desk task start ${id} and agent-desk task done ${id}.`;
+      `\n\nIf it has several parts, split it first: file each as a step under it (agent-desk task add --parent ${id} --title '...'), and work through them.` +
+      `\n\nIt is on your task list (agent-desk task list). Mark it with agent-desk task start ${id}, and when finished agent-desk task done ${id} --note 'how it was done and checked'.`;
   }
 
   async function file(e) {
@@ -299,7 +300,8 @@
     <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
     <form class="add" bind:this={formEl} tabindex="-1" onsubmit={file} onkeydown={formKeys} {onpaste} {ondrop} ondragover={(e) => e.preventDefault()}>
       <!-- svelte-ignore a11y_autofocus -->
-      <input id="task-title" class="input" placeholder="What needs doing? (optional with details: the agent names it)" bind:value={title} autofocus aria-label="Task title" />
+      <textarea id="task-details" class="input" rows="4" placeholder="What needs doing: what you saw, what done looks like" bind:value={brief} autofocus aria-label="Details"></textarea>
+      <input id="task-title" class="input" placeholder="Title (optional: the agent names it from the details)" bind:value={title} aria-label="Task title" />
       <div class="types" role="radiogroup" aria-label="Type">
         {#each types as t (t)}
           <button type="button" role="radio" aria-checked={newType === t} class="tchip {t}" class:on={newType === t} onclick={() => (newType = t)}>{LABEL[t] ?? t}</button>
@@ -323,7 +325,6 @@
           </label>
         {/if}
       </div>
-      <textarea class="input" rows="3" placeholder="Details: what you saw, what done looks like" bind:value={brief} aria-label="Details"></textarea>
       <div class="files">
         <input bind:this={picker} type="file" multiple hidden onchange={(e) => (addFiles([...(e.currentTarget.files ?? [])]), (e.currentTarget.value = ''))} />
         <button type="button" class="btn ghost small" disabled={files.length >= MAX_FILES} onclick={() => picker?.click()} title="Attach files; you can also paste or drop them on the form">Attach</button>

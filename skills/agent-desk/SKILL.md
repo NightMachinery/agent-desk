@@ -312,8 +312,10 @@ Tasks page, filters it by type and checks things off there.
   two lists by hand.
 - The user files tasks too, from the dashboard. When they do, you get a
   message naming the task id: respond to it, and track the task like your
-  own. When you finish it, the done note says how; report on its message
-  as well when there is more to say than a note holds. One filed without a title shows its details' first line; name it
+  own. When it holds several parts, split it first: file each as a step
+  under it (`task add --parent <id>`), so the user sees them checked off.
+  When you finish it, the done note says how; report on its message as
+  well when there is more to say than a note holds. One filed without a title shows its details' first line; name it
   first: `agent-desk task title <id> 'Short title'`.
 
 When you find work worth doing that the quota does not allow now (a cleanup,

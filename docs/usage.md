@@ -970,11 +970,14 @@ search (`/`, which also matches `#tag`). A task's tags are edited in its
 expanded row. The box checks a task off (Undo in the toast)
 or reopens it (asking what is still wrong, see below); clicking its title shows its brief with Status, Start, Drop
 and Full page (the task on its own page, with its conversation). **New task** (`SPC n t`, or "+ New" on a node page) files one at any
-project, run or agent: a title, a type, an optional parent, details, files
-(pasted anywhere in the form, dropped on it, or Attach) and tags. The files
-stay on the task and go with the message to its agent, which gets their
-paths. The title may be left out when there are details or files: the
-message to the agent asks it to name the task (`task title`).
+project, run or agent: details (the box focused when the form opens), a
+title, a type, an optional parent, files (pasted anywhere in the form,
+dropped on it, or Attach) and tags. The files stay on the task and go with
+the message to its agent, which gets their paths. The title may be left out
+when there are details or files: the message to the agent asks it to name
+the task (`task title`). The message also asks it to split a task with
+several parts into steps under it (`task add --parent`), and to finish with
+a note saying how it was done.
 "Message its coordinator about it" (on by default) also sends a message
 about the task, so an agent acts on it now (the message and the agent's
 responses form the task's own conversation, apart from the node's running

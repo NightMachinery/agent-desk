@@ -203,8 +203,8 @@ function taskAdd() {
   if (!route.tasks) go({ item: '', tasks: true });
   let tries = 0;
   const openIt = () => {
-    const title = document.getElementById('task-title');
-    if (title) return title.focus();
+    const details = document.getElementById('task-details');
+    if (details) return details.focus();
     const b = cmdEl('task-add');
     if (b) return b.click();
     if (++tries < 20) setTimeout(openIt, 50);
