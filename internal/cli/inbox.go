@@ -505,17 +505,7 @@ func (a *App) threadText(d *desk.Desk, thread []store.Event, title, highlight st
 	return b.String()
 }
 
-func fileText(path string) string {
-	b, err := os.ReadFile(path)
-	if err != nil {
-		return "(cannot read: " + err.Error() + ")\n"
-	}
-	const limit = 64 << 10
-	if len(b) > limit {
-		b = append(b[:limit], []byte("\n…")...)
-	}
-	return string(b) + "\n"
-}
+func fileText(path string) string { return desk.LinkText(path) + "\n" }
 
 func takeWhat(q store.Event) string {
 	if q.Level == "default" {

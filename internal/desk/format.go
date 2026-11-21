@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
 	"github.com/NightMachinery/agent-desk/internal/media"
@@ -411,11 +410,7 @@ func (w *Writer) Node(level int, n *Node) {
 		w.props("DESK_ID", s.ID, "DESK_PATH", s.Event.Path, "DESK_TS", s.Event.TS)
 		if s.File != "" {
 			w.Text("File: " + s.File)
-			if b, err := os.ReadFile(s.File); err == nil {
-				w.Text(string(b))
-			} else {
-				w.Text("(cannot read: " + err.Error() + ")")
-			}
+			w.Text(LinkText(s.File))
 		} else {
 			w.Text(s.Event.Body)
 		}

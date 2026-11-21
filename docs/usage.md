@@ -293,6 +293,10 @@ Slots hold what is true now, not history:
     agent-desk clear next
     agent-desk link tasks TASKS.org
 
+A linked slot shows the file as it is when read. Views show at most its first
+64 KB, cut at a line end, and only a note with the size for a binary file
+(link an APK and the board says so, without copying 40 MB into it).
+
 Every agent on a task of more than a few turns keeps three **standard** slots:
 `status` (now), `next` (the next steps) and `done` (results so far, with where
 they live). A coordinator also keeps `velocity`: its recent pace, where its
