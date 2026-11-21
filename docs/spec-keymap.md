@@ -1,7 +1,7 @@
 # Keymap redesign (w-v7ms): proposal
 
-@Opus5.5 [2026-11-21 Sat]. Status: proposal for the user to review. Nothing
-here is built yet.
+@Opus5.5 [2026-11-21 Sat]. Status: approved with changes (q-nbpa, see
+"Decisions"); the map below already includes them. Nothing is built yet.
 
 The task: move every binding into an EDN file, let the user layer their own EDN
 file on top, agree the EDN format with the agent that evilified Purple (the
@@ -23,12 +23,12 @@ action gets a key (w-f8a5), and an action may be keyless on purpose, marked
 - **Scheme.** Seven rules, below. I re-derived every binding from them. Most of
   today's single keys and vim prefixes survive because they already follow
   vim or Doom. What moves is the leader tree: item commands go to `SPC b`,
-  message-box commands to `SPC i`, node commands to `SPC p`, and commands
-  specific to the open item or page go to a localleader, `\`.
+  message-box commands to `SPC i`, node commands to `SPC d`, and commands
+  specific to the open item or page go to a localleader, `,`.
 - **Coverage.** A test fails when any command has no key and is not marked
   keyless, or when any button has neither a command nor a `none` mark.
-- **Decisions for you** are at the end: the leader groups, the localleader
-  key, and where your keys file lives.
+- **Decisions** are at the end: the leader groups, the localleader key, and
+  where your keys file lives.
 
 ## The rules
 
@@ -40,7 +40,8 @@ action gets a key (w-f8a5), and an action may be keyless on purpose, marked
    - `SPC b` buffer: the open item;
    - `SPC i` insert: the message box;
    - `SPC o` open: pages;
-   - `SPC p` project: nodes;
+   - `SPC d` nodes (the one group off Doom's letters: `p` is a reach,
+     `d` sits on the home row);
    - `SPC q` session;
    - `SPC s` search;
    - `SPC t` toggle: view switches;
@@ -51,8 +52,8 @@ action gets a key (w-f8a5), and an action may be keyless on purpose, marked
    because `x` selects.
 3. **A leader entry reuses the letter of its short key.** `p` pins, so
    `SPC b p` pins; `d` reads, so `SPC b d` reads. Learn a letter once.
-4. **The localleader holds what only the open thing has.** That is `\` (your
-   Doom localleader) and `SPC m` (Doom's default), for a task, a deliverable,
+4. **The localleader holds what only the open thing has.** That is `,` (also
+   a localleader in your Emacs now) and `SPC m` (Doom's default), for a task, a deliverable,
    a screen request, a failed delivery, an out-of-quota agent, or the Settings
    and Verbatim pages. The same letter means the same idea across kinds:
    `\ o` opens (a deliverable's link, a task again), `\ r` retries or
@@ -65,6 +66,9 @@ action gets a key (w-f8a5), and an action may be keyless on purpose, marked
 7. **Short keys never do something you cannot undo.** Archiving an agent,
    dropping a task and interrupting an agent live only under the leader or
    localleader, behind their usual confirmation.
+8. **Among equally good letters, the easier reach wins**: the home row, then
+   the bottom row, then the top. The Doom letter or the short key's letter
+   still comes first where it carries a habit.
 
 Deliberately keyless commands are listed under `:keyless` in `keys.edn`, and
 buttons reached only by hints (`f`) or Tab carry `data-keys="none"`: per-row
@@ -147,12 +151,13 @@ switch item, `SPC ?` every binding, `SPC j` hints.
 
 - `n t` task, `n m` message to the coordinator, `n v` velocity report.
 
-`SPC p`: the current node.
+`SPC d`: the current node.
 
-- Unchanged: `p p` go to a node, `p u` up, `p h` top.
-- `p d` mark everything under it read (was `SPC n r`).
-- `p s` its notify settings (was `SPC n s`).
-- `p a` archive its coordinator agent (was `SPC n a`).
+- `d f` find and go to a node (was `SPC p p`), `d u` up (was `SPC p u`),
+  `d h` top (was `SPC p h`).
+- `d d` mark everything under it read (was `SPC n r`).
+- `d s` its notify settings (was `SPC n s`).
+- `d a` archive its coordinator agent (was `SPC n a`).
 
 `SPC o`: pages.
 
@@ -183,7 +188,7 @@ switch item, `SPC ?` every binding, `SPC j` hints.
 `SPC h`: unchanged, `h k` describe a key, `h f` describe a command, `h b`
 every binding.
 
-### Localleader `\` (also `SPC m`)
+### Localleader `,` (also `SPC m`)
 
 What it offers depends on what is open.
 
@@ -248,8 +253,9 @@ Other keys type text as usual.
 - Send how: `SPC i m` becomes `SPC i s`.
 - Deliverable and task commands go to the localleader: `SPC i g`, `SPC i G`,
   `SPC i w` and `SPC i s` become `\ o`, `\ g`, `\ w` and `\ s`.
-- Node commands: `SPC n r`, `SPC n s` and `SPC n a` become `SPC p d`,
-  `SPC p s` and `SPC p a`.
+- Node commands: `SPC p p`, `SPC p u` and `SPC p h` become `SPC d f`,
+  `SPC d u` and `SPC d h`; `SPC n r`, `SPC n s` and `SPC n a` become
+  `SPC d d`, `SPC d s` and `SPC d a`.
 
 ## The EDN format
 
@@ -264,17 +270,22 @@ The built-in file, abridged:
            "g a"     :recordings}
  :list    {"j" :next-item, "k" :prev-item}
  :detail  {"j" :scroll-down, "k" :scroll-up}
- :task    {"\\ d" :task-done, "\\ D" :task-drop}
+ :task    {"d" :task-done, "D" :task-drop}   ; after the localleader
  :insert  {"M-x" :m-x}
+ :localleader ["," "SPC m"]
  :keyless [:deliverables-unread :deliverables-latest :deliverables-all]}
 ```
+
+The context keymaps (`:task`, `:deliverable`, ...) hold the keys typed after
+the localleader, and `:localleader` lists the keys that start it, so changing
+the localleader is one edit.
 
 Your file holds only changes:
 
 ```clojure
 {:normal {"g c" nil              ; drop a default
           "C-c t" :task-add}     ; add your own
- :task   {"\\ f" :task-defer}}
+ :task   {"f" :task-defer}}       ; , f (and SPC m f) defer a task
 ```
 
 The format is Purple's:
@@ -283,8 +294,9 @@ The format is Purple's:
 - a chord maps to a command keyword, or to `nil` to remove a default;
 - chords use Doom notation (`SPC`, `C-`, `M-`, `RET`, ...).
 
-It adds two things. A string labels a prefix in the key guide. A list of
-deliberately keyless commands goes under `:keyless`. A file with any error
+It adds three things. A string labels a prefix in the key guide. A list of
+deliberately keyless commands goes under `:keyless`. `:localleader` names the
+keys that start the context keymaps. A file with any error
 (an unknown command, a duplicate chord, a chord that is also a prefix of
 another) is rejected whole. The dashboard then keeps the defaults and shows a
 strip naming the bad entry.
@@ -326,23 +338,13 @@ into the evilify skill as `evilify/keymap-edn.md`.
 
 ## Decisions
 
-1. **Leader groups.**
-   - A (recommended): the Doom-aligned groups above. `SPC b` is the item,
-     `SPC i` the message box, `SPC n` new, `SPC p` the node. This costs you
-     relearning the `SPC i` item forms.
-   - B: keep today's groups (`SPC i` item, `SPC n` node) and only fill the
-     gaps. Nothing to relearn, but the message-box commands then have no
-     natural group, and `SPC i` means something different here than in
-     your Emacs.
-2. **Localleader key.**
-   - A (recommended): `\` plus `SPC m`. `\` is your Doom localleader, and
-     `SPC m` is Doom's default.
-   - B: `,` plus `SPC m`. One unshifted key, the Spacemacs habit, but `,`
-     is not your Emacs localleader.
-   - C: only `SPC m`. One more keystroke every time.
-3. **Where your keys file lives.**
-   - A (recommended): one file on the desk machine, shared by every device.
-     You edit it in your editor and can keep it with your dotfiles.
-   - B: per device, edited on the Settings page. The phone and the laptop
-     can then differ.
-   - C: both, the device's file on top.
+Decided in q-nbpa:
+
+1. **Leader groups: Doom-aligned** (A), with one change asked for: letters
+   that are easier to reach win where the mnemonic allows (rule 8), so the
+   node group is `SPC d`, not `SPC p`.
+2. **Localleader: `,` and `SPC m`** (B). `,` is also a second localleader in
+   the user's Doom Emacs now (doom.d `night-doom-keybindings.el`), where it
+   replaces evil-snipe's reverse repeat.
+3. **Your keys file: one file on the desk machine** (A),
+   `~/.config/agent-desk/keys.edn`, shared by every device.
