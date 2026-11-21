@@ -311,7 +311,7 @@ function search() {
 
 // --- pickers -------------------------------------------------------------------
 
-const mx = () => openPalette('M-x', commandItems());
+const mx = () => openPalette('M-x', commandItems(), { history: true });
 
 function places() {
   const out = [{ label: 'Everything', detail: 'go to', run: () => go({ path: '', item: '', session: '' }) }];
@@ -326,7 +326,7 @@ function places() {
 }
 const nodes = () => openPalette('Go to project, run or agent', places());
 /** SPC SPC: every command that applies here, then every place. */
-const anything = () => openPalette('Command or place', [...commandItems(), ...places()]);
+const anything = () => openPalette('Command or place', [...commandItems(), ...places()], { history: true });
 
 function items() {
   const rows = /** @type {HTMLElement[]} */ ([...(paneEl('list')?.querySelectorAll('[data-item]') ?? [])]);

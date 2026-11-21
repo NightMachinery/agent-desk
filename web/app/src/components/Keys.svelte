@@ -2,7 +2,7 @@
   import { cheatsheet } from '../lib/shortcuts.js';
   // What the keyboard layer draws: the mode line, the which-key popup, the
   // list of every binding, the M-x palette and the link hints.
-  import { keys, pane, continuations, activeBindings, matches, groups, description, describeCommand } from '../lib/keys.svelte.js';
+  import { keys, pane, continuations, activeBindings, matches, closePalette, paletteHistory, groups, description, describeCommand } from '../lib/keys.svelte.js';
   import { route } from '../lib/route.svelte.js';
   import { position } from '../lib/nav.svelte.js';
   import { sel } from '../lib/select.svelte.js';
@@ -21,7 +21,7 @@
   const paneName = { side: 'sidebar', list: 'list', detail: 'detail', dialog: 'sheet' };
 
   // The palette.
-  const shown = $derived(keys.palette ? matches(keys.palette.items, keys.palette.query).slice(0, 200) : []);
+  const shown = $derived(keys.palette ? matches(keys.palette).slice(0, 200) : []);
   let input = $state();
   let listEl = $state();
   $effect(() => {
@@ -31,19 +31,20 @@
     keys.palette?.index;
     listEl?.querySelector('.on')?.scrollIntoView({ block: 'nearest' });
   });
-  function close() {
-    keys.palette = null;
-  }
+  const close = () => closePalette();
   function pick(it) {
-    close();
-    queueMicrotask(() => it?.run());
+    if (it) closePalette(it);
   }
   function onpalettekey(e) {
     const p = keys.palette;
     if (!p) return;
-    const k = (e.ctrlKey ? 'C-' : '') + e.key;
+    // Option changes the character on a Mac (Option-p types π): read the key.
+    const alt = e.altKey && /^Key[A-Z]$/.test(e.code) ? 'M-' + e.code.slice(3).toLowerCase() : '';
+    const k = alt || (e.ctrlKey ? 'C-' : '') + e.key;
     const n = shown.length;
-    if (['C-n', 'C-j', 'ArrowDown', 'Tab'].includes(k)) p.index = n ? (p.index + 1) % n : 0;
+    if (k === 'M-p' || k === 'M-n') paletteHistory(k === 'M-p' ? 1 : -1);
+    else if (alt) return e.preventDefault(); // no stray symbols in the input
+    else if (['C-n', 'C-j', 'ArrowDown', 'Tab'].includes(k)) p.index = n ? (p.index + 1) % n : 0;
     else if (['C-p', 'C-k', 'ArrowUp'].includes(k) || (e.shiftKey && e.key === 'Tab')) p.index = n ? (p.index - 1 + n) % n : 0;
     else if (k === 'Enter') pick(shown[p.index]);
     else if (k === 'Escape' || k === 'C-g') close();
@@ -181,10 +182,10 @@
         <input
           bind:this={input}
           bind:value={keys.palette.query}
-          oninput={() => keys.palette && (keys.palette.index = 0)}
+          oninput={() => keys.palette && ((keys.palette.index = 0), (keys.palette.at = -1))}
           onkeydown={onpalettekey}
           onblur={() => setTimeout(() => keys.palette && document.activeElement !== input && close(), 150)}
-          placeholder="Type to narrow; words match in any order"
+          placeholder={keys.palette.history ? 'Type to narrow; M-p and M-n for what you typed before' : 'Type to narrow; words match in any order'}
           autocomplete="off"
           spellcheck="false"
         />

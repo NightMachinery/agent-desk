@@ -14,6 +14,7 @@
 // itself is in keymap.js.
 
 import { route, pageOpen } from './route.svelte.js';
+import { rank, narrow as narrowItems, load as loadHistory, save as saveHistory, record, step } from './mx.js';
 
 export const keys = $state({
   mode: 'normal', // normal, insert, visual
@@ -22,7 +23,9 @@ export const keys = $state({
   count: '',
   which: false, // the which-key popup
   help: /** @type {false | 'sheet' | 'all' | 'describe'} */ (false), // the cheatsheet, every binding, or the describe sheet
-  palette: /** @type {null | {title: string, items: any[], query: string, index: number}} */ (null),
+  // history: M-x's (ranked, and M-p/M-n step through what was typed); at,
+  // draft: where M-p/M-n stand; back: the field M-x was opened from.
+  palette: /** @type {null | {title: string, items: any[], query: string, index: number, history: boolean, at: number, draft: string, back: HTMLElement | null}} */ (null),
   capture: false, // describe-key: the next sequence is described, not run
   describe: /** @type {null | {keys?: string, cmd?: string}} */ (null), // what the describe sheet shows
   hints: /** @type {null | {typed: string, marks: {label: string, el: HTMLElement, x: number, y: number}[], act?: (el: HTMLElement) => any}} */ (null),
@@ -187,13 +190,12 @@ export const applies = (c) => active(c);
 /** The keys that run command name here, or with all = true anywhere. */
 export const keysOf = (name, all = false) => bindings.filter((b) => b.cmd === name && (all || active(b))).map((b) => b.keys);
 
-/** The commands offered by name: those that apply here, A to Z, each with
- * the keys that run it. */
+/** The commands offered by name: those that apply here, each with the keys
+ * that run it (M-x ranks them; see mx.js). */
 export function commandItems() {
   return [...commands.values()]
     .filter((c) => c.palette !== false && applies(c))
-    .map((c) => ({ label: c.desc, key: keysOf(c.name).slice(0, 2).join(', '), run: () => c.run(1) }))
-    .sort((a, b) => a.label.localeCompare(b.label));
+    .map((c) => ({ name: c.name, label: c.desc, key: keysOf(c.name).slice(0, 2).join(', '), run: () => c.run(1) }));
 }
 
 /** Runs a command by name, as a key would (for the palette). */
@@ -343,6 +345,10 @@ function insertKey(e, tok, el) {
   if (tok === 'ESC' || tok === 'C-g' || tok === 'C-[') {
     e.preventDefault();
     leaveField(el);
+  } else if (tok === 'M-x' && commands.has('m-x')) {
+    // M-x works while typing too; cancelling it comes back to this field.
+    e.preventDefault();
+    run(commands.get('m-x'), 1);
   }
 }
 
@@ -490,17 +496,48 @@ function hintKey(e, tok) {
 
 // --- the palette (M-x, jumps) ------------------------------------------------
 
-/** Opens the palette on items [{label, detail?, key?, run}]. */
-export function openPalette(title, items) {
+/** Opens the palette on items [{label, name?, detail?, key?, run}].
+ * opts.history: M-x's ordering and input history (mx.js). The field typing
+ * was in, if any, gets focus back when the palette is cancelled. */
+export function openPalette(title, items, opts = {}) {
   reset();
-  keys.palette = { title, items, query: '', index: 0 };
+  const el = document.activeElement;
+  const back = el instanceof HTMLElement && typing(el) ? el : null;
+  const history = !!opts.history;
+  keys.palette = { title, items: history ? rank(items, loadHistory()) : items, query: '', index: 0, history, at: -1, draft: '', back };
 }
 
-/** Orderless matching: every word of the query appears, in any order. */
-export function matches(items, query) {
-  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
-  return items.filter((it) => {
-    const hay = `${it.label} ${it.detail ?? ''} ${it.key ?? ''}`.toLowerCase();
-    return words.every((w) => hay.includes(w));
-  });
+/** What the palette shows for its query: orderless matches; M-x puts the
+ * shorter ones first, other pickers keep their own order. */
+export function matches(p) {
+  const out = narrowItems(p.items, p.query);
+  return p.history ? out : p.items.filter((it) => out.includes(it));
+}
+
+/** Closes the palette; picked: the item chosen, run after it closes. */
+export function closePalette(picked = null) {
+  const p = keys.palette;
+  if (!p) return;
+  keys.palette = null;
+  if (picked) {
+    if (p.history) saveHistory(record(loadHistory(), picked.name ?? '', p.query));
+    if (p.back) selectField(p.back); // `i` goes back into it
+    queueMicrotask(() => picked.run());
+  } else if (p.back?.isConnected) {
+    p.back.focus();
+    syncMode();
+  }
+}
+
+/** M-p (by 1) and M-n (by -1): the palette's input history. */
+export function paletteHistory(by) {
+  const p = keys.palette;
+  if (!p?.history) return;
+  const inputs = loadHistory().inputs;
+  if (p.at < 0) p.draft = p.query;
+  const s = step(inputs, p.at, by, p.draft);
+  if (s.at === p.at) return say(by > 0 ? 'No older input' : 'No newer input');
+  p.at = s.at;
+  p.query = s.text;
+  p.index = 0;
 }

@@ -133,8 +133,17 @@ follow, with groups in colour.
   when it does not apply, what it needs.
 
 In the pickers (`SPC SPC`, `SPC h f`, `SPC ,`, `M-x`) the words you type match in any
-order. `C-n` / `C-p`, `C-j` / `C-k` or the arrows move, `RET` picks, `Esc` or
-`C-g` closes.
+order, each as plain text, a regular expression or an initialism (`mrt` for
+"Mark read toggle"). `C-n` / `C-p`, `C-j` / `C-k` or the arrows move, `RET`
+picks, `Esc` or `C-g` closes.
+
+`M-x` and `SPC SPC` order commands as Doom's `M-x` does (counsel with amx):
+with nothing typed, the last 7 you ran come first, most recent first, then
+the rest by how often you ran them, then shorter names, then A to Z; what you
+type keeps that order with shorter matches first. `M-p` and `M-n` step back
+and forward through what you typed in it before. `M-x` also works while you
+type in a box; `Esc` brings you back to the box, and after a pick `i` does.
+The order and the history are kept in this browser.
 
 ## Anything else: hints
 
