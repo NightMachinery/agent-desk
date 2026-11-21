@@ -3,7 +3,7 @@
 // the same. Each command is defined once with command(name, ...); keys are
 // bound to its name with bind(keys, name), so M-x, SPC SPC and help list a
 // command even when it has no key.
-import { moveOnTarget, allClear } from './moveon.js';
+import { moveOnTarget, ALL_CLEAR, ALL_CLEAR_KEY } from './moveon.js';
 import { route, go, pageOpen } from './route.svelte.js';
 import { nav, step } from './nav.svelte.js';
 import { sel, toggle, toggleAll, clear } from './select.svelte.js';
@@ -55,10 +55,24 @@ function stepBy(n) {
   openItem(id);
 }
 const edge = (last) => openItem(last ? nav.order[nav.order.length - 1] : nav.order[0]);
-/** The next open item (dir 1: where moving on after an answer goes) or the
- * nearest open one before (dir -1); pinned items are skipped. */
+/** n and N walk the open items like back and forward. n goes to the next
+ * open item (where moving on after an answer goes) and remembers where it
+ * came from; N retraces those steps, because opening an item reads it, so
+ * the items behind are no longer open by the time you want them back. With
+ * nothing to retrace, N goes to the nearest open item before. Pinned items
+ * are skipped. */
+const back = [];
+const ahead = [];
+const listed = (id) => id && id !== route.item && nav.order.includes(id);
 function openOpen(dir) {
   const here = route.item;
+  const [from, to] = dir > 0 ? [ahead, back] : [back, ahead];
+  while (from.length) {
+    const id = from.pop();
+    if (!listed(id)) continue;
+    if (here) to.push(here);
+    return openItem(id);
+  }
   let id = '';
   if (dir > 0) id = moveOnTarget(nav.order, here, nav.pinned, nav.open);
   else {
@@ -70,8 +84,10 @@ function openOpen(dir) {
     // it is a clear desk unless the item shown is itself still open.
     if (dir < 0 && moveOnTarget(nav.order, here, nav.pinned, nav.open)) return say('Nothing open before this');
     if (here && nav.open.has(here) && !nav.pinned.has(here)) return say('Nothing else open');
-    return toast(allClear(), 'ok');
+    return toast(ALL_CLEAR, 'ok', 4500, null, ALL_CLEAR_KEY);
   }
+  if (here) (dir > 0 ? back : ahead).push(here);
+  if (back.length > 100) back.shift();
   openItem(id);
 }
 
@@ -321,7 +337,7 @@ C('switch-item', 'Switch to an item in the list', items);
 C('hints', 'Click something on screen (hints)', () => startHints(), { anywhere: true });
 C('reply-entry', 'Reply to an entry of the conversation (hints on the reply buttons)', () => startHints('.reply-btn'), { when: () => !!document.querySelector('.reply-btn') });
 C('next-open', 'Next open item: where answering moves on to (an open question, else an unread item)', () => openOpen(1));
-C('prev-open', 'Previous open item', () => openOpen(-1));
+C('prev-open', 'Back along your n steps (else the previous open item)', () => openOpen(-1));
 C('search', 'Search', search);
 C('search-clear', 'Clear the search', () => go({ q: '', item: '' }, { replace: true }), { when: () => !!route.q, need: 'a search' });
 C('escape', 'Back out: visual mode, selection, item, page, search', escape, { palette: false });

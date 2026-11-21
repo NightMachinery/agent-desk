@@ -68,7 +68,7 @@ export const cheatsheet = [
     rows: [
       [['j', 'k'], 'Next or previous item'],
       [['J', 'K'], 'Next or previous, from any pane'],
-      [['n', 'N'], 'Next or previous open item, skipping read ones'],
+      [['n', 'N'], 'Next open item; N retraces your n steps'],
       [['g g', 'G'], 'First or last item'],
       [['}', '{'], 'Next or previous section'],
       [['C-d', 'C-u'], 'Half a page down or up'],

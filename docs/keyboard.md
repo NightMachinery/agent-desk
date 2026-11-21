@@ -52,10 +52,13 @@ On a phone there is one pane at a time: the list, or the open item.
 - `J` / `K` (or `C-j` / `C-k`) move to the next or previous item from any
   pane.
 - `n`: the next open item, where answering would move on to: the next open
-  question, else the next unread item, skipping read and pinned ones. `N`:
-  the nearest open item before. When nothing open is left anywhere, a toast
-  celebrates the clear desk; answering or sending on your last open item adds
-  the same note to its toast.
+  question, else the next unread item, skipping read and pinned ones. `N`
+  retraces your `n` steps, back to the item each came from, though opening
+  it has read it by now; `n` then goes forward again along them. With nothing
+  to retrace, `N` goes to the nearest open item before. When nothing open is
+  left anywhere, `n` says "🎉 All caught up" (pressing it again pulses that
+  toast instead of adding another); answering or sending on your last open
+  item adds the same note to its toast.
 
 ## The detail pane
 

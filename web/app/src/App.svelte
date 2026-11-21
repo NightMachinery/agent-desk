@@ -241,12 +241,15 @@
 
 <div class="toasts" aria-live="polite">
   {#each toasts as t (t.id)}
-    <div class="toast {t.kind}">
-      <span>{t.text}</span>
-      {#if t.action}
-        <button class="toast-act" onclick={() => { const i = toasts.findIndex((x) => x.id === t.id); if (i >= 0) toasts.splice(i, 1); t.action.run(); }}>{t.action.label}</button>
-      {/if}
-    </div>
+    <!-- A repeat of a keyed toast pulses it (bump) instead of stacking a copy. -->
+    {#key t.bump}
+      <div class="toast {t.kind}" class:bumped={t.bump > 0}>
+        <span>{t.text}</span>
+        {#if t.action}
+          <button class="toast-act" onclick={() => { const i = toasts.findIndex((x) => x.id === t.id); if (i >= 0) toasts.splice(i, 1); t.action.run(); }}>{t.action.label}</button>
+        {/if}
+      </div>
+    {/key}
   {/each}
 </div>
 
@@ -364,6 +367,19 @@
   .toast.ok {
     background: var(--ok);
     color: #fff;
+  }
+  .toast.bumped {
+    animation: bump 0.35s ease-out;
+  }
+  @keyframes bump {
+    40% {
+      transform: scale(1.06);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .toast.bumped {
+      animation: none;
+    }
   }
   @keyframes rise {
     from {

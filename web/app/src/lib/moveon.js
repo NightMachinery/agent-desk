@@ -24,11 +24,7 @@ export function moveOnTarget(order, here, pinned, open = null) {
 }
 
 // When nothing open is left (n finds nothing, or the last open item was just
-// dealt with), the toast celebrates instead of reporting an empty search.
-const cheers = [
-  '🎉 All caught up: nothing is waiting on you.',
-  '🎉 Clear desk! Every question answered, every item read.',
-  '🎉 Nothing open left. Well done.',
-  '🎉 Inbox zero. The agents have nothing to ask you.',
-];
-export const allClear = () => cheers[Math.floor(Math.random() * cheers.length)];
+// dealt with), the toast says so, once: ALL_CLEAR_KEY keeps a repeat from
+// stacking a second copy.
+export const ALL_CLEAR = '🎉 All caught up';
+export const ALL_CLEAR_KEY = 'all-clear';
