@@ -25,12 +25,14 @@ import (
 const MaxInstruction = 256 << 10
 
 // automated are prompts that reach a session without the user typing them:
-// messages from other agents and Paseo's schedules and heartbeats, the
+// messages from other agents (Paseo's envelope, and the hand-back of a
+// Claude Code subagent), Paseo's schedules and heartbeats, the
 // auto-continue ping, bare slash commands such as /compact, harness
 // notices, and the answers and replies agent-desk itself delivers (already
 // on the desk as answer and reply events).
 var automated = []*regexp.Regexp{
 	regexp.MustCompile(`^<paseo-system\b`),
+	regexp.MustCompile(`^<agent-message\b`),
 	regexp.MustCompile(`^Schedule ".*" fired \(id=`),
 	regexp.MustCompile(`^(?i:continue)\.?$`),
 	regexp.MustCompile(`^/compact\b`),

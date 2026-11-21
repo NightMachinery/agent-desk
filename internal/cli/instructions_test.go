@@ -36,6 +36,7 @@ func TestInstructionHook(t *testing.T) {
 		"/compact",
 		"/clear",
 		`<paseo-system kind="agent-message">from a parent</paseo-system>`,
+		"<agent-message from=\"a4e7be931037faf5c\">\n[Subagent hand-back] The report follows:\n  done</agent-message>",
 		`Schedule "keepalive" fired (id=abc, run=1)` + "\nping",
 		`Answer to q-7f3a "Which split?": B`,
 		"Message from the user via agent-desk, about t-k2m9 \"x\": hi",

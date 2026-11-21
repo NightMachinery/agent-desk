@@ -1305,7 +1305,7 @@ A session holding several nodes keeps each prompt under every one of them;
 What is recorded: only sessions that have joined a node, only coordinators
 (a tmux worker's prompts are typed by its parent), and only prompts the user
 typed. Skipped: messages from other agents (Paseo's `<paseo-system>`
-envelope), Paseo schedules and heartbeats, `Continue.`, a bare slash command
+envelope, and a Claude Code subagent's `<agent-message>` hand-back), Paseo schedules and heartbeats, `Continue.`, a bare slash command
 such as `/compact`, harness notices, and the answers and replies the desk
 delivers (already on the desk). A slash command with arguments is kept.
 
