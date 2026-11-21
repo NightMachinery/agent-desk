@@ -621,7 +621,11 @@ with what happened to it ("joined the running turn", "queued, position 2",
 for was unavailable), then "responded" or, 15 minutes after delivery, "no
 response yet"; the agents' responses follow in order. A node shows its own
 conversation the same way. A response in the list reads "Response to
-m-4c2d", and its page shows the conversation it belongs to. The Send button
+m-4c2d", and its page shows the conversation it belongs to. Every entry in a
+conversation has a reply button (an arrow beside its id): the message box
+then says "Replying to t-hk1t" and sends about that entry, so the message
+stays in the same conversation and goes to the agent that wrote it; the ✕
+beside it goes back to the open item. The Send button
 uses your `deliver.behavior` setting; the menu beside it offers the others,
 greys out one the session cannot do and says why, and asks before "Stop and
 send" (interrupt). "Notify me" beside it changes, for this message only,

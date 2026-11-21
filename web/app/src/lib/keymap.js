@@ -377,6 +377,7 @@ C('pane-detail', 'Focus the detail pane', () => focusPane('detail'));
 // The open item (or the selection).
 C('answer', 'Answer the question', () => focusBox('answer-box', 'Not an open question'));
 C('message', 'Message its agent', message);
+C('reply-to-cancel', 'Message: stop replying to a thread entry (send about the open item)', () => click('reply-to-cancel'), tagged('reply-to-cancel', 'a reply started with an entry\'s reply button'));
 C('compose', 'Write in the first message box', focusComposer);
 C('take', 'Take the recommendation or the default', () => click('quick', 'Not an open question'), tagged('quick', 'an open question with a recommendation or default'));
 C('read', 'Mark read (a question: dismiss it)', after(markRead));

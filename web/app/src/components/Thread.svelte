@@ -1,16 +1,19 @@
 <script>
   // A conversation: the user's messages and answers with their delivery and
-  // response state, and the agents' responses, oldest first.
+  // response state, and the agents' responses, oldest first. Each entry has
+  // a reply button (onreply): the message box then sends about that entry,
+  // so the message stays in this conversation and reaches who wrote it.
   import { untrack } from 'svelte';
   import { href } from '../lib/route.svelte.js';
   import { dispositionText, deliveryTitle, desktopText, remoteText, deliverableURL } from '../lib/format.js';
   import Markdown from './Markdown.svelte';
   import Attachments from './Attachments.svelte';
+  import Icon from './Icon.svelte';
   import { post } from '../lib/api.js';
   import { toast } from '../lib/toast.svelte.js';
   import { acknowledgeMessages, retryPost } from '../lib/outbox.svelte.js';
 
-  let { entries = [], pending = [], current = '', remoteLabel = '' } = $props();
+  let { entries = [], pending = [], current = '', remoteLabel = '', replyingTo = '', onreply = null } = $props();
 
   $effect(() => {
     const currentEntries = entries;
@@ -84,6 +87,9 @@
         {#if fromAgent(t) && t.unread}<span class="dot" title="Unread"></span>{/if}
         <span class="faint">{t.age} ago</span>
         <a class="mono faint idlink" href={href({ item: t.display_id })}>{t.display_id}</a>
+        {#if onreply}
+          <button class="reply-btn" class:on={replyingTo === t.display_id} title={`Reply to ${t.display_id}: your message goes about it, to ${fromAgent(t) ? t.by || 'its agent' : 'the agent it went to'}`} aria-label={`Reply to ${t.display_id}`} onclick={() => onreply(t)}><Icon name="reply" size={14} /></button>
+        {/if}
       </div>
       {#if t.kind === 'question'}
         <div class="chips">
@@ -292,5 +298,22 @@
   }
   .idlink {
     margin-left: auto;
+  }
+  .reply-btn {
+    display: inline-grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    margin: -4px -4px -4px 0;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .reply-btn:hover,
+  .reply-btn.on {
+    background: var(--sunken);
+    color: var(--text);
   }
 </style>

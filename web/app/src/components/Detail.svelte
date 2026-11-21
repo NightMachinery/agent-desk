@@ -21,7 +21,7 @@
   import { moveOnTarget } from '../lib/moveon.js';
   import { arrival, arrivedAuto, cancelArrival, settleArrival } from '../lib/arrival.js';
   import { ui } from '../lib/ui.svelte.js';
-  import { keys } from '../lib/keys.svelte.js';
+  import { keys, syncMode } from '../lib/keys.svelte.js';
   import { askStatus, noteLabel, toldText } from '../lib/taskstatus.js';
   import ReopenForm from './ReopenForm.svelte';
 
@@ -102,6 +102,32 @@
 
   // Reopen asks first, in ReopenForm, what is still wrong.
   let reopening = $state('');
+  // The thread entry the message box replies to, set by an entry's reply
+  // button; none means the open item. It lasts until sent or cleared, and
+  // never outlives the open item.
+  let replyingTo = $state(/** @type {{ id: string, display: string, who: string, snippet: string } | null} */ (null));
+  $effect(() => {
+    void route.item;
+    replyingTo = null;
+  });
+  function replyToEntry(t) {
+    const fromAgent = t.kind === 'response' || t.kind === 'question';
+    replyingTo =
+      t.event.id === e.id
+        ? null
+        : {
+            id: t.event.id,
+            display: t.display_id,
+            who: fromAgent ? t.by || 'its agent' : t.kind === 'answer' ? 'your answer' : 'your message',
+            snippet: (t.event.title || t.event.body || '').split('\n')[0].slice(0, 100),
+          };
+    setTimeout(() => {
+      const box = document.getElementById('reply-box');
+      box?.focus();
+      box?.scrollIntoView({ block: 'nearest' });
+      syncMode();
+    });
+  }
   async function taskAct(action, note = '') {
     try {
       const res = await post('task', { action, id: it.display_id, ...(note && { text: note }) });
@@ -165,11 +191,12 @@
     return queued;
   }
   async function reply(text, opts = {}) {
-    const to = e.id;
+    const to = (!opts.prompt && replyingTo?.id) || e.id;
     const page = route.item;
     const choice = await chooseSendCache('reply', to);
     if (choice === 'cancel' || route.item !== page) return false;
     const queued = queueMessage('reply', { to, text, ...opts, ...(choice === 'compact' && { after_compaction: true }) }, to, { quiet: ui.nextAfterMessage });
+    if (queued && to !== e.id) replyingTo = null;
     if (queued && ui.nextAfterMessage) moveOn(`Message on ${it.display_id} queued.`, null, true);
     return queued;
   }
@@ -381,7 +408,7 @@
         {:else}
           <div class="section-title">Conversation</div>
         {/if}
-        <Thread entries={item.thread} {pending} current={item.thread_of ? it.display_id : ''} remoteLabel={item.target?.remote_label} />
+        <Thread entries={item.thread} {pending} current={item.thread_of ? it.display_id : ''} remoteLabel={item.target?.remote_label} replyingTo={replyingTo?.display ?? ''} onreply={item.target ? replyToEntry : null} />
       </div>
     {/if}
 
@@ -410,13 +437,21 @@
 
     {#if item.target}
       <section class="act">
+        {#if replyingTo}
+          <div class="replying">
+            <Icon name="reply" size={13} />
+            <span>Replying to <a class="mono" href={'#e-' + replyingTo.display} onclick={(ev) => { ev.preventDefault(); document.getElementById('e-' + replyingTo.display)?.scrollIntoView({ block: 'center', behavior: 'smooth' }); }}>{replyingTo.display}</a> ({replyingTo.who}){replyingTo.snippet ? ':' : ''}</span>
+            <span class="faint snippet">{replyingTo.snippet}</span>
+            <button class="btn ghost small" data-cmd="reply-to-cancel" title={`Stop replying to ${replyingTo.display}: the message goes about ${it.display_id} again`} aria-label="Stop replying to it" onclick={() => (replyingTo = null)}>✕</button>
+          </div>
+        {/if}
         <Composer
           id="reply-box"
           draft={'reply:' + it.display_id}
           voiceNode={['set', 'clear', 'link'].includes(e.kind) ? e.path.slice(0, e.path.lastIndexOf('/')) : e.path}
-          label={`Message ${agentName(item.target.agent)}`}
-          placeholder={isQuestion && !item.answered ? 'Or say something else to the agent…' : 'Say something to the agent that wrote this…'}
-          hint={isQuestion && !item.answered ? '' : viaText(item.target)}
+          label={replyingTo ? `Reply to ${replyingTo.display}` : `Message ${agentName(item.target.agent)}`}
+          placeholder={replyingTo ? `Your reply about ${replyingTo.display}…` : isQuestion && !item.answered ? 'Or say something else to the agent…' : 'Say something to the agent that wrote this…'}
+          hint={replyingTo || (isQuestion && !item.answered) ? '' : viaText(item.target)}
           target={item.target}
           send={reply}
           alongside={kind === 'deliverable' ? tried : []}
@@ -684,5 +719,27 @@
   .task-note {
     white-space: pre-wrap;
     overflow-wrap: anywhere;
+  }
+  .replying {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+    padding: 5px 8px;
+    border-left: 3px solid var(--default);
+    border-radius: 6px;
+    background: var(--sunken);
+    font-size: 12.5px;
+    min-width: 0;
+  }
+  .replying .snippet {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .replying a {
+    text-decoration: underline;
   }
 </style>
