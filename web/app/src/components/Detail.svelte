@@ -321,7 +321,7 @@
         <span class="spacer"></span>
         <span class="task-acts">
         {#if t.state === 'deferred' || t.state === 'later' || t.state === 'open'}
-          <button class="btn small primary" {...off('Start an agent on this task', [!item.launch_ready, 'Set launch_command under [tasks] in config.toml first'])} onclick={() => taskAct('launch')}>Launch</button>
+          <button data-cmd="task-start" class="btn small primary" {...off(tip('Start an agent on this task', 'task-start'), [!item.launch_ready, 'Set launch_command under [tasks] in config.toml first'])} onclick={() => taskAct('launch')}>Launch</button>
         {/if}
         {#if t.state === 'open' || t.state === 'started' || t.state === 'deferred'}<button data-cmd="task-defer" class="btn small" title={tip(DEFER_WHY, 'task-defer')} onclick={() => taskAct('defer')}>Defer</button>{/if}
         {#if t.state === 'open' || t.state === 'later'}<button data-cmd="task-defer-quota" class="btn small" title={tip(QUOTA_WHY, 'task-defer-quota')} onclick={() => taskAct('defer-quota')}>Defer for quota</button>{/if}
@@ -329,8 +329,8 @@
         {#if t.state === 'done' || t.state === 'dropped'}<button data-cmd="task-reopen" class="btn small" onclick={() => (reopening = it.display_id)}>Reopen</button>
         {:else}
           <button data-cmd="task-status" class="btn small" title={tip('Ask whoever works on it for a short executive summary of where it stands', 'task-status')} onclick={() => askStatus(e.id, it.display_id)}>Status</button>
-          <button class="btn small" onclick={() => taskAct('done')}>Done</button>
-          <button class="btn small ghost" onclick={() => taskAct('drop')}>Drop</button>
+          <button data-cmd="task-done" class="btn small" title={tip('Mark it done', 'task-done')} onclick={() => taskAct('done')}>Done</button>
+          <button data-cmd="task-drop" class="btn small ghost" title={tip('Drop it: not doing it (Reopen brings it back)', 'task-drop')} onclick={() => taskAct('drop')}>Drop</button>
         {/if}
         </span>
       </div>

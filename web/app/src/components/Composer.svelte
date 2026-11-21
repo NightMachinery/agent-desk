@@ -442,7 +442,7 @@
   {#each preview as rec (rec.id)}
     {#if rec.partial}<div class="voice-preview" aria-live="polite">{rec.partial}</div>{/if}
     {#if rec.error}
-      <div class="voice-error">{rec.error} <button class="btn small" onclick={() => (recordingBin = true)}>Recordings</button></div>
+      <div class="voice-error">{rec.error} <button data-cmd="voice-recordings" class="btn small" onclick={() => (recordingBin = true)}>Recordings</button></div>
     {/if}
   {/each}
   {#if files.length}
@@ -464,10 +464,10 @@
       Attach
     </button>
     {#if voiceNode}
-      <button class="btn ghost small attach" {...off(undefined, [busy, SENDING], [micBusy, 'Wait: the recorder is starting or stopping'])} onclick={toggleMic}>
+      <button data-cmd="voice-toggle" class="btn ghost small attach" {...off(tip(capture ? 'Stop recording' : 'Record a voice message', 'voice-toggle'), [busy, SENDING], [micBusy, 'Wait: the recorder is starting or stopping'])} onclick={toggleMic}>
         {capture ? 'Stop recording' : 'Record voice'}
       </button>
-      <button class="btn ghost small attach" onclick={() => (recordingBin = true)}>Recordings</button>
+      <button data-cmd="voice-recordings" class="btn ghost small attach" title={tip('Your recordings: insert one\'s transcript here', 'voice-recordings')} onclick={() => (recordingBin = true)}>Recordings</button>
     {/if}
     {#if text.trim() || linkedFilled}
       <button data-cmd="draft-discard" class="btn ghost small discard" onclick={discard} {...off(tip(linked.length ? 'Discard this draft: the text and your picks (Undo brings it back)' : 'Discard this draft (Undo brings it back)', 'draft-discard'), [busy, SENDING])}>

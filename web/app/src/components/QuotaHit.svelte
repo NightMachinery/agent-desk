@@ -147,7 +147,7 @@
   };
 </script>
 
-<div class="rows" class:hidden={collapsed}>
+<div class="rows" class:hidden={collapsed} data-context="quota">
   {#if picking && shown.length}
     <div class="selbar">
       <button class="btn small ghost" onclick={pickAll}>{allPicked ? 'Deselect all' : 'Select all'}</button>
@@ -166,7 +166,7 @@
   {/if}
   {#each shown as a (a.paseo)}
     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-    <div class="q" class:faded={a.dismissed} class:picked={picked.has(a.paseo)} onclick={(e) => cardClick(e, a)}>
+    <div class="q" data-scope class:faded={a.dismissed} class:picked={picked.has(a.paseo)} onclick={(e) => cardClick(e, a)}>
       <div class="top">
         {#if picking}
           <input type="checkbox" class="pickbox" checked={picked.has(a.paseo)} aria-label={`Select ${a.title || short(a.paseo)}`}

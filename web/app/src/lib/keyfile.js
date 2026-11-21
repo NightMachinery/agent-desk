@@ -249,6 +249,7 @@ function layer(km, file, commands, isUser) {
         const c = commands.get(value.cmd);
         if (!c) throw new KeymapError(`no command :${value.cmd}; SPC h f lists the commands`, entry);
         if (PANES.includes(name) && c.pane && c.pane !== name) throw new KeymapError(`:${value.cmd} works only in the ${c.pane} pane`, entry);
+        if (CONTEXTS.includes(name) && c.pane && c.pane !== 'dialog') throw new KeymapError(`:${value.cmd} works only in the ${c.pane} pane, so not after the localleader`, entry);
         if (name === 'dialog' && c.pane !== 'dialog' && !c.anywhere) throw new KeymapError(`:${value.cmd} does not work in a sheet`, entry);
         if (name !== 'dialog' && c.pane === 'dialog') throw new KeymapError(`:${value.cmd} works only in a sheet (:dialog)`, entry);
         m.labels.delete(chord);

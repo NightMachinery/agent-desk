@@ -13,7 +13,7 @@ import { exportHref, download } from './exports.js';
 import { toggleSection, showDeliverables, deliverableModeLabel, showTasks, taskModeLabel } from './ui.svelte.js';
 import {
   keys, ctx, command, pane, paneEl, cmdEl, say, dialog, moveFocus, focusables, startHints, openPalette, setKeymap,
-  commands, commandItems, keysOf, applies, describeKey, describeCommand, setVisual, syncMode, selectedField, selectField,
+  commands, commandItems, keysOf, keyFor, applies, describeKey, describeCommand, setVisual, syncMode, selectedField, selectField,
 } from './keys.svelte.js';
 
 // --- helpers -----------------------------------------------------------------
@@ -22,7 +22,8 @@ const has = (name) => () => !!cmdEl(name);
 function click(name, missing) {
   const el = cmdEl(name);
   if (!el) return say(missing);
-  if (el instanceof HTMLButtonElement && el.disabled) return say(missing);
+  // A disabled button's tooltip says why (lib/why.js).
+  if (el instanceof HTMLButtonElement && el.disabled) return say(el.title || missing || 'Not available now');
   el.click();
 }
 const rowEl = (id) => /** @type {HTMLElement | null} */ (document.querySelector(`[data-item="${CSS.escape(id)}"]`));
@@ -374,7 +375,7 @@ C('bindings', 'Show every key binding here', () => (keys.help = 'all'));
 C('describe-key', 'Describe a key: what it runs, without running it', describeKey);
 C('describe-command', 'Describe a command: its keys and where it applies', describeFn);
 C('m-x', 'Run a command by name (M-x)', mx, { palette: false, anywhere: true });
-C('find', 'Find a command or a place (SPC SPC)', anything, { palette: false });
+C('find', 'Find a command or a place', anything, { palette: false });
 C('go-node', 'Go to a project, run or agent', nodes);
 C('switch-item', 'Switch to an item in the list', items);
 C('hints', 'Click something on screen (hints)', () => startHints(), { anywhere: true });
@@ -420,7 +421,7 @@ C('org-export-zip', 'Export the desk as org files in a zip (inbox, boards, ledge
 C('org-export-node', 'Export this node (board, tasks, items, conversations) as one .org file', () => download(exportHref({ scope: 'node', path: route.path })), { when: () => !!route.path, need: 'a project, run or agent page' });
 C('org-export-item', 'Export the open item with its conversation as one .org file', () => download(exportHref({ scope: 'item', id: route.item })), { when: open, need: 'an open item' });
 C('org-export-inbox', 'Export the inbox (under this page) as one .org file', () => download(exportHref({ scope: 'inbox', path: route.path })));
-C('section-order-reset', "Put the list's sections back in the default order", () => click('section-order-reset', 'Open Settings first (SPC o S)'));
+C('section-order-reset', "Put the list's sections back in the default order", () => click('section-order-reset', `Open the section order first (${keyFor('section-order') || 'M-x section-order'})`));
 C('verbatim', 'Verbatim log: your messages to agents, here', verbatimHere);
 C('verbatim-all', 'Verbatim log: your messages to agents, everywhere', verbatimAll);
 C('tasks', 'Tasks: the checklist here (tasks, bugs, ideas)', tasksHere);
@@ -506,6 +507,35 @@ C('draft-discard', 'Discard the draft in this box (Undo brings it back)', discar
 C('deliverable-works', 'Deliverable: send with "This worked." in front', () => click('deliverable-works'), tagged('deliverable-works', 'a deliverable whose agent can be messaged'));
 C('quota-archive', 'Out of quota: archive the first agent in Paseo', () => click('quota-archive'), tagged('quota-archive', 'an agent out of quota'));
 C('quota-replace', 'Out of quota: replace the first agent (pick its provider, model and effort)', () => click('quota-replace'), tagged('quota-replace', 'an agent out of quota that can be replaced'));
+C('task-done', 'Task: mark it done', () => click('task-done'), tagged('task-done', 'an unfinished task'));
+C('task-drop', 'Task: drop it (Reopen brings it back)', () => click('task-drop'), tagged('task-drop', 'an unfinished task'));
+C('task-start', 'Task: start an agent on it (launch_command)', () => click('task-start'), tagged('task-start', 'an open or deferred task'));
+C('voice-toggle', 'Voice message: start or stop recording', () => click('voice-toggle'), tagged('voice-toggle', 'a message box'));
+C('voice-recordings', "Voice message: pick a recording to insert its transcript in this box", () => click('voice-recordings'), tagged('voice-recordings', 'a message box'));
+C('voice-retry', 'Voice message: retry its failed transcription', () => click('voice-retry'), tagged('voice-retry', 'a voice message whose transcription failed'));
+C('voice-omit', 'Voice message: send it without the recording', () => click('voice-omit'), tagged('voice-omit', 'a voice message whose transcription failed'));
+C('push-toggle', 'Push to this device: turn it on or off', () => click(cmdEl('push-off') ? 'push-off' : 'push-on'), { when: () => !!(cmdEl('push-on') || cmdEl('push-off')), need: 'Settings, Push to this device' });
+C('push-test', 'Push: send this device a test', () => click('push-test'), tagged('push-test', 'Settings, with push on for this device'));
+
+// The context map: what the localleader (, and SPC m) reaches, the keys only
+// the open thing has. A zone tagged data-context (the Out of quota section)
+// wins while focus is in it; then the page; then the open item's kind.
+ctx.context = () => {
+  const zone = /** @type {HTMLElement | null} */ (document.activeElement?.closest?.('[data-context]'));
+  if (zone) return zone.dataset.context ?? '';
+  if (route.settings) return 'settings';
+  if (route.verbatim) return 'verbatim';
+  if (!route.item) return '';
+  const r = ctx.item();
+  const e = r?.item?.event;
+  // The item still loading: the last one's kind is not this one's.
+  if (r?.item?.display_id !== route.item && e?.id !== route.item) return '';
+  if (r?.task) return 'task';
+  if (e?.kind === 'deliverable') return 'deliverable';
+  if (e?.kind === 'ask' && e.meta?.screen && !r.answered) return 'screen';
+  if (paneEl('detail')?.querySelector('[data-cmd="deliver-retry"], [data-cmd="voice-retry"], [data-cmd="voice-omit"]')) return 'message';
+  return '';
+};
 
 // Selecting.
 C('select', 'Select or unselect the item', () => (route.item ? toggle(route.item) : say('Nothing open')));

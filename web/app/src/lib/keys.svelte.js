@@ -155,6 +155,8 @@ export function keyIn(name, map = '', prefer = '') {
   if (prefer && bs.some((b) => b.keys === prefer)) return prefer;
   return bs.sort((a, b) => a.seq.length - b.seq.length)[0]?.keys ?? '';
 }
+/** The keys that start the context maps (:localleader). */
+export const localleaders = () => (keymap.version, km?.localleader ?? []);
 /** Whether a command is left without a key on purpose (:keyless). */
 export const keyless = (name) => (keymap.version, !!km?.keyless.has(name));
 
@@ -224,11 +226,14 @@ export function typing(el) {
 
 const visible = (el) => el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden';
 
-/** The visible element tagged data-cmd=name, preferring the current pane. */
+/** The visible element tagged data-cmd=name, preferring the focused card,
+ * then the current pane. */
 export function cmdEl(name) {
   const all = [...document.querySelectorAll(`[data-cmd="${name}"]`)].filter(visible);
   const inPane = paneEl();
-  return /** @type {HTMLElement | undefined} */ (all.find((el) => inPane?.contains(el)) ?? all[0]);
+  // A card tagged data-scope (an out-of-quota agent) holding focus: its own button first.
+  const scope = document.activeElement?.closest?.('[data-scope]');
+  return /** @type {HTMLElement | undefined} */ (all.find((el) => scope?.contains(el)) ?? all.find((el) => inPane?.contains(el)) ?? all[0]);
 }
 
 export function say(text, ms = 2200) {
@@ -426,18 +431,28 @@ export function onkeydown(e) {
     fire(hit, Math.max(1, parseInt(keys.count || '1', 10)));
     return;
   }
-  if (more) {
+  // The localleader always starts a sequence, even with nothing open that has
+  // keys of its own: its next key must not fall through to :normal (, t
+  // would take a question's recommendation).
+  const local = localleaders().some((l) => {
+    const ks = l.split(' ');
+    return seq.length <= ks.length && seq.every((t, i) => ks[i] === t);
+  });
+  if (more || local) {
     e.preventDefault();
     keys.used = true;
     frozen = ef;
     keys.pending = seq;
+    // Say at once when nothing it leads to can run here.
+    if (!continuations(seq).length) say(`${seq.join(' ')}: ${more ? 'none of its keys apply here now' : 'nothing open here has keys of its own'}`, 4000);
     clearTimeout(whichTimer);
     whichTimer = setTimeout(() => (keys.which = true), 300);
     return;
   }
   if (keys.pending.length || keys.count) {
     e.preventDefault();
-    say(`${seq.join(' ')} is undefined`);
+    const ll = localleaders().find((l) => starts(seq, l.split(' ')));
+    say(ll && !ctx.context() ? `${seq.join(' ')}: nothing open here has keys of its own` : `${seq.join(' ')} is undefined`);
   }
   reset();
 }

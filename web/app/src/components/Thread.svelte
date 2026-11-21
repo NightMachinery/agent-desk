@@ -166,9 +166,9 @@
             <div><strong>Transcription failed</strong> · {t.voice_failure.error}</div>
             <div class="voice-actions">
               {#if t.voice_failure.retryable}
-                <button class="btn small" {...off(undefined, [retrying === t.event.id, 'Wait: retrying'])} onclick={() => voiceAction(t, 'retry')}>Retry transcription</button>
+                <button class="btn small" {...off(undefined, [retrying === t.event.id, 'Wait: retrying'])} onclick={() => voiceAction(t, 'retry')} data-cmd="voice-retry">Retry transcription</button>
               {/if}
-              <button class="btn small" {...off(undefined, [retrying === t.event.id, 'Wait: retrying'])} onclick={() => voiceAction(t, 'omit')}>Send without recording</button>
+              <button class="btn small" {...off(undefined, [retrying === t.event.id, 'Wait: retrying'])} onclick={() => voiceAction(t, 'omit')} data-cmd="voice-omit">Send without recording</button>
             </div>
           </div>
         {/if}
