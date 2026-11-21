@@ -288,9 +288,10 @@ read yours with `agent-desk get <name> --node <path>`.
 Your checklist lives on the desk, not in a file: the user sees it on the
 Tasks page, filters it by type and checks things off there.
 
-    agent-desk task add --title 'Ship 1.4' [--priority 1] [--brief 'one line']
+    agent-desk task add --title 'Ship 1.4' --brief 'Release the loader fix and the new plots; users on 1.3 lose runs.' [--priority 1]
     agent-desk task add --title 'Login fails on Android 15' --type bug --parent w-3k9d --tag android
-    agent-desk task start w-8f2a ; agent-desk task done w-8f2a [--note 'in results.md']
+    agent-desk task start w-8f2a
+    agent-desk task done w-8f2a --note 'Table in results.md, seeds 1-5; checked against the logs.'
     agent-desk task list [--all] [--type bug] [--tag android]
     agent-desk task list --org          # the checklist as org: * node, - [ ] items
 
@@ -298,14 +299,21 @@ Tasks page, filters it by type and checks things off there.
 - `--parent` makes it a step of another task (a milestone and its items).
 - `--tag` (repeatable) adds free tags beside the type, such as an area
   (`ui`, `android`); `task tag|untag <id> TAG...` changes them later.
+- `--brief` is a short executive summary the user reads under the title:
+  what and why, in one to three sentences. `task add` refuses an agent's
+  task without one, except a step under `--parent`.
 - Start a task when you begin it and mark it done when it is, so the list
-  says what is true now. Drop what you decided not to do.
+  says what is true now. Drop what you decided not to do. `task done` and
+  `task drop` need `--note` (`--note -` reads stdin): how it was done and
+  how you checked it, or why you dropped it. The user reads it on the task,
+  so write it for them, not as a log line.
 - If your instructions also ask for a `TASKS.org` file, write it from the
   desk (`agent-desk task list --org --all > TASKS.org`) instead of keeping
   two lists by hand.
 - The user files tasks too, from the dashboard. When they do, you get a
   message naming the task id: respond to it, and track the task like your
-  own. One filed without a title shows its details' first line; name it
+  own. When you finish it, the done note says how; report on its message
+  as well when there is more to say than a note holds. One filed without a title shows its details' first line; name it
   first: `agent-desk task title <id> 'Short title'`.
 
 When you find work worth doing that the quota does not allow now (a cleanup,

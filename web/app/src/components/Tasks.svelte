@@ -12,7 +12,7 @@
   import { chooseSendCache } from '../lib/cache.svelte.js';
   import { tip } from '../lib/shortcuts.js';
   import Markdown from './Markdown.svelte';
-  import { askStatus, toldText } from '../lib/taskstatus.js';
+  import { askStatus, noteLabel, toldText } from '../lib/taskstatus.js';
   import ReopenForm from './ReopenForm.svelte';
 
   let { path = '', stamp = '', runs = [], adding = $bindable(false) } = $props();
@@ -409,7 +409,7 @@
       {#if expanded[t.event.id]}
         <div class="more">
           {#if t.event.body}<Markdown text={t.event.body} />{/if}
-          {#if t.note}<div class="faint">Note: {t.note}</div>{/if}
+          {#if t.note}<div class="task-note"><span class="faint">{noteLabel(t.state)}:</span> {t.note}</div>{/if}
           {#if t.agent}<div class="faint">Agent: <span class="mono">{t.agent}</span></div>{/if}
           <form class="tag-edit" onsubmit={(e) => (e.preventDefault(), saveTags(t))}>
             <input class="input" placeholder="Tags: ui, phone" aria-label={`Tags of ${t.display_id}`} autocomplete="off"
@@ -733,5 +733,9 @@
     display: flex;
     gap: 6px;
     flex-wrap: wrap;
+  }
+  .task-note {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
   }
 </style>

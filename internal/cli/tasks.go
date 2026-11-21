@@ -124,6 +124,9 @@ func (a *App) taskAdd(args []string) error {
 	if m.Deferred && brief == "" {
 		return usagef("a deferred task needs a brief on stdin: the agent that picks it up knows only what it says")
 	}
+	if brief == "" && m.Parent == "" && isAgent(ident.Resolve(a.Env)) {
+		return usagef("task add needs --brief: a short executive summary the user reads under the title (what and why, one to three sentences; --brief - reads it from stdin). A step under --parent may go without one")
+	}
 	build := func(from ident.From, node string) store.Event {
 		if m.Cwd == "" && m.Deferred {
 			m.Cwd = from.Cwd
@@ -171,6 +174,21 @@ func (a *App) taskMark(sub string, args []string) error {
 		return err
 	}
 	from := ident.Resolve(a.Env)
+	note := o.vals["note"]
+	if note == "-" {
+		if note, err = a.stdinText(); err != nil {
+			return err
+		}
+	}
+	note = strings.TrimSpace(note)
+	if note == "" && isAgent(from) {
+		switch sub {
+		case "done":
+			return usagef("task done needs --note: what was done and how it was checked, in a line or two the user reads on the task (--note - reads it from stdin)")
+		case "drop":
+			return usagef("task drop needs --note: why it was dropped, in a line the user reads on the task (--note - reads it from stdin)")
+		}
+	}
 	var evs []store.Event
 	for _, tok := range o.pos {
 		t, err := a.task(d, tok)
@@ -182,10 +200,17 @@ func (a *App) taskMark(sub string, args []string) error {
 			extra["agent"] = agentLabel(from)
 		}
 		e := a.event("taskstate", t.Event.Path, from, "cli", extra)
-		e.Ref, e.Body = t.Event.ID, strings.TrimSpace(o.vals["note"])
+		e.Ref, e.Body = t.Event.ID, note
 		evs = append(evs, e)
 	}
 	return a.commit(evs, "")
+}
+
+// isAgent reports whether from is an agent session, not the user at a shell
+// (or the dashboard, which runs the CLI as the user): an agent must say why
+// it files a task and how it finished one, for the user to read.
+func isAgent(from ident.From) bool {
+	return from.Session != "" || from.Paseo != ""
 }
 
 // taskTag adds tags to a task (task tag ID TAG...) or removes them

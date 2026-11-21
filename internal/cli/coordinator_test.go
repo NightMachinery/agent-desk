@@ -61,8 +61,8 @@ func TestTaskMessageRecipient(t *testing.T) {
 	b := map[string]string{"AI_AGENT": "claude-code", "CLAUDE_CODE_SESSION_ID": sessB, "PASEO_AGENT_ID": pB}
 	h.ok(a, "", "join", "r1/coord")
 	h.ok(b, "", "join", "r2/coord")
-	mine := h.ok(a, "", "task", "add", "--title", "A's own")
-	taken := h.ok(a, "", "task", "add", "--title", "B picks it up")
+	mine := h.ok(a, "", "task", "add", "--title", "A's own", "--brief", "b")
+	taken := h.ok(a, "", "task", "add", "--title", "B picks it up", "--brief", "b")
 	h.ok(b, "", "task", "start", taken)
 
 	_, hd := testServer(t, h)

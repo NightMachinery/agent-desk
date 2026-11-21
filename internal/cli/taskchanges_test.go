@@ -23,13 +23,13 @@ func TestTaskChangesTold(t *testing.T) {
 	b := map[string]string{"AI_AGENT": "claude-code", "CLAUDE_CODE_SESSION_ID": sessB, "PASEO_AGENT_ID": pB}
 	h.ok(a, "", "join", "r1/coord")
 	h.ok(b, "", "join", "r2/coord")
-	one := h.ok(a, "", "task", "add", "--title", "Comparison table")
-	two := h.ok(a, "", "task", "add", "--title", "Old feed")
-	three := h.ok(b, "", "task", "add", "--title", "Seed 5")
-	undone := h.ok(a, "", "task", "add", "--title", "Undone")
-	own := h.ok(a, "", "task", "add", "--title", "Its own")
+	one := h.ok(a, "", "task", "add", "--title", "Comparison table", "--brief", "b")
+	two := h.ok(a, "", "task", "add", "--title", "Old feed", "--brief", "b")
+	three := h.ok(b, "", "task", "add", "--title", "Seed 5", "--brief", "b")
+	undone := h.ok(a, "", "task", "add", "--title", "Undone", "--brief", "b")
+	own := h.ok(a, "", "task", "add", "--title", "Its own", "--brief", "b")
 	h.ok(a, "", "task", "start", one)
-	h.ok(a, "", "task", "drop", own) // the agent's own change
+	h.ok(a, "", "task", "drop", own, "--note", "not needed") // the agent's own change
 
 	s, hd := testServer(t, h)
 	t0 := s.a.Now()

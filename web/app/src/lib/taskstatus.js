@@ -36,3 +36,6 @@ export function toldText(res, undo = false) {
   const after = res.after < 60 ? `${res.after} s` : `${Math.round(res.after / 60)} min`;
   return ` ${res.tell} is told in ${after}${undo ? ' (Undo cancels that)' : ''}.`;
 }
+
+/** What a task's note says, by its state: an agent writes how it finished a task or why it dropped it. */
+export const noteLabel = (state) => (state === 'done' ? 'How it was done' : state === 'dropped' ? 'Why it was dropped' : 'Note');

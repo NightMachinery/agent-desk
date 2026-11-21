@@ -22,7 +22,7 @@
   import { arrival, arrivedAuto, cancelArrival, settleArrival } from '../lib/arrival.js';
   import { ui } from '../lib/ui.svelte.js';
   import { keys } from '../lib/keys.svelte.js';
-  import { askStatus, toldText } from '../lib/taskstatus.js';
+  import { askStatus, noteLabel, toldText } from '../lib/taskstatus.js';
   import ReopenForm from './ReopenForm.svelte';
 
   let { item, error, onchange } = $props();
@@ -310,7 +310,7 @@
       {#if reopening === it.display_id && (t.state === 'done' || t.state === 'dropped')}
         <div class="reopen-box"><ReopenForm id={it.display_id} onreopen={(note) => taskAct('reopen', note)} oncancel={() => (reopening = '')} /></div>
       {/if}
-      {#if t.note}<div class="faint">Note: {t.note}</div>{/if}
+      {#if t.note}<div class="task-note"><span class="faint">{noteLabel(t.state)}:</span> {t.note}</div>{/if}
     {/if}
 
     {#if it.response && it.asked && !inThread}
@@ -680,5 +680,9 @@
     .back-label {
       display: inline;
     }
+  }
+  .task-note {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
   }
 </style>

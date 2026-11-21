@@ -23,10 +23,27 @@ func TestTasks(t *testing.T) {
 	h.ok(a, "", "join", "r1/coord")
 
 	// An agent's own list.
-	w1 := h.ok(a, "", "task", "add", "--title", "Rerun seed 4")
+	w1 := h.ok(a, "", "task", "add", "--title", "Rerun seed 4", "--brief", "b")
 	w2 := h.ok(a, "never read", "task", "add", "--title", "Write the table", "--priority", "1", "--brief", "Seeds 1-5, one row each.")
 	h.ok(a, "", "task", "start", w1)
+	// An agent says why it files a task and how it finished one; the user
+	// at a shell (or the dashboard) need not.
+	h.fails(a, "", "task add needs --brief", "task", "add", "--title", "Bare")
+	h.fails(a, "", "task done needs --note", "task", "done", w2)
+	h.fails(a, "", "task drop needs --note", "task", "drop", w2)
+	h.ok(nil, "", "task", "add", "--title", "The user's own", "--node", "example-proj/r1/coord")
 	h.ok(a, "", "task", "done", w2, "--note", "in results.md")
+	stdinNote := h.ok(a, "", "task", "add", "--title", "Note from stdin", "--brief", "b")
+	h.ok(a, "Checked with go test.\n", "task", "done", stdinNote, "--note", "-")
+	noted := ""
+	for _, tk := range h.loadDesk().Tasks(desk.Filter{All: true}) {
+		if tk.ID == stdinNote {
+			noted = tk.Note
+		}
+	}
+	if noted != "Checked with go test." {
+		t.Fatalf("note from stdin: %q", noted)
+	}
 	if p := h.ok(nil, "", "task", "prompt", w2); !strings.Contains(p, "Seeds 1-5, one row each.") {
 		t.Fatalf("inline brief: %s", p)
 	}
@@ -125,7 +142,7 @@ func TestTaskTypesAndOrg(t *testing.T) {
 	a := h.as(sessA)
 	h.ok(a, "", "join", "r1/coord")
 
-	ms := h.ok(a, "", "task", "add", "--title", "Ship 1.4")
+	ms := h.ok(a, "", "task", "add", "--title", "Ship 1.4", "--brief", "b")
 	bug := h.ok(a, "", "task", "add", "--title", "Login fails on Android 15", "--type", "bug", "--parent", ms, "--priority", "1")
 	h.ok(a, "", "task", "add", "--title", "Dark mode", "--type", "Feature", "--parent", ms)
 	h.fails(a, "", "--type is one of", "task", "add", "--title", "x", "--type", "epic")
@@ -175,7 +192,7 @@ func TestTaskTags(t *testing.T) {
 	h := newHarness(t)
 	a := h.as(sessA)
 	h.ok(a, "", "join", "r1/coord")
-	id := h.ok(a, "", "task", "add", "--title", "Sync drafts", "--type", "feature", "--tag", "#UI", "--tag", "phone, sync")
+	id := h.ok(a, "", "task", "add", "--title", "Sync drafts", "--brief", "b", "--type", "feature", "--tag", "#UI", "--tag", "phone, sync")
 	h.ok(a, "", "task", "start", id, "--note", "halfway")
 	h.fails(a, "", "tag", "task", "add", "--title", "x", "--tag", "-bad")
 	h.ok(a, "", "task", "tag", id, "desk", "ui")
@@ -190,7 +207,7 @@ func TestTaskTags(t *testing.T) {
 	if strings.Join(got.Tags, ",") != "ui,sync,desk" || got.Note != "halfway" || got.State != desk.TaskStarted {
 		t.Fatalf("after tag and untag: %+v", got)
 	}
-	h.ok(a, "", "task", "add", "--title", "Other")
+	h.ok(a, "", "task", "add", "--title", "Other", "--brief", "b")
 	if out := h.ok(nil, "", "task", "list", "--tag", "#sync"); !strings.Contains(out, "Sync drafts") || strings.Contains(out, "Other") || !strings.Contains(out, "#desk") {
 		t.Fatalf("list --tag:\n%s", out)
 	}

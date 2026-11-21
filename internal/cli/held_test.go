@@ -44,7 +44,7 @@ func TestHeldNodes(t *testing.T) {
 		{"tell", "--title", "x"},
 		{"ask", "--blocked", "--title", "x"},
 		{"done", "--title", "x"},
-		{"task", "add", "--title", "x"},
+		{"task", "add", "--title", "x", "--brief", "b"},
 		{"link", "notes", "notes.org"},
 	} {
 		_, errOut, code := h.run(a, "ctx", args...)
@@ -72,7 +72,7 @@ func TestHeldNodes(t *testing.T) {
 	if evs := h.eventsAt("ask", "example-proj/r2/coord"); len(evs) != 1 || evs[0].Title != "Second-run question?" {
 		t.Fatalf("ask --node: %+v", evs)
 	}
-	h.ok(a, "", "task", "add", "--title", "a task", "--node", "r2/coord")
+	h.ok(a, "", "task", "add", "--title", "a task", "--brief", "b", "--node", "r2/coord")
 	if evs := h.eventsAt("task", "example-proj/r2/coord"); len(evs) != 1 {
 		t.Fatalf("task add --node: %+v", evs)
 	}

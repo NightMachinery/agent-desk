@@ -933,6 +933,14 @@ checklist: agents keep theirs with `task add`, `task start`, `task done`;
 the node panel shows "Tasks: 3 of 7 done" with the open ones, and `show`
 lists the ones still active.
 
+An agent must say what it files and how it finished: `task add` refuses an
+agent's task without `--brief` (a short summary of what and why; a step
+under `--parent` may go without), and `task done` and `task drop` refuse
+one without `--note` (how it was done and checked, or why it was dropped;
+`--note -` reads stdin). The dashboard shows that note on the task, as "How
+it was done" or "Why it was dropped". The user, at a shell or on the
+dashboard, needs neither.
+
 - `--type` says what it is: `task` (the default), `bug`, `feature`, `idea`
   or `chore`.
 - `--parent w-...` makes it a step of another task, so a milestone holds
