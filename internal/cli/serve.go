@@ -181,6 +181,7 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("GET /api/tasks", s.apiTasks)
 	mux.HandleFunc("GET /api/stream", s.apiStream)
 	mux.HandleFunc("GET /api/prefs", s.apiPrefs)
+	mux.HandleFunc("GET /api/keys", s.apiKeys)
 	mux.HandleFunc("GET /api/media/{file}", s.apiMedia)
 	mux.HandleFunc("POST /api/pref", s.write(s.apiPref))
 	mux.HandleFunc("POST /api/upload", s.apiUpload)
@@ -1335,7 +1336,10 @@ func (s *server) apiStream(w http.ResponseWriter, r *http.Request) {
 	h.Set("Cache-Control", "no-store")
 	h.Set("X-Accel-Buffering", "no")
 	last, _ := s.stamp()
-	fmt.Fprintf(w, "retry: 3000\nevent: hello\ndata: %s\n\nevent: build\ndata: %s\n\n", last, s.build)
+	// keys names the version of the user's keys file: sent now, and again
+	// whenever it changes, so a saved edit applies without a reload.
+	keys := s.a.keysStamp()
+	fmt.Fprintf(w, "retry: 3000\nevent: hello\ndata: %s\n\nevent: build\ndata: %s\n\nevent: keys\ndata: %s\n\n", last, s.build, keys)
 	fl.Flush()
 	tick := time.NewTicker(s.poll)
 	defer tick.Stop()
@@ -1351,6 +1355,11 @@ func (s *server) apiStream(w http.ResponseWriter, r *http.Request) {
 			io.WriteString(w, ": keepalive\n\n")
 			fl.Flush()
 		case <-tick.C:
+			if k := s.a.keysStamp(); k != keys {
+				keys = k
+				fmt.Fprintf(w, "event: keys\ndata: %s\n\n", k)
+				fl.Flush()
+			}
 			cur, err := s.stamp()
 			if err != nil || cur == last {
 				continue

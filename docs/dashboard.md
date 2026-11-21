@@ -106,7 +106,16 @@ The API, all JSON:
   (none: all kinds), with its value, `origin`, `here` (an override stands at
   exactly this scope and class, so it can be reset), `differs` (the classes
   that resolve otherwise) and `options`; also every override on the desk.
-- `GET api/stream`: server-sent events; `change` whenever the store changes.
+- `GET api/keys`: the user's keys file, `keys.edn` next to `config.toml`
+  (normally `~/.config/agent-desk/keys.edn`), as `{path, exists, text,
+  stamp, error}`. `path` is written under `~`; `stamp` names the file's
+  version; `error` says why an existing file was not read (larger than
+  64 KiB, a directory, unreadable). The dashboard parses and checks the
+  text itself (see [keyboard.md](keyboard.md)).
+- `GET api/stream`: server-sent events; `change` whenever the store changes,
+  `build` naming the dashboard the server serves, and `keys` naming the keys
+  file's version (empty when there is none), on connecting and whenever it
+  changes.
 - `POST api/answer {id, text, behavior?, notify?, send_key?}` and
   `api/reply {to, text, behavior?, notify?, send_key?}` record the message
   and return `{id, event_id, status: "queued"}`. The dashboard persists a
