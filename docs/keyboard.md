@@ -90,7 +90,9 @@ follow, with groups in colour.
   Undo).
 - Tasks: `g c` the Tasks page here, `g C` everywhere (`SPC o t`, `SPC o T`),
   `SPC n t` a new task; on the page `/` searches. The list's Tasks section
-  folds like the others (`z a`, `z M`), and `j`/`k` walk its rows.
+  folds like the others (`z a`, `z M`), `j`/`k` walk its rows, and `SPC t t`
+  cycles its menu: open only, or also those finished in the last 15 minutes
+  to 30 days.
 - `SPC o o`: the order of the list's sections, in Settings, with the first
   handle focused; `↑` / `↓` on a handle move its section.
 - `SPC n`: the node page (`m` message the coordinator, `r` mark everything

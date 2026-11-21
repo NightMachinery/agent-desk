@@ -1,16 +1,18 @@
 <script>
   // The list's Tasks section: the tasks under the current path that are
-  // started or open, in working order (started first). A row opens the
-  // task; its box marks it done. Deferred tasks have their own section, and
-  // the Tasks page (the section heading's All tasks) has the rest: finished
-  // ones, filters, subtasks and New task.
+  // started or open, in working order (started first), and with a span
+  // (the heading's menu, ui.tasksShow) also those finished in it, newest
+  // first. A row opens the task; its box marks it done, or reopens a
+  // finished one. Deferred tasks have their own section, and the Tasks page
+  // (the heading's All tasks) has the rest: filters, subtasks, New task.
   import { get, post } from '../lib/api.js';
   import { href, route } from '../lib/route.svelte.js';
   import { toast } from '../lib/toast.svelte.js';
 
-  let { path = '', stamp = '', base = '', collapsed = false, count = $bindable(0), ids = $bindable([]), onchange } = $props();
+  let { path = '', stamp = '', base = '', collapsed = false, span = 0, count = $bindable(0), ids = $bindable([]), onchange } = $props();
 
-  // A long checklist stays on the Tasks page; the list shows its top.
+  // A long checklist stays on the Tasks page; the list shows its top, and
+  // as many of the finished.
   const LIMIT = 8;
   const LABEL = { bug: 'Bug', feature: 'Feature', idea: 'Idea', chore: 'Chore' };
 
@@ -24,7 +26,7 @@
     try {
       const res = await get('tasks', { path });
       if (mine !== seq) return;
-      tasks = (res.tasks ?? []).filter((t) => t.state === 'started' || t.state === 'open');
+      tasks = res.tasks ?? [];
       error = '';
     } catch (err) {
       if (mine === seq) error = err.message;
@@ -45,12 +47,35 @@
     const hay = `${t.display_id} ${t.event.title} ${t.event.body || ''} ${t.event.path} ${t.type || ''} ${(t.tags ?? []).map((g) => '#' + g).join(' ')}`.toLowerCase();
     return words.every((w) => hay.includes(w));
   };
-  const kept = $derived(tasks.filter(matches));
-  const shown = $derived(kept.slice(0, LIMIT));
+  // The clock for the span, so a finished task leaves it on time.
+  let now = $state(Date.now());
+  $effect(() => {
+    stamp;
+    now = Date.now();
+    const t = setInterval(() => (now = Date.now()), 60e3);
+    return () => clearInterval(t);
+  });
+  const isOpen = (t) => t.state === 'started' || t.state === 'open';
+  const finished = (t) => t.state === 'done' || t.state === 'dropped';
+  const kept = $derived(tasks.filter((t) => isOpen(t) && matches(t)));
+  const recent = $derived(
+    span > 0
+      ? tasks
+          .filter((t) => finished(t) && now - Date.parse(t.updated) <= span && matches(t))
+          .sort((a, b) => Date.parse(b.updated) - Date.parse(a.updated))
+      : [],
+  );
+  const shown = $derived([...kept.slice(0, LIMIT), ...recent.slice(0, LIMIT)]);
+  const more = $derived(Math.max(0, kept.length - LIMIT) + Math.max(0, recent.length - LIMIT));
   $effect(() => {
     count = kept.length;
     ids = collapsed ? [] : shown.map((t) => t.display_id);
   });
+  /** How long ago ts was, short: "4 min", "3 h", "2 d". */
+  function ago(ts) {
+    const m = Math.max(0, Math.round((now - Date.parse(ts)) / 60e3));
+    return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 48 * 60 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`;
+  }
 
   const lineage = (p) => (p === base ? '' : base && p.startsWith(base + '/') ? p.slice(base.length + 1) : p);
 
@@ -58,7 +83,7 @@
     busy = t.event.id;
     try {
       await post('task', { action, id: t.display_id });
-      toast(action === 'done' ? `Done: ${t.display_id}.` : `Reopened: ${t.display_id}.`, 'ok', 6000, action === 'done' ? { label: 'Undo', run: () => act(t, 'reopen') } : undefined);
+      toast(action === 'done' ? `Done: ${t.display_id}.` : `Reopened: ${t.display_id}.`, 'ok', 6000, { label: 'Undo', run: () => act(t, action === 'done' ? 'reopen' : t.state === 'dropped' ? 'drop' : 'done') });
       await load();
       onchange?.();
     } catch (err) {
@@ -72,8 +97,10 @@
 {#if !collapsed}
   <div class="rows">
     {#each shown as t (t.event.id)}
-      <div class="task" class:selected={route.item === t.display_id} class:started={t.state === 'started'}>
-        <button class="box" disabled={busy === t.event.id} title="Mark it done" aria-label={`Mark ${t.display_id} done`} onclick={() => act(t, 'done')}>
+      {@const over = finished(t)}
+      <div class="task" class:selected={route.item === t.display_id} class:started={t.state === 'started'} class:done={t.state === 'done'} class:dropped={t.state === 'dropped'}>
+        <button class="box" class:on={t.state === 'done'} disabled={busy === t.event.id} title={over ? 'Reopen it' : 'Mark it done'}
+          aria-label={over ? `Reopen ${t.display_id}` : `Mark ${t.display_id} done`} onclick={() => act(t, over ? 'reopen' : 'done')}>
           <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="m2.5 6.2 2.3 2.3 4.7-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
         </button>
         <a class="main" data-item={t.display_id} href={href({ item: t.display_id })}>
@@ -81,6 +108,7 @@
             {#if LABEL[t.type]}<span class="tchip {t.type}">{LABEL[t.type]}</span>{/if}
             <span class="title">{t.event.title}</span>
             {#if t.state === 'started'}<span class="chip active">started</span>{/if}
+            {#if over}<span class="chip" title={t.updated}>{t.state} {ago(t.updated)}</span>{/if}
             {#if t.priority === 1}<span class="chip blocked" title="Priority 1">p1</span>{/if}
           </span>
           <span class="line2">
@@ -93,12 +121,12 @@
     {:else}
       {#if loaded}
         <div class="empty">
-          {#if error}Cannot load tasks: {error}{:else if route.q && tasks.length}No open task matches.{:else}No open tasks here.{/if}
+          {#if error}Cannot load tasks: {error}{:else if route.q && tasks.length}No task matches.{:else if span}No open tasks here, and none finished in that time.{:else}No open tasks here.{/if}
         </div>
       {/if}
     {/each}
-    {#if kept.length > LIMIT}
-      <a class="more" href={href({ item: '', tasks: true })}>{kept.length - LIMIT} more on the Tasks page</a>
+    {#if more}
+      <a class="more" href={href({ item: '', tasks: true })}>{more} more on the Tasks page</a>
     {/if}
   </div>
 {/if}
@@ -151,6 +179,23 @@
     background: var(--panel);
     color: transparent;
     cursor: pointer;
+  }
+  .box.on {
+    border-color: var(--ok);
+    background: var(--ok);
+    color: var(--panel);
+  }
+  .box.on:hover:not(:disabled) {
+    color: var(--panel);
+    opacity: 0.8;
+  }
+  .task.done .title,
+  .task.dropped .title {
+    color: var(--muted);
+    font-weight: 500;
+  }
+  .task.dropped .title {
+    text-decoration: line-through;
   }
   .box:hover:not(:disabled),
   .box:focus-visible {

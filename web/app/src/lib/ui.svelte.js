@@ -40,6 +40,20 @@ export function orderedSections(order) {
   });
   return out;
 }
+// The Tasks section lists the open tasks, and with a span also those
+// finished (done or dropped) in it: the span's length in ms by name.
+export const taskSpans = { open: 0, '15m': 15 * 60e3, '1h': 3600e3, '6h': 6 * 3600e3, '1d': 864e5, '3d': 3 * 864e5, '7d': 7 * 864e5, '30d': 30 * 864e5 };
+export const taskModes = Object.keys(taskSpans);
+export const taskModeLabel = {
+  open: 'Open',
+  '15m': 'Open + last 15 min',
+  '1h': 'Open + last hour',
+  '6h': 'Open + last 6 hours',
+  '1d': 'Open + last day',
+  '3d': 'Open + last 3 days',
+  '7d': 'Open + last week',
+  '30d': 'Open + last 30 days',
+};
 export const deliverableModes = ['unread', 'latest', 'all'];
 export const deliverableModeLabel = { unread: 'Unread latest', latest: 'Latest', all: 'All' };
 
@@ -57,6 +71,8 @@ export const ui = $state({
   // Which deliverables the list shows: unread (the newest of each key,
   // unread), latest (the newest of each key, read or not) or all.
   deliverablesShow: deliverableModes.includes(saved.deliverablesShow) ? saved.deliverablesShow : 'unread',
+  // Which tasks the Tasks section lists (taskModes), per device.
+  tasksShow: taskModes.includes(saved.tasksShow) ? saved.tasksShow : 'open',
   // The list's sections in order (orderedSections), shared by every device.
   sectionOrder: orderedSections(saved.sectionOrder),
 });
@@ -69,6 +85,7 @@ export function saveUI() {
         nextAfterMessage: ui.nextAfterMessage,
         collapsed: ui.collapsed,
         deliverablesShow: ui.deliverablesShow,
+        tasksShow: ui.tasksShow,
         sectionOrder: ui.sectionOrder,
       }),
     );
@@ -88,6 +105,14 @@ export function showDeliverables(mode) {
   ui.deliverablesShow = deliverableModes.includes(mode) ? mode : deliverableModes[(at + 1) % deliverableModes.length];
   saveUI();
   return ui.deliverablesShow;
+}
+
+/** Which tasks the Tasks section lists: mode, or the next one when it is not a mode. */
+export function showTasks(mode) {
+  const at = taskModes.indexOf(ui.tasksShow);
+  ui.tasksShow = taskModes.includes(mode) ? mode : taskModes[(at + 1) % taskModes.length];
+  saveUI();
+  return ui.tasksShow;
 }
 
 /** Take the section order shared on the desk, if it differs from this browser's. */

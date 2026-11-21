@@ -544,7 +544,11 @@ you (the agents' answers to what you asked), Tasks, New, and the run tree; a
 section with nothing in it is left out, Needs you, New and Tasks excepted.
 Tasks lists the open and started tasks under the current view, started
 first, eight at most: a row opens the task, its box checks it off (Undo in
-the toast), and the heading's New and All tasks open the Tasks page. That is
+the toast), and the heading's New and All tasks open the Tasks page. The
+heading's menu (`SPC t t` cycles it, per device) keeps the open tasks and
+adds those finished or dropped in the last 15 minutes, hour, 6 hours, day,
+3 days, week or 30 days, newest first, checked off or struck through with
+when; their box reopens them. That is
 the default order: Settings, "Order of the list's sections" (`SPC o o`),
 changes it by dragging a section's card by its handle (mouse or touch), its
 arrows, or the up and down arrow keys on a focused handle. The order is kept

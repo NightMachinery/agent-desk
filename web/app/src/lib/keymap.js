@@ -9,7 +9,7 @@ import { sel, toggle, toggleAll, clear } from './select.svelte.js';
 import { copy } from './format.js';
 import { toast } from './toast.svelte.js';
 import { post } from './api.js';
-import { toggleSection, showDeliverables, deliverableModeLabel } from './ui.svelte.js';
+import { toggleSection, showDeliverables, deliverableModeLabel, showTasks, taskModeLabel } from './ui.svelte.js';
 import {
   keys, ctx, command, bind, group, pane, paneEl, cmdEl, say, dialog, moveFocus, focusables, startHints, openPalette,
   commands, commandItems, keysOf, applies, describeKey, describeCommand, setVisual, syncMode,
@@ -362,6 +362,7 @@ C('deliverables-show', 'Deliverables: switch between unread latest, latest and a
 C('deliverables-unread', 'Deliverables: the newest of each, unread', deliverablesShow('unread'));
 C('deliverables-latest', 'Deliverables: the newest of each, read or not', deliverablesShow('latest'));
 C('deliverables-all', 'Deliverables: every one, replaced ones too', deliverablesShow('all'));
+C('tasks-show', 'Tasks section: open only, or also those finished in the last 15 minutes to 30 days (cycle)', () => say(`Tasks: ${taskModeLabel[showTasks()]}`));
 C('toggle-select', 'Toggle select mode', () => click('select-mode'));
 C('toggle-auto-continue', 'Toggle auto-continue', () => click('auto-continue'), tagged('auto-continue', 'the settings page'));
 C('edit-sets', 'Edit focus sets', () => click('edit-sets'), tagged('edit-sets', 'the sidebar'));
@@ -534,6 +535,7 @@ bind('SPC n t', 'task-add');
 bind('SPC t a', 'toggle-all');
 bind('SPC t o', 'toggle-old');
 bind('SPC t d', 'deliverables-show');
+bind('SPC t t', 'tasks-show');
 bind('SPC t s', 'toggle-select');
 
 bind('SPC w h', 'pane-left');

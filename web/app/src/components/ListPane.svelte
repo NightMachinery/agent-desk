@@ -20,7 +20,7 @@
   let quotaHidden = $state(0);
   import { sel, toggleAll, clear, prune, markSelected, pinSelected, selecting } from '../lib/select.svelte.js';
   import { snapshot } from '../lib/nav.svelte.js';
-  import { ui, toggleSection, deliverableModes, deliverableModeLabel, showDeliverables, orderedSections } from '../lib/ui.svelte.js';
+  import { ui, toggleSection, deliverableModes, deliverableModeLabel, showDeliverables, orderedSections, taskModes, taskModeLabel, taskSpans, showTasks } from '../lib/ui.svelte.js';
   import { hide, show, settle, unhidden } from '../lib/hiding.svelte.js';
   import { hasDraft } from '../lib/drafts.js';
   import { runCommand } from '../lib/keys.svelte.js';
@@ -310,12 +310,18 @@
     <h2 class="section-title" data-section="tasks">
       {@render fold('tasks', 'Tasks')}
       {#if taskCount}<span class="count">{taskCount}</span>{/if}
+      <label class="show-pick tasks-pick" title={tip('Which tasks to list: the open ones always, and with a span also those finished or dropped in it', 'tasks-show')}>
+        <select data-cmd="tasks-show" aria-label="Which tasks to list" value={ui.tasksShow} onchange={(e) => showTasks(e.currentTarget.value)}>
+          {#each taskModes as m (m)}<option value={m}>{taskModeLabel[m]}</option>{/each}
+        </select>
+        <svg width="9" height="9" viewBox="0 0 10 10" aria-hidden="true"><path d="m2 3.5 3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+      </label>
       <span class="heads">
         <button class="pick" title={tip('File a new task, bug or idea', 'task-add')} onclick={() => runCommand('task-add')}>New</button>
         <a class="pick" data-cmd="tasks" href={href({ item: '', tasks: true })} title={tip('The Tasks page: finished tasks too, filters, subtasks', 'tasks')}>All tasks</a>
       </span>
     </h2>
-    <TaskRows path={route.path} stamp={view.stamp} base={route.path} collapsed={!!ui.collapsed.tasks} bind:count={taskCount} bind:ids={taskIds} {onchange} />
+    <TaskRows path={route.path} stamp={view.stamp} base={route.path} collapsed={!!ui.collapsed.tasks} span={taskSpans[ui.tasksShow]} bind:count={taskCount} bind:ids={taskIds} {onchange} />
       {:else if name === 'runs'}
     <h2 class="section-title" data-section="runs">{@render fold('runs', 'Runs')}</h2>
     {#if ui.collapsed.runs}
@@ -520,6 +526,8 @@
   /* The Deliverables section's "show" menu: a quiet pill that reads as part
      of the heading until hovered. */
   .show-pick {
+    --tone: var(--deliverable);
+    --tone-soft: var(--deliverable-soft);
     position: relative;
     display: inline-flex;
     align-items: center;
@@ -532,10 +540,10 @@
     field-sizing: content;
     height: 22px;
     padding: 0 20px 0 9px;
-    border: 1px solid color-mix(in srgb, var(--deliverable) 35%, var(--line));
+    border: 1px solid color-mix(in srgb, var(--tone) 35%, var(--line));
     border-radius: 999px;
-    background: var(--deliverable-soft);
-    color: var(--deliverable);
+    background: var(--tone-soft);
+    color: var(--tone);
     font: inherit;
     font-size: 11.5px;
     font-weight: 600;
@@ -543,14 +551,18 @@
   }
   .show-pick select:hover,
   .show-pick select:focus-visible {
-    border-color: var(--deliverable);
+    border-color: var(--tone);
     outline: none;
   }
   .show-pick svg {
     position: absolute;
     right: 7px;
     pointer-events: none;
-    color: var(--deliverable);
+    color: var(--tone);
+  }
+  .tasks-pick {
+    --tone: var(--ok);
+    --tone-soft: var(--ok-soft);
   }
   .linkish {
     padding: 0;
