@@ -201,6 +201,7 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("GET /api/providers", s.apiProviders)
 	mux.HandleFunc("POST /api/agent", s.action(s.apiAgentAct))
 	mux.HandleFunc("GET /api/draft", s.apiDraft)
+	mux.HandleFunc("GET /api/drafts", s.apiDrafts)
 	mux.HandleFunc("POST /api/draft", s.action(s.apiDraftPut))
 	mux.HandleFunc("GET /api/dashboard-prefs", s.apiDashboardPrefs)
 	mux.HandleFunc("POST /api/dashboard-prefs", s.action(s.apiDashboardPrefPut))

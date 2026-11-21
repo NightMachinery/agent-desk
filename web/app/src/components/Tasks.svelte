@@ -15,6 +15,8 @@
   import { askStatus, noteLabel, toldText } from '../lib/taskstatus.js';
   import ReopenForm from './ReopenForm.svelte';
   import { off, BUSY } from '../lib/why.js';
+  import { listDrafts, loadDraft, saveDraft, clearDraft, discardDrafts } from '../lib/drafts.js';
+  import { untrack } from 'svelte';
 
   let { path = '', stamp = '', runs = [], adding = $bindable(false) } = $props();
 
@@ -51,6 +53,7 @@
     stamp;
     path;
     load();
+    loadDrafts();
   });
 
   const kindOf = (t) => t.type || 'task';
@@ -227,6 +230,79 @@
     [!node, 'Pick where it goes first'],
     [!(title.trim() || brief.trim() || readyRefs.length), 'Write what it is first'],
   ]));
+  // Drafts: the form is saved as you type, each New task in its own box
+  // (task:<id>), here and on the desk (lib/drafts.js). Closing the form
+  // keeps it; the unfiled ones are listed at the top of the page, and one
+  // opens back into the form. Filing drops it.
+  let draftKey = $state('');
+  let drafts = $state(/** @type {{key: string, value: any, t: number}[]} */ ([]));
+  async function loadDrafts() {
+    drafts = await listDrafts('task');
+  }
+  const newDraftKey = () => 'task:' + Array.from(crypto.getRandomValues(new Uint8Array(5)), (b) => b.toString(16).padStart(2, '0')).join('');
+  const draftValue = $derived({
+    node,
+    type: newType,
+    title,
+    brief,
+    parent,
+    tags: newTags,
+    files: files.filter((f) => f.status === 'ready').map((f) => ({ name: f.name, ref: f.ref })),
+  });
+  const drafted = $derived(!!(title.trim() || brief.trim() || newTags.trim() || readyRefs.length));
+  $effect(() => {
+    if (!adding || !draftKey) return;
+    saveDraft(draftKey, $state.snapshot(draftValue), !drafted);
+  });
+  function resetForm() {
+    title = '';
+    brief = '';
+    parent = '';
+    newTags = '';
+    newType = 'task';
+    files = [];
+  }
+  // Opening the form starts a new draft unless one was picked; closing it
+  // leaves the draft saved and empties the form for the next one.
+  $effect(() => {
+    if (adding) {
+      untrack(() => draftKey || (draftKey = newDraftKey()));
+      return;
+    }
+    untrack(() => {
+      if (!draftKey) return;
+      draftKey = '';
+      resetForm();
+      loadDrafts();
+    });
+  });
+  function resume(d) {
+    const v = d.value ?? {};
+    draftKey = d.key;
+    node = v.node ?? '';
+    newType = v.type || 'task';
+    title = v.title ?? '';
+    brief = v.brief ?? '';
+    parent = v.parent ?? '';
+    newTags = v.tags ?? '';
+    files = (v.files ?? []).map((f) => ({ key: ++fileSeq, name: f.name, ref: f.ref, status: 'ready' }));
+    adding = true;
+    setTimeout(() => document.getElementById('task-details')?.focus(), 0);
+  }
+  function discard(d) {
+    // A draft only the desk has is copied here first, so Undo can bring it back.
+    if (loadDraft(d.key) == null) saveDraft(d.key, d.value);
+    const undo = discardDrafts([d.key]);
+    drafts = drafts.filter((x) => x.key !== d.key);
+    toast('Draft discarded.', 'ok', 6000, { label: 'Undo', run: () => (undo(), loadDrafts()) });
+  }
+  const shownDrafts = $derived(drafts.filter((d) => d.key !== draftKey && (!path || !d.value?.node || d.value.node === path || d.value.node.startsWith(path + '/'))));
+  const draftTitle = (v) => v?.title?.trim() || v?.brief?.trim().split('\n')[0] || (v?.files?.length ? v.files.map((f) => f.name).join(', ') : 'Untitled');
+  function draftAge(t) {
+    const m = Math.max(0, Math.round((Date.now() - t) / 60e3));
+    return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 48 * 60 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`;
+  }
+
   function message(id) {
     const what = newType === 'task' ? 'task' : newType;
     const named = title.trim() ? `${id} "${title.trim()}"` : `${id}, without a title`;
@@ -263,6 +339,8 @@
         }
       }
       toast(`Filed ${res.id}${told}.`, 'ok', 6000);
+      clearDraft(draftKey);
+      draftKey = '';
       title = '';
       brief = '';
       parent = '';
@@ -386,6 +464,25 @@
     {/if}
     <input id="tasks-search" class="input search" type="search" placeholder="Search tasks  (/)" bind:value={q} aria-label="Search tasks" />
   </div>
+
+  {#if shownDrafts.length}
+    <h2 class="node">Drafts</h2>
+    <ul class="list drafts">
+      {#each shownDrafts as d (d.key)}
+        <li class="task draft" style="--depth: 0">
+          <div class="line">
+            <button class="draft-open" title="Open it in the form to finish and file it" onclick={() => resume(d)}>
+              <span class="chip">Draft</span>
+              {#if d.value?.type && d.value.type !== 'task'}<span class="tchip small {d.value.type} on">{LABEL[d.value.type] ?? d.value.type}</span>{/if}
+              <span class="title">{draftTitle(d.value)}</span>
+              <span class="faint">{d.value?.node || 'no node yet'} · {draftAge(d.t)}</span>
+            </button>
+            <button class="icon" title="Discard this draft (Undo brings it back)" aria-label="Discard this draft" onclick={() => discard(d)}>✕</button>
+          </div>
+        </li>
+      {/each}
+    </ul>
+  {/if}
 
   {#if error}
     <div class="empty err">{error}</div>
@@ -662,6 +759,45 @@
   .node a {
     color: inherit;
     text-decoration: none;
+  }
+  .draft {
+    border-style: dashed;
+  }
+  .draft-open {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .draft-open .title {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .draft-open .faint {
+    flex: none;
+    margin-left: auto;
+    font-size: 12px;
+  }
+  .draft .icon {
+    flex: none;
+    border: 0;
+    background: none;
+    color: var(--muted);
+    cursor: pointer;
+    padding: 0 4px;
+  }
+  .drafts {
+    margin-bottom: 4px;
   }
   .list {
     list-style: none;

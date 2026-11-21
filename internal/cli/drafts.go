@@ -52,6 +52,27 @@ func (s *server) apiDraft(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, d)
 }
 
+// apiDrafts lists one box's live drafts (GET api/drafts?box=task): the
+// New task forms not filed yet, on any device, newest first.
+func (s *server) apiDrafts(w http.ResponseWriter, r *http.Request) {
+	box := r.URL.Query().Get("box")
+	if !validDraftKey(box + ":x") {
+		jsonError(w, http.StatusBadRequest, "box names a kind of box, such as task")
+		return
+	}
+	st, err := s.a.store()
+	if err != nil {
+		jsonError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	ds, err := st.DraftsIn(box)
+	if err != nil {
+		jsonError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, map[string]any{"drafts": ds})
+}
+
 // apiDraftPut saves a box's draft on the desk (POST api/draft {key, draft,
 // device}); a null draft drops it, so the other devices drop theirs.
 func (s *server) apiDraftPut(_ *App, body request) (any, error) {

@@ -55,6 +55,28 @@ func (s *Store) Draft(key string) (Draft, error) {
 	return d, nil
 }
 
+// DraftsIn returns the live drafts of one box (keys "box:..."), such as the
+// unfiled forms of the New task page (box "task").
+func (s *Store) DraftsIn(box string) ([]Draft, error) {
+	rows, err := s.DB.Query(`SELECT key, value, updated, device FROM drafts
+WHERE value IS NOT NULL AND substr(key, 1, ?) = ? ORDER BY updated DESC`, len(box)+1, box+":")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []Draft{}
+	for rows.Next() {
+		var d Draft
+		var v string
+		if err := rows.Scan(&d.Key, &v, &d.Updated, &d.Device); err != nil {
+			return nil, err
+		}
+		d.Value = json.RawMessage(v)
+		out = append(out, d)
+	}
+	return out, rows.Err()
+}
+
 // PutDraft saves value as key's draft, or drops it when value is null or
 // empty, from device at now. A key's Updated only grows, so every later
 // save reads as newer to every device. Drafts and drop marks older than

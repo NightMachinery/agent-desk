@@ -991,6 +991,11 @@ when there are details or files: the message to the agent asks it to name
 the task (`task title`). The message also asks it to split a task with
 several parts into steps under it (`task add --parent`), and to finish with
 a note saying how it was done.
+The form is a draft as you type, saved in the browser and on the desk like a
+message box's, so closing it (Esc twice, C-g) or switching devices loses
+nothing. Unfiled drafts are listed under **Drafts** at the top of the Tasks
+page; one opens back into the form, ✕ discards it (Undo brings it back), and
+filing drops it. Each New task starts a draft of its own.
 "Message its coordinator about it" (on by default) also sends a message
 about the task, so an agent acts on it now (the agent responds on the
 task itself, so its responses form the task's own conversation): to the

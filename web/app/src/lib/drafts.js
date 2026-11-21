@@ -147,6 +147,37 @@ export function discardDrafts(keys) {
 /** The draft keys of an item's boxes (display id), its recordings' too. */
 export const itemDraftKeys = (display) => ITEM_BOXES.flatMap((b) => [b + display, 'voice:' + b + display]);
 
+/**
+ * The live drafts of one box (keys "box:..."), on this device and on the
+ * desk, newest first: [{key, value, t}]. A copy here with edits the desk has
+ * not taken yet wins; otherwise the desk's newer copy does.
+ */
+export async function listDrafts(box) {
+  const prefix = PREFIX + box + ':';
+  const found = new Map();
+  const s = store();
+  for (let i = 0; s && i < s.length; i++) {
+    const k = s.key(i);
+    if (!k?.startsWith(prefix)) continue;
+    const key = k.slice(PREFIX.length);
+    const r = read(key);
+    if (r) found.set(key, { value: r.v, t: r.t, r });
+  }
+  try {
+    const res = await get('drafts', { box });
+    for (const d of res.drafts ?? []) {
+      const here = found.get(d.key);
+      if (!here || (!dirty(here.r) && d.updated > (here.r.s ?? 0))) found.set(d.key, { value: d.value, t: d.updated });
+    }
+  } catch {
+    // the desk is out of reach: this device's drafts still show
+  }
+  return [...found]
+    .filter(([, x]) => filled(x.value))
+    .map(([key, x]) => ({ key, value: x.value, t: x.t }))
+    .sort((a, b) => b.t - a.t);
+}
+
 // --- syncing with the desk ------------------------------------------------
 
 const timers = new Map();

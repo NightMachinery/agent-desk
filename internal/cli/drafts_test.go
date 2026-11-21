@@ -151,3 +151,32 @@ func TestDraftKeepsItemListed(t *testing.T) {
 		t.Fatal("still listed after the draft is dropped")
 	}
 }
+
+// The New task page lists its unfiled forms from every device.
+func TestTaskDraftsListed(t *testing.T) {
+	_, hd := testServer(t, newHarness(t))
+	put := func(body string) {
+		t.Helper()
+		if code, out, _ := do(t, hd, "POST", "/api/draft", body, dashboard); code != 200 {
+			t.Fatalf("save: %d %s", code, out)
+		}
+	}
+	put(`{"key":"task:aa11","draft":{"title":"Fix the feed","node":"example-proj"},"device":"laptop"}`)
+	put(`{"key":"task:bb22","draft":{"brief":"later"},"device":"phone"}`)
+	put(`{"key":"task:bb22","draft":null,"device":"phone"}`) // filed: dropped
+	put(`{"key":"reply:t-abcd","draft":"not a task","device":"laptop"}`)
+	code, body, _ := do(t, hd, "GET", "/api/drafts?box=task", "", nil)
+	var resp struct {
+		Drafts []struct {
+			Key   string         `json:"key"`
+			Value map[string]any `json:"value"`
+		} `json:"drafts"`
+	}
+	must(t, json.Unmarshal([]byte(body), &resp))
+	if code != 200 || len(resp.Drafts) != 1 || resp.Drafts[0].Key != "task:aa11" || resp.Drafts[0].Value["title"] != "Fix the feed" {
+		t.Fatalf("drafts: %d %s", code, body)
+	}
+	if code, _, _ := do(t, hd, "GET", "/api/drafts?box=Task!", "", nil); code != 400 {
+		t.Fatalf("bad box: %d", code)
+	}
+}
