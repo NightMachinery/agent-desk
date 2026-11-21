@@ -44,6 +44,8 @@ export const noteLabel = (state) => (state === 'done' ? 'How it was done' : stat
 // for quota (state deferred) waits for quota to spare, where the quota nudge
 // offers it and Launch deferred starts it.
 export const DEFER_WHY = 'Not now: it waits until you undefer, start or launch it';
+/** The reasons Drop's arrow offers (DropWhy); each becomes the drop note. */
+export const DROP_REASONS = ['Inconclusive', 'Not worth it'];
 export const QUOTA_WHY = 'Wait for quota to spare: the quota nudge offers it, and launching deferred tasks starts an agent on it';
 /**
  * Why Defer (or, with quota, Defer for quota) does not apply to a task in

@@ -150,8 +150,9 @@ means the same idea across kinds: `o` opens, `r` retries or replaces, `y` and
 `n` say yes and no. With nothing open that has its own keys, `,` says so and
 swallows the next key, so it never runs a short key by accident.
 
-- A task: `s` ask where it stands, `d` done, `D` drop, `z` defer, `Z` defer
-  for quota, `u` undefer, `o` reopen with a note, `l` start an agent on it.
+- A task: `s` ask where it stands, `d` done, `D` drop, `x` drop with a
+  reason, `z` defer, `Z` defer for quota, `u` undefer, `o` reopen with a
+  note, `l` start an agent on it.
 - A deliverable: `o` open its link, `g` download its file, `w` Works: send
   with "This worked." in front.
 - A question asking for the screen: `y` grant, `n` deny.

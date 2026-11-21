@@ -24,6 +24,7 @@
   import { keys, syncMode } from '../lib/keys.svelte.js';
   import { askStatus, noteLabel, toldText, deferOff, DEFER_WHY, QUOTA_WHY } from '../lib/taskstatus.js';
   import ReopenForm from './ReopenForm.svelte';
+  import DropWhy from './DropWhy.svelte';
   import ReplyingTo from './ReplyingTo.svelte';
   import { focusBoxIn, replyRef } from '../lib/replyto.js';
   import { off } from '../lib/why.js';
@@ -332,7 +333,10 @@
         {:else}
           <button data-cmd="task-status" class="btn small" title={tip('Ask whoever works on it for a short executive summary of where it stands', 'task-status')} onclick={() => askStatus(e.id, it.display_id)}>Status</button>
           <button data-cmd="task-done" class="btn small" title={tip('Mark it done', 'task-done')} onclick={() => taskAct('done')}>Done</button>
-          <button data-cmd="task-drop" class="btn small ghost" title={tip('Drop it: not doing it (Reopen brings it back)', 'task-drop')} onclick={() => taskAct('drop')}>Drop</button>
+          <span class="drop-split">
+            <button data-cmd="task-drop" class="btn small ghost" title={tip('Drop it: not doing it (Reopen brings it back)', 'task-drop')} onclick={() => taskAct('drop')}>Drop</button>
+            <DropWhy id={it.display_id} keyed ondrop={(note) => taskAct('drop', note)} />
+          </span>
         {/if}
         </span>
       </div>
@@ -548,6 +552,19 @@
     margin: -4px 0 12px;
   }
   /* The task's buttons wrap as one group, not one by one. */
+  /* Drop and its arrow (DropWhy) as one split button. */
+  .drop-split {
+    display: inline-flex;
+  }
+  .drop-split > .btn {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+  .drop-split :global(.why) {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+    margin-left: -1px;
+  }
   .task-acts {
     display: flex;
     flex-wrap: wrap;

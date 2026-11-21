@@ -259,6 +259,7 @@
   "o"       :task-reopen
   "d"       :task-done
   "D"       :task-drop
+  "x"       :task-drop-why
   "z"       :task-defer
   "Z"       :task-defer-quota
   "u"       :task-undefer

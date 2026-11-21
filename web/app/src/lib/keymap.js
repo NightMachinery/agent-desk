@@ -494,6 +494,7 @@ C('push-brave-setting', "Push: copy the address of Brave's push setting", () => 
 C('task-defer', 'Task: defer it (not now, for any reason)', () => click('task-defer'), tagged('task-defer', 'an open or started task'));
 C('task-defer-quota', 'Task: defer it until there is quota to spare', () => click('task-defer-quota'), tagged('task-defer-quota', 'an open or deferred task'));
 C('task-undefer', 'Task: undefer it (back to open)', () => click('task-undefer'), tagged('task-undefer', 'a deferred task'));
+C('task-drop-why', 'Task: drop it with a reason (inconclusive, not worth it, or your own)', () => click('task-drop-why'), tagged('task-drop-why', 'an open task'));
 C('task-reopen', 'Task: reopen it, saying what is still wrong', () => click('task-reopen'), tagged('task-reopen', 'a finished task'));
 C('deliverable-download', 'Deliverable: download its first file', () => click('deliverable-download'), tagged('deliverable-download', 'a deliverable with a file'));
 // Discard the draft in the box (or New task form) that has focus, else the first one with one.

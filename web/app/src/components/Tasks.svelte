@@ -15,6 +15,7 @@
   import Attachments from './Attachments.svelte';
   import { askStatus, noteLabel, toldText, stateLabel, deferOff, DEFER_WHY, QUOTA_WHY } from '../lib/taskstatus.js';
   import ReopenForm from './ReopenForm.svelte';
+  import DropWhy from './DropWhy.svelte';
   import { off, BUSY } from '../lib/why.js';
   import { listDrafts, loadDraft, saveDraft, clearDraft, discardDrafts } from '../lib/drafts.js';
   import { untrack } from 'svelte';
@@ -550,7 +551,10 @@
               <button data-keys="none" class="btn small" {...off(DEFER_WHY, [busy, BUSY], [!!deferOff(t.state), deferOff(t.state)])} onclick={() => act(t, 'defer')}>Defer</button>
               <button data-keys="none" class="btn small" {...off(QUOTA_WHY, [busy, BUSY], [!!deferOff(t.state, true), deferOff(t.state, true)])} onclick={() => act(t, 'defer-quota')}>Defer for quota</button>
               {#if t.state === 'later' || t.state === 'deferred'}<button data-keys="none" class="btn small" {...off('Back to open', [busy, BUSY])} onclick={() => act(t, 'undefer')}>Undefer</button>{/if}
-              <button data-keys="none" class="btn small" {...off(undefined, [busy, BUSY])} onclick={() => act(t, 'drop')}>Drop</button>
+              <span class="drop-split">
+                <button data-keys="none" class="btn small" {...off(undefined, [busy, BUSY])} onclick={() => act(t, 'drop')}>Drop</button>
+                <DropWhy id={t.display_id} busy={!!busy} ondrop={(note) => act(t, 'drop', note)} />
+              </span>
             {:else}
               <button data-keys="none" class="btn small" {...off(undefined, [busy, BUSY])} onclick={() => (reopening = t.event.id)}>Reopen</button>
             {/if}
@@ -889,6 +893,19 @@
     flex-direction: column;
     gap: 6px;
     font-size: 13.5px;
+  }
+  /* Drop and its arrow (DropWhy) as one split button. */
+  .drop-split {
+    display: inline-flex;
+  }
+  .drop-split > .btn {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+  .drop-split :global(.why) {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+    margin-left: -1px;
   }
   .acts {
     display: flex;

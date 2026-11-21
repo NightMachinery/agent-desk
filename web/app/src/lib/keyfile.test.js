@@ -97,7 +97,7 @@ test('overlay: replace, add, remove; and what a user file may not do', () => {
 });
 
 test('effective map: precedence, prefix shadowing, contexts, sheets and text boxes', () => {
-  const km = build('{:normal {"q" :pin, "h" :top, "z z" :top} :detail {"z" :close}, :task {"s" :task-status, "x" "defer", "x x" :task-defer}}');
+  const km = build('{:normal {"q" :pin, "h" :top, "z z" :top} :detail {"z" :close}, :task {"s" :task-status, "v" "defer", "v v" :task-defer}}');
   const at = (state, chord) => lookup(effective(km, state), chord.split(' '));
   assert.equal(at({ pane: 'detail' }, 'q').hit.cmd, 'close', 'a pane map hides :normal');
   assert.equal(at({ pane: 'list' }, 'q').hit.cmd, 'pin');
@@ -110,7 +110,7 @@ test('effective map: precedence, prefix shadowing, contexts, sheets and text box
   assert.equal(at({ pane: 'list', context: 'task' }, ', s').hit.cmd, 'task-status');
   assert.equal(at({ pane: 'list', context: 'task' }, 'SPC m s').hit.cmd, 'task-status');
   assert.equal(effective(km, { context: 'task' }).labels.get(','), 'task');
-  assert.equal(effective(km, { context: 'task' }).labels.get('SPC m x'), 'defer');
+  assert.equal(effective(km, { context: 'task' }).labels.get('SPC m v'), 'defer');
   assert.equal(at({ pane: 'list', context: 'deliverable' }, ', s').hit, null);
   assert.equal(at({ dialog: true }, 'q').hit.cmd, 'sheet-close', 'a sheet has only :dialog');
   assert.equal(at({ dialog: true }, 'p').hit, null);
