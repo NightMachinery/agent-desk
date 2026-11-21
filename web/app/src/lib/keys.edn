@@ -102,6 +102,7 @@
   "SPC i i" :insert
   "SPC i f" :attach
   "SPC i v" :voice-toggle
+  "M-'"     :voice-toggle
   "SPC i r" :voice-recordings
   "SPC i n" :notify-menu
   "SPC i s" :send-menu
@@ -241,7 +242,8 @@
 
  ; Inside a text box. ESC, C-g and C-[ always leave it.
  :insert
- {"M-x"     :m-x}
+ {"M-x"     :m-x
+  "M-'"     :voice-toggle}
 
  ; The context maps hold the keys typed after the localleader (, or SPC m):
  ; what only the open thing has. The same letter means the same idea across

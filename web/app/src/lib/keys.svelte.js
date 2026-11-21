@@ -178,13 +178,29 @@ const named = {
   End: '<end>',
 };
 
+// The characters of the keys Option changes, unshifted and shifted (US layout).
+const ALT_CODES = {
+  Quote: ["'", '"'], Semicolon: [';', ':'], Comma: [',', '<'], Period: ['.', '>'], Slash: ['/', '?'],
+  Backslash: ['\\', '|'], BracketLeft: ['[', '{'], BracketRight: [']', '}'], Minus: ['-', '_'],
+  Equal: ['=', '+'], Backquote: ['`', '~'],
+  Digit1: ['1', '!'], Digit2: ['2', '@'], Digit3: ['3', '#'], Digit4: ['4', '$'], Digit5: ['5', '%'],
+  Digit6: ['6', '^'], Digit7: ['7', '&'], Digit8: ['8', '*'], Digit9: ['9', '('], Digit0: ['0', ')'],
+};
+/** @param {KeyboardEvent} e */
+function altChar(e) {
+  if (/^Key[A-Z]$/.test(e.code)) return e.shiftKey ? e.code.slice(3) : e.code.slice(3).toLowerCase();
+  return ALT_CODES[e.code]?.[e.shiftKey ? 1 : 0];
+}
+
 /** The token for a keydown, or '' for a lone modifier. Command (s-) combos
  * are left to the browser. */
 export function token(e) {
   let k = e.key;
-  if (['Shift', 'Control', 'Alt', 'Meta', 'CapsLock', 'Dead', 'Unidentified'].includes(k)) return '';
-  // On a Mac, Option changes the character; read the key itself.
-  if (e.altKey && /^Key[A-Z]$/.test(e.code)) k = e.shiftKey ? e.code.slice(3) : e.code.slice(3).toLowerCase();
+  if (['Shift', 'Control', 'Alt', 'Meta', 'CapsLock'].includes(k)) return '';
+  // On a Mac, Option changes the character or makes it a dead key (M-e,
+  // M-u); read the key itself, as on a US layout.
+  if (e.altKey) k = altChar(e) ?? k;
+  if (k === 'Dead' || k === 'Unidentified') return '';
   if (e.ctrlKey && k.length === 1) k = k.toLowerCase();
   const isNamed = k in named;
   k = named[k] ?? k;

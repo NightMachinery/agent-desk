@@ -105,9 +105,10 @@ entry reuses the letter of its short key (`p` pins, so `SPC b p` pins).
   previous open item, `o` its node, `w` what its session wrote, `e` export it
   with its conversation as one .org file.
 - `SPC i`: the message box: `i` write in it, `f` attach a file, `v` start or
-  stop a voice recording, `r` pick a recording to insert its transcript, `n`
-  "Notify me", `s` "Send how?", `x` discard the draft (with Undo), `c` stop
-  replying to an entry.
+  stop a voice recording (also `M-'`, which works while you type too), `r`
+  pick a recording to insert its transcript, `n` "Notify me", `s` "Send
+  how?", `x` discard the draft (with Undo; in the New task form, its draft),
+  `c` stop replying to an entry.
 - `SPC n`: new: `t` a task (also `c`; in its form `⌘ RET` files it, `ESC` in
   a field leaves insert mode and a second `ESC` closes the form, `C-g` closes
   it from anywhere), `m` a message to the coordinator, `v` a velocity
@@ -261,6 +262,8 @@ it collides with as a prefix: a `"z"` command in `:detail` hides `:normal`'s
 - `:keyless [:command ...]`: commands left without a key on purpose;
 - a string value labels a prefix;
 - an uppercase letter is `S-` with the letter (`"G"` is `"S-g"`);
+- an `M-` chord names the key pressed, not the character Option types on a
+  Mac (as on a US layout): `"M-'"` is Option+', `"M-e"` Option+e;
 - Purple's names are aliases for Doom's: `Up`, `PgUp`, `F1`, `Backspace`,
   `Delete` and so on, and `Ctrl+`, `Alt+`, `Shift+`, `Super+` for the
   modifiers.
