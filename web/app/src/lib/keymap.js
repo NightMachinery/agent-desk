@@ -493,6 +493,9 @@ C('task-status', 'Task: ask whoever works on it where it stands', () => click('t
 C('reload-page', 'Reload the page (drafts are kept): how a page left open gets a newer dashboard', () => location.reload());
 C('push-logs', "Push: copy this device's push logs", () => click('push-logs'), tagged('push-logs', 'Settings, Push to this device'));
 C('push-brave-setting', "Push: copy the address of Brave's push setting", () => click('push-brave-setting'), tagged('push-brave-setting', 'Settings, Push to this device, in Brave'));
+C('task-defer', 'Task: defer it (not now, for any reason)', () => click('task-defer'), tagged('task-defer', 'an open or started task'));
+C('task-defer-quota', 'Task: defer it until there is quota to spare', () => click('task-defer-quota'), tagged('task-defer-quota', 'an open or deferred task'));
+C('task-undefer', 'Task: undefer it (back to open)', () => click('task-undefer'), tagged('task-undefer', 'a deferred task'));
 C('task-reopen', 'Task: reopen it, saying what is still wrong', () => click('task-reopen'), tagged('task-reopen', 'a finished task'));
 C('deliverable-download', 'Deliverable: download its first file', () => click('deliverable-download'), tagged('deliverable-download', 'a deliverable with a file'));
 // Discard the draft in the box that has focus, else the first box with one.
@@ -663,6 +666,8 @@ bind('SPC i G', 'deliverable-download');
 bind('SPC i w', 'deliverable-works');
 bind('SPC i x', 'draft-discard');
 bind('SPC i s', 'task-status');
+bind('SPC i z', 'task-defer');
+bind('SPC i Z', 'task-defer-quota');
 bind('y y', 'yank-link');
 bind('y i', 'yank-id');
 bind('y r', 'yank-resume');

@@ -29,6 +29,8 @@ export const cmdKeys = {
   'deliverable-works': 'SPC i w',
   'deliverable-open': 'SPC i g',
   'task-status': 'SPC i s',
+  'task-defer': 'SPC i z',
+  'task-defer-quota': 'SPC i Z',
   'reply-entry': 'R',
   'reload-page': 'g R',
   'message-node': 'SPC n m',

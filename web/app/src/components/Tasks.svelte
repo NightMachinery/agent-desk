@@ -12,7 +12,7 @@
   import { chooseSendCache } from '../lib/cache.svelte.js';
   import { tip } from '../lib/shortcuts.js';
   import Markdown from './Markdown.svelte';
-  import { askStatus, noteLabel, toldText } from '../lib/taskstatus.js';
+  import { askStatus, noteLabel, toldText, stateLabel, DEFER_WHY, QUOTA_WHY } from '../lib/taskstatus.js';
   import ReopenForm from './ReopenForm.svelte';
   import { off, BUSY } from '../lib/why.js';
   import { listDrafts, loadDraft, saveDraft, clearDraft, discardDrafts } from '../lib/drafts.js';
@@ -21,7 +21,7 @@
   let { path = '', stamp = '', runs = [], adding = $bindable(false) } = $props();
 
   const LABEL = { task: 'Task', bug: 'Bug', feature: 'Feature', idea: 'Idea', chore: 'Chore' };
-  const ACTIVE = new Set(['open', 'started', 'deferred']);
+  const ACTIVE = new Set(['open', 'started', 'later', 'deferred']);
 
   let tasks = $state(/** @type {any[]} */ ([]));
   let types = $state(['task', 'bug', 'feature', 'idea', 'chore']);
@@ -119,8 +119,8 @@
   async function act(t, action, note = '', undo = false) {
     busy = t.event.id;
     try {
-      const res = await post('task', { action, id: t.display_id, ...(note && { text: note }) });
-      const said = undo ? 'Undone' : { done: 'Done', reopen: 'Reopened', start: 'Started', drop: 'Dropped', defer: 'Deferred' }[action];
+      const res = await post('task', { action: action === 'undefer' ? 'reopen' : action, id: t.display_id, ...(note && { text: note }) });
+      const said = undo ? 'Undone' : { done: 'Done', reopen: 'Reopened', start: 'Started', drop: 'Dropped', defer: 'Deferred', 'defer-quota': 'Deferred for quota', undefer: 'Undeferred' }[action];
       const canUndo = !undo && (action === 'done' || action === 'drop');
       toast(`${said}: ${t.display_id}.${undo ? '' : toldText(res, canUndo)}`, 'ok', 7000, canUndo ? { label: 'Undo', run: () => act(t, 'reopen', '', true) } : undefined);
       if (reopening === t.event.id) reopening = '';
@@ -505,7 +505,7 @@
         {#if kindOf(t) !== 'task'}<span class="tchip small {kindOf(t)} on">{LABEL[kindOf(t)] ?? kindOf(t)}</span>{/if}
         <button class="title" onclick={() => (expanded[t.event.id] = !expanded[t.event.id])} aria-expanded={!!expanded[t.event.id]}>{t.event.title}</button>
         {#if t.untitled}<span class="chip" title="Filed without a title: its details' first line stands in until the agent names it">untitled</span>{/if}
-        {#if t.state === 'started'}<span class="chip active">started</span>{:else if t.state === 'deferred'}<span class="chip waiting">deferred</span>{:else if dropped}<span class="chip">dropped</span>{/if}
+        {#if t.state === 'started'}<span class="chip active">started</span>{:else if t.state === 'later' || t.state === 'deferred'}<span class="chip waiting">{stateLabel(t.state)}</span>{:else if dropped}<span class="chip">dropped</span>{/if}
         {#if t.priority === 1}<span class="chip blocked" title="Priority 1">p1</span>{/if}
         {#each t.tags ?? [] as g (g)}<button class="tag small" class:on={tag === g} title={`Only #${g}`} onclick={() => (tag = tag === g ? '' : g)}>#{g}</button>{/each}
         {#if t.event.meta?.source === 'web'}<span class="faint you" title="You filed it">you</span>{/if}
@@ -528,6 +528,9 @@
             {#if ACTIVE.has(t.state)}
               <button class="btn small" title="Ask whoever works on it for a short executive summary of where it stands" onclick={() => askStatus(t.event.id, t.display_id)}>Status</button>
               {#if t.state !== 'started'}<button class="btn small" {...off(undefined, [busy, BUSY])} onclick={() => act(t, 'start')}>Start</button>{/if}
+              {#if t.state !== 'later'}<button class="btn small" {...off(DEFER_WHY, [busy, BUSY])} onclick={() => act(t, 'defer')}>Defer</button>{/if}
+              {#if t.state === 'open' || t.state === 'later'}<button class="btn small" {...off(QUOTA_WHY, [busy, BUSY])} onclick={() => act(t, 'defer-quota')}>Defer for quota</button>{/if}
+              {#if t.state === 'later' || t.state === 'deferred'}<button class="btn small" {...off('Back to open', [busy, BUSY])} onclick={() => act(t, 'undefer')}>Undefer</button>{/if}
               <button class="btn small" {...off(undefined, [busy, BUSY])} onclick={() => act(t, 'drop')}>Drop</button>
             {:else}
               <button class="btn small" {...off(undefined, [busy, BUSY])} onclick={() => (reopening = t.event.id)}>Reopen</button>

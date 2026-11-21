@@ -102,8 +102,8 @@ follow, with groups in colour.
   pin, `t` take, `o` its node, `n` "Notify me", `m` "Send how?"; on a
   deliverable, `g` open its link, `G` download its file, `w` Works: send
   with "This worked." in front; on an open task, `s` Status: ask whoever
-  works on it where it stands; `x` discard the draft in the box, with
-  Undo).
+  works on it where it stands, `z` Defer, `Z` Defer for quota; `x` discard
+  the draft in the box, with Undo). Undefer has no key: `M-x task-undefer`.
 - Tasks: `g c` the Tasks page here, `g C` everywhere (`SPC o t`, `SPC o T`),
   `SPC n t` a new task (in its form `⌘ RET` files it, `ESC` in a field
   leaves insert mode and a second `ESC` closes the form, `C-g` closes it

@@ -39,3 +39,11 @@ export function toldText(res, undo = false) {
 
 /** What a task's note says, by its state: an agent writes how it finished a task or why it dropped it. */
 export const noteLabel = (state) => (state === 'done' ? 'How it was done' : state === 'dropped' ? 'Why it was dropped' : 'Note');
+
+// The two defers. Defer (state later) is "not now" for any reason; Defer
+// for quota (state deferred) waits for quota to spare, where the quota nudge
+// offers it and Launch deferred starts it.
+export const DEFER_WHY = 'Not now: it waits until you undefer, start or launch it';
+export const QUOTA_WHY = 'Wait for quota to spare: the quota nudge offers it, and launching deferred tasks starts an agent on it';
+/** How a task state reads on a chip. */
+export const stateLabel = (state) => ({ later: 'deferred', deferred: 'for quota' })[state] ?? state;

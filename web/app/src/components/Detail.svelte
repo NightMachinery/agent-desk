@@ -22,7 +22,7 @@
   import { arrival, arrivedAuto, cancelArrival, settleArrival } from '../lib/arrival.js';
   import { ui } from '../lib/ui.svelte.js';
   import { keys, syncMode } from '../lib/keys.svelte.js';
-  import { askStatus, noteLabel, toldText } from '../lib/taskstatus.js';
+  import { askStatus, noteLabel, toldText, DEFER_WHY, QUOTA_WHY } from '../lib/taskstatus.js';
   import ReopenForm from './ReopenForm.svelte';
   import ReplyingTo from './ReplyingTo.svelte';
   import { focusBoxIn, replyRef } from '../lib/replyto.js';
@@ -117,11 +117,12 @@
     replyingTo = t.event.id === e.id ? null : replyRef(t);
     focusBoxIn(null, syncMode);
   }
+  // undefer is a reopen that says so.
   async function taskAct(action, note = '', id = it.display_id) {
     try {
-      const res = await post('task', { action, id, ...(note && { text: note }) });
+      const res = await post('task', { action: action === 'undefer' ? 'reopen' : action, id, ...(note && { text: note }) });
       const told = toldText(res);
-      toast({ launch: 'Launched.', done: 'Marked done.', drop: 'Dropped.', defer: 'Deferred for quota.', reopen: 'Reopened.', start: 'Marked started.' }[action] + told, 'ok', told ? 7000 : undefined);
+      toast({ launch: 'Launched.', done: 'Marked done.', drop: 'Dropped.', defer: 'Deferred.', 'defer-quota': 'Deferred for quota.', undefer: 'Undeferred.', reopen: 'Reopened.', start: 'Marked started.' }[action] + told, 'ok', told ? 7000 : undefined);
       reopening = '';
       onchange();
     } catch (err) {
@@ -319,10 +320,12 @@
         {#if t.agent}<span class="faint mono" title="What launch_command printed, or the agent that started it">{t.agent}</span>{/if}
         <span class="spacer"></span>
         <span class="task-acts">
-        {#if t.state === 'deferred' || t.state === 'open'}
+        {#if t.state === 'deferred' || t.state === 'later' || t.state === 'open'}
           <button class="btn small primary" {...off('Start an agent on this task', [!item.launch_ready, 'Set launch_command under [tasks] in config.toml first'])} onclick={() => taskAct('launch')}>Launch</button>
         {/if}
-        {#if t.state === 'open'}<button class="btn small" onclick={() => taskAct('defer')}>Defer for quota</button>{/if}
+        {#if t.state === 'open' || t.state === 'started' || t.state === 'deferred'}<button data-cmd="task-defer" class="btn small" title={tip(DEFER_WHY, 'task-defer')} onclick={() => taskAct('defer')}>Defer</button>{/if}
+        {#if t.state === 'open' || t.state === 'later'}<button data-cmd="task-defer-quota" class="btn small" title={tip(QUOTA_WHY, 'task-defer-quota')} onclick={() => taskAct('defer-quota')}>Defer for quota</button>{/if}
+        {#if t.state === 'later' || t.state === 'deferred'}<button data-cmd="task-undefer" class="btn small" title={tip('Back to open', 'task-undefer')} onclick={() => taskAct('undefer')}>Undefer</button>{/if}
         {#if t.state === 'done' || t.state === 'dropped'}<button data-cmd="task-reopen" class="btn small" onclick={() => (reopening = it.display_id)}>Reopen</button>
         {:else}
           <button data-cmd="task-status" class="btn small" title={tip('Ask whoever works on it for a short executive summary of where it stands', 'task-status')} onclick={() => askStatus(e.id, it.display_id)}>Status</button>
