@@ -8,7 +8,7 @@ import (
 
 // The sections of the dashboard's list, in their default order: what
 // "sections" may name.
-var dashboardSections = []string{"needs", "quota", "deliverables", "pinned", "responses", "new", "runs", "deferred"}
+var dashboardSections = []string{"needs", "quota", "deliverables", "pinned", "responses", "new", "tasks", "runs", "deferred"}
 
 // apiDashboardPrefs returns the dashboard settings shared by every device
 // (GET api/dashboard-prefs): {"sections": [...]} once the order is set.

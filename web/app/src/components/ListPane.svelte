@@ -13,6 +13,9 @@
   import ScreenStrip from './ScreenStrip.svelte';
   import PushNudge from './PushNudge.svelte';
   import QuotaHit from './QuotaHit.svelte';
+  import TaskRows from './TaskRows.svelte';
+  let taskCount = $state(0);
+  let taskIds = $state(/** @type {string[]} */ ([]));
   let quotaCount = $state(0);
   let quotaHidden = $state(0);
   import { sel, toggleAll, clear, prune, markSelected, pinSelected, selecting } from '../lib/select.svelte.js';
@@ -20,6 +23,7 @@
   import { ui, toggleSection, deliverableModes, deliverableModeLabel, showDeliverables, orderedSections } from '../lib/ui.svelte.js';
   import { hide, show, settle, unhidden } from '../lib/hiding.svelte.js';
   import { hasDraft } from '../lib/drafts.js';
+  import { runCommand } from '../lib/keys.svelte.js';
 
 
   let { view, error, onmenu, onchange } = $props();
@@ -103,7 +107,7 @@
   // Folded sections drop out of j/k and previous/next.
   const shown = (name, ids) => (ui.collapsed[name] ? [] : ids);
   const allIds = $derived([
-    ...new Set(sectionOrder.flatMap((n) => shown(n, { needs: needIds, deliverables: deliverableIds, pinned: pinnedIds, responses: responseIds, new: freshIds }[n] ?? []))),
+    ...new Set(sectionOrder.flatMap((n) => shown(n, { needs: needIds, deliverables: deliverableIds, pinned: pinnedIds, responses: responseIds, new: freshIds, tasks: taskIds }[n] ?? []))),
   ]);
   // Pinned items in any section, including a pinned question under Needs.
   const pinnedAll = $derived(
@@ -302,6 +306,16 @@
         <div class="empty">{route.all ? 'No notices here.' : 'All read.'}</div>
       {/each}
     {/if}
+      {:else if name === 'tasks'}
+    <h2 class="section-title" data-section="tasks">
+      {@render fold('tasks', 'Tasks')}
+      {#if taskCount}<span class="count">{taskCount}</span>{/if}
+      <span class="heads">
+        <button class="pick" title={tip('File a new task, bug or idea', 'task-add')} onclick={() => runCommand('task-add')}>New</button>
+        <a class="pick" data-cmd="tasks" href={href({ item: '', tasks: true })} title={tip('The Tasks page: finished tasks too, filters, subtasks', 'tasks')}>All tasks</a>
+      </span>
+    </h2>
+    <TaskRows path={route.path} stamp={view.stamp} base={route.path} collapsed={!!ui.collapsed.tasks} bind:count={taskCount} bind:ids={taskIds} {onchange} />
       {:else if name === 'runs'}
     <h2 class="section-title" data-section="runs">{@render fold('runs', 'Runs')}</h2>
     {#if ui.collapsed.runs}
@@ -577,6 +591,15 @@
   .mark-all:hover {
     background: var(--panel);
     color: var(--text);
+  }
+  .heads {
+    display: inline-flex;
+    gap: 2px;
+    margin-left: auto;
+  }
+  .heads .pick {
+    margin-left: 0;
+    text-decoration: none;
   }
   .pick {
     margin-left: auto;

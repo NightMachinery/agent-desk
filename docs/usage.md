@@ -533,8 +533,11 @@ focus.
 
 The same sections as the inbox, on a desktop in three panes and on a phone
 in one column: Needs you, Out of quota, Deliverables, Pinned, Responses to
-you (the agents' answers to what you asked), New, and the run tree; a
-section with nothing in it is left out, Needs you and New excepted. That is
+you (the agents' answers to what you asked), New, Tasks, and the run tree; a
+section with nothing in it is left out, Needs you, New and Tasks excepted.
+Tasks lists the open and started tasks under the current view, started
+first, eight at most: a row opens the task, its box checks it off (Undo in
+the toast), and the heading's New and All tasks open the Tasks page. That is
 the default order: Settings, "Order of the list's sections" (`SPC o o`),
 changes it by dragging a section's card by its handle (mouse or touch), its
 arrows, or the up and down arrow keys on a focused handle. The order is kept
@@ -913,7 +916,7 @@ lists the ones still active.
   (`[-]` started, `[X]` done, dropped ones struck out with `--all`), for a
   human or a compaction recovery that wants one file.
 
-**The Tasks page** (sidebar **Tasks**, `g c` here, `g C` everywhere, also
+**The Tasks page** (the list's Tasks heading, `g c` here, `g C` everywhere, also
 `SPC o t`/`SPC o T`) lists every task under the current path, grouped by
 node with subtasks under their parent. Filter by Open, Finished or All, by
 type, by tag (the dashed `#tag` pills; a row's own tags filter too), and by

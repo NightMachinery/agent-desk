@@ -44,6 +44,8 @@ export const cmdKeys = {
   'fold-pinned': 'z a',
   'fold-responses': 'z a',
   'fold-new': 'z a',
+  'fold-tasks': 'z a',
+  'fold-deliverables': 'z a',
   'fold-runs': 'z a',
   'fold-deferred': 'z a',
   'fold-quota': 'z a',

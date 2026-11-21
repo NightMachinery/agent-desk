@@ -30,10 +30,6 @@
     {#if unread}<span class="count" title="Unread">{unread}</span>{/if}
   </a>
 
-  <a class="scope" class:on={route.tasks} href={href({ item: '', tasks: true })} title="Every task, bug and idea here: the desk's checklist">
-    <span class="name">Tasks</span>
-  </a>
-
   <div class="label split">
     <span>Focus</span>
     <button class="edit" data-cmd="edit-sets" onclick={() => editSets(focus || sets[0]?.name || '')}

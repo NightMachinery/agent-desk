@@ -89,7 +89,8 @@ follow, with groups in colour.
   with "This worked." in front; `x` discard the draft in the box, with
   Undo).
 - Tasks: `g c` the Tasks page here, `g C` everywhere (`SPC o t`, `SPC o T`),
-  `SPC n t` a new task; on the page `/` searches.
+  `SPC n t` a new task; on the page `/` searches. The list's Tasks section
+  folds like the others (`z a`, `z M`), and `j`/`k` walk its rows.
 - `SPC o o`: the order of the list's sections, in Settings, with the first
   handle focused; `↑` / `↓` on a handle move its section.
 - `SPC n`: the node page (`m` message the coordinator, `r` mark everything

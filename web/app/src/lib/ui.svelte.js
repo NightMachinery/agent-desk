@@ -24,6 +24,7 @@ export const sectionNames = {
   pinned: 'Pinned',
   responses: 'Responses to you',
   new: 'New',
+  tasks: 'Tasks',
   runs: 'Runs',
   deferred: 'Deferred for quota',
 };
