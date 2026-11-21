@@ -3,7 +3,6 @@
   import CopyIds from './CopyIds.svelte';
   import Choices from './Choices.svelte';
   import { tip } from '../lib/shortcuts.js';
-  import { exportHref } from '../lib/exports.js';
   import { route, href, go } from '../lib/route.svelte.js';
   import { post } from '../lib/api.js';
   import { toast } from '../lib/toast.svelte.js';
@@ -275,7 +274,6 @@
           ><Icon name={it.unread ? 'read' : 'unread'} /></button
         >
       {/if}
-      <a data-cmd="org-export-item" class="btn ghost small" href={exportHref({ scope: 'item', id: it.display_id })} download title={tip('Download this item with its conversation as one .org file', 'org-export-item')}>.org</a>
       <button data-cmd="copy-link" class="btn ghost small mono" title={tip('Copy a link to this item', 'copy-link')} onclick={() => copyText(location.href, 'Link')}>{it.display_id}</button>
     </div>
 
@@ -611,8 +609,9 @@
   }
   .toolbar {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 8px;
+    gap: 4px 8px;
     position: sticky;
     top: 0;
     padding: 6px 0;

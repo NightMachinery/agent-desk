@@ -497,10 +497,10 @@ about a slot) is a top-level `MSG` heading with its responses under it. A
 
 **Export** downloads org rendered fresh, as one `.org` file: the whole desk
 (Settings, "Export as one .org file": the inbox, boards, tasks and ledger as
-top-level headings), the inbox ("Inbox only"), a node (the `.org` chip on its
-page, `SPC n e`: its board, tasks, and items with their conversations) or an
-item (the `.org` button beside its id, `SPC i e`: it and its conversation; a
-task with its subtasks). "As a zip" gives the files above instead. From a
+top-level headings), the inbox ("Inbox only"), a node (`SPC n e` on its
+page: its board, tasks, and items with their conversations) or an item
+(`SPC i e`: it and its conversation; a task with its subtasks). Each is also
+an `M-x` command (`org-export-node`, `org-export-item`). "As a zip" gives the files above instead. From a
 shell, the same goes to stdout:
 
     agent-desk render --print                    # the whole desk

@@ -20,8 +20,6 @@ export const cmdKeys = {
   'notify-menu': 'SPC i n',
   'send-menu': 'SPC i m',
   'node-settings': 'SPC n s',
-  'org-export-node': 'SPC n e',
-  'org-export-item': 'SPC i e',
   'agent-archive': 'SPC n a',
   'task-add': 'SPC n t',
   'deliverables-show': 'SPC t d',
