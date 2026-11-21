@@ -314,6 +314,32 @@ func TestMessageThreads(t *testing.T) {
 	}
 	h.fails(h.as(sessB), "x", "does not work on", "tell", "--re", task)
 
+	// A response about the task answers a generated message about it filed
+	// before, not one filed after.
+	_, hd = testServer(t, h) // a server on the current clock, so the message sorts after direct
+	if code, body, _ := do(t, hd, "POST", "/api/reply", `{"to":"`+task+`","text":"The user filed it again.","auto":"task-filed"}`, dashboard); code != 200 {
+		t.Fatalf("second task-filed: %d %s", code, body)
+	}
+	h.ok(nil, "", "deliver")
+	d = h.loadDesk()
+	var auto2 store.Event
+	for _, e := range d.Events {
+		if e.Kind == "reply" && e.ID != auto.ID && desk.MetaString(e, "auto") == "task-filed" {
+			auto2 = e
+		}
+	}
+	if auto2.ID == "" || !d.Awaiting(auto2.ID) {
+		t.Fatalf("second generated message %q: awaiting %v, %d responses", auto2.ID, d.Awaiting(auto2.ID), len(d.ResponsesTo(auto2.ID)))
+	}
+	later := h.ok(env, "Noted.", "tell", "--re", task)
+	d = h.loadDesk()
+	if rs := d.ResponsesTo(auto2.ID); d.Awaiting(auto2.ID) || len(rs) != 1 || d.Display(rs[0].ID) != later {
+		t.Fatalf("answered by a response about its task: awaiting %v, %d responses", d.Awaiting(auto2.ID), len(rs))
+	}
+	if rs := d.ResponsesTo(auto.ID); len(rs) != 3 {
+		t.Fatalf("first generated message: %d responses, want resp, direct and later", len(rs))
+	}
+
 	// A message about a filed task from an older dashboard went to the node
 	// and names the task only in its text: it still sits in the task's
 	// thread, with the responses to it.
@@ -331,5 +357,15 @@ func TestMessageThreads(t *testing.T) {
 	le, _ := d.Resolve(legacy)
 	if d.AutoKind(le) != "task-filed" {
 		t.Fatalf("auto kind %q", d.AutoKind(le))
+	}
+	legacy2 := h.ok(nil, "", "reply", "example-proj/r1/coord", "The user filed a task for you on the desk: "+old+", without a title.")
+	d = h.loadDesk()
+	l2, _ := d.Resolve(legacy2)
+	if !d.Awaiting(l2.ID) {
+		t.Fatal("older filed-task message not awaiting")
+	}
+	h.ok(env, "Done.", "tell", "--re", old)
+	if d = h.loadDesk(); d.Awaiting(l2.ID) {
+		t.Fatal("older filed-task message not answered by a response about its task")
 	}
 }
