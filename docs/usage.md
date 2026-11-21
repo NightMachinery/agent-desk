@@ -957,7 +957,9 @@ stay on the task and go with the message to its agent, which gets their
 paths. The title may be left out when there are details or files: the
 message to the agent asks it to name the task (`task title`).
 "Message its coordinator about it" (on by default) also sends a message
-naming the task, so an agent acts on it now: to the node's own agent, or,
+about the task, so an agent acts on it now (the message and the agent's
+responses form the task's own conversation, apart from the node's running
+one): to the node's own agent, or,
 for a project or a run (which no agent holds), to the coordinator working
 under it, the newest one that has not filed its done report. The form
 names that coordinator, and says in red when no agent works under the node,

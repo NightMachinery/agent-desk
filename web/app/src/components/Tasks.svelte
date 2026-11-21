@@ -239,11 +239,15 @@
       const res = await post('task', { action: 'add', to: node, title: title.trim(), type: newType, text: brief, parent, tags: tagList(newTags), ...(media.length && { media }) });
       let told = '';
       if (tell && target) {
-        const to = target.node;
+        // About the task, not to the node: it reaches the same agent (a
+        // task's messages go to whoever works on it), and the message and
+        // its responses form the task's own thread, not the node's running
+        // conversation.
+        const to = res.id;
         const choice = await chooseSendCache('reply', to);
         if (choice !== 'cancel') {
           queueMessage('reply', { to, text: message(res.id), ...(media.length && { media }), ...(choice === 'compact' && { after_compaction: true }) }, to, { quiet: true });
-          told = ` and told ${to}`;
+          told = ` and told ${target.node}`;
         }
       }
       toast(`Filed ${res.id}${told}.`, 'ok', 6000);
