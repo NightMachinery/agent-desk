@@ -115,12 +115,14 @@
       (goto-char (point-max)) (insert "C")
       (agent-desk-compose-send)
       (while (get-process "agent-desk") (accept-process-output nil 0.05))
-      (should (equal (agent-desk-test--log log)
-                     (concat "ARGS read q-bbbb\nSTDIN \n"
-                             "ARGS pin q-bbbb\nSTDIN \n"
-                             "ARGS unpin s-pppp\nSTDIN \n"
-                             "ARGS reply proj\nSTDIN -n is not a flag here\n\n"
-                             "ARGS answer q-bbbb\nSTDIN 1. B: Regenerate\n2. C: z\n\n"))))))
+      ;; Each action renders the desk once it succeeds.
+      (let ((render "ARGS render\nSTDIN \n"))
+        (should (equal (agent-desk-test--log log)
+                       (concat "ARGS read q-bbbb\nSTDIN \n" render
+                               "ARGS pin q-bbbb\nSTDIN \n" render
+                               "ARGS unpin s-pppp\nSTDIN \n" render
+                               "ARGS reply proj\nSTDIN -n is not a flag here\n\n" render
+                               "ARGS answer q-bbbb\nSTDIN 1. B: Regenerate\n2. C: z\n\n" render)))))))
 
 (ert-deftest agent-desk-test-take ()
   (agent-desk-test--with-stub
