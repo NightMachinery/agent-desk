@@ -9,8 +9,10 @@
  * @param {...[unknown, string]} why condition and reason pairs, first match wins
  */
 export function off(title, ...why) {
-  for (const [on, reason] of why) if (on) return { disabled: true, title: reason };
-  return { disabled: false, title };
+  // data-tip-what keeps what the control does, for the tooltip card to say
+  // above the reason (lib/tooltip.js).
+  for (const [on, reason] of why) if (on) return { disabled: true, title: reason, 'data-tip-what': title };
+  return { disabled: false, title, 'data-tip-what': undefined };
 }
 
 /** The reason while a request this control started is still running. */

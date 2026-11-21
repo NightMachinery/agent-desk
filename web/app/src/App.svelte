@@ -16,6 +16,7 @@
   import './lib/keymap.js';
   import Keys from './components/Keys.svelte';
   import ImageViewer from './components/ImageViewer.svelte';
+  import Tooltip from './components/Tooltip.svelte';
   import Sidebar from './components/Sidebar.svelte';
   import ListPane from './components/ListPane.svelte';
   import ColdCacheDialog from './components/ColdCacheDialog.svelte';
@@ -246,6 +247,7 @@
 
 <Keys />
 <ImageViewer />
+<Tooltip />
 
 <SetEditor sets={globalView?.sets ?? []} paths={globalView?.paths ?? []} onchange={refresh} />
 

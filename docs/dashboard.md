@@ -14,6 +14,18 @@ Commit `web/dist` with the sources. `go test ./web` fails when `web/dist` is
 older than the sources: the build stamps a hash of everything it read
 (`scripts/stamp.mjs`), and the test recomputes it.
 
+## Tooltips
+
+The page draws its own tooltips (`components/Tooltip.svelte`), so keep
+writing `title` as before: the first time the pointer or the keyboard
+reaches the element, the title moves to `data-tip` and shows as a small
+card. `lib/tooltip.js` splits it: a short first clause (up to `: `, `; ` or
+a sentence end) is the heading and the rest the body; a trailing `(...)` is
+a note; `tip(label, cmd)`'s `  (key)` becomes key caps. `off()` keeps a
+disabled control's usual title in `data-tip-what`, so the card says what it
+does and, under a rule, why it cannot now. `data-tip-img="URL"` adds an image
+preview on top. Code that reads a title reads `tipText(el)`.
+
 ## Looking at a change
 
 Check a change in a real browser, on a desk of fabricated data, before

@@ -7,6 +7,7 @@ import { route, go, pageOpen } from './route.svelte.js';
 import { nav, step } from './nav.svelte.js';
 import { sel, toggle, toggleAll, clear } from './select.svelte.js';
 import { copy } from './format.js';
+import { tipText } from './tooltip.js';
 import { toast, bump } from './toast.svelte.js';
 import { get, post } from './api.js';
 import { exportHref, download } from './exports.js';
@@ -23,7 +24,7 @@ function click(name, missing) {
   const el = cmdEl(name);
   if (!el) return say(missing);
   // A disabled button's tooltip says why (lib/why.js).
-  if (el instanceof HTMLButtonElement && el.disabled) return say(el.title || missing || 'Not available now');
+  if (el instanceof HTMLButtonElement && el.disabled) return say(tipText(el) || missing || 'Not available now');
   el.click();
 }
 const rowEl = (id) => /** @type {HTMLElement | null} */ (document.querySelector(`[data-item="${CSS.escape(id)}"]`));
@@ -504,7 +505,7 @@ function discardDraft() {
   const here = document.activeElement?.closest?.('.composer, form.add')?.querySelector('[data-cmd="draft-discard"]');
   const el = here || cmdEl('draft-discard');
   if (!el) return say('No draft here');
-  if (el instanceof HTMLButtonElement && el.disabled) return say(el.title || 'Not available now');
+  if (el instanceof HTMLButtonElement && el.disabled) return say(tipText(el) || 'Not available now');
   el.click();
 }
 C('draft-discard', 'Discard the draft in this box or the New task form (Undo brings it back)', discardDraft);
