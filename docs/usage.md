@@ -877,6 +877,10 @@ The settings:
 - `notify.remote.dest`: free text handed to that channel.
 - `notify.push`: `off`, `away` or `always`, for Web Push to the devices
   that turned it on (see Push to your phone).
+- `auto-continue.main` and `auto-continue.subagents`: `on` (the built-in
+  value) or `off`, whether a main agent or a subagent stopped at a usage
+  limit resumes when its quota returns. An agent reads them at its node; see
+  Auto-continue defaults under Agents out of quota.
 
 For one event, the first match wins:
 
@@ -1209,6 +1213,35 @@ each of them. For each:
   it leaves the list for good. Messaging it from the desk revives it. The
   keyboard command is `quota-archive`.
 
+### Auto-continue defaults
+
+Where the agent-quotas daemon runs, an agent nobody decided for follows a
+setting: `auto-continue.main` for a main agent, `auto-continue.subagents`
+for a subagent (one another agent started). Set them in Settings for every
+agent, or on a project, run or role (its node's settings, `SPC d s`), and
+each scope inherits from the one above it, like any setting. An agent reads
+them at its own node, else at its nearest ancestor's that has one; with
+neither, the global value applies. Both are on unless you turn them off.
+
+- **A choice made for one agent stands.** Ticking or unticking its
+  Auto-continue box, or `/auto-continue` in its session, decides for it
+  alone, whatever the setting says later. **Use default** beside the box
+  (`SPC t C`, or `agent-desk quota auto-continue default <paseo-id>`) drops
+  that choice. The box's tooltip says which applies and where the default
+  comes from.
+- **A default turns on only agents active in the last 24 hours**, so a
+  setting turned on does not wake agents stopped long ago. Turning it off,
+  or a change for an agent the default already decided, applies to every
+  agent.
+- **A subagent whose parent is archived gets off**: nobody is left to use
+  its work.
+
+The server applies the settings every three minutes and right after you
+change one. `agent-desk quota defaults --dry-run` lists what it would
+change; without `--dry-run` it applies them at once. Turn off agent-quotas'
+own `paseo.default_auto_continue` where the desk does this: it turns main
+agents on whatever the setting says.
+
 The node panel of any agent's node also has the **Auto-continue** checkbox,
 so you can arm it before the agent runs out, and **Archive agent** (`SPC d
 a`), which archives the coordinator's Paseo agent when it runs on this
@@ -1218,7 +1251,8 @@ has a record of (`POST api/agent` with `{"action": "archive", "id": ...}`).
 The same from a terminal:
 
     agent-desk quota list [--format json]
-    agent-desk quota auto-continue on|off <paseo-id>
+    agent-desk quota auto-continue on|off|default <paseo-id>
+    agent-desk quota defaults [--dry-run]                  # apply the auto-continue settings now
     agent-desk quota ask-parent <paseo-id> [--dry-run]     # --dry-run prints the prompt
     agent-desk quota replace <paseo-id> [--profile claude/opus@high] [--dry-run]
     agent-desk quota dismiss|undismiss <paseo-id>

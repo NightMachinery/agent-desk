@@ -45,6 +45,7 @@ type server struct {
 	// open across an upgrade offers to reload.
 	build           string
 	closing         chan struct{} // closed on shutdown: event streams end
+	acNudge         chan struct{} // an auto-continue setting changed: apply the defaults now
 	closeOnce       sync.Once
 	voice           voiceHub
 	a               *App
@@ -130,7 +131,7 @@ var agentVars = map[string]bool{
 }
 
 func newServer(a *App, ui fs.FS) (*server, error) {
-	s := &server{a: a, ui: ui, poll: time.Second, logger: a.Stderr, sendWake: make(chan struct{}, 1), closing: make(chan struct{})}
+	s := &server{a: a, ui: ui, poll: time.Second, logger: a.Stderr, sendWake: make(chan struct{}, 1), closing: make(chan struct{}), acNudge: make(chan struct{}, 1)}
 	index, err := fs.ReadFile(ui, "index.html")
 	if err != nil {
 		return nil, fmt.Errorf("the dashboard is not built: %w", err)
@@ -1160,7 +1161,8 @@ func (s *server) refreshSeats() {
 
 // apiAutoContinue says whether Paseo agent ?paseo= resumes itself when its
 // quota returns: {available, on}. available is false without
-// auto_continue_command.
+// auto_continue_command. Where agent-quotas runs, set_by says who decided
+// and default is what it inherits (acInfo).
 func (s *server) apiAutoContinue(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Query().Get("paseo")
 	s.mu.Lock()
@@ -1181,7 +1183,13 @@ func (s *server) apiAutoContinue(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, http.StatusBadGateway, err.Error())
 		return
 	}
-	writeJSON(w, map[string]bool{"available": true, "on": auto[id]})
+	out := map[string]any{"available": true, "on": auto[id]}
+	if d, _, err := s.storedDesk(); err == nil {
+		if info, err := s.a.autoContinueInfo(ctx, d, id); err == nil && info != nil {
+			out["set_by"], out["default"] = info.SetBy, info.Default
+		}
+	}
+	writeJSON(w, out)
 }
 
 // apiQuotaAct acts on a stopped agent: auto-continue-on, auto-continue-off,
@@ -1191,6 +1199,20 @@ func (s *server) apiQuotaAct(app *App, body request) (any, error) {
 	case "auto-continue-on", "auto-continue-off":
 		defer s.expireQuota()
 		return map[string]string{}, app.quotaAutoContinue(body.ID, body.Action == "auto-continue-on")
+	case "auto-continue-default":
+		defer s.expireQuota()
+		d, err := app.load()
+		if err != nil {
+			return nil, err
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		def, err := app.followAutoContinueDefault(ctx, d, body.ID)
+		state := "off"
+		if def.On {
+			state = "on"
+		}
+		return map[string]string{"note": "It follows its default again: " + state + " (" + def.From() + ")."}, err
 	case "dismiss", "undismiss":
 		return map[string]string{}, app.quotaSetDismissed(body.list(body.ID), body.Action == "dismiss", nil, body.QuotaActivity)
 	case "ask-parent", "replace":
@@ -1198,7 +1220,7 @@ func (s *server) apiQuotaAct(app *App, body request) (any, error) {
 		out, err := app.quotaAct(body.Action, body.ID, body.Profile, false)
 		return map[string]string{"note": out}, err
 	}
-	return nil, usagef("quota action is auto-continue-on, auto-continue-off, dismiss, undismiss, ask-parent or replace")
+	return nil, usagef("quota action is auto-continue-on, auto-continue-off, auto-continue-default, dismiss, undismiss, ask-parent or replace")
 }
 
 func (s *server) expireQuota() {
@@ -1573,6 +1595,7 @@ func (a *App) cmdServe(args []string) error {
 	go s.runSendQueue(ctx)
 	go s.renderLoop(ctx)
 	go s.taskChangeLoop(ctx)
+	go s.autoContinueLoop(ctx)
 	drained := make(chan struct{})
 	go func() {
 		defer close(drained)

@@ -38,6 +38,18 @@ type Agent struct {
 	Cache          *Cache   `json:"cache"`
 	LockPath       string   `json:"lock_path"`
 	Seat           *Seat    `json:"seat"`
+	// LastActivityAt is its last real turn (Unix seconds), not a keeper ping.
+	LastActivityAt *float64      `json:"last_activity_at"`
+	AutoContinue   *AutoContinue `json:"auto_continue"`
+}
+
+// AutoContinue is an agent's auto-continue registration. SetBy is who
+// decided: default for a default (agent-desk's inherited setting, or the
+// keeper's own), empty for no decision or an old registration, else the
+// agent itself, the desk's checkbox, the CLI or the API.
+type AutoContinue struct {
+	Enabled bool   `json:"enabled"`
+	SetBy   string `json:"set_by"`
 }
 
 // Seat is the account an agent runs on and its verdict for the agent's
@@ -119,6 +131,17 @@ func (c Client) Agent(ctx context.Context, id string) (Agent, error) {
 
 func (c Client) Policy(ctx context.Context, id, action string, value PolicyRequest) (Agent, error) {
 	return c.agent(ctx, 15*time.Second, http.MethodPost, agentPath(id)+"/"+action, nil, value)
+}
+
+// SetAutoContinue records an auto-continue decision. With setBy "default"
+// it is a default, which agent-quotas writes only over no decision or an
+// earlier default; reset makes it replace a decision made for the agent too.
+func (c Client) SetAutoContinue(ctx context.Context, id string, enabled bool, setBy string, reset bool) (Agent, error) {
+	body := map[string]any{"enabled": enabled, "set_by": setBy}
+	if reset {
+		body["reset"] = true
+	}
+	return c.agent(ctx, 15*time.Second, http.MethodPost, agentPath(id)+"/auto-continue", nil, body)
 }
 
 func (c Client) Compact(ctx context.Context, id string) (Compaction, error) {

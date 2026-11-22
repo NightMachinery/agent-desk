@@ -1,5 +1,6 @@
 // Package settings resolves the user's settings for one event: how a
-// message reaches a busy agent, and where a notification goes. A setting is
+// message reaches a busy agent, and where a notification goes; and for one
+// agent, whether it resumes itself after a usage limit. A setting is
 // a key with a value, set for a scope (the empty path, or a project, run or
 // node path) and a class (the kind of event it applies to, or * for any).
 //
@@ -19,7 +20,8 @@ import (
 )
 
 // Keys are the settings there are, in display order.
-var Keys = []string{"deliver.behavior", "notify.desktop", "notify.remote", "notify.remote.dest", "notify.push"}
+var Keys = []string{"deliver.behavior", "notify.desktop", "notify.remote", "notify.remote.dest", "notify.push",
+	"auto-continue.main", "auto-continue.subagents"}
 
 // Classes are the kinds of event a setting can be set for, besides Any.
 var Classes = []string{"ask-blocked", "ask-default", "response", "deliverable", "tell-notify", "tell", "done"}
@@ -28,8 +30,10 @@ var Classes = []string{"ask-blocked", "ask-default", "response", "deliverable", 
 const Any = "*"
 
 // Classless reports whether key ignores the class: deliver.behavior is about
-// messages, which have no class.
-func Classless(key string) bool { return key == "deliver.behavior" }
+// messages, which have no class, and auto-continue about agents.
+func Classless(key string) bool {
+	return key == "deliver.behavior" || strings.HasPrefix(key, "auto-continue.")
+}
 
 var hostName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
 
@@ -62,6 +66,11 @@ func Check(key, value string) error {
 			return nil
 		}
 		return fmt.Errorf("%s is off, away or always, not %q", key, value)
+	case "auto-continue.main", "auto-continue.subagents":
+		if value == "on" || value == "off" {
+			return nil
+		}
+		return fmt.Errorf("%s is on or off, not %q", key, value)
 	case "notify.remote.dest":
 		if strings.TrimSpace(value) == "" {
 			return fmt.Errorf("notify.remote.dest needs a value")
@@ -92,6 +101,10 @@ func BuiltIn(key, class string) string {
 	switch key {
 	case "deliver.behavior":
 		return "steer"
+	case "auto-continue.main", "auto-continue.subagents":
+		// An agent stopped at a usage limit resumes when its quota returns,
+		// unless someone said otherwise for it or its role.
+		return "on"
 	case "notify.desktop":
 		if class == "tell" {
 			return "none"

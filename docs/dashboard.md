@@ -184,7 +184,9 @@ The API, all JSON:
   `unfocused=1`. (`nodes` and `scopes` are lists since agents could hold
   several nodes; they replace the single `node` and `scope`.)
   `POST api/quota {action, id, profile?}` accepts `auto-continue-on`,
-  `auto-continue-off`, `ask-parent`, `replace`, `dismiss` or `undismiss`.
+  `auto-continue-off`, `auto-continue-default` (drop the agent's own choice,
+  so it follows its inherited default), `ask-parent`, `replace`, `dismiss`
+  or `undismiss`.
   Dismiss and Undismiss also accept `targets` for multiple agent ids.
   `quota_activity` carries the last activity shown for each selected agent.
 - `GET api/providers?fresh=`: the providers the Replace dialog offers:
@@ -234,7 +236,10 @@ The API, all JSON:
 - `GET api/export`: the desk as org files in a zip, rendered fresh (the
   render directory is left alone), named `agent-desk-org-<date>.zip`.
 - `GET api/auto-continue?paseo=`: `{available, on}` for one agent, for the
-  node panel's checkbox.
+  node panel's checkbox. Where agent-quotas runs it adds `set_by` (who
+  decided: `default`, empty for nobody, else the agent's own choice) and
+  `default` (`{key, scope, on, origin, orphan}`, the setting it inherits).
+  `internal/cli/autocontinue.go` resolves and applies these defaults.
 - `GET api/cache`: cache policies and estimated expiry for local agents,
   read separately from the page view. The server answers from its last
   keeper snapshot at once and refreshes it in the background when it is

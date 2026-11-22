@@ -272,10 +272,12 @@ func prefsView(d *desk.Desk, r *settings.Resolver, path, class string) PrefsView
 	}
 	v.Hosts = sortedKeys(hosts)
 	options := map[string][]string{
-		"deliver.behavior": {"steer", "queue"},
-		"notify.desktop":   {"none", "origin", "all"},
-		"notify.remote":    {"off", "away", "always"},
-		"notify.push":      {"off", "away", "always"},
+		"deliver.behavior":        {"steer", "queue"},
+		"notify.desktop":          {"none", "origin", "all"},
+		"notify.remote":           {"off", "away", "always"},
+		"notify.push":             {"off", "away", "always"},
+		"auto-continue.main":      {"on", "off"},
+		"auto-continue.subagents": {"on", "off"},
 	}
 	for _, k := range settings.Keys {
 		c := class
@@ -343,5 +345,9 @@ func (s *server) apiPref(app *App, body request) (any, error) {
 	if body.Value != nil {
 		args = append(args, *body.Value)
 	}
-	return map[string]string{}, app.run(args)
+	err := app.run(args)
+	if err == nil && strings.HasPrefix(body.Key, "auto-continue.") {
+		s.nudgeAutoContinue()
+	}
+	return map[string]string{}, err
 }

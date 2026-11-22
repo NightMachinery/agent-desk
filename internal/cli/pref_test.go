@@ -30,6 +30,7 @@ func TestPref(t *testing.T) {
 		"ask-default  off     (built in)",
 		"done         host-a,host-b (set globally, any class)",
 		"notify.desktop = host-a,host-b  globally",
+		"auto-continue.subagents = on  (built in)",
 	} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("pref show lacks %q:\n%s", want, out)
@@ -37,7 +38,9 @@ func TestPref(t *testing.T) {
 	}
 	var v SettingsView
 	must(t, json.Unmarshal([]byte(h.ok(nil, "", "pref", "show", "example-proj/r1/coord", "--class", "ask-blocked", "--format", "json")), &v))
-	if len(v.Settings) != 4 || len(v.Overrides) != 2 || v.Settings[2].Origin.Scope != "example-proj/r1" {
+	// deliver.behavior, the three notify keys for the class, and the two
+	// auto-continue keys.
+	if len(v.Settings) != 6 || len(v.Overrides) != 2 || v.Settings[2].Origin.Scope != "example-proj/r1" {
 		t.Fatalf("json: %+v", v)
 	}
 

@@ -213,7 +213,7 @@ func promptData(q QuotaAgent) quotaPromptData {
 
 func (a *App) cmdQuota(args []string) error {
 	if len(args) == 0 {
-		return usagef("quota list | auto-continue on|off <paseo-id> | dismiss|undismiss <paseo-id> | ask-parent <paseo-id> | replace <paseo-id> [--profile P]")
+		return usagef("quota list | auto-continue on|off|default <paseo-id> | defaults [--dry-run] | dismiss|undismiss <paseo-id> | ask-parent <paseo-id> | replace <paseo-id> [--profile P]")
 	}
 	switch args[0] {
 	case "list":
@@ -260,10 +260,29 @@ func (a *App) cmdQuota(args []string) error {
 		if err != nil {
 			return err
 		}
-		if o.pos[0] != "on" && o.pos[0] != "off" {
-			return usagef("quota auto-continue on|off <paseo-id>")
+		switch o.pos[0] {
+		case "on", "off":
+			return a.quotaAutoContinue(o.pos[1], o.pos[0] == "on")
+		case "default":
+			d, err := a.load()
+			if err != nil {
+				return err
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			def, err := a.followAutoContinueDefault(ctx, d, o.pos[1])
+			if err == nil {
+				state := "off"
+				if def.On {
+					state = "on"
+				}
+				fmt.Fprintf(a.Stdout, "%s follows its default again: auto-continue %s (%s).\n", o.pos[1], state, def.From())
+			}
+			return err
 		}
-		return a.quotaAutoContinue(o.pos[1], o.pos[0] == "on")
+		return usagef("quota auto-continue on|off|default <paseo-id>")
+	case "defaults":
+		return a.cmdQuotaDefaults(args[1:])
 	case "dismiss", "undismiss":
 		o, err := parse(args[1:], nil, nil, 1, 1)
 		if err != nil {
