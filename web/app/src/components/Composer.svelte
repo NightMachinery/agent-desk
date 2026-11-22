@@ -412,6 +412,12 @@
     if (entries.every((entry) => entry.status === 'fulfilled')) await submit(text, choices.behavior, true);
   }
 
+  /** Sends what is in the box, as ⌘/Ctrl+Enter there does (for the
+   * questions above it, components/Choices.svelte). */
+  export function sendNow() {
+    return submit();
+  }
+
   function onkeydown(e) {
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();

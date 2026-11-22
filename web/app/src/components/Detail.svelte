@@ -43,6 +43,8 @@
   const sess = $derived(e ? sessionOf(e) : '');
   let choiceLines = $state('');
   let choiceCount = $state(0);
+  /** @type {{ sendNow: () => unknown } | undefined} */
+  let answerBox = $state();
   // An answer, message or response is shown inside its conversation, marked;
   // repeating its text above that would show it twice.
   const inThread = $derived(!!item?.thread_of && item.thread.some((t) => t.display_id === it?.display_id));
@@ -442,9 +444,10 @@
     {#if isQuestion && !item.answered && !answerQueued}
       <section class="act">
         {#if e.meta?.choices}
-          <Choices choices={e.meta.choices} draft={'choices:' + it.display_id} bind:lines={choiceLines} bind:count={choiceCount} />
+          <Choices choices={e.meta.choices} draft={'choices:' + it.display_id} bind:lines={choiceLines} bind:count={choiceCount} onsubmit={() => answerBox?.sendNow()} />
         {/if}
         <Composer
+          bind:this={answerBox}
           id="answer-box"
           draft={'answer:' + it.display_id}
           linked={e.meta?.choices ? ['choices:' + it.display_id] : []}

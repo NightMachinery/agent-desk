@@ -14,7 +14,9 @@ own keys"). This page explains the model.
   `C-g` or `C-[` leaves it, keeping the text, and the box stays *selected*
   (a dashed outline): keys are commands again, you can move around, and `i`
   goes back into it with the cursor where it was. In a message box,
-  ⌘/Ctrl+Enter sends.
+  ⌘/Ctrl+Enter sends. In a question's multiple choices it moves to the
+  next unanswered question (with the cursor in its text field), and sends
+  the answer once none other is open.
 - **Visual**: `V` starts it on the open item; moving with `j`/`k` selects
   every row from there. Moving only selects: the rows it passes stay unread
   (opening an item reads it everywhere else). `d`, `U` and `p` then act on

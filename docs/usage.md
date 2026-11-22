@@ -105,9 +105,11 @@ questions, as many as needed (up to 30), each with 2 to 12 options:
 An option is a label or `{key, label, detail}`; keys default to A, B, C.
 `multi` lets the user pick several. For each question the dashboard shows the
 options and one text field: a note on the pick, or the user's own answer when
-nothing is picked; clicking a pick again unpicks it. Below them, one message
-box takes anything that is not about a single question, and sends it with
-the picks. The answer arrives as text, one line per question (unanswered ones say so), then the general message if any:
+nothing is picked; clicking a pick again unpicks it. ⌘/Ctrl+Enter in a
+question (after clicking an option, or in its text field) moves to the next
+question still unanswered, coming back round to any you skipped, and sends
+the answer once no other is open. Below them, one message box takes
+anything that is not about a single question, and sends it with the picks. The answer arrives as text, one line per question (unanswered ones say so), then the general message if any:
 
     1. B: Regenerate. Note: keep the old cache
     2. Other: only seed 7
