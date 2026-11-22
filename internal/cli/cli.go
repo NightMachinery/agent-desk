@@ -212,9 +212,10 @@ User side:
   agent-desk standby [<paseo-id>]       end warming and switch to compact
   agent-desk quota auto-continue on|off|default <paseo-id>
                                       default: drop the choice made for it; it follows its default again
-  agent-desk quota defaults [--dry-run] [--format json]
+  agent-desk quota defaults [--dry-run] [--quiet] [--format json]
                                       apply the auto-continue.main/subagents settings to every agent
-                                      nobody decided for (the server does this every few minutes)
+                                      nobody decided for (the server does this every few minutes);
+                                      --quiet prints only what changed, dated, for cron
   agent-desk quota dismiss|undismiss <paseo-id>   hide it from Out of quota until it runs again
   agent-desk quota ask-parent <paseo-id> [--dry-run]   ask its parent to hand its role on
   agent-desk quota replace <paseo-id> [--profile P] [--dry-run]   start an agent to take over

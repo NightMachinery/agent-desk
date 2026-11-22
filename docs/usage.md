@@ -1245,6 +1245,15 @@ change; without `--dry-run` it applies them at once. Turn off agent-quotas'
 own `paseo.default_auto_continue` where the desk does this: it turns main
 agents on whatever the setting says.
 
+A machine with agent-quotas but no desk server (its agents report to
+another machine's desk through `merge ssh:`) applies the settings from
+cron instead; `--quiet` prints only what changed, with the time:
+
+    */3 * * * * "$HOME/go/bin/agent-desk" quota defaults --quiet >>"$HOME/.local/state/agent-desk-defaults.log" 2>&1
+
+It reads the settings from that machine's own store, so a change made on
+the other machine applies there after the next merge.
+
 The node panel of any agent's node also has the **Auto-continue** checkbox,
 so you can arm it before the agent runs out, and **Archive agent** (`SPC d
 a`), which archives the coordinator's Paseo agent when it runs on this
@@ -1255,7 +1264,7 @@ The same from a terminal:
 
     agent-desk quota list [--format json]
     agent-desk quota auto-continue on|off|default <paseo-id>
-    agent-desk quota defaults [--dry-run]                  # apply the auto-continue settings now
+    agent-desk quota defaults [--dry-run] [--quiet]        # apply the auto-continue settings now
     agent-desk quota ask-parent <paseo-id> [--dry-run]     # --dry-run prints the prompt
     agent-desk quota replace <paseo-id> [--profile claude/opus@high] [--dry-run]
     agent-desk quota dismiss|undismiss <paseo-id>

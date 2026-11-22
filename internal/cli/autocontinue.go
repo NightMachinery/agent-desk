@@ -272,9 +272,11 @@ func (a *App) followAutoContinueDefault(ctx context.Context, d *desk.Desk, id st
 	return *info.Default, err
 }
 
-// cmdQuotaDefaults is `agent-desk quota defaults [--dry-run] [--format json]`.
+// cmdQuotaDefaults is `agent-desk quota defaults [--dry-run] [--quiet]
+// [--format json]`. --quiet prints only the changes, for a cron job on a
+// machine that runs no desk server.
 func (a *App) cmdQuotaDefaults(args []string) error {
-	o, err := parse(args, []string{"dry-run"}, []string{"format"}, 0, 0)
+	o, err := parse(args, []string{"dry-run", "quiet"}, []string{"format"}, 0, 0)
 	if err != nil {
 		return err
 	}
@@ -298,10 +300,13 @@ func (a *App) cmdQuotaDefaults(args []string) error {
 		return err
 	}
 	verb := "Set"
+	if o.bools["quiet"] {
+		verb = a.Now().Format("2006-01-02 15:04") + " set"
+	}
 	if o.bools["dry-run"] {
 		verb = "Would set"
 	}
-	if len(changes) == 0 {
+	if len(changes) == 0 && !o.bools["quiet"] {
 		fmt.Fprintln(a.Stdout, "(every agent already follows its auto-continue default)")
 	}
 	for _, c := range changes {
