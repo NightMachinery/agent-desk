@@ -10,7 +10,10 @@
 // --init-file registers a script before navigation. --slow-phone emulates
 // 2 Mbps down, 1 Mbps up, 80 ms latency and a fourfold CPU slowdown.
 // The code runs as the body of an async function; its return value is printed
-// as JSON, so a check can both show and assert. --timeout bounds the whole
+// as JSON, so a check can both show and assert. In it, await cdp(method,
+// params) sends a DevTools command, for input the page cannot fake: a real
+// touch held (Input.dispatchTouchEvent) fires the browser's own gestures,
+// long press and click included. --timeout bounds the whole
 // run after --wait (default 30 s); raise it for a check that waits on a timer. --width under 600 emulates a
 // phone (touch, mobile viewport). --scale is the device pixel ratio (default
 // 2), so --width 512 --scale 1 makes a 512-pixel image; --transparent keeps
@@ -77,6 +80,22 @@ function chromePath() {
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// The page's cdp(method, params): calls the binding, which the message
+// handler below answers through __shotCdpDone.
+const CDP_SHIM = `(() => {
+  const waiting = new Map();
+  let n = 0;
+  window.cdp = (method, params = {}) => new Promise((resolve, reject) => {
+    const k = ++n;
+    waiting.set(k, { resolve, reject });
+    __shotCdp(JSON.stringify({ k, method, params }));
+  });
+  window.__shotCdpDone = (k, err, res) => {
+    const w = waiting.get(k);
+    waiting.delete(k);
+    if (err) w.reject(new Error(err)); else w.resolve(res);
+  };
+})();`;
 const profile = mkdtempSync(join(tmpdir(), 'agent-desk-shot-'));
 // Port 0: Chrome picks a free port and writes it to DevToolsActivePort.
 const chrome = spawn(
@@ -125,6 +144,11 @@ try {
     if (d.id && pending.has(d.id)) {
       pending.get(d.id)(d);
       pending.delete(d.id);
+    } else if (d.method === 'Runtime.bindingCalled' && d.params.name === '__shotCdp') {
+      const { k, method, params } = JSON.parse(d.params.payload);
+      const reply = (err, res) =>
+        call('Runtime.evaluate', { expression: `__shotCdpDone(${k}, ${JSON.stringify(err)}, ${JSON.stringify(res ?? null)})`, contextId: d.params.executionContextId });
+      call(method, params).then((res) => reply(null, res), (err) => reply(err.message));
     }
   };
   const call = (method, params = {}) =>
@@ -139,6 +163,9 @@ try {
   if (mobile) await call('Emulation.setTouchEmulationEnabled', { enabled: true });
   if (opt.transparent) await call('Emulation.setDefaultBackgroundColorOverride', { color: { r: 0, g: 0, b: 0, a: 0 } });
   await call('Page.enable');
+  await call('Runtime.enable');
+  await call('Runtime.addBinding', { name: '__shotCdp' });
+  await call('Page.addScriptToEvaluateOnNewDocument', { source: CDP_SHIM });
   if (opt.init) await call('Page.addScriptToEvaluateOnNewDocument', { source: opt.init });
   if (opt.slowPhone) {
     await call('Network.enable');

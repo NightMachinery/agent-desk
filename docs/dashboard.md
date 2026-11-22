@@ -42,7 +42,11 @@ Chrome (`CHROME` names another binary), and installs nothing.
     node web/app/scripts/shot.mjs 'http://127.0.0.1:7792/#/p/' $d/phone.png --width 520 --height 900 \
       --js 'document.querySelectorAll("button.check")[0].click(); return document.querySelector(".bulk")?.innerText'
 
-A width under 600 emulates a phone. `--wait` (default 1500 ms) is the time
+A width under 600 emulates a phone. The page script can also send
+DevTools commands with `await cdp(method, params)`, for input a script
+cannot fake: a real touch held (`Input.dispatchTouchEvent`) or a real mouse
+move (`Input.dispatchMouseEvent`) runs the browser's own gestures and hover.
+`--wait` (default 1500 ms) is the time
 given to the page to load first. An exception in the page script exits 1.
 The page's live stream never goes idle, so tools that wait for the network to
 settle (such as Chrome's `--virtual-time-budget`) hang on it; this script
