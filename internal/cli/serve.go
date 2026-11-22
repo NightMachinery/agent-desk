@@ -831,32 +831,43 @@ func (s *server) apiView(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, resp)
 }
 
-// setPaths are the projects, each followed by its runs, in name order: what
-// the set editor offers. The desk's own paths are left out.
+// setPaths are every node on the desk, each followed by the nodes under it,
+// siblings in name order: what the set editor offers (a project, a run or
+// any role can be a prefix). The desk's own paths are left out.
 func setPaths(d *desk.Desk) []string {
-	runs := map[string]map[string]bool{}
+	kids := map[string]map[string]bool{} // parent path -> child paths
 	for _, e := range d.Events {
 		if desk.IsMark(e.Kind) {
 			continue
 		}
-		p, r, _ := desk.Split(desk.NodeOf(e))
-		if p == "" || p == desk.SystemPrefix {
+		node := desk.NodeOf(e)
+		if p, _, _ := desk.Split(node); p == "" || p == desk.SystemPrefix {
 			continue
 		}
-		if runs[p] == nil {
-			runs[p] = map[string]bool{}
-		}
-		if r != "" {
-			runs[p][r] = true
+		for node != "" {
+			parent := ""
+			if i := strings.LastIndex(node, "/"); i >= 0 {
+				parent = node[:i]
+			}
+			if kids[parent] == nil {
+				kids[parent] = map[string]bool{}
+			}
+			if kids[parent][node] {
+				break // its ancestors are in already
+			}
+			kids[parent][node] = true
+			node = parent
 		}
 	}
 	out := []string{}
-	for _, p := range sortedKeys(mapKeys(runs)) {
-		out = append(out, p)
-		for _, r := range sortedKeys(runs[p]) {
-			out = append(out, p+"/"+r)
+	var walk func(string)
+	walk = func(parent string) {
+		for _, c := range sortedKeys(kids[parent]) {
+			out = append(out, c)
+			walk(c)
 		}
 	}
+	walk("")
 	return out
 }
 

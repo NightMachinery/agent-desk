@@ -104,7 +104,8 @@ The API, all JSON:
   `unfocused=1`. Also `sets` (each `name`, `prefixes`, `focused`), `focus`
   (`name`, `prefixes` and `hidden`: `needs_you` and `unread`, what the focus
   hides in this view; null when nothing is focused) and `paths` (every
-  project, each followed by its runs, for the set editor).
+  node: each project followed by its runs and roles, depth first, for the
+  set editor).
 - `POST api/sets {action, name, prefixes?}`: `define` (create or replace a
   set), `delete`, or `focus` (an empty `name` turns the focus off), as the
   `sets` and `focus` commands do.

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/NightMachinery/agent-desk/internal/desk"
+	"github.com/NightMachinery/agent-desk/internal/store"
 )
 
 // twoProjects files a blocked question and a notice in example-proj (run r1)
@@ -272,7 +273,8 @@ func TestServeSetsAndFocus(t *testing.T) {
 		strings.Join(titles(v.View.NeedsYou), "|") != "Near question?" {
 		t.Fatalf("focused view: %+v %+v %v", v.Sets, v.Focus, titles(v.View.NeedsYou))
 	}
-	if strings.Join(v.Paths, ",") != "example-proj,example-proj/r1,other-proj,other-proj/r2,other-proj/r3" {
+	if strings.Join(v.Paths, ",") != "example-proj,example-proj/r1,example-proj/r1/coord,"+
+		"other-proj,other-proj/r2,other-proj/r2/coord,other-proj/r3,other-proj/r3/coord" {
 		t.Fatalf("paths: %v", v.Paths)
 	}
 	view("/api/view?unfocused=1")
@@ -288,5 +290,24 @@ func TestServeSetsAndFocus(t *testing.T) {
 	view("/api/view")
 	if len(v.Sets) != 0 {
 		t.Fatalf("deleted: %+v", v.Sets)
+	}
+}
+
+// setPaths lists every node with its ancestors, each followed by what is
+// under it: a-b sorts after a's subtree although "a-b" < "a/..." as text,
+// and the desk's own paths and marks are left out.
+func TestSetPaths(t *testing.T) {
+	ev := func(kind, path string) store.Event { return store.Event{Kind: kind, Path: path} }
+	d := &desk.Desk{Events: []store.Event{
+		ev("tell", "a/r1/coord/worker"),
+		ev("tell", "a-b/r1"),
+		ev("set", "a/r2/coord/status"), // a slot: its node is a/r2/coord
+		ev("tell", "a/r1"),
+		ev("tell", "_desk/screen"),
+		ev("pref", "z/run"),
+	}}
+	got := strings.Join(setPaths(d), ",")
+	if want := "a,a/r1,a/r1/coord,a/r1/coord/worker,a/r2,a/r2/coord,a-b,a-b/r1"; got != want {
+		t.Fatalf("setPaths:\n got %s\nwant %s", got, want)
 	}
 }
