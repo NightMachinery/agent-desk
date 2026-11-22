@@ -3,6 +3,8 @@
 // is therefore a snapshot, kept until the list changes while the open item
 // is still in it (or nothing is open).
 
+import { untrack } from 'svelte';
+
 export const nav = $state({
   order: /** @type {string[]} */ ([]),
   pinned: /** @type {Set<string>} */ (new Set()),
@@ -15,7 +17,10 @@ export const nav = $state({
 export function snapshot(ids, current, pinned = new Set(), open = new Set()) {
   const seen = new Set();
   const order = ids.filter((id) => !seen.has(id) && seen.add(id));
-  if (!current || order.includes(current) || !nav.order.includes(current)) nav.order = order;
+  // Untracked: the caller's effect writes nav.order, so depending on it would
+  // loop forever whenever the open item is in neither order.
+  const was = untrack(() => nav.order);
+  if (!current || order.includes(current) || !was.includes(current)) nav.order = order;
   nav.pinned = pinned;
   nav.open = open;
 }
