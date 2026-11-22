@@ -26,6 +26,15 @@ disabled control's usual title in `data-tip-what`, so the card says what it
 does and, under a rule, why it cannot now. `data-tip-img="URL"` adds an image
 preview on top. Code that reads a title reads `tipText(el)`.
 
+Touch has no hover, so there a touch held for half a second shows the card
+(and Android's long press, which arrives as `contextmenu`, does the same
+instead of the menu); a tap on a disabled control shows it at once. The card
+goes above the finger, without key caps, and stays until the next touch.
+The click a hold would send is swallowed. A held link gets no card, so it
+keeps the phone's link menu. Under `(hover: none)`, `app.css` turns off the
+callout and text selection on elements with a tooltip, links and text boxes
+excepted.
+
 ## Looking at a change
 
 Check a change in a real browser, on a desk of fabricated data, before

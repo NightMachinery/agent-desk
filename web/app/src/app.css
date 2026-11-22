@@ -415,3 +415,14 @@ textarea.input {
     --modeline-h: 22px;
   }
 }
+
+/* On touch, holding an element with a tooltip shows its card (Tooltip.svelte),
+   so the phone's own callout and text selection stay out of the way there.
+   Links keep their menu, and text boxes their selection. */
+@media (hover: none) {
+  :is([title], [data-tip], [data-tip-img]):not(a[href], input, textarea, [contenteditable]) {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}

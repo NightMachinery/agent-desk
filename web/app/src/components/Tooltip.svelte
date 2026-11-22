@@ -7,9 +7,16 @@
   // data-tip-img (an image to preview) gets one on hover, and a button or
   // link also on keyboard focus. The title moves to data-tip the first time
   // the element is reached, so the browser never shows its own.
+  //
+  // Touch has no hover. There, holding an element shows its card, and so
+  // does tapping a disabled control, which would otherwise do nothing; the
+  // card then stays until the next touch. A link held keeps the phone's own
+  // menu (open in a new tab, copy the link), so holding shows no card on it.
 
   const SELECTOR = '[title], [data-tip], [data-tip-img]';
   const FOCUSABLE = 'button, a[href], summary, [role="button"]';
+  const HOLD = 500; // ms: a touch held this long shows the card
+  const SLOP = 10; // px: a touch moving further is a scroll, not a hold
 
   let el = /** @type {HTMLElement | null} */ (null); // the element shown
   let cand = /** @type {HTMLElement | null} */ (null); // the one waiting for its delay
@@ -23,7 +30,12 @@
   let img = $state('');
   let disabled = $state(false);
   let byPointer = true;
+  let byTouch = $state(false); // shown by a touch: no key caps, and above the finger
   let pointerX = 0;
+  /** @type {{t: HTMLElement, x: number, y: number, timer: number, held: boolean} | null} */
+  let press = null; // the touch held on an element with a card
+  let swallow = /** @type {HTMLElement | null} */ (null); // its click, which the hold used up
+  let swallowUntil = 0;
   let timer = 0;
   let warmUntil = 0;
 
@@ -43,11 +55,13 @@
     } else t.setAttribute('aria-description', title);
   }
 
+  const isDisabled = (t) => t.matches(':disabled') || t.getAttribute('aria-disabled') === 'true';
+
   function read(t) {
     text = t.dataset.tip ?? '';
     what = t.dataset.tipWhat ?? '';
     img = t.dataset.tipImg ?? '';
-    disabled = t.matches(':disabled') || t.getAttribute('aria-disabled') === 'true';
+    disabled = isDisabled(t);
   }
 
   function schedule(t, delay) {
@@ -75,8 +89,11 @@
     const h = card.offsetHeight;
     const cx = byPointer && r.width > 320 ? pointerX : r.left + r.width / 2;
     x = Math.round(Math.max(8, Math.min(innerWidth - w - 8, cx - w / 2)));
-    const below = r.bottom + 8;
-    y = Math.round(below + h <= innerHeight - 8 || r.top - 8 - h < 8 ? Math.min(below, innerHeight - h - 8) : r.top - 8 - h);
+    const below = Math.min(r.bottom + 8, innerHeight - h - 8);
+    const above = r.top - 8 - h;
+    // A finger covers what is under it, so on touch the card goes above.
+    const up = above >= 8 && (byTouch || r.bottom + 8 + h > innerHeight - 8);
+    y = Math.round(up ? above : below);
     placed = true;
   }
 
@@ -94,12 +111,14 @@
     if (!(t instanceof HTMLElement) || t === el || t === cand) return;
     adopt(t);
     byPointer = true;
+    byTouch = false;
     pointerX = e.clientX;
     // Sweeping along a toolbar: the next card follows at once.
     schedule(t, shown || Date.now() < warmUntil ? 40 : 450);
   }
 
   function out(e) {
+    if (e.pointerType === 'touch') return; // a finger lifting: the card stays
     const cur = el ?? cand;
     if (!cur) return;
     const to = e.relatedTarget;
@@ -112,6 +131,7 @@
     if (!(t instanceof HTMLElement) || !t.matches(SELECTOR) || !t.matches(FOCUSABLE) || !t.matches(':focus-visible')) return;
     adopt(t);
     byPointer = false;
+    byTouch = false;
     schedule(t, 600);
   }
 
@@ -119,10 +139,80 @@
     if (e.target === el || e.target === cand) hide();
   }
 
+  function down(e) {
+    hide();
+    endPress();
+    swallow = null;
+    if (e.pointerType !== 'touch' || !e.isPrimary) return;
+    const t = /** @type {Element} */ (e.target).closest?.(SELECTOR);
+    if (!(t instanceof HTMLElement)) return;
+    adopt(t);
+    press = { t, x: e.clientX, y: e.clientY, held: false, timer: 0 };
+    if (!t.matches('a[href]')) press.timer = setTimeout(hold, HOLD);
+  }
+
+  function hold() {
+    if (!press || press.held) return;
+    clearTimeout(press.timer);
+    press.held = true;
+    showByTouch(press);
+    if (navigator.userActivation?.hasBeenActive) navigator.vibrate?.(8);
+  }
+
+  function showByTouch(p) {
+    byPointer = true;
+    byTouch = true;
+    pointerX = p.x;
+    clearTimeout(timer);
+    show(p.t);
+  }
+
+  function move(e) {
+    if (press && !press.held && e.isPrimary && Math.hypot(e.clientX - press.x, e.clientY - press.y) > SLOP) endPress();
+  }
+
+  function up(e) {
+    if (!press || !e.isPrimary) return;
+    const p = press;
+    endPress();
+    if (p.held) {
+      // The browser may still send the tap's click: it is not one.
+      swallow = p.t;
+      swallowUntil = Date.now() + 800;
+    } else if (isDisabled(p.t)) showByTouch(p);
+  }
+
+  function endPress() {
+    if (press) clearTimeout(press.timer);
+    press = null;
+  }
+
+  function click(e) {
+    const s = swallow;
+    swallow = null;
+    if (s && Date.now() < swallowUntil && e.target instanceof Node && s.contains(e.target)) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+    }
+  }
+
+  // Android's long press arrives as contextmenu: it shows the card, not the
+  // menu. A link's press has no timer, so its menu stays.
+  function contextmenu(e) {
+    if (!press || !press.timer) return;
+    e.preventDefault();
+    hold();
+  }
+
   onMount(() => {
     const opts = { capture: true, passive: true };
     const quiet = () => hide();
-    window.addEventListener('pointerdown', quiet, opts);
+    window.addEventListener('pointerdown', down, opts);
+    window.addEventListener('pointermove', move, opts);
+    window.addEventListener('pointerup', up, opts);
+    window.addEventListener('pointercancel', endPress, opts);
+    window.addEventListener('click', click, true);
+    window.addEventListener('contextmenu', contextmenu, true);
     window.addEventListener('keydown', quiet, opts);
     window.addEventListener('wheel', quiet, opts);
     document.addEventListener('scroll', quiet, opts);
@@ -145,7 +235,12 @@
     });
     mo.observe(document.body, { attributes: true, attributeFilter: ['title', 'disabled', 'data-tip-what', 'data-tip-img'], subtree: true, childList: true });
     return () => {
-      window.removeEventListener('pointerdown', quiet, opts);
+      window.removeEventListener('pointerdown', down, opts);
+      window.removeEventListener('pointermove', move, opts);
+      window.removeEventListener('pointerup', up, opts);
+      window.removeEventListener('pointercancel', endPress, opts);
+      window.removeEventListener('click', click, true);
+      window.removeEventListener('contextmenu', contextmenu, true);
       window.removeEventListener('keydown', quiet, opts);
       window.removeEventListener('wheel', quiet, opts);
       document.removeEventListener('scroll', quiet, opts);
@@ -153,6 +248,7 @@
       window.removeEventListener('resize', quiet);
       mo.disconnect();
       clearTimeout(timer);
+      endPress();
     };
   });
 </script>
@@ -170,7 +266,7 @@
         <span>{reason}</span>
       </div>
     {/if}
-    {#if parts.keys.length}
+    {#if parts.keys.length && !byTouch}
       <div class="keys">
         {#each parts.keys as chord, i (i)}
           {#if i}<span class="or">or</span>{/if}
