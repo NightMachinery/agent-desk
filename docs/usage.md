@@ -1238,6 +1238,10 @@ neither, the global value applies. Both are on unless you turn them off.
   agent.
 - **A subagent whose parent is archived gets off**: nobody is left to use
   its work.
+- **A resumed subagent asks its parent first.** agent-quotas resumes a main
+  agent with "Continue.", but tells a subagent to message its parent with
+  where it stopped and what it would do next, and to wait for the answer:
+  the parent may have replaced it or changed plans meanwhile.
 
 The server applies the settings every three minutes and right after you
 change one. `agent-desk quota defaults --dry-run` lists what it would
