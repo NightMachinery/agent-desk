@@ -1241,7 +1241,12 @@ neither, the global value applies. Both are on unless you turn them off.
 - **A resumed subagent asks its parent first.** agent-quotas resumes a main
   agent with "Continue.", but tells a subagent to message its parent with
   where it stopped and what it would do next, and to wait for the answer:
-  the parent may have replaced it or changed plans meanwhile.
+  the parent may have replaced it or changed plans meanwhile. If the parent
+  is archived or gone (the default turns such a child off, so this reaches
+  only one switched on by its box or `/auto-continue`), the child is told not to message it, because a message would
+  unarchive it, and to stop unless the work is clearly still wanted. An
+  agent started by an agent outside Paseo has no parent on record, so it is
+  resumed as a main agent.
 
 The server applies the settings every three minutes and right after you
 change one. `agent-desk quota defaults --dry-run` lists what it would
