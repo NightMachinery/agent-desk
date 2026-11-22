@@ -128,7 +128,8 @@ entry reuses the letter of its short key (`p` pins, so `SPC b p` pins).
 - `SPC t`: toggles: `a` show all, `o` oldest first, `s` select mode, `d`
   which deliverables to list (unread latest, latest, all), `t` the Tasks
   section's menu (open only, or also those finished in the last 15 minutes
-  to 30 days), `c` auto-continue.
+  to 30 days), `c` auto-continue, `C` let the agent's auto-continue follow
+  its default again.
 - `SPC x`: selecting: `a` every item, `c` clear, `d` mark every unread item
   in the list read.
 - `SPC w`: panes, as `C-w`.

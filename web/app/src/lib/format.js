@@ -167,6 +167,11 @@ export function pushText(v) {
   return { off: 'not pushed', away: 'pushed when you are away', always: 'pushed' }[v] || v || '';
 }
 
+/** An auto-continue.* value in words. */
+export function autoContinueText(v) {
+  return { on: 'on: resumes when its quota returns', off: 'off: stays stopped' }[v] || v || '';
+}
+
 /** Where a resolved setting comes from, seen from path. */
 export function originText(o, path) {
   if (!o) return '';

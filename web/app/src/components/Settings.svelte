@@ -5,7 +5,7 @@
   import { exportHref } from '../lib/exports.js';
   import { toast } from '../lib/toast.svelte.js';
   import { href } from '../lib/route.svelte.js';
-  import { desktopText, remoteText, awayChoice, pushText, originText, behaviorLabel } from '../lib/format.js';
+  import { desktopText, remoteText, awayChoice, pushText, originText, behaviorLabel, autoContinueText } from '../lib/format.js';
   import { ui, saveUI } from '../lib/ui.svelte.js';
   import PushSettings from './PushSettings.svelte';
   import SectionOrder from './SectionOrder.svelte';
@@ -99,6 +99,8 @@
     'notify.remote': 'Phone notification',
     'notify.remote.dest': 'Phone destination',
     'notify.push': 'When to push (to every device with push turned on)',
+    'auto-continue.main': 'Auto-continue for main agents',
+    'auto-continue.subagents': 'Auto-continue for subagents',
   };
 
   async function load() {
@@ -121,6 +123,7 @@
     if (key === 'notify.desktop') return desktopText(v);
     if (key === 'notify.remote') return choice ? awayChoice(v) : remoteText(v, view?.remote_label);
     if (key === 'notify.push') return choice ? awayChoice(v) : pushText(v);
+    if (key.startsWith('auto-continue.')) return autoContinueText(v);
     return v || 'not set';
   }
   function choices(k) {
@@ -179,7 +182,7 @@
           </select>
         {/if}
         <div class="origin">
-          <span class="faint">{originText(k.origin, path)}{k.classless && cls !== '*' ? ' · the same for every kind' : ''}</span>
+          <span class="faint">{originText(k.origin, path)}{k.classless && cls !== '*' ? ' · the same for every kind' : ''}{k.key.startsWith('auto-continue.') ? ' · an agent with its own choice keeps it' : ''}</span>
           {#if k.here}<button data-keys="none" class="btn ghost small" {...off(undefined, [busy, BUSY])} onclick={() => save(k, null)}>Reset to inherited</button>{/if}
         </div>
         {#if k.differs?.length}

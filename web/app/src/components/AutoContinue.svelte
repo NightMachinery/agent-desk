@@ -2,12 +2,17 @@
   // Auto-continue for one Paseo agent: when its own quota runs out, the
   // watcher ([quota] auto_continue_command) sends it Continue. once the
   // quota returns. Hidden when the desk has no auto_continue_command.
+  // Where agent-quotas runs, an agent nobody decided for follows the
+  // auto-continue.main or .subagents setting inherited at its node; ticking
+  // the box decides for it alone, and Use default undoes that.
   import { get, post } from '../lib/api.js';
   import { toast } from '../lib/toast.svelte.js';
   import { off, BUSY } from '../lib/why.js';
+  import { tip } from '../lib/shortcuts.js';
 
   let { paseo = '' } = $props();
-  let ac = $state({ available: false, on: false });
+  /** @typedef {{available: boolean, on: boolean, set_by?: string, default?: {key: string, on: boolean, scope: string, orphan?: boolean, origin?: {source: string, scope?: string}}}} ACState */
+  let ac = $state(/** @type {ACState} */ ({ available: false, on: false }));
   let busy = $state(false);
 
   async function load() {
@@ -22,6 +27,33 @@
     void paseo;
     load();
   });
+
+  const explicit = $derived(!!ac.set_by && ac.set_by !== 'default');
+  const tipText = $derived.by(() => {
+    const d = ac.default;
+    const state = ac.on ? 'on' : 'off';
+    if (!d) return 'When this agent runs out of quota, send it Continue. once its quota returns (the auto-continue watcher)';
+    const kind = d.key === 'auto-continue.subagents' ? 'subagents' : 'main agents';
+    const from = d.orphan
+      ? 'off, since its parent is archived'
+      : `${d.on ? 'on' : 'off'}, ${d.origin?.source === 'pref' ? (d.origin.scope ? `set at ${d.origin.scope}` : 'set globally') : d.origin?.source === 'config' ? 'a config default' : 'built in'}`;
+    if (explicit) return `Auto-continue ${state} for this agent alone: its own choice. The default for ${kind} here is ${from}; Use default follows it again`;
+    if (ac.on === d.on) return `Auto-continue ${state}: the default for ${kind} here (${from}). Ticking the box decides for this agent alone`;
+    return `Auto-continue ${state} for now: the default for ${kind} here is ${from}, and applies within a few minutes, or once the agent works again`;
+  });
+
+  async function useDefault() {
+    busy = true;
+    try {
+      const res = await post('quota', { action: 'auto-continue-default', id: paseo });
+      toast(res.note || 'It follows its default again.', 'ok');
+      await load();
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      busy = false;
+    }
+  }
 
   async function toggle() {
     busy = true;
@@ -39,10 +71,13 @@
 </script>
 
 {#if ac.available}
-  <label class="toggle" title="When this agent runs out of quota, send it Continue. once its quota returns (the auto-continue watcher)">
+  <label class="toggle" title={tipText}>
     <input type="checkbox" checked={ac.on} {...off(undefined, [busy, BUSY])} onchange={toggle} data-cmd="auto-continue" />
     Auto-continue
   </label>
+  {#if explicit && ac.default}
+    <button data-cmd="auto-continue-default" class="btn ghost small" {...off(tip(`Drop this agent's own choice: it follows the default for its role again (${ac.default.on ? 'on' : 'off'})`, 'auto-continue-default'), [busy, BUSY])} onclick={useDefault}>Use default</button>
+  {/if}
 {/if}
 
 <style>

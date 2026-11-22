@@ -147,6 +147,7 @@
   "SPC t t" :tasks-show
   "SPC t s" :toggle-select
   "SPC t c" :toggle-auto-continue
+  "SPC t C" :auto-continue-default
 
   ; SPC w and C-w: panes.
   "SPC w h" :pane-left

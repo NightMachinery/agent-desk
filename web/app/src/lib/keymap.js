@@ -448,6 +448,7 @@ C('deliverables-all', 'Deliverables: every one, replaced ones too', deliverables
 C('tasks-show', 'Tasks section: open only, or also those finished in the last 15 minutes to 30 days (cycle)', () => say(`Tasks: ${taskModeLabel[showTasks()]}`));
 C('toggle-select', 'Toggle select mode', () => click('select-mode'));
 C('toggle-auto-continue', 'Toggle auto-continue', () => click('auto-continue'), tagged('auto-continue', 'the settings page'));
+C('auto-continue-default', "Let this agent's auto-continue follow its default again", () => click('auto-continue-default'), tagged('auto-continue-default', 'an agent with its own auto-continue choice'));
 C('edit-sets', 'Edit focus sets', () => click('edit-sets'), tagged('edit-sets', 'the sidebar'));
 
 // Panes.
