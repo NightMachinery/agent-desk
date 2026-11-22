@@ -552,8 +552,11 @@ kept).
 
 The sidebar's Focus list switches the focus between your project sets (see
 Project sets and the focus); the gear beside Focus edits the focused set (or
-the first one), and creates others, by ticking projects or some of a
-project's runs. While a set is focused, "All projects" counts what the focus
+the first one), and creates others, by ticking projects, or runs or roles
+inside them: the arrow beside a project opens its runs, and each run its
+roles. The search above the list finds projects, runs and roles by name
+(`coord` finds the coord role in every run, `agent-desk coord` only in that
+project) and opens the way to each match. While a set is focused, "All projects" counts what the focus
 hides that needs you (hover it for the breakdown); clicking it leaves the
 focus.
 

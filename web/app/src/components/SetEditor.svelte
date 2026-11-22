@@ -1,13 +1,16 @@
 <script>
   // Defines, changes and deletes project sets by ticking projects (or some
-  // of their runs) from what is on the desk. A path not on the desk yet can
-  // be typed in.
+  // of their runs or roles) from what is on the desk. Each project expands
+  // into its tree of runs and roles; the search finds a project or role by
+  // name anywhere in it and opens the way to it. A path not on the desk yet
+  // can be typed in.
   import Sheet from './Sheet.svelte';
   import { post } from '../lib/api.js';
   import { toast } from '../lib/toast.svelte.js';
   import { setsUi } from '../lib/sets.svelte.js';
   import { untrack } from 'svelte';
   import { off, BUSY } from '../lib/why.js';
+  import { ancestors, buildTree, marks, search, under, words } from '../lib/settree.js';
 
   let { sets = [], paths = [], onchange } = $props();
 
@@ -16,17 +19,14 @@
   let extra = $state('');
   let expanded = $state(new Set());
   let busy = $state(false);
+  let query = $state('');
+  // Nodes the search opened (or left shut) that the user toggled while it
+  // ran; forgotten when the search changes.
+  let flipped = $state(new Set());
 
-  // The projects, each with its runs.
-  const projects = $derived.by(() => {
-    const out = [];
-    for (const p of paths) {
-      const i = p.indexOf('/');
-      if (i < 0) out.push({ path: p, runs: [] });
-      else out.at(-1)?.runs.push(p);
-    }
-    return out;
-  });
+  const projects = $derived(buildTree(paths));
+  const found = $derived(search(projects, query));
+  const ws = $derived(words(query));
   const known = $derived(new Set(paths));
   // Picked paths the desk has nothing under yet.
   const unknown = $derived([...picked].filter((p) => !known.has(p)));
@@ -40,12 +40,16 @@
     const s = untrack(() => sets.find((x) => x.name === want));
     name = s?.name ?? '';
     picked = new Set(s?.prefixes ?? []);
-    // Show the runs of a project the set takes only part of.
-    expanded = new Set((s?.prefixes ?? []).filter((p) => p.includes('/')).map((p) => p.split('/')[0]));
+    // Open the way to each run or role the set takes.
+    expanded = new Set((s?.prefixes ?? []).flatMap(ancestors));
     extra = '';
+    query = '';
   });
 
-  const under = (p, prefix) => p === prefix || p.startsWith(prefix + '/');
+  // The picked path that takes in path from above, if any.
+  const cover = (path) => ancestors(path).find((a) => picked.has(a));
+  // Whether node's children show: the search opens the way to its hits.
+  const isOpen = (path) => (found?.open.has(path) ? !flipped.has(path) : expanded.has(path));
   function toggle(path) {
     const next = new Set(picked);
     if (next.has(path)) next.delete(path);
@@ -56,10 +60,21 @@
     }
     picked = next;
   }
-  function toggleRuns(p) {
-    const next = new Set(expanded);
-    next.has(p) ? next.delete(p) : next.add(p);
-    expanded = next;
+  function toggleOpen(p) {
+    const flip = (set) => {
+      const next = new Set(set);
+      next.has(p) ? next.delete(p) : next.add(p);
+      return next;
+    };
+    if (found?.open.has(p)) flipped = flip(flipped);
+    else expanded = flip(expanded);
+  }
+  // "3 runs", or "1 picked · 3 runs" when the set takes something under it.
+  function childCount(n) {
+    const noun = n.depth === 0 ? 'run' : 'role';
+    const total = n.children.length;
+    const some = [...picked].filter((p) => p !== n.path && under(p, n.path)).length;
+    return `${some ? `${some} picked · ` : ''}${total} ${noun}${total > 1 ? 's' : ''}`;
   }
   function addExtra() {
     const p = extra.trim().replace(/^\/+|\/+$/g, '');
@@ -107,6 +122,31 @@
   }
 </script>
 
+{#snippet branch(nodes)}
+  {#each nodes as n (n.path)}
+    {#if !found || found.show.has(n.path)}
+      {@const by = cover(n.path)}
+      <div class="row" style:--depth={n.depth} class:deep={n.depth > 0}>
+        <label class="pick">
+          <input type="checkbox" checked={picked.has(n.path) || !!by} {...off(undefined, [by, `Included: ${by} is picked`])} onchange={() => toggle(n.path)} />
+          <span class="path" title={n.depth ? n.path : undefined}>
+            {#each found ? marks(n.name, ws) : [{ t: n.name, hit: false }] as m, k (k)}{#if m.hit}<mark>{m.t}</mark>{:else}{m.t}{/if}{/each}
+          </span>
+        </label>
+        {#if n.children.length}
+          <button data-keys="none" class="runs-toggle faint" aria-expanded={isOpen(n.path)} aria-label="{isOpen(n.path) ? 'Hide' : 'Show'} what is under {n.path}" onclick={() => toggleOpen(n.path)}>
+            {childCount(n)}
+            <svg width="10" height="10" viewBox="0 0 10 10" class:open={isOpen(n.path)} aria-hidden="true"><path d="M3 2l3.5 3L3 8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
+          </button>
+        {/if}
+      </div>
+      {#if isOpen(n.path)}
+        {@render branch(n.children)}
+      {/if}
+    {/if}
+  {/each}
+{/snippet}
+
 <Sheet bind:open={setsUi.open} title={editing ? `Edit ${editing.name}` : 'New project set'}>
   {#if sets.length}
     <div class="tabs" role="tablist" aria-label="Sets">
@@ -123,6 +163,9 @@
   </label>
 
   <div class="field"><span>Projects</span></div>
+  {#if paths.length}
+    <input class="search" type="search" bind:value={query} oninput={() => (flipped = new Set())} placeholder="Search projects, runs and roles" aria-label="Search projects, runs and roles" autocomplete="off" />
+  {/if}
   <div class="list">
     {#each unknown as p (p)}
       <label class="row">
@@ -131,31 +174,12 @@
         <span class="faint note">not on the desk yet</span>
       </label>
     {/each}
-    {#each projects as p (p.path)}
-      <div class="row">
-        <label class="pick">
-          <input type="checkbox" checked={picked.has(p.path)} onchange={() => toggle(p.path)} />
-          <span class="path">{p.path}</span>
-        </label>
-        {#if p.runs.length}
-          {@const some = p.runs.filter((r) => picked.has(r)).length}
-          <button data-keys="none" class="runs-toggle faint" aria-expanded={expanded.has(p.path)} onclick={() => toggleRuns(p.path)}>
-            {some ? `${some} of ${p.runs.length} runs` : `${p.runs.length} run${p.runs.length > 1 ? 's' : ''}`}
-            <svg width="10" height="10" viewBox="0 0 10 10" class:open={expanded.has(p.path)} aria-hidden="true"><path d="M3 2l3.5 3L3 8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
-          </button>
-        {/if}
-      </div>
-      {#if expanded.has(p.path)}
-        {#each p.runs as r (r)}
-          <label class="row run">
-            <input type="checkbox" checked={picked.has(r) || picked.has(p.path)} {...off(undefined, [picked.has(p.path), 'Included: the whole project is picked'])} onchange={() => toggle(r)} />
-            <span class="path">{r.slice(p.path.length + 1)}</span>
-          </label>
-        {/each}
-      {/if}
-    {:else}
-      <p class="faint">No projects on the desk yet.</p>
-    {/each}
+    {@render branch(projects)}
+    {#if !projects.length}
+      <p class="faint empty">No projects on the desk yet.</p>
+    {:else if found && !found.show.size}
+      <p class="faint empty">No project, run or role matches “{query.trim()}”.</p>
+    {/if}
   </div>
 
   <form class="extra" onsubmit={(e) => (e.preventDefault(), addExtra())}>
@@ -203,10 +227,12 @@
     font-weight: 600;
     color: var(--muted);
   }
-  .field:has(+ .list) {
+  .field:has(+ .list),
+  .field:has(+ .search) {
     margin-bottom: 4px;
   }
-  input[type='text'] {
+  input[type='text'],
+  input[type='search'] {
     height: 32px;
     padding: 0 10px;
     border-radius: 8px;
@@ -216,7 +242,8 @@
     font-size: 14px;
     font-weight: 400;
   }
-  input[type='text']:focus {
+  input[type='text']:focus,
+  input[type='search']:focus {
     outline: 0;
     border-color: var(--default);
     box-shadow: 0 0 0 3px var(--focus);
@@ -245,9 +272,22 @@
     min-width: 0;
     padding: 0;
   }
-  .run {
-    margin-left: 22px;
+  .search {
+    width: 100%;
+    margin-bottom: 6px;
+  }
+  .deep {
+    margin-left: calc(var(--depth) * 22px);
     min-height: 28px;
+    font-size: 13px;
+  }
+  mark {
+    background: var(--focus);
+    color: inherit;
+    border-radius: 3px;
+  }
+  .empty {
+    margin: 8px 6px;
     font-size: 13px;
   }
   .path {
