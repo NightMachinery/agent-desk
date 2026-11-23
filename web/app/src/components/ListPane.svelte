@@ -3,7 +3,7 @@
   import LazyPanel from './LazyPanel.svelte';
   import CopyIds from './CopyIds.svelte';
   import { tip } from '../lib/shortcuts.js';
-  import { route, href, go } from '../lib/route.svelte.js';
+  import { route, href, go, showMode, sortMode, showOver } from '../lib/route.svelte.js';
   import { agentName, copy, short } from '../lib/format.js';
   import { toast } from '../lib/toast.svelte.js';
   import { post } from '../lib/api.js';
@@ -34,17 +34,22 @@
   // The server lists oldest first. Recent first (the default) puts each
   // group's newest item on top, and the groups of the project with the newest
   // item first; in Needs you, blocked questions still come before defaults.
+  // Read order (sort=read) does the same by read time, the unread on top.
+  // Keys compare as plain strings (ids and RFC 3339 times sort by time;
+  // '~' sorts after both), never with localeCompare, which puts '~' first.
+  const keyOf = (it) => (sortMode() === 'read' ? (it.unread || !it.read_at ? '~' : it.read_at) : it.event.id);
+  const cmp = (x, y) => (x < y ? -1 : x > y ? 1 : 0);
   function recent(groups, blockedFirst) {
     const byProject = new Map();
     const rank = (it) => (blockedFirst && it.event.level === 'blocked' ? 0 : 1);
     const ranked = groups.map((group) => {
-      const newest = group.items.reduce((m, it) => (it.event.id > m ? it.event.id : m), '');
+      const newest = group.items.reduce((m, it) => (keyOf(it) > m ? keyOf(it) : m), '');
       if (!byProject.has(group.project) || newest > byProject.get(group.project)) byProject.set(group.project, newest);
-      const items = [...group.items].sort((a, b) => rank(a) - rank(b) || (a.event.id < b.event.id ? 1 : -1));
+      const items = [...group.items].sort((a, b) => rank(a) - rank(b) || cmp(keyOf(b), keyOf(a)));
       return { group: { ...group, items }, newest };
     });
     return ranked
-      .sort((a, b) => byProject.get(b.group.project).localeCompare(byProject.get(a.group.project)) || b.newest.localeCompare(a.newest))
+      .sort((a, b) => cmp(byProject.get(b.group.project), byProject.get(a.group.project)) || cmp(b.newest, a.newest))
       .map(({ group }) => group);
   }
   // Items being marked read are hidden at once (hiding.svelte.js); a view
@@ -53,17 +58,17 @@
     const v = view?.view;
     if (v) settle(new Set([v.needs_you, v.new, v.responses, v.deliverables].flatMap((gs) => idsOf(gs ?? []))));
   });
-  const needs = $derived(unhidden(route.old ? (view?.view?.needs_you ?? []) : recent(view?.view?.needs_you ?? [], true)));
-  const fresh = $derived(unhidden(route.old ? (view?.view?.new ?? []) : recent(view?.view?.new ?? [], false)));
-  const responses = $derived(unhidden(route.old ? (view?.view?.responses ?? []) : recent(view?.view?.responses ?? [], false)));
-  const deliverables = $derived(unhidden(route.old ? (view?.view?.deliverables ?? []) : recent(view?.view?.deliverables ?? [], false)));
+  const needs = $derived(unhidden(sortMode() === 'old' ? (view?.view?.needs_you ?? []) : recent(view?.view?.needs_you ?? [], true)));
+  const fresh = $derived(unhidden(sortMode() === 'old' ? (view?.view?.new ?? []) : recent(view?.view?.new ?? [], false)));
+  const responses = $derived(unhidden(sortMode() === 'old' ? (view?.view?.responses ?? []) : recent(view?.view?.responses ?? [], false)));
+  const deliverables = $derived(unhidden(sortMode() === 'old' ? (view?.view?.deliverables ?? []) : recent(view?.view?.deliverables ?? [], false)));
   const pinned = $derived(view?.view?.pinned ?? []);
   const deliverablesAny = $derived(view?.view?.deliverables_any ?? 0);
   const sectionOrder = $derived(orderedSections(ui.sectionOrder));
   const runs = $derived(view?.view?.runs ?? []);
   const count = (gs) => gs.reduce((n, g) => n + g.items.length, 0);
   // A section's badge counts what is unread: an item read a moment ago
-  // stays listed (until you move on, or with Show all) but no longer counts.
+  // stays listed (until you move on, or with Show: All) but no longer counts.
   const unreadCount = (gs) => gs.reduce((n, g) => n + g.items.filter((it) => it.unread).length, 0);
   const idsOf = (gs) => gs.flatMap((g) => g.items.map((it) => it.display_id));
   const needIds = $derived(idsOf(needs));
@@ -88,7 +93,7 @@
     const keptNote = kept.length ? ` ${kept.length} with a draft stayed unread.` : '';
     if (!targets.length) return toast(`${kept.length === 1 ? 'It has a draft' : 'They have drafts'}: send or discard first.`, 'info');
     targets.forEach((t) => cancelArrival(t));
-    const hidden = route.all ? [] : targets; // Show all keeps read items listed
+    const hidden = route.all || route.hour ? [] : targets; // All and Last hour keep read items listed
     hide(hidden);
     try {
       await post('read', { targets });
@@ -164,25 +169,34 @@
       <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" stroke-width="1.6" /><path d="m11 11 3.5 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" /></svg>
       <input id="search" type="search" placeholder="Search items and runs  (/)" bind:value={q} oninput={onsearch} autocomplete="off" />
     </label>
-    <a class="btn small toggle" class:on={route.all} href={href({ all: !route.all, item: '' })} title={tip('Include read items and finished runs', 'show-all')}>
-      {route.all ? 'Showing all' : 'Show all'}
-    </a>
-    <a
-      class="btn small icon"
-      href={href({ old: !route.old })}
-      title={tip(route.old ? 'Oldest first; switch to recent first' : 'Recent first; switch to oldest first', 'sort')}
-      aria-label={route.old ? 'Sorted oldest first' : 'Sorted recent first'}
-    >
-      <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true"
-        ><path d={route.old ? 'M5 13V3M2.5 5.5 5 3l2.5 2.5' : 'M5 3v10M2.5 10.5 5 13l2.5-2.5'} fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /><path
-          d="M9.5 4.5h4M9.5 8h3M9.5 11.5h2"
-          stroke="currentColor"
-          stroke-width="1.6"
-          stroke-linecap="round"
-        /></svg
-      >
-      <span class="label">{route.old ? 'Oldest' : 'Recent'}</span>
-    </a>
+    <!-- One pill, two menus: which items the list shows, and their order. -->
+    <div class="listpick" class:wide={showMode() !== 'unread'} role="group" aria-label="What the list shows, and in what order">
+      <label class="seg" title={tip('Which items to list: the unread; the unread and those you read in the last hour; or every one, finished runs too', 'toggle-all')}>
+        <select data-cmd="list-show" aria-label="Which items to list" value={showMode()} onchange={(e) => go({ ...showOver(e.currentTarget.value), item: '' })}>
+          <option value="unread">Unread</option>
+          <option value="hour">+ Last hour</option>
+          <option value="all">All</option>
+        </select>
+        <svg class="chev-down" width="9" height="9" viewBox="0 0 10 10" aria-hidden="true"><path d="m2 3.5 3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+      </label>
+      <span class="seg-line" aria-hidden="true"></span>
+      <label class="seg" title={tip(showMode() === 'unread' ? 'Order: newest or oldest first. Sorting by read time needs read items listed (+ Last hour or All)' : 'Order: newest or oldest first, or most recently read first (the unread on top)', 'toggle-old')}>
+        <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"
+          ><path d={sortMode() === 'old' ? 'M5 13V3M2.5 5.5 5 3l2.5 2.5' : 'M5 3v10M2.5 10.5 5 13l2.5-2.5'} fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /><path
+            d="M9.5 4.5h4M9.5 8h3M9.5 11.5h2"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linecap="round"
+          /></svg
+        >
+        <select data-cmd="list-sort" aria-label="Order of the list" value={sortMode()} onchange={(e) => go({ sort: e.currentTarget.value }, { replace: true })}>
+          <option value="">Newest</option>
+          <option value="old">Oldest</option>
+          <option value="read" disabled={showMode() === 'unread'}>Last read</option>
+        </select>
+        <svg class="chev-down" width="9" height="9" viewBox="0 0 10 10" aria-hidden="true"><path d="m2 3.5 3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+      </label>
+    </div>
     <button data-cmd="select-mode" title={tip('Select items', 'select-mode')} class="btn small" class:on={selecting()} onclick={() => (selecting() ? clear() : (sel.mode = true))}>{selecting() ? 'Done' : 'Select'}</button>
   </div>
   {#if route.session}
@@ -351,9 +365,9 @@
         {#each runs as n (n.path)}<TreeNode node={n} />{/each}
       </div>
     {:else if route.q}
-      <div class="empty">No project, run or agent matches{route.all ? '' : '; Show all includes finished runs'}.</div>
+      <div class="empty">No project, run or agent matches{route.all ? '' : '; Show: All includes finished runs'}.</div>
     {:else}
-      <div class="empty">No runs{route.all ? '' : ' with anything to show; Show all includes finished ones'}.</div>
+      <div class="empty">No runs{route.all ? '' : ' with anything to show; Show: All includes finished ones'}.</div>
     {/if}
       {:else if name === 'deferred'}
     {#if view.deferred?.length}
@@ -382,7 +396,7 @@
     <button
       data-cmd="bulk-read"
       class="btn small primary"
-      {...off(pickedQuestions ? 'Questions leave Needs you but stay open, so you can still answer them from Show all' : '', [!picked, NOPICK])}
+      {...off(pickedQuestions ? 'Questions leave Needs you but stay open, so you can still answer them from Show: All' : '', [!picked, NOPICK])}
       onclick={() => markSelected(true, onchange, pickedQuestions)}>Mark read</button
     >
   </div>
@@ -490,13 +504,63 @@
     background: transparent;
     color: var(--text);
   }
-  .toggle {
+  /* The list's Show and Sort menus: one pill, two native selects (the
+     phone's own picker), each with its chevron. */
+  .listpick {
+    display: inline-flex;
+    align-items: stretch;
     height: 32px;
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    background: var(--panel);
+    flex: none;
   }
-  .toggle.on {
-    background: var(--text);
+  .listpick.wide {
     border-color: var(--text);
-    color: var(--panel);
+  }
+  .listpick .seg {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 0 10px 0 12px;
+    border-radius: 999px;
+    cursor: pointer;
+  }
+  .listpick .seg:hover:not(:disabled) {
+    background: var(--sunken);
+  }
+  .listpick .seg:focus-within {
+    box-shadow: 0 0 0 3px var(--focus);
+  }
+  .listpick select {
+    appearance: none;
+    -webkit-appearance: none;
+    field-sizing: content;
+    border: 0;
+    background: none;
+    color: var(--text);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 0 14px 0 0;
+    height: 100%;
+    cursor: pointer;
+    outline: 0;
+  }
+  .listpick .chev-down {
+    position: absolute;
+    right: 10px;
+    pointer-events: none;
+    color: var(--muted);
+  }
+  .listpick.wide .seg:first-child select {
+    font-weight: 650;
+  }
+  .seg-line {
+    width: 1px;
+    margin: 7px 0;
+    background: var(--line-strong);
   }
   .session {
     display: flex;

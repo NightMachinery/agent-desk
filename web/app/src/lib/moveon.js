@@ -4,7 +4,7 @@
 // next question after here, else the nearest question before it, else the
 // next item of any kind, else the nearest one before; '' (the list) when
 // only pinned items are left. Only open items count (an open question, an
-// unread item): a read one still listed (lingering, or under Show all) is
+// unread item): a read one still listed (lingering, or under Show: All) is
 // not waiting. Previous and Next still walk every item; Next open item (n)
 // goes where this would.
 

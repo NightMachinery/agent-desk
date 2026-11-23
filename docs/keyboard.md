@@ -127,7 +127,9 @@ entry reuses the letter of its short key (`p` pins, so `SPC b p` pins).
 - `SPC q`: the session: `r` reload the page (also `g R`), `s` take the screen
   back from an agent holding the lock.
 - `SPC s s` search, `SPC s c` clear the search; `/` searches too.
-- `SPC t`: toggles: `a` show all, `o` oldest first, `s` select mode, `d`
+- `SPC t`: toggles: `a` show all, `h` also what you read in the last hour,
+  `o` oldest first, `r` last read first (from Unread it lists the last
+  hour's read items too), `s` select mode, `d`
   which deliverables to list (unread latest, latest, all), `t` the Tasks
   section's menu (open only, or also those finished in the last 15 minutes
   to 30 days), `c` auto-continue, `C` let the agent's auto-continue follow

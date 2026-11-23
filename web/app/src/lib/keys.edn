@@ -142,7 +142,9 @@
 
   ; SPC t: toggles.
   "SPC t a" :toggle-all
+  "SPC t h" :toggle-hour
   "SPC t o" :toggle-old
+  "SPC t r" :toggle-read-sort
   "SPC t d" :deliverables-show
   "SPC t t" :tasks-show
   "SPC t s" :toggle-select
@@ -308,5 +310,6 @@
  ; on any other command without a key, and on any button with neither a
  ; command (data-cmd) nor data-keys="none".
  :keyless [:deliverables-unread :deliverables-latest :deliverables-all ; SPC t d cycles them
+           :list-show :list-sort                    ; SPC t a, h, o and r set them
            :compose                                 ; i does it, and returns to the box Esc left
            :deferred-launch :deferred-launch-top]}  ; they start agents: by name only

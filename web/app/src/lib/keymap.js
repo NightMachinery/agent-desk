@@ -3,7 +3,7 @@
 // defined once with command(name, ...); keys.edn binds keys to its name, so
 // M-x, SPC SPC and help list a command even when it has no key.
 import { moveOnTarget, ALL_CLEAR, ALL_CLEAR_KEY } from './moveon.js';
-import { route, go, pageOpen } from './route.svelte.js';
+import { route, go, pageOpen, showMode, showOver } from './route.svelte.js';
 import { nav, step } from './nav.svelte.js';
 import { sel, toggle, toggleAll, clear } from './select.svelte.js';
 import { copy } from './format.js';
@@ -438,8 +438,28 @@ C('session', 'Show everything its session wrote', () => click('session', 'No ses
 C('thread-root', 'Go to the item this conversation is about', () => click('thread-root'), tagged('thread-root', 'a reply in a conversation'));
 
 // Toggles.
-C('toggle-all', 'Toggle show all (read items, finished runs)', () => go({ all: !route.all, item: '' }));
-C('toggle-old', 'Toggle oldest first', () => go({ old: !route.old }, { replace: true }));
+C('toggle-all', 'Toggle show all (read items, finished runs)', () => go({ ...showOver(route.all ? 'unread' : 'all'), item: '' }));
+C('toggle-hour', 'Toggle listing what you read in the last hour, besides the unread', () => go({ ...showOver(route.hour ? 'unread' : 'hour'), item: '' }));
+const showLabel = { unread: 'Unread', hour: 'Unread and read in the last hour', all: 'All' };
+C('list-show', 'List: switch between unread, unread plus the last hour, and all', () => {
+  const next = { unread: 'hour', hour: 'all', all: 'unread' }[showMode()];
+  go({ ...showOver(next), item: '' });
+  say(`Showing: ${showLabel[next]}`);
+});
+C('list-sort', 'List: switch between newest first, oldest first and last read', () => {
+  const order = showMode() === 'unread' ? ['', 'old'] : ['', 'old', 'read'];
+  const next = order[(order.indexOf(route.sort) + 1) % order.length];
+  go({ sort: next }, { replace: true });
+  say(`Sorted: ${{ '': 'newest first', old: 'oldest first', read: 'last read first' }[next]}`);
+});
+C('toggle-old', 'Toggle oldest first', () => go({ sort: route.sort === 'old' ? '' : 'old' }, { replace: true }));
+C('toggle-read-sort', 'Toggle sorting by when you read each item', () => {
+  if (route.sort === 'read') return go({ sort: '' }, { replace: true });
+  // Read order needs read items listed: from Unread, take the last hour's in.
+  const widen = showMode() === 'unread';
+  go({ sort: 'read', ...(widen ? showOver('hour') : {}) }, { replace: true });
+  if (widen) say("Sorted by read time, with the last hour's read items listed too");
+});
 const deliverablesShow = (mode) => () => say(`Deliverables: ${deliverableModeLabel[showDeliverables(mode)]}`);
 C('deliverables-show', 'Deliverables: switch between unread latest, latest and all', deliverablesShow());
 C('deliverables-unread', 'Deliverables: the newest of each, unread', deliverablesShow('unread'));

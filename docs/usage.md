@@ -469,7 +469,7 @@ are never unread; they are shown while their node is live.
 A **dismissed** question is an open question you marked read by its id. It
 leaves "Needs you" and no longer makes its run show "waiting on you", but it
 stays open: its agent is still blocked (or goes ahead with its default), you
-can still answer it from `--all` or "Show all", and
+can still answer it from `--all` or Show: All, and
 `unread` puts it back. Marking a node read never dismisses questions.
 
 A run that is finished (its root coordinator filed a done report), has no open
@@ -605,6 +605,16 @@ another item or the list), and its row stays, dimmed, like any item read by
 opening it. Back or Undo leaves it unread, and so does
 marking it read or unread yourself, which settles it. The search filters every section, and the run tree by project, run
 or agent name and by the session or Paseo id of whoever joined a node.
+
+Beside the search, one pill holds two menus. **Show** picks what the
+sections list: Unread (the default); **+ Last hour**, the unread and also
+everything you read in the last hour, so an item that dropped out when you
+read it is easy to find again; or All, every item and the finished runs too.
+**Sort** orders each section: Newest (the default) or Oldest, by when the
+item was written, or **Last read**, the unread on top and then the most
+recently read first. Last read needs read items listed, so Unread offers
+only the first two. Above them, **Tasks | +** opens the Tasks page here, or
+its New task box.
 A row of the run tree has icons on its right (on hover with a mouse, always
 on a touch screen): copy the Paseo id of the agent behind it (when it runs
 under Paseo on this machine), message that agent (opens its node with the
@@ -614,8 +624,10 @@ to the coordinator working under it, the newest one that has not filed its
 done report, and the node page names that coordinator ("at rerun-nov/coord").
 Clicking a part of an item's path shows that subtree. Every view is a URL you can bookmark: a project, run or
 agent (`#/p/example-proj/rerun-nov`), one session's writing (`?session=`),
-one machine (`?host=`), read items too (`?all=1`), a search (`?q=`), oldest
-first (`?sort=old`; recent first is the default) and an open item
+one machine (`?host=`), read items too (`?all=1`, or `?show=hour` for the
+unread and those read in the last hour), a search (`?q=`), oldest first
+(`?sort=old`) or last read first (`?sort=read`; newest first is the
+default) and an open item
 (`?item=q-7f3a`). From it you answer questions (with one-click "take your
 recommendation" or "go with the default"), message the agent behind any item
 or any coordinator, dismiss a question without answering it, and mark things

@@ -59,7 +59,7 @@ export async function markSelected(read, onchange, qs = 0) {
     return;
   }
   targets.forEach((t) => cancelArrival(t)); // the user decided its state
-  const hidden = read && !route.all ? targets : []; // Show all keeps read items listed
+  const hidden = read && !route.all && !route.hour ? targets : []; // All and Last hour keep read items listed
   hide(hidden);
   if (read) clear();
   try {
@@ -67,7 +67,7 @@ export async function markSelected(read, onchange, qs = 0) {
     const n = (k, w) => `${k} ${k === 1 ? w : w + 's'}`;
     let msg = `${n(targets.length, 'item')} marked ${read ? 'read' : 'unread'}.`;
     if (kept.length) msg += ` ${n(kept.length, 'item')} with a draft stayed unread.`;
-    if (read && qs) msg += ` ${n(qs, 'question')} dismissed: still open, answer from Show all.`;
+    if (read && qs) msg += ` ${n(qs, 'question')} dismissed: still open, answer from Show: All.`;
     toast(msg, 'ok', qs ? 6000 : 3000);
     clear();
     onchange();

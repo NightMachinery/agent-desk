@@ -39,7 +39,7 @@
 
   async function loadView() {
     const my = ++seq;
-    const params = { path: route.path, session: route.session, host: route.host, all: route.all ? '1' : '', q: route.q, deliverables: ui.deliverablesShow };
+    const params = { path: route.path, session: route.session, host: route.host, all: route.all ? '1' : '', show: route.hour ? 'hour' : '', q: route.q, deliverables: ui.deliverablesShow };
     // Rows just read stay listed for a while; reading the list of them must
     // not make every hold refetch the view.
     const asked = untrack(lingerIds);
@@ -88,7 +88,7 @@
   }
 
   $effect(() => {
-    route.path, route.session, route.host, route.all, route.q, ui.deliverablesShow;
+    route.path, route.session, route.host, route.all, route.hour, route.q, ui.deliverablesShow;
     loadView();
   });
   let prefetchScheduled = false;
