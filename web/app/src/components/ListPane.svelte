@@ -163,6 +163,13 @@
         <a href={href({ path: c.path, item: '' })} class:here={i === crumbs.length - 1}>{c.name}</a>
       {/each}
     </nav>
+    <!-- The Tasks page here, and a new task, from any list. -->
+    <div class="tasks-seg" role="group" aria-label="Tasks">
+      <a data-cmd="tasks" href={href({ item: '', tasks: true })} class:on={route.tasks} title={tip('The Tasks page: the checklist here, finished tasks too', 'tasks')}>Tasks</a>
+      <button data-cmd="task-new" aria-label="New task" title={tip('File a new task, bug or idea', 'task-add')} onclick={() => runCommand('task-add')}
+        ><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1.5v9M1.5 6h9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" /></svg></button
+      >
+    </div>
   </div>
   <div class="filters">
     <label class="search">
@@ -447,6 +454,44 @@
     align-items: center;
     gap: 6px;
     min-height: 32px;
+  }
+  .tasks-seg {
+    display: inline-flex;
+    flex: none;
+    margin-left: auto;
+    height: 28px;
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    background: var(--panel);
+    overflow: hidden;
+  }
+  .tasks-seg a,
+  .tasks-seg button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    background: none;
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 500;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .tasks-seg a {
+    padding: 0 10px 0 12px;
+  }
+  .tasks-seg button {
+    width: 32px;
+    border-left: 1px solid var(--line-strong);
+  }
+  .tasks-seg a:hover:not(:disabled),
+  .tasks-seg button:hover:not(:disabled) {
+    background: var(--sunken);
+  }
+  .tasks-seg a.on {
+    background: var(--text);
+    color: var(--panel);
   }
   .menu {
     display: none;
