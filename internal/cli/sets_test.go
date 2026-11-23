@@ -311,3 +311,51 @@ func TestSetPaths(t *testing.T) {
 		t.Fatalf("setPaths:\n got %s\nwant %s", got, want)
 	}
 }
+
+// show=hour lists the unread items and those read in the last hour, each
+// read one with its read time; show=all lists every one.
+func TestServeShowHour(t *testing.T) {
+	h := newHarness(t)
+	a := h.as(sessA)
+	h.ok(a, "", "join", "r1/coord")
+	old := h.ok(a, "body", "tell", "--title", "Read long ago")
+	recent := h.ok(a, "body", "tell", "--title", "Read just now")
+	h.ok(a, "body", "tell", "--title", "Still unread")
+	h.ok(nil, "", "read", old)
+	h.now = h.now.Add(2 * time.Hour)
+	h.ok(nil, "", "read", recent)
+	_, hd := testServer(t, h)
+	list := func(target string) string {
+		t.Helper()
+		code, body, _ := do(t, hd, "GET", target, "", nil)
+		if code != 200 {
+			t.Fatalf("%s: %d %s", target, code, body)
+		}
+		var v struct {
+			View struct {
+				New []desk.Group `json:"new"`
+			} `json:"view"`
+		}
+		must(t, json.Unmarshal([]byte(body), &v))
+		var out []string
+		for _, g := range v.View.New {
+			for _, it := range g.Items {
+				s := it.Event.Title
+				if it.ReadAt != "" {
+					s += " (read)"
+				}
+				out = append(out, s)
+			}
+		}
+		return strings.Join(out, ", ")
+	}
+	if got := list("/api/view"); got != "Still unread" {
+		t.Fatalf("unread: %s", got)
+	}
+	if got := list("/api/view?show=hour"); got != "Read just now (read), Still unread" {
+		t.Fatalf("hour: %s", got)
+	}
+	if got := list("/api/view?show=all"); got != "Read long ago (read), Read just now (read), Still unread" {
+		t.Fatalf("all: %s", got)
+	}
+}

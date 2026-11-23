@@ -724,6 +724,9 @@ type launchInfo struct {
 	Max   int  `json:"max"`
 }
 
+// readRecently is how far back show=hour keeps read items listed.
+const readRecently = time.Hour
+
 type viewFilter struct {
 	Host    string `json:"host,omitempty"`
 	Session string `json:"session,omitempty"`
@@ -741,10 +744,21 @@ func (s *server) apiView(w http.ResponseWriter, r *http.Request) {
 		Prefix:  strings.Trim(q.Get("path"), "/"),
 		Host:    q.Get("host"),
 		Session: q.Get("session"),
-		All:     q.Get("all") == "1" || q.Get("all") == "true",
+		All:     q.Get("all") == "1" || q.Get("all") == "true" || q.Get("show") == "all",
 	}
 	if m := q.Get("deliverables"); desk.ValidDeliverables(m) {
 		f.Deliverables = m
+	}
+	// show=hour: the unread items, and those read in the last hour, kept
+	// listed the way an item you are still on lingers.
+	if q.Get("show") == "hour" && !f.All {
+		recent := d.ReadSince(d.Now.Add(-readRecently))
+		if len(recent) > 0 && f.Linger == nil {
+			f.Linger = map[string]bool{}
+		}
+		for _, id := range recent {
+			f.Linger[id] = true
+		}
 	}
 	// An item with a draft stays listed, read or not, until the draft is
 	// sent or discarded.

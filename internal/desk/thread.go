@@ -308,6 +308,17 @@ func (d *Desk) DeliveryFailure(id string) (store.Event, bool) {
 // Marked reports whether the user's latest read mark on id stands.
 func (d *Desk) Marked(id string) bool { return d.marked[id] }
 
+// ReadSince lists the events marked read at or after t whose mark stands.
+func (d *Desk) ReadSince(t time.Time) []string {
+	var out []string
+	for id, at := range d.readAt {
+		if !at.Before(t) {
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
 // Awaiting reports whether message id was delivered, has no response and
 // has not been marked read: it waits for its agent to respond.
 func (d *Desk) Awaiting(id string) bool {

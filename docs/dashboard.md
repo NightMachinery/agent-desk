@@ -95,7 +95,10 @@ Rules the page keeps:
 
 The API, all JSON:
 
-- `GET api/view?path=&session=&host=&all=1&q=&linger=&unfocused=1`: the
+- `GET api/view?path=&session=&host=&all=1&show=hour&q=&linger=&unfocused=1`:
+  `show=hour` lists the unread items and those read in the last hour
+  (`show=all` is `all=1`); each listed item read by a mark carries
+  `read_at`, when, for sorting by read time. The
   sections, the node at `path` with its target (where a message to it goes)
   and `conversation` (the node's own thread), the session's details, and the
   lists of projects and machines; each node in the run tree carries `paseo`,

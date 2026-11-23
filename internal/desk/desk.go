@@ -50,10 +50,11 @@ type Desk struct {
 	Questions []store.Question
 	answers   map[string]string
 	unread    map[string]bool
-	dismissed map[string]bool // questions marked read: open, but out of Needs you
-	marked    map[string]bool // events whose latest read mark stands
-	pins      []string        // pin keys, most recently pinned first
-	slots     []store.Event   // slot_current minus clears
+	dismissed map[string]bool      // questions marked read: open, but out of Needs you
+	marked    map[string]bool      // events whose latest read mark stands
+	readAt    map[string]time.Time // when that read mark was made
+	pins      []string             // pin keys, most recently pinned first
+	slots     []store.Event        // slot_current minus clears
 	threads   threadIndex
 	// latestDeliverable maps project and meta.key to the newest
 	// deliverable with that key: an older one is superseded.
@@ -133,9 +134,16 @@ func Load(s *store.Store, host string, now time.Time) (*Desk, error) {
 	// The read marker that counts is the latest naming the event, as in the
 	// read_current view; events arrive in id order.
 	last := map[string]bool{}
+	d.readAt = map[string]time.Time{}
 	for _, e := range evs {
 		if e.Kind == "read" {
-			last[e.Ref] = Meta(e)["cancel"] != true
+			on := Meta(e)["cancel"] != true
+			last[e.Ref] = on
+			if on {
+				d.readAt[e.Ref] = Time(e)
+			} else {
+				delete(d.readAt, e.Ref)
+			}
 		}
 	}
 	// Pins: the latest pin event per key counts; a cancel unpins.
@@ -375,6 +383,10 @@ type Item struct {
 	Age      string          `json:"age"`
 	Question *store.Question `json:"question,omitempty"`
 	Unread   bool            `json:"unread"`
+	// ReadAt is when the item was marked read (RFC 3339), for sorting by
+	// read time; empty while unread, or read without a mark (a replaced
+	// deliverable).
+	ReadAt string `json:"read_at,omitempty"`
 	// Dismissed: an open question marked read, shown only with Filter.All.
 	Dismissed bool `json:"dismissed,omitempty"`
 	// NoResponse: a message delivered NoResponseAfter ago with no response.
@@ -416,6 +428,9 @@ func (d *Desk) item(e store.Event) Item {
 	it := Item{Event: e, ID: d.Display(e.ID), Label: rest, Age: Age(d.Now.Sub(Time(e))), Unread: d.unread[e.ID],
 		NoResponse: e.Kind == "reply" && d.NoResponse(e.ID), Pinned: d.Pinned(e), Response: IsResponse(e)}
 	it.Asked, it.AskedVia = d.Asked(e)
+	if t, ok := d.readAt[e.ID]; ok && !it.Unread {
+		it.ReadAt = t.UTC().Format(time.RFC3339)
+	}
 	it.Attachments = len(media.Of(e))
 	if by := d.SupersededBy(e); by != "" {
 		it.SupersededBy = d.Display(by)
@@ -463,7 +478,7 @@ func (d *Desk) OpenQuestions(f Filter) []Item {
 	var out []Item
 	for i := range d.Questions {
 		q := d.Questions[i]
-		if !q.Open() || !f.Keep(q.Event) || (d.dismissed[q.ID] && !f.All && !f.Dismissed) {
+		if !q.Open() || !f.Keep(q.Event) || (d.dismissed[q.ID] && !f.All && !f.Dismissed && !f.Linger[q.ID]) {
 			continue
 		}
 		it := d.item(q.Event)
