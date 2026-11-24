@@ -208,9 +208,11 @@ func TestQuotaSeat(t *testing.T) {
 	h := newHarness(t)
 	const blocked = "33333333-0000-4000-8000-0000000000b1"
 	const usable = "33333333-0000-4000-8000-0000000000u1"
+	const gemini = "33333333-0000-4000-8000-0000000000g1"
 	writePaseoRecord(t, h.paseo, blocked, sessA, "", "Eval worker")
 	writePaseoRecord(t, h.paseo, usable, sessB, "", "Plot helper")
-	reset := 1795050000.0
+	writePaseoRecord(t, h.paseo, gemini, sessC, "", "Gemini worker")
+	reset, pool := 1795050000.0, 1795049000.0
 	fakeKeeper(t, h, func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/v1/agents":
@@ -220,11 +222,15 @@ func TestQuotaSeat(t *testing.T) {
 			writeJSON(w, keeper.List{Enabled: true, Agents: []keeper.Agent{
 				{ID: blocked, Seat: &keeper.Seat{Account: "claude:work", Verdict: "blocked"}},
 				{ID: usable, Seat: &keeper.Seat{Account: "claude:default", Verdict: "usable"}},
+				// An agy seat is blocked for the agent's model while the
+				// account as a whole still reads usable.
+				{ID: gemini, Seat: &keeper.Seat{Account: "agy:m", Verdict: "blocked", AvailableAt: &pool}},
 			}})
 		case "/v1/accounts":
 			writeJSON(w, map[string]any{"accounts": []keeper.Account{
 				{ID: "claude:work", Verdict: "blocked", BlockedUntil: &reset},
 				{ID: "claude:default", Verdict: "usable"},
+				{ID: "agy:m", Verdict: "usable"},
 			}})
 		default:
 			t.Errorf("unexpected keeper request: %s", r.URL)
@@ -235,7 +241,7 @@ func TestQuotaSeat(t *testing.T) {
 	writeConfig(t, h, string(cfg)+"[quota]\nstopped_command = 'printf STOPPED'\n")
 	h.respond = func(name string, args []string) (string, error) {
 		if name == "sh" && args[1] == "printf STOPPED" {
-			return blocked + "\n" + usable + "\n", nil
+			return blocked + "\n" + usable + "\n" + gemini + "\n", nil
 		}
 		return "{}", nil
 	}
@@ -255,6 +261,9 @@ func TestQuotaSeat(t *testing.T) {
 	}
 	if u := got[usable]; u == nil || u.Verdict != "usable" || u.AvailableAt != nil {
 		t.Fatalf("usable seat: %+v", u)
+	}
+	if g := got[gemini]; g == nil || g.Verdict != "blocked" || g.AvailableAt == nil || *g.AvailableAt != pool {
+		t.Fatalf("agy seat: %+v", g)
 	}
 }
 

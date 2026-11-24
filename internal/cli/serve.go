@@ -1170,7 +1170,10 @@ func (s *server) refreshSeats() {
 				}
 				seat := QuotaSeat{Account: a.Seat.Account, Verdict: a.Seat.Verdict}
 				if seat.Verdict == "blocked" {
-					seat.AvailableAt = until[seat.Account]
+					seat.AvailableAt = a.Seat.AvailableAt
+					if seat.AvailableAt == nil {
+						seat.AvailableAt = until[seat.Account]
+					}
 				}
 				seats[a.ID] = seat
 			}

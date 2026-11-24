@@ -53,10 +53,13 @@ type AutoContinue struct {
 }
 
 // Seat is the account an agent runs on and its verdict for the agent's
-// model: usable, blocked or unknown.
+// model: usable, blocked or unknown. AvailableAt (Unix seconds) is when a
+// blocked one has room for that model again, where the keeper knows it per
+// model (Antigravity pools); otherwise the account's BlockedUntil applies.
 type Seat struct {
-	Account string `json:"account"`
-	Verdict string `json:"verdict"`
+	Account     string   `json:"account"`
+	Verdict     string   `json:"verdict"`
+	AvailableAt *float64 `json:"available_at"`
 }
 
 // Account is one account's usage snapshot, as much as the desk reads.

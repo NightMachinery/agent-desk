@@ -1193,7 +1193,12 @@ they stopped, their parent and subagents (marked when those are out of quota
 too), the desk nodes their session holds (one path, or "N nodes" with
 the paths in the tooltip), and, where the agent-quotas keeper runs, when its
 account has quota again ("quota back in 2h 14m, at 21:30", or "quota
-available now"; the tooltip names the account). Under a node, it lists only the agents working
+available now"; the tooltip names the account). Gemini agents (Paseo's
+agy-acp, account `agy:<name>`) are listed too: agy reports its limit as an
+ordinary "⚠ Individual quota reached" reply, which agent-quotas reads from
+the end of the agent's Paseo timeline. Their quota time is when the pools
+their model draws on reset; the account itself may still have room for
+other models. Under a node, it lists only the agents working
 there: an agent belongs to every node its own session holds, or else to
 those of its nearest Paseo ancestor that holds any, and it is listed under
 each of them. For each:
