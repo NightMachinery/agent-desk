@@ -151,10 +151,11 @@ Agent side (only coordinators write; workers report to their parent):
                                       start agents on tasks ([tasks] launch_command)
   agent-desk task nudge [--dry-run]   remind the user when quota would go unused (cron)
   agent-desk link <slot> <file>
-  agent-desk screen take --reason R [--for 30m] [--wait [--timeout 1h]]
+  agent-desk screen take --reason R [--for 30m] [--idle 30m] [--wait [--timeout 1h]]
                                       before driving this machine's GUI: yours at once if the
-                                      user has been idle 30 minutes, else asks them (exit 3
-                                      until granted); a banner shows while you hold it
+                                      user has been idle 30 minutes (--idle: another wait, at
+                                      least 1m), else asks them (exit 3 until granted); a
+                                      banner shows while you hold it
   agent-desk screen release | status [--host H]
   agent-desk answer <id> --from-chat 'text'   record an answer given in chat
   agent-desk done --title T [--report FILE]   <<'S' ... S   (agent-done calls this)

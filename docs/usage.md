@@ -1154,7 +1154,9 @@ know to keep off the keyboard, and two agents do not fight over it:
 The lock is per machine and outside every project (its events are under
 `_desk/screen/<host>`), so a worker may take it too. `take` grants it at
 once when the screen is free, nobody asked first, and you have been idle at
-least `[screen] idle_minutes` (30): on macOS the HID idle time from `ioreg`,
+least `[screen] idle_minutes` (30), or the take's `--idle` (a duration of at
+least `1m`, such as `--idle 5m`; the request keeps it, so the server's own
+grant below waits that long too): on macOS the HID idle time from `ioreg`,
 elsewhere whatever `[screen] idle_command` prints in seconds (without one, it
 is never granted unasked). Input while an agent holds the screen, and for 2
 minutes after its hold runs out (not after it releases it), is the agent's:

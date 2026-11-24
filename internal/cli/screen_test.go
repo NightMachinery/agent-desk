@@ -195,6 +195,59 @@ func TestScreenAgentInputIsNotTheUser(t *testing.T) {
 	}
 }
 
+// --idle sets how long the user must be away for this take: for the grant
+// at once, and (kept on the request) for the server's later grant.
+func TestScreenIdleFlag(t *testing.T) {
+	h := newHarness(t)
+	writeConfig(t, h, "[screen]\nidle_command = 'printf IDLE'\n")
+	idle := "400" // 6 min 40 s: under the default 30 minutes
+	h.respond = func(name string, args []string) (string, error) {
+		if name == "sh" && len(args) == 2 && args[1] == "printf IDLE" {
+			return idle + "\n", nil
+		}
+		return "", nil
+	}
+	a, b, c := h.as(sessA), h.as(sessB), h.as(sessC)
+	h.fails(a, "", "--idle", "screen", "take", "--reason", "x", "--idle", "30s")
+	h.fails(a, "", "--idle", "screen", "take", "--reason", "x", "--idle", "soon")
+
+	// Without --idle, 6 min away is not enough, for take or the sweep.
+	_, errOut, code := h.run(b, "", "screen", "take", "--reason", "Default wait")
+	if code != ScreenWaiting || !strings.Contains(errOut, "away 30 min") {
+		t.Fatalf("default take: %d %s", code, errOut)
+	}
+	srv, _ := testServer(t, h)
+	must(t, srv.sweepScreenOnce())
+	if st := h.loadDesk().Screen(h.host); st.Hold != nil {
+		t.Fatalf("swept at 6 min with the default 30: %+v", st.Hold)
+	}
+	h.ok(b, "", "screen", "release") // withdraws the request
+
+	// With --idle 5m it is granted at once.
+	if out := h.ok(a, "", "screen", "take", "--reason", "Quick click", "--idle", "5m"); !strings.Contains(out, "away 6 min") || !strings.Contains(out, "is yours") {
+		t.Fatalf("take --idle 5m: %s", out)
+	}
+	h.ok(a, "", "screen", "release")
+
+	// The user comes back: still a request, which says 5 min; once the
+	// user has been away 5 minutes, the sweep grants it.
+	idle = "1"
+	_, errOut, code = h.run(c, "", "screen", "take", "--reason", "Later click", "--idle", "5m")
+	if code != ScreenWaiting || !strings.Contains(errOut, "away 5 min") {
+		t.Fatalf("take --idle 5m with the user back: %d %s", code, errOut)
+	}
+	st := h.loadDesk().Screen(h.host)
+	if len(st.Requests) != 1 || !strings.Contains(st.Requests[0].Body, "away 5 min") {
+		t.Fatalf("request: %+v", st.Requests)
+	}
+	idle = "400"
+	srv, _ = testServer(t, h)
+	must(t, srv.sweepScreenOnce())
+	if st := h.loadDesk().Screen(h.host); st.Hold == nil || st.Hold.By != "auto" || st.Hold.Reason != "Later click" {
+		t.Fatalf("sweep with the request's 5 min: %+v", st)
+	}
+}
+
 func TestScreenSweepDoesNotBlockWritesOrOverrideDenial(t *testing.T) {
 	h, _, note := queueFixture(t)
 	writeConfig(t, h, "[screen]\nidle_command = 'printf IDLE'\n")

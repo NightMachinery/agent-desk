@@ -21,12 +21,15 @@ import (
 // The screen lock (desk.Screen): an agent takes it before it drives this
 // machine's GUI, so the user knows to keep off the keyboard. It is granted
 // at once when the user has been idle long enough ([screen] idle_minutes,
-// default 30); otherwise the request waits in Needs you, where the user may
-// approve it at any time.
+// default 30, or the take's own --idle); otherwise the request waits in
+// Needs you, where the user may approve it at any time.
 
 const (
 	screenDefault = 30 * time.Minute
 	screenMax     = 2 * time.Hour
+	// screenIdleMin is the shortest --idle: under a minute, a user pausing
+	// to read would count as away.
+	screenIdleMin = time.Minute
 )
 
 // screenPoll is how often `screen take --wait` looks again.
@@ -69,7 +72,7 @@ func (a *App) cmdScreen(args []string) error {
 }
 
 func (a *App) screenTake(args []string) error {
-	o, err := parse(args, []string{"wait"}, []string{"reason", "for", "timeout"}, 0, 0)
+	o, err := parse(args, []string{"wait"}, []string{"reason", "for", "timeout", "idle"}, 0, 0)
 	if err != nil {
 		return err
 	}
@@ -96,6 +99,13 @@ func (a *App) screenTake(args []string) error {
 	c, err := a.config()
 	if err != nil {
 		return err
+	}
+	// away: how long the user must have been idle for a grant without asking.
+	away := time.Duration(c.Screen.Idle()) * time.Minute
+	if s := o.vals["idle"]; s != "" {
+		if away, err = time.ParseDuration(s); err != nil || away < screenIdleMin {
+			return usagef("--idle is a duration of at least %s, such as 5m", humanDur(screenIdleMin))
+		}
 	}
 	mine := "" // this session's request, once filed or found
 	for waited := time.Duration(0); ; waited += screenPoll {
@@ -129,7 +139,7 @@ func (a *App) screenTake(args []string) error {
 			// Free, and nobody asked before this session: granted if the
 			// user is away.
 			idle, known := a.userAway(c, d)
-			if known && idle >= time.Duration(c.Screen.Idle())*time.Minute {
+			if known && idle >= away {
 				g := a.screenGrant(from, from.Session, reason, hold, "auto", req.ID, d.Now.Add(-idle))
 				evs := []store.Event{g}
 				if has {
@@ -147,7 +157,7 @@ func (a *App) screenTake(args []string) error {
 				return fmt.Errorf("the user denied the screen %s ago: %s; ask again after %s, or ask the user why",
 					humanDur(d.Now.Sub(when)), firstLine(why), humanDur(screenDenyQuiet))
 			}
-			q := a.screenRequest(d, from, reason, hold, c.Screen.Idle())
+			q := a.screenRequest(d, from, reason, hold, away)
 			if err := a.commit([]store.Event{q}, "-"); err != nil {
 				return err
 			}
@@ -165,7 +175,7 @@ func (a *App) screenTake(args []string) error {
 		if !o.bools["wait"] || waited+screenPoll > timeout {
 			return exitError{ScreenWaiting, "screen: not yet yours. The answer reaches you as a message; then run screen take again" +
 				" (or wait for it with --wait). It is granted without asking once the user has been away " +
-				strconv.Itoa(c.Screen.Idle()) + " minutes."}
+				humanDur(away) + "."}
 		}
 		time.Sleep(screenPoll)
 	}
@@ -190,19 +200,20 @@ func (a *App) screenGrant(from ident.From, holder, reason string, hold time.Dura
 	return e
 }
 
-// screenRequest is the question that asks the user for the screen.
-func (a *App) screenRequest(d *desk.Desk, from ident.From, reason string, hold time.Duration, idleMin int) store.Event {
+// screenRequest is the question that asks the user for the screen. away is
+// how long the user must be idle for the server to grant it unasked.
+func (a *App) screenRequest(d *desk.Desk, from ident.From, reason string, hold, away time.Duration) store.Event {
 	who := from.Title
 	if who == "" {
 		who = from.Agent + " " + short8(from.Session)
 	}
 	q := a.event("ask", desk.ScreenPath(a.Host), from, "cli", map[string]any{
-		"screen": map[string]any{"host": a.Host, "reason": reason, "for": hold.String(), "minutes": int(hold.Minutes())},
+		"screen": map[string]any{"host": a.Host, "reason": reason, "for": hold.String(), "minutes": int(hold.Minutes()), "idle": away.String()},
 	})
 	q.Level = "blocked"
 	q.Title = fmt.Sprintf("Screen on %s: %s wants to drive the GUI", a.Host, who)
 	q.Body = fmt.Sprintf("%s\n\nFor up to %s. Approve to hand it the screen now (a banner shows while it holds it), or deny. "+
-		"It is granted without asking once you have been away %d minutes.", reason, humanDur(hold), idleMin)
+		"It is granted without asking once you have been away %s.", reason, humanDur(hold), humanDur(away))
 	return q
 }
 
@@ -375,13 +386,13 @@ func (a *App) screenSweep() ([]store.Event, int, error) {
 	if st.Hold != nil || len(st.Requests) == 0 {
 		return nil, 0, nil
 	}
+	q := st.Requests[0]
 	away, ok := a.userAway(c, d)
-	if !ok || away < time.Duration(c.Screen.Idle())*time.Minute {
+	if !ok || away < requestIdle(q, c) {
 		return nil, 0, nil
 	}
 	text := fmt.Sprintf("Approved automatically: the user has been away %s, so the screen is yours. "+
 		"Run `agent-desk screen take` again to put up the banner, and release it as soon as you are done.", humanDur(away))
-	q := st.Requests[0]
 	events, err := a.answerEvents(d, q, text, "auto", "", nil)
 	if err != nil {
 		return nil, 0, err
@@ -398,6 +409,17 @@ func (a *App) screenSweep() ([]store.Event, int, error) {
 		events[1].Meta = meta(grant)
 	}
 	return events, count, nil
+}
+
+// requestIdle is how long the user must be away before screen request q is
+// granted unasked: its take's --idle, else [screen] idle_minutes.
+func requestIdle(q store.Event, c config.Config) time.Duration {
+	if sm, ok := desk.Meta(q)["screen"].(map[string]any); ok {
+		if d, err := time.ParseDuration(fmt.Sprint(sm["idle"])); err == nil && d >= screenIdleMin {
+			return d
+		}
+	}
+	return time.Duration(c.Screen.Idle()) * time.Minute
 }
 
 func (a *App) screenDecision(q store.Event, answer, source string) (store.Event, bool) {

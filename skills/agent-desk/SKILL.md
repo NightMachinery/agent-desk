@@ -283,12 +283,13 @@ Before anything that clicks, types into another app or takes focus on the
 user's machine, take the screen lock (any agent, workers too), and release it
 the moment you are done:
 
-    agent-desk screen take --reason 'Clicking through the settings app' [--for 20m] [--wait]
+    agent-desk screen take --reason 'Clicking through the settings app' [--for 20m] [--idle 5m] [--wait]
     agent-desk screen release
 
 It is yours at once if the user has been idle 30 minutes. Otherwise they get
 a request and `take` exits 3; `--wait` blocks until they grant it or stay
-away 30 minutes. A banner asks them to keep off the keyboard while you hold
+away 30 minutes. `--idle 5m` shortens that wait (at least `1m`); pass it only
+when the user asked for it. A banner asks them to keep off the keyboard while you hold
 it. Headless work, such as a headless browser's screenshots, needs no lock.
 If they deny it, do not ask again at once; ask what to do instead.
 
