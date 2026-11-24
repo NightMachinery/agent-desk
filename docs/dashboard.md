@@ -141,8 +141,10 @@ The API, all JSON:
   version; `error` says why an existing file was not read (larger than
   64 KiB, a directory, unreadable). The dashboard parses and checks the
   text itself (see [keyboard.md](keyboard.md)).
-- `GET api/stream`: server-sent events; `change` whenever the store changes,
-  `build` naming the dashboard the server serves, and `keys` naming the keys
+- `GET api/stream`: server-sent events; `change` whenever the store changes
+  or a Paseo agent here is archived or revived (`api/view`'s `stamp` covers
+  both, so panels keyed on it reload too; an archive made outside the desk
+  is seen within the 10 s the Paseo statuses are cached), `build` naming the dashboard the server serves, and `keys` naming the keys
   file's version (empty when there is none), on connecting and whenever it
   changes.
 - `POST api/answer {id, text, behavior?, notify?, send_key?}` and
@@ -215,7 +217,9 @@ The API, all JSON:
   `{action: "tags", id, tags}` replaces a task's tags.
 - `POST api/agent {action: "archive", id}`: archives a Paseo agent this
   machine's Paseo has a record of (`paseo archive`); an unknown id is
-  refused before Paseo runs. `note` says what happened.
+  refused before Paseo runs. `note` says what happened. The statuses are
+  read again at once, so the reload after it shows the agent archived and
+  `api/quota` leaves it out without running `stopped_command` again.
 - `GET api/draft?key=reply:t-k2m9`: the draft saved on the desk for one
   box, `{key, value, updated, device}`; `value` is any JSON (text, or a
   question's picks), null when there is none, and `updated` (milliseconds,

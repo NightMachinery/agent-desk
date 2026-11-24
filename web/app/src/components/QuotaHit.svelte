@@ -122,6 +122,21 @@
     return () => clearInterval(t);
   });
 
+  // The row leaves at once; the list the server serves next leaves the
+  // archived agent out too, without making the list again.
+  async function archive(a) {
+    if (busy) return;
+    busy = a.paseo + 'archive';
+    try {
+      if (!(await archiveAgent(a.paseo, a.title))) return;
+      revision++;
+      data.agents = data.agents.filter((x) => x.paseo !== a.paseo);
+    } finally {
+      busy = '';
+    }
+    load();
+  }
+
   async function act(a, action, label, profile = '') {
     busy = a.paseo + action;
     try {
@@ -210,7 +225,7 @@
             onclick={() => act(a, 'ask-parent', 'Asked its parent.')}>Ask parent to reassign</button>
         {/if}
         <button class="btn small" data-cmd="quota-archive" {...off('Archive it in Paseo: it leaves this list (messaging it from the desk revives it)', [busy, BUSY])}
-          onclick={async () => { if (await archiveAgent(a.paseo, a.title)) load(true); }}>Archive</button>
+          onclick={() => archive(a)}>Archive</button>
         {#if data.launch_ready}
           <button class="btn small" data-cmd="quota-replace"
             {...off('Start a new agent on a provider you pick, that recovers its partial work, takes over its role and archives it (prompt: replace-agent.md)', [busy, BUSY])}

@@ -629,7 +629,8 @@ func (s *server) storedDesk() (*desk.Desk, string, error) {
 	return d, stamp, err
 }
 
-// load reads the desk for a GET, with time and live status for this request.
+// load reads the desk for a GET, with time and live status for this
+// request. Its stamp is the page's (pageStamp).
 func (s *server) load(w http.ResponseWriter) (*desk.Desk, string) {
 	stored, stamp, err := s.storedDesk()
 	if err != nil {
@@ -637,8 +638,25 @@ func (s *server) load(w http.ResponseWriter) (*desk.Desk, string) {
 		return nil, ""
 	}
 	d := *stored
-	d.Now, d.Live = s.a.Now(), s.a.paseoLive()
+	var archived string
+	d.Live, archived = s.a.paseoLiveStamp()
+	d.Now = s.a.Now()
+	if stamp != "" {
+		stamp += "." + archived
+	}
 	return &d, stamp
+}
+
+// pageStamp is the version of what the page shows: the store's stamp and
+// which Paseo agents are archived. The live stream announces each change,
+// and panels keyed on the view's stamp reload on it.
+func (s *server) pageStamp() (string, error) {
+	stamp, err := s.stamp()
+	if err != nil {
+		return "", err
+	}
+	_, archived := s.a.paseoLiveStamp()
+	return stamp + "." + archived, nil
 }
 
 // Session describes one agent session, for the session filter's header.
@@ -1112,8 +1130,14 @@ func (s *server) apiQuota(w http.ResponseWriter, r *http.Request) {
 	}
 	resp := maps.Clone(s.quotaResp)
 	hidden := s.a.quotaDismissed()
+	// An agent archived since the list was made leaves it now, not when
+	// the list is next made (that runs stopped_command, seconds long).
+	live := s.a.paseoLive()
 	kept := []QuotaAgent{}
 	for _, q := range resp["agents"].([]QuotaAgent) {
+		if live[q.Paseo] == "archived" {
+			continue
+		}
 		inFocus := len(focus) == 0
 		for _, sc := range q.Scopes {
 			inFocus = inFocus || desk.InFocus(sc, focus)
@@ -1375,7 +1399,8 @@ func (s *server) apiItem(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, resp)
 }
 
-// apiStream tells the page when the store changes, as server-sent events.
+// apiStream tells the page when what it shows changes (pageStamp), as
+// server-sent events.
 func (s *server) apiStream(w http.ResponseWriter, r *http.Request) {
 	fl, ok := w.(http.Flusher)
 	if !ok {
@@ -1386,7 +1411,7 @@ func (s *server) apiStream(w http.ResponseWriter, r *http.Request) {
 	h.Set("Content-Type", "text/event-stream")
 	h.Set("Cache-Control", "no-store")
 	h.Set("X-Accel-Buffering", "no")
-	last, _ := s.stamp()
+	last, _ := s.pageStamp()
 	// keys names the version of the user's keys file: sent now, and again
 	// whenever it changes, so a saved edit applies without a reload.
 	keys := s.a.keysStamp()
@@ -1411,7 +1436,7 @@ func (s *server) apiStream(w http.ResponseWriter, r *http.Request) {
 				fmt.Fprintf(w, "event: keys\ndata: %s\n\n", k)
 				fl.Flush()
 			}
-			cur, err := s.stamp()
+			cur, err := s.pageStamp()
 			if err != nil || cur == last {
 				continue
 			}

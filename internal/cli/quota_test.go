@@ -1,13 +1,16 @@
 package cli
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/NightMachinery/agent-desk/internal/keeper"
 )
@@ -363,5 +366,107 @@ func TestArchiveAgent(t *testing.T) {
 	}
 	if len(calls) != 1 {
 		t.Fatalf("paseo ran for an unknown id: %v", calls)
+	}
+}
+
+// archivePaseoRecord marks a stored Paseo record archived, as Paseo does.
+func archivePaseoRecord(t *testing.T, home, uuid string) {
+	t.Helper()
+	path := filepath.Join(home, "agents", "Users-example-code", uuid+".json")
+	b, err := os.ReadFile(path)
+	must(t, err)
+	var rec map[string]any
+	must(t, json.Unmarshal(b, &rec))
+	rec["archivedAt"] = "2026-11-24T20:53:13.051Z"
+	b, _ = json.Marshal(rec)
+	must(t, os.WriteFile(path, b, 0o644))
+}
+
+// An archive shows at once: from the dashboard, the Out of quota list
+// leaves the agent out without being made again and open pages hear of
+// it; made in Paseo itself, open pages hear of it once the statuses are
+// read again.
+func TestArchiveShowsAtOnce(t *testing.T) {
+	h := newHarness(t)
+	const stopped = "33333333-0000-4000-8000-00000000000s"
+	const other = "33333333-0000-4000-8000-00000000000o"
+	writePaseoRecord(t, h.paseo, stopped, sessB, "", "Eval worker")
+	writePaseoRecord(t, h.paseo, other, sessC, "", "Plot helper")
+	writeConfig(t, h, "[quota]\nstopped_command = 'printf STOPPED'\n")
+	listed := 0
+	h.respond = func(name string, args []string) (string, error) {
+		switch {
+		case name == "sh" && args[1] == "printf STOPPED":
+			listed++
+			return stopped + "\n" + other + "\n", nil
+		case name == "paseo" && len(args) == 2 && args[0] == "archive":
+			archivePaseoRecord(t, h.paseo, args[1])
+			return "", nil
+		}
+		return "{}", nil
+	}
+	h.ok(h.as(sessA), "", "join", "r1/coord")
+	s, hd := testServer(t, h)
+	s.poll = 20 * time.Millisecond
+	stamp := func() string {
+		t.Helper()
+		_, body, _ := do(t, hd, "GET", "/api/view", "", nil)
+		var v struct{ Stamp string }
+		must(t, json.Unmarshal([]byte(body), &v))
+		return v.Stamp
+	}
+	if _, body, _ := do(t, hd, "GET", "/api/quota", "", nil); !strings.Contains(body, stopped) || listed != 1 {
+		t.Fatalf("listed %d: %s", listed, body)
+	}
+	before := stamp()
+
+	ts := httptest.NewServer(hd)
+	defer ts.Close()
+	resp, err := http.Get(ts.URL + "/api/stream")
+	must(t, err)
+	defer resp.Body.Close()
+	lines := make(chan string, 16)
+	go func() {
+		sc := bufio.NewScanner(resp.Body)
+		for sc.Scan() {
+			lines <- sc.Text()
+		}
+		close(lines)
+	}()
+	wait := func(want string) {
+		t.Helper()
+		deadline := time.After(3 * time.Second)
+		for {
+			select {
+			case l := <-lines:
+				if l == want {
+					return
+				}
+			case <-deadline:
+				t.Fatalf("no %q on the stream", want)
+			}
+		}
+	}
+	wait("event: hello")
+
+	if code, body, _ := do(t, hd, "POST", "/api/agent", `{"action":"archive","id":"`+stopped+`"}`, dashboard); code != 200 {
+		t.Fatalf("archive: %d %s", code, body)
+	}
+	_, body, _ := do(t, hd, "GET", "/api/quota", "", nil)
+	if strings.Contains(body, stopped) || !strings.Contains(body, other) || listed != 1 {
+		t.Fatalf("after archive, listed %d: %s", listed, body)
+	}
+	after := stamp()
+	if after == before {
+		t.Fatalf("the view's stamp did not change: %s", after)
+	}
+	wait("event: change")
+
+	// Archived in Paseo: heard of when the statuses are next read.
+	archivePaseoRecord(t, h.paseo, other)
+	expireLive() // liveTTL has passed
+	wait("event: change")
+	if stamp() == after {
+		t.Fatal("the view's stamp did not change after an archive in Paseo")
 	}
 }

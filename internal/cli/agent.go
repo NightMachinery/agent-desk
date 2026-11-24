@@ -38,8 +38,10 @@ func (a *App) archiveAgent(id string) (string, error) {
 func (s *server) apiAgentAct(app *App, body request) (any, error) {
 	switch body.Action {
 	case "archive":
-		defer s.expireQuota()
 		note, err := app.archiveAgent(body.ID)
+		// Read Paseo's records again: the page reloads after this, and its
+		// views and the Out of quota list then leave the agent out.
+		expireLive()
 		return map[string]string{"note": note}, err
 	}
 	return nil, usagef("agent action is archive")

@@ -1234,7 +1234,7 @@ each of them. For each:
 - **×** dismisses it: hidden until it runs and stops again. "Show N
   dismissed" brings dismissed ones back into view, each with an undo.
 - **Archive** archives it in Paseo (`paseo archive`, after you confirm), so
-  it leaves the list for good. Messaging it from the desk revives it. The
+  it leaves the list for good, at once and on every open page. Messaging it from the desk revives it. The
   keyboard command is `quota-archive`.
 
 ### Auto-continue defaults

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"io"
 	"net/http"
 	"os"
@@ -48,26 +49,59 @@ type App struct {
 	storedDesk     func() (*desk.Desk, string, error) // stamp-checked shared snapshot when serving
 }
 
-// liveTTL bounds how stale the Paseo statuses behind node states may be.
+// liveTTL bounds how stale the Paseo statuses behind node states may be,
+// and so how late the page learns of an archive made outside the desk.
 const liveTTL = 10 * time.Second
 
 // liveCache keeps the Paseo statuses read last, shared by every App (the
 // server copies its App per request).
 var liveCache struct {
 	sync.Mutex
-	home string
-	at   time.Time
-	m    map[string]string
+	home     string
+	at       time.Time
+	m        map[string]string
+	archived string // archivedStamp of m
 }
 
 func (a *App) paseoLive() map[string]string {
+	m, _ := a.paseoLiveStamp()
+	return m
+}
+
+// paseoLiveStamp returns the Paseo statuses and a stamp of which agents
+// are archived. The page's stamp includes it, so an archive or a revival
+// reaches open pages as a change; a turn starting or ending does not.
+func (a *App) paseoLiveStamp() (map[string]string, string) {
 	liveCache.Lock()
 	defer liveCache.Unlock()
 	home, now := a.paseoHome(), time.Now()
 	if liveCache.m == nil || liveCache.home != home || now.Sub(liveCache.at) > liveTTL {
 		liveCache.m, liveCache.home, liveCache.at = ident.PaseoStatuses(home), home, now
+		liveCache.archived = archivedStamp(liveCache.m)
 	}
-	return liveCache.m
+	return liveCache.m, liveCache.archived
+}
+
+// expireLive makes the next paseoLive read Paseo's records again: after
+// the desk archives an agent, the page it reloads shows that at once.
+func expireLive() {
+	liveCache.Lock()
+	liveCache.m = nil
+	liveCache.Unlock()
+}
+
+// archivedStamp names the set of archived agents in statuses: their count
+// and the sum of their ids' hashes, which needs no sorting.
+func archivedStamp(statuses map[string]string) string {
+	var n, sum uint64
+	for id, st := range statuses {
+		if st == "archived" {
+			h := fnv.New64a()
+			h.Write([]byte(id))
+			n, sum = n+1, sum+h.Sum64()
+		}
+	}
+	return fmt.Sprintf("%d-%x", n, sum)
 }
 
 // New returns an App for the real environment.
