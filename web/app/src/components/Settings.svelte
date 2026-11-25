@@ -6,7 +6,7 @@
   import { toast } from '../lib/toast.svelte.js';
   import { href } from '../lib/route.svelte.js';
   import { desktopText, remoteText, awayChoice, pushText, originText, behaviorLabel, autoContinueText } from '../lib/format.js';
-  import { ui, saveUI } from '../lib/ui.svelte.js';
+  import { ui, saveUI, setNav } from '../lib/ui.svelte.js';
   import PushSettings from './PushSettings.svelte';
   import SectionOrder from './SectionOrder.svelte';
   import NavSettings from './NavSettings.svelte';
@@ -218,7 +218,15 @@
       </div>
       <SectionOrder />
     </div>
-    <NavSettings />
+    <div class="key" id="nav-order">
+      <div class="key-head">
+        <span class="key-name">Auto-navigation: where n and moving on go</span>
+        <span class="mono faint">every device</span>
+      </div>
+      <label class="check"><input type="checkbox" data-cmd="nav-views" checked={ui.nav.views} onchange={(e) => setNav({ views: e.currentTarget.checked })} /> Fewer views first: items opened less often come first</label>
+      <div class="origin"><span class="faint">An open question stays listed after you open it; everything else is read on opening and drops out. Then by kind, and within a kind by age:</span></div>
+      <NavSettings />
+    </div>
     <PushSettings {stamp} />
     <div class="key">
       <div class="key-head">
