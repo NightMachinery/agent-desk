@@ -3,6 +3,7 @@
 // defined once with command(name, ...); keys.edn binds keys to its name, so
 // M-x, SPC SPC and help list a command even when it has no key.
 import { ALL_CLEAR, ALL_CLEAR_KEY } from './moveon.js';
+import { itemMarkdown } from './itemmd.js';
 import { route, go, pageOpen, showMode, showOver } from './route.svelte.js';
 import { nav, navNext, step } from './nav.svelte.js';
 import { sel, toggle, toggleAll, clear } from './select.svelte.js';
@@ -511,6 +512,11 @@ C('yank-resume', 'Copy the resume command', () => yank(ctx.item()?.resume ?? '',
 C('yank-paseo', "Copy the agent's Paseo id", () => yank(ctx.item()?.from?.paseo || ctx.view()?.target?.paseo || '', 'Paseo id'));
 C('yank-path', 'Copy the path shown', () => yank(ctx.item()?.node ?? route.path, 'Path'));
 C('yank-hint', 'Copy an event on screen by hint: its id and text', () => startHints(EVENTS, { act: yankEvent, none: 'No events on screen' }));
+C('yank-markdown', "Copy the open item's full text as Markdown (its title as a heading)", () => {
+  const it = ctx.item();
+  if (!it?.item?.event) return say('No item open');
+  yank(itemMarkdown(it.item.event, it.default), 'Markdown');
+}, { when: open, need: 'an open item' });
 
 // The node page and the list.
 C('node-message', 'Message the coordinator', message, { when: () => !!ctx.view()?.target, need: 'a node with a coordinator' });

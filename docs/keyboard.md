@@ -89,8 +89,9 @@ On a phone there is one pane at a time: the list, or the open item.
 - `x`: select or unselect it.
 - `yy` copies a link to it, `yi` its id, `ya` its agent's Paseo id, `yr`
   the session's resume command, `yp` the path, `yf` any event on screen by
-  hint. The two icons beside the agent's name copy the Paseo id and the
-  resume command too.
+  hint, `ym` its full text as Markdown (the title as a heading, then the
+  body; a question adds its default and its choices). The two icons beside
+  the agent's name copy the Paseo id and the resume command too.
 - `c` files a new task (capture).
 - `go` opens its node, `gw` shows everything its session wrote, `gt` the item
   its conversation is about.

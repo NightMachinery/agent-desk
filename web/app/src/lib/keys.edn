@@ -169,6 +169,7 @@
   "y a"     :yank-paseo
   "y p"     :yank-path
   "y f"     :yank-hint
+  "y m"     :yank-markdown
   "y q"     :quota-copy-ids
   "y l"     :push-logs
   "y b"     :push-brave-setting
