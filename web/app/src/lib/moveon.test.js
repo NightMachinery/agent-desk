@@ -1,7 +1,7 @@
 // npm test (node --test)
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { moveOnTarget } from './moveon.js';
+import { moveOnTarget, nextOpen } from './moveon.js';
 
 const none = new Set();
 
@@ -33,4 +33,22 @@ test('back to the list when only pinned items are left', () => {
 
 test('here not in the order: first unpinned question', () => {
   assert.equal(moveOnTarget(['q-p', 't-x', 'q-b'], 'q-gone', new Set(['q-p'])), 'q-b');
+});
+
+test('n: two open questions do not trap it; it goes on to the unread items', () => {
+  const order = ['q-a', 'q-b', 'b-c', 't-d'];
+  const open = new Set(order);
+  assert.equal(nextOpen(order, 'q-a', none, open), 'q-b');
+  assert.equal(nextOpen(order, 'q-b', none, open), 'b-c');
+  assert.equal(nextOpen(order, 'b-c', none, open), 't-d');
+});
+
+test('n: wraps to the top, skipping read and pinned items', () => {
+  const open = new Set(['q-a', 'q-p', 't-d']);
+  assert.equal(nextOpen(['q-p', 'q-a', 'b-read', 't-d'], 't-d', new Set(['q-p']), open), 'q-a');
+});
+
+test('n: from no item, the first open one; nothing else open gives ""', () => {
+  assert.equal(nextOpen(['b-read', 'q-a'], '', none, new Set(['q-a'])), 'q-a');
+  assert.equal(nextOpen(['q-a', 'b-read'], 'q-a', none, new Set(['q-a'])), '');
 });

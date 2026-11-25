@@ -56,8 +56,12 @@ On a phone there is one pane at a time: the list, or the open item.
 - `C-d` / `C-u`: scroll half a page.
 - `J` / `K` (or `C-j` / `C-k`) move to the next or previous item from any
   pane.
-- `n`: the next open item, where answering would move on to: the next open
-  question, else the next unread item, skipping read and pinned ones. `N`
+- `n`: the next open item (an open question or an unread item) in list
+  order, skipping read and pinned ones, and wrapping to the top at the end.
+  Needs you leads the list unless you reorder the sections, so a walk from
+  the top meets the questions first; a question you only looked at stays
+  open, and `n` passes it to reach the rest. Answering moves on differently:
+  to the next open question first, wherever it is. `N`
   retraces your `n` steps, back to the item each came from, though opening
   it has read it by now; `n` then goes forward again along them. With nothing
   to retrace, `N` goes to the nearest open item before. When nothing open is

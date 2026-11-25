@@ -6,7 +6,7 @@
 // only pinned items are left. Only open items count (an open question, an
 // unread item): a read one still listed (lingering, or under Show: All) is
 // not waiting. Previous and Next still walk every item; Next open item (n)
-// goes where this would.
+// walks the open ones (nextOpen).
 
 /**
  * @param {string[]} order the list's ids, in the order shown
@@ -21,6 +21,24 @@ export function moveOnTarget(order, here, pinned, open = null) {
   const before = order.slice(0, Math.max(0, i)).filter(ok).reverse();
   const q = (/** @type {string} */ id) => id.startsWith('q-');
   return after.find(q) || before.find(q) || after[0] || before[0] || '';
+}
+
+/** Next open item (n): the next open, unpinned item in the order shown,
+ * wrapping to the top at the end; '' when nothing else is open. No
+ * preference for questions, unlike moveOnTarget: a question stays open
+ * while you only look at it, so with two open questions that preference
+ * would bounce between them and never reach the rest. Needs you comes first
+ * unless the sections are reordered, so a walk from the top still meets the
+ * questions first.
+ * @param {string[]} order
+ * @param {string} here
+ * @param {Set<string>} pinned
+ * @param {Set<string>} open
+ */
+export function nextOpen(order, here, pinned, open) {
+  const i = order.indexOf(here);
+  const ok = (/** @type {string} */ id) => id !== here && !pinned.has(id) && open.has(id);
+  return order.slice(i + 1).find(ok) || order.slice(0, Math.max(0, i)).find(ok) || '';
 }
 
 // When nothing open is left (n finds nothing, or the last open item was just

@@ -2,7 +2,7 @@
 // the components), so a key and a click do exactly the same. Each command is
 // defined once with command(name, ...); keys.edn binds keys to its name, so
 // M-x, SPC SPC and help list a command even when it has no key.
-import { moveOnTarget, ALL_CLEAR, ALL_CLEAR_KEY } from './moveon.js';
+import { nextOpen, ALL_CLEAR, ALL_CLEAR_KEY } from './moveon.js';
 import { route, go, pageOpen, showMode, showOver } from './route.svelte.js';
 import { nav, step } from './nav.svelte.js';
 import { sel, toggle, toggleAll, clear } from './select.svelte.js';
@@ -76,7 +76,7 @@ function openOpen(dir) {
     return openItem(id);
   }
   let id = '';
-  if (dir > 0) id = moveOnTarget(nav.order, here, nav.pinned, nav.open);
+  if (dir > 0) id = nextOpen(nav.order, here, nav.pinned, nav.open);
   else {
     const i = nav.order.indexOf(here);
     id = nav.order.slice(0, Math.max(0, i)).reverse().find((x) => nav.open.has(x) && !nav.pinned.has(x)) ?? '';
@@ -84,7 +84,7 @@ function openOpen(dir) {
   if (!id) {
     // n looks both ways, so nothing found there means nothing else is open;
     // it is a clear desk unless the item shown is itself still open.
-    if (dir < 0 && moveOnTarget(nav.order, here, nav.pinned, nav.open)) return say('Nothing open before this');
+    if (dir < 0 && nextOpen(nav.order, here, nav.pinned, nav.open)) return say('Nothing open before this');
     if (here && nav.open.has(here) && !nav.pinned.has(here)) return say('Nothing else open');
     return clearDesk();
   }
@@ -383,7 +383,7 @@ C('go-node', 'Go to a project, run or agent', nodes);
 C('switch-item', 'Switch to an item in the list', items);
 C('hints', 'Click something on screen (hints)', () => startHints(), { anywhere: true });
 C('reply-entry', 'Reply to an entry of the conversation (hints on the reply buttons)', () => startHints('.reply-btn'), { when: () => !!document.querySelector('.reply-btn') });
-C('next-open', 'Next open item: where answering moves on to (an open question, else an unread item)', () => openOpen(1));
+C('next-open', 'Next open item: the next open question or unread item in list order, wrapping at the end', () => openOpen(1));
 C('prev-open', 'Back along your n steps (else the previous open item)', () => openOpen(-1));
 C('search', 'Search', search);
 C('search-clear', 'Clear the search', () => go({ q: '', item: '' }, { replace: true }), { when: () => !!route.q, need: 'a search' });
