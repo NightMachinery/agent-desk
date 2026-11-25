@@ -4,17 +4,23 @@
 // is still in it (or nothing is open).
 
 import { untrack } from 'svelte';
+import { post } from './api.js';
+import { navTarget } from './moveon.js';
+import { ui } from './ui.svelte.js';
 
 export const nav = $state({
   order: /** @type {string[]} */ ([]),
   pinned: /** @type {Set<string>} */ (new Set()),
   open: /** @type {Set<string>} */ (new Set()),
+  // Each listed item's kind, time (ms) and views, for auto-navigation.
+  info: /** @type {Map<string, import('./moveon.js').NavInfo>} */ (new Map()),
 });
 
 /** Records the list's order, unless the open item has dropped out of it,
- * which items are pinned (moving on after an answer skips them) and which
- * are open (an open question or an unread item: where moving on may go). */
-export function snapshot(ids, current, pinned = new Set(), open = new Set()) {
+ * which items are pinned (moving on after an answer skips them), which
+ * are open (an open question or an unread item: where moving on may go),
+ * and what auto-navigation ranks them by (info). */
+export function snapshot(ids, current, pinned = new Set(), open = new Set(), info = new Map()) {
   const seen = new Set();
   const order = ids.filter((id) => !seen.has(id) && seen.add(id));
   // Untracked: the caller's effect writes nav.order, so depending on it would
@@ -23,6 +29,33 @@ export function snapshot(ids, current, pinned = new Set(), open = new Set()) {
   if (!current || order.includes(current) || !was.includes(current)) nav.order = order;
   nav.pinned = pinned;
   nav.open = open;
+  nav.info = info;
+}
+
+// Opens counted on this page, by display id. The desk's count reaches the
+// list with the next reload; until then n must already see this one, or
+// it could go straight back to the item it just left.
+const seenHere = new Map();
+
+/** An item's kind, time and views, the views counted here included. */
+function navInfo(id) {
+  const x = nav.info.get(id);
+  const views = Math.max(x?.views ?? 0, seenHere.get(id) ?? 0);
+  return x ? { ...x, views } : { views };
+}
+
+/** Counts one open of the item on the desk (api/seen), for every device's
+ * auto-navigation. */
+export function countOpen(eventId, displayId) {
+  seenHere.set(displayId, (navInfo(displayId).views ?? 0) + 1);
+  post('seen', { id: eventId }).catch(() => {
+    // offline or an older desk: this page still counts it
+  });
+}
+
+/** Where auto-navigation goes from here (moveon.js), or ''. */
+export function navNext(here) {
+  return navTarget(nav.order, here, nav.pinned, nav.open, navInfo, ui.nav);
 }
 
 /** The item dir (+1 or -1) steps away from current, or ''. */

@@ -3,6 +3,7 @@
 // every device through the desk, and cached here.
 import { get, post } from './api.js';
 import { toast } from './toast.svelte.js';
+import { normNav, isDefaultNav } from './moveon.js';
 const KEY = 'agent-desk.ui';
 
 function load() {
@@ -75,6 +76,8 @@ export const ui = $state({
   tasksShow: taskModes.includes(saved.tasksShow) ? saved.tasksShow : 'open',
   // The list's sections in order (orderedSections), shared by every device.
   sectionOrder: orderedSections(saved.sectionOrder),
+  // Auto-navigation's order (moveon.js), shared by every device.
+  nav: normNav(saved.nav),
 });
 
 export function saveUI() {
@@ -87,6 +90,7 @@ export function saveUI() {
         deliverablesShow: ui.deliverablesShow,
         tasksShow: ui.tasksShow,
         sectionOrder: ui.sectionOrder,
+        nav: ui.nav,
       }),
     );
   } catch {
@@ -115,13 +119,15 @@ export function showTasks(mode) {
   return ui.tasksShow;
 }
 
-/** Take the section order shared on the desk, if it differs from this browser's. */
+/** Take the section order and auto-navigation order shared on the desk, if they differ from this browser's. */
 export async function loadSharedUI() {
   try {
     const prefs = await get('dashboard-prefs');
     const order = orderedSections(prefs.sections);
-    if (order.join() !== ui.sectionOrder.join()) {
+    const nav = normNav(prefs.nav);
+    if (order.join() !== ui.sectionOrder.join() || JSON.stringify(nav) !== JSON.stringify(ui.nav)) {
       ui.sectionOrder = order;
+      ui.nav = nav;
       saveUI();
     }
   } catch {
@@ -140,5 +146,20 @@ export async function setSectionOrder(order) {
     ui.sectionOrder = before;
     saveUI();
     toast(`The order was not saved: ${e.message}`, 'error');
+  }
+}
+
+/** Set auto-navigation's order (moveon.js) on every device; changes merge
+ * into the current one, and the default is saved as null. */
+export async function setNav(change) {
+  const before = ui.nav;
+  ui.nav = normNav({ ...ui.nav, ...change });
+  saveUI();
+  try {
+    await post('dashboard-prefs', { key: 'nav', data: isDefaultNav(ui.nav) ? null : ui.nav });
+  } catch (e) {
+    ui.nav = before;
+    saveUI();
+    toast(`The auto-navigation order was not saved: ${e.message}`, 'error');
   }
 }

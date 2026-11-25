@@ -141,9 +141,10 @@ The API, all JSON:
   version; `error` says why an existing file was not read (larger than
   64 KiB, a directory, unreadable). The dashboard parses and checks the
   text itself (see [keyboard.md](keyboard.md)).
-- `GET api/stream`: server-sent events; `change` whenever the store changes
-  or a Paseo agent here is archived or revived (`api/view`'s `stamp` covers
-  both, so panels keyed on it reload too; an archive made outside the desk
+- `GET api/stream`: server-sent events; `change` whenever the store changes,
+  a Paseo agent here is archived or revived, or an item is opened
+  (`api/seen`) (`api/view`'s `stamp` covers all three, so panels keyed on it
+  reload too; an archive made outside the desk
   is seen within the 10 s the Paseo statuses are cached), `build` naming the dashboard the server serves, and `keys` naming the keys
   file's version (empty when there is none), on connecting and whenever it
   changes.
@@ -173,6 +174,10 @@ The API, all JSON:
 - The automatic screen sweep queues its answer and commits the grant in
   the same transaction. The commit checks whether the screen changed
   during the idle probe.
+- `POST api/seen {id}`: counts one open of the item (its event's full id)
+  and returns `{views}`. The counts live in the desk's `item_views` table,
+  not in events, so merge does not copy them; `api/view` gives each listed
+  item its count as `views`, for auto-navigation (`web/app/src/lib/moveon.js`).
 - `POST api/read {target}` or `{targets: [...]}` accepts ids and paths.
   An open question named by id is dismissed. `api/unread` accepts `{id}`
   or `{targets: [...]}`, and `api/pin` and `api/unpin` accept `{id}`.
@@ -237,7 +242,10 @@ The API, all JSON:
   once; one left out keeps its default place), and a null `data` puts back
   the default. `{key: "render", data: {enabled, debounce}}` is when the
   server renders the org files: on or off, and the seconds (1 to 600) the
-  desk must be quiet first; turning it on renders at once.
+  desk must be quiet first; turning it on renders at once. `{key: "nav",
+  data: {views, kinds, age}}` is auto-navigation's order: `views` true puts
+  the items opened least first, `kinds` names each of blocked, default,
+  deliverable, response and notice once, and `age` is `old` or `new`.
 - `GET api/render`: the org files' state for Settings, `{enabled, debounce,
   dir, last, took_ms, error}`. `POST api/render` renders them now, whatever
   the setting, and returns the same.

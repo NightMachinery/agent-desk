@@ -126,8 +126,23 @@
   );
   // Open: what is still waiting (Needs you, and unread items elsewhere).
   const openAll = $derived(new Set([...needIds, ...freshUnread, ...responseUnread, ...deliverableUnread, ...pinned.filter((it) => it.unread).map((it) => it.display_id)]));
+  // What auto-navigation ranks each item by (moveon.js): its kind, from its
+  // section (a question by its level), its time and the desk's view count.
+  const infoAll = $derived.by(() => {
+    const m = new Map();
+    const add = (groups, kindOf) => {
+      for (const g of groups)
+        for (const it of g.items)
+          if (!m.has(it.display_id)) m.set(it.display_id, { kind: kindOf(it), ts: Date.parse(it.event.ts), views: it.views ?? 0 });
+    };
+    add(needs, (it) => (it.event.level === 'blocked' ? 'blocked' : 'default'));
+    add(deliverables, () => 'deliverable');
+    add(responses, () => 'response');
+    add(fresh, () => 'notice');
+    return m;
+  });
   // Previous and next walk the list in the order shown.
-  $effect(() => snapshot(allIds, route.item, pinnedAll, openAll));
+  $effect(() => snapshot(allIds, route.item, pinnedAll, openAll, infoAll));
   const pickedPinned = $derived(pinnedIds.filter((x) => sel.ids.has(x)).length);
   const allOn = (ids) => ids.length > 0 && ids.every((x) => sel.ids.has(x));
   $effect(() => prune(allIds));

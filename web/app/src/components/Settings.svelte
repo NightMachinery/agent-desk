@@ -9,6 +9,7 @@
   import { ui, saveUI } from '../lib/ui.svelte.js';
   import PushSettings from './PushSettings.svelte';
   import SectionOrder from './SectionOrder.svelte';
+  import NavSettings from './NavSettings.svelte';
   import { off, BUSY } from '../lib/why.js';
   import { keyFor } from '../lib/keys.svelte.js';
   const lingerChoices = [0, 15, 30, 60, 120, 300];
@@ -217,6 +218,7 @@
       </div>
       <SectionOrder />
     </div>
+    <NavSettings />
     <PushSettings {stamp} />
     <div class="key">
       <div class="key-head">
@@ -235,7 +237,7 @@
       </div>
       <label class="check"><input type="checkbox" checked={ui.nextAfterQuestion} onchange={(e) => ((ui.nextAfterQuestion = e.currentTarget.checked), saveUI())} /> after answering, approving, denying or dismissing a question</label>
       <label class="check"><input type="checkbox" checked={ui.nextAfterMessage} onchange={(e) => ((ui.nextAfterMessage = e.currentTarget.checked), saveUI())} /> after sending a message in a conversation</label>
-      <div class="origin"><span class="faint">On a wide screen, to the next item that is not pinned; on a phone, back to the list. Off: stay on the item.</span></div>
+      <div class="origin"><span class="faint">On a wide screen, to the next open item in the auto-navigation order; on a phone, back to the list. Off: stay on the item.</span></div>
     </div>
     <div class="key" id="org-files">
       <div class="key-head">

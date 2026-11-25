@@ -190,6 +190,7 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("POST /api/answer", s.action(s.apiAnswer))
 	mux.HandleFunc("POST /api/reply", s.action(s.apiReply))
 	mux.HandleFunc("POST /api/read", s.write(s.apiRead))
+	mux.HandleFunc("POST /api/seen", s.action(s.apiSeen))
 	mux.HandleFunc("POST /api/deliver", s.action(s.apiDeliver))
 	mux.HandleFunc("POST /api/pin", s.write(s.apiPin))
 	mux.HandleFunc("POST /api/unpin", s.write(s.apiUnpin))
@@ -642,21 +643,22 @@ func (s *server) load(w http.ResponseWriter) (*desk.Desk, string) {
 	d.Live, archived = s.a.paseoLiveStamp()
 	d.Now = s.a.Now()
 	if stamp != "" {
-		stamp += "." + archived
+		stamp += "." + archived + "." + s.viewsStamp()
 	}
 	return &d, stamp
 }
 
-// pageStamp is the version of what the page shows: the store's stamp and
-// which Paseo agents are archived. The live stream announces each change,
-// and panels keyed on the view's stamp reload on it.
+// pageStamp is the version of what the page shows: the store's stamp,
+// which Paseo agents are archived, and the items' open counts (views.go).
+// The live stream announces each change, and panels keyed on the view's
+// stamp reload on it.
 func (s *server) pageStamp() (string, error) {
 	stamp, err := s.stamp()
 	if err != nil {
 		return "", err
 	}
 	_, archived := s.a.paseoLiveStamp()
-	return stamp + "." + archived, nil
+	return stamp + "." + archived + "." + s.viewsStamp(), nil
 }
 
 // Session describes one agent session, for the session filter's header.
@@ -817,6 +819,7 @@ func (s *server) apiView(w http.ResponseWriter, r *http.Request) {
 		v.Runs = searchTree(v.Runs, strings.ToLower(query), nodeSessions(d))
 	}
 	markDrafted(&v, drafted)
+	s.markViewed(&v)
 	resp := viewResponse{
 		Host: d.Host, Stamp: stamp, Path: f.Prefix, View: v,
 		Filter: viewFilter{Host: f.Host, Session: f.Session, All: f.All, Query: query},

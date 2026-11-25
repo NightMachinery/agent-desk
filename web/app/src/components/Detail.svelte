@@ -17,8 +17,8 @@
   import { hold, release } from '../lib/linger.svelte.js';
   import Icon from './Icon.svelte';
   import Thread from './Thread.svelte';
-  import { autoRead, nav, position, step } from '../lib/nav.svelte.js';
-  import { moveOnTarget, ALL_CLEAR, ALL_CLEAR_KEY } from '../lib/moveon.js';
+  import { autoRead, countOpen, navNext, position, step } from '../lib/nav.svelte.js';
+  import { ALL_CLEAR, ALL_CLEAR_KEY } from '../lib/moveon.js';
   import { arrival, arrivedAuto, cancelArrival, settleArrival } from '../lib/arrival.js';
   import { ui } from '../lib/ui.svelte.js';
   import { keys, syncMode } from '../lib/keys.svelte.js';
@@ -92,6 +92,19 @@
       .catch(() => (autoRead.delete(id), release(id)));
   });
 
+  // Every open counts as a view (api/seen), the page's own moves included:
+  // auto-navigation goes to the items opened least, and an item shown but
+  // not counted would be its next stop again. A reload of the same item
+  // is not a new open.
+  let counted = '';
+  $effect(() => {
+    const id = e?.id, display = it?.display_id;
+    if (!id) counted = ''; // closed: opening it again is a new open
+    if (!id || id === counted) return;
+    counted = id;
+    untrack(() => countOpen(id, display));
+  });
+
   const prevId = $derived(step(-1, route.item));
   const nextId = $derived(step(1, route.item));
   const pos = $derived(position(route.item));
@@ -146,7 +159,8 @@
 
   // Once a question is dealt with (answered, approved, denied, dismissed) or
   // a message is sent in a conversation, move on: on a wide screen to the
-  // next unpinned item (moveon.js), on a phone back to the list. The toast's
+  // next open item in auto-navigation's order (moveon.js), on a phone back
+  // to the list. The toast's
   // Back returns to it. Settings can keep either case on the item
   // (ui.nextAfterQuestion, ui.nextAfterMessage); then only the toast shows,
   // with Undo when there is one.
@@ -155,13 +169,13 @@
     settleArrival(route.item); // acting on an arrival reads it
     // The last open item dealt with: say so beside the usual toast, with the
     // Tasks page one click away (n would open it).
-    if (!moveOnTarget(nav.order, route.item, nav.pinned, nav.open)) toast(ALL_CLEAR, 'ok', 6000, { label: 'Tasks', run: () => go({ item: '', tasks: true }) }, ALL_CLEAR_KEY);
+    if (!navNext(route.item)) toast(ALL_CLEAR, 'ok', 6000, { label: 'Tasks', run: () => go({ item: '', tasks: true }) }, ALL_CLEAR_KEY);
     if (!enabled) {
       toast(text, 'ok', 6000, back ? { label: 'Undo', run: back } : null);
       return;
     }
     const here = route.item;
-    const next = wide() ? moveOnTarget(nav.order, here, nav.pinned, nav.open) : '';
+    const next = wide() ? navNext(here) : '';
     arrivedAuto(next);
     setTimeout(() => go({ item: next }), 0); // after the composer has finished with its draft
     toast(text, 'ok', 6000, {

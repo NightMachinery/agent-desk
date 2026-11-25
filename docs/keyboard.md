@@ -56,12 +56,12 @@ On a phone there is one pane at a time: the list, or the open item.
 - `C-d` / `C-u`: scroll half a page.
 - `J` / `K` (or `C-j` / `C-k`) move to the next or previous item from any
   pane.
-- `n`: the next open item (an open question or an unread item) in list
-  order, skipping read and pinned ones, and wrapping to the top at the end.
-  Needs you leads the list unless you reorder the sections, so a walk from
-  the top meets the questions first; a question you only looked at stays
-  open, and `n` passes it to reach the rest. Answering moves on differently:
-  to the next open question first, wherever it is. `N`
+- `n`: the next open item (an open question or an unread item, never a
+  pinned one) in the auto-navigation order, the same one moving on after an
+  answer follows: the items opened least first, then blocked questions,
+  questions with a default, deliverables, responses and notices, then the
+  oldest (Settings, "Auto-navigation", changes it; see
+  [usage.md](usage.md)). `N`
   retraces your `n` steps, back to the item each came from, though opening
   it has read it by now; `n` then goes forward again along them. With nothing
   to retrace, `N` goes to the nearest open item before. When nothing open is
@@ -126,8 +126,8 @@ entry reuses the letter of its short key (`p` pins, so `SPC b p` pins).
 - `SPC o`: open a page: `s` / `S` settings here or global, `v` / `V` the
   Verbatim log here or everywhere, `t` / `T` Tasks here or everywhere, `r`
   recordings, `o` the order of the list's sections (in Settings, with the
-  first handle focused; `↑` / `↓` on a handle move its section), `f` edit
-  focus sets.
+  first handle focused; `↑` / `↓` on a handle move its section), `n` the
+  auto-navigation order (the same, for its kinds), `f` edit focus sets.
 - `SPC q`: the session: `r` reload the page (also `g R`), `s` take the screen
   back from an agent holding the lock.
 - `SPC s s` search, `SPC s c` clear the search; `/` searches too.
@@ -171,7 +171,9 @@ swallows the next key, so it never runs a short key by accident.
   replace, `d` dismiss, `p` ask its parent to reassign it, `y` copy the
   picked ids (also `y q`). With focus on an agent's
   card, they act on that agent, else on the first.
-- Settings: `o` / `O` the section order or back to the default, `r` render
+- Settings: `o` / `O` the section order or back to the default, `a` / `A`
+  the auto-navigation kinds or back to the default, `c` fewer views first
+  on or off, `d` oldest or newest first within a kind, `r` render
   the org files now, `e` export the desk as one .org file, `E` as a zip, `p`
   push to this device on or off, `t` a test push, `l` copy the push logs,
   `b` copy Brave's push setting.

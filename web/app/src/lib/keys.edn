@@ -134,6 +134,7 @@
   "SPC o T" :tasks-all
   "SPC o r" :recordings
   "SPC o o" :section-order
+  "SPC o n" :nav-order
   "SPC o f" :edit-sets
 
   ; SPC q: the session.
@@ -295,6 +296,10 @@
  :settings
  {"o"       :section-order
   "O"       :section-order-reset
+  "a"       :nav-order
+  "A"       :nav-order-reset
+  "c"       :nav-views
+  "d"       :nav-age
   "r"       :org-render
   "e"       :org-export
   "E"       :org-export-zip

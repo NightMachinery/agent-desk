@@ -576,7 +576,27 @@ when; their box reopens them (asking what is still wrong). That is
 the default order: Settings, "Order of the list's sections" (`SPC o o`),
 changes it by dragging a section's card by its handle (mouse or touch), its
 arrows, or the up and down arrow keys on a focused handle. The order is kept
-on the desk, so every device shows it. Click a section's
+on the desk, so every device shows it.
+
+**Auto-navigation** is where Next open item (`n`) goes, and where a wide
+screen moves on to once you answer, approve, deny or dismiss a question or
+send a message. It goes only to open items (an open question, an unread
+item), never to pinned ones, in this order, which Settings, "Auto-navigation"
+(`SPC o n`), changes for every device:
+
+1. **Fewer views first:** the items the dashboard has opened least, on any
+   device. Every open counts, including the page's own moves. Everything
+   but a question is read on opening and drops out, so this puts the
+   questions you have already looked at after everything you have not, and
+   `n` never goes back and forth between two open questions. It can be
+   turned off.
+2. **Kind:** blocked questions (the agent waits for you), questions with a
+   default (the agent goes on with it if you do not answer), deliverables,
+   responses to you, notices. Drag the cards to reorder them.
+3. **Age:** oldest first, or newest first.
+
+The list keeps its own sort, so `n` may jump around it; Previous and Next
+(`J` / `K`) still walk the list in order. Click a section's
 title to fold it. Each row names its project, run and agent below what the
 view or its group heading already says. Opening an item marks it read (a
 question excepted: reading one dismisses it), but the row stays where it

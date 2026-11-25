@@ -411,6 +411,9 @@ type Item struct {
 	// a question's picks), which keeps it listed until sent or discarded.
 	// Set by the dashboard's server, not by Build.
 	Draft bool `json:"draft,omitempty"`
+	// Views: how often the dashboard has opened it, on any device, for
+	// auto-navigation's order. Set by the dashboard's server.
+	Views int `json:"views,omitempty"`
 }
 
 // Group is the items of one project and run.

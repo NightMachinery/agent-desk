@@ -2,16 +2,16 @@
 // the components), so a key and a click do exactly the same. Each command is
 // defined once with command(name, ...); keys.edn binds keys to its name, so
 // M-x, SPC SPC and help list a command even when it has no key.
-import { nextOpen, ALL_CLEAR, ALL_CLEAR_KEY } from './moveon.js';
+import { ALL_CLEAR, ALL_CLEAR_KEY } from './moveon.js';
 import { route, go, pageOpen, showMode, showOver } from './route.svelte.js';
-import { nav, step } from './nav.svelte.js';
+import { nav, navNext, step } from './nav.svelte.js';
 import { sel, toggle, toggleAll, clear } from './select.svelte.js';
 import { copy } from './format.js';
 import { tipText } from './tooltip.js';
 import { toast, bump } from './toast.svelte.js';
 import { get, post } from './api.js';
 import { exportHref, download } from './exports.js';
-import { toggleSection, showDeliverables, deliverableModeLabel, showTasks, taskModeLabel } from './ui.svelte.js';
+import { ui, setNav, toggleSection, showDeliverables, deliverableModeLabel, showTasks, taskModeLabel } from './ui.svelte.js';
 import {
   keys, ctx, command, pane, paneEl, cmdEl, say, dialog, moveFocus, focusables, startHints, openPalette, setKeymap,
   commands, commandItems, keysOf, keyFor, applies, describeKey, describeCommand, setVisual, syncMode, selectedField, selectField,
@@ -76,7 +76,7 @@ function openOpen(dir) {
     return openItem(id);
   }
   let id = '';
-  if (dir > 0) id = nextOpen(nav.order, here, nav.pinned, nav.open);
+  if (dir > 0) id = navNext(here);
   else {
     const i = nav.order.indexOf(here);
     id = nav.order.slice(0, Math.max(0, i)).reverse().find((x) => nav.open.has(x) && !nav.pinned.has(x)) ?? '';
@@ -84,7 +84,7 @@ function openOpen(dir) {
   if (!id) {
     // n looks both ways, so nothing found there means nothing else is open;
     // it is a clear desk unless the item shown is itself still open.
-    if (dir < 0 && nextOpen(nav.order, here, nav.pinned, nav.open)) return say('Nothing open before this');
+    if (dir < 0 && navNext(here)) return say('Nothing open before this');
     if (here && nav.open.has(here) && !nav.pinned.has(here)) return say('Nothing else open');
     return clearDesk();
   }
@@ -383,7 +383,7 @@ C('go-node', 'Go to a project, run or agent', nodes);
 C('switch-item', 'Switch to an item in the list', items);
 C('hints', 'Click something on screen (hints)', () => startHints(), { anywhere: true });
 C('reply-entry', 'Reply to an entry of the conversation (hints on the reply buttons)', () => startHints('.reply-btn'), { when: () => !!document.querySelector('.reply-btn') });
-C('next-open', 'Next open item: the next open question or unread item in list order, wrapping at the end', () => openOpen(1));
+C('next-open', 'Next open item: the open question or unread item opened least, by kind, then oldest (Settings: Auto-navigation)', () => openOpen(1));
 C('prev-open', 'Back along your n steps (else the previous open item)', () => openOpen(-1));
 C('search', 'Search', search);
 C('search-clear', 'Clear the search', () => go({ q: '', item: '' }, { replace: true }), { when: () => !!route.q, need: 'a search' });
@@ -396,13 +396,13 @@ C('up', 'Up one level', parent);
 C('top', 'Go to everything (the top)', () => go({ path: '', item: '', session: '', q: '' }));
 C('settings', 'Settings here', () => go({ settings: true, item: '' }));
 C('settings-global', 'Global settings', () => go({ path: '', settings: true, item: '', session: '' }));
-// The section order card in global Settings, its first handle focused
-// (arrow keys move that section).
-function sectionOrder() {
+// An order card in global Settings (section order, auto-navigation), its
+// first handle focused (arrow keys move that card).
+function orderCard(cmd) {
   go({ path: '', settings: true, item: '', session: '' });
   let tries = 0;
   const focus = () => {
-    const el = cmdEl('section-order');
+    const el = cmdEl(cmd);
     if (el) {
       el.scrollIntoView({ block: 'center' });
       el.focus();
@@ -410,7 +410,17 @@ function sectionOrder() {
   };
   focus();
 }
-C('section-order', "Order the list's sections (Settings; every device)", sectionOrder);
+C('section-order', "Order the list's sections (Settings; every device)", () => orderCard('section-order'));
+C('nav-order', 'Auto-navigation: order the kinds n and moving on go to first (Settings; every device)', () => orderCard('nav-order'));
+C('nav-order-reset', 'Auto-navigation: put the kinds back in the default order', () => setNav({ kinds: null }));
+C('nav-views', 'Auto-navigation: toggle fewer views first', () => {
+  setNav({ views: !ui.nav.views });
+  say(ui.nav.views ? 'Auto-navigation: fewer views first' : 'Auto-navigation: views ignored');
+});
+C('nav-age', 'Auto-navigation: toggle oldest or newest first within a kind', () => {
+  setNav({ age: ui.nav.age === 'old' ? 'new' : 'old' });
+  say(`Auto-navigation: ${ui.nav.age === 'old' ? 'oldest' : 'newest'} first within a kind`);
+});
 C('org-render', 'Render the org files now (inbox, boards, ledger)', async () => {
   try {
     const r = await post('render', {});

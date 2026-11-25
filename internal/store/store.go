@@ -175,7 +175,7 @@ func Open(home string) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	if _, err := db.Exec(schema + draftSchema + dashboardSchema); err != nil {
+	if _, err := db.Exec(schema + draftSchema + dashboardSchema + viewSchema); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("creating schema in %s: %w", path, err)
 	}
