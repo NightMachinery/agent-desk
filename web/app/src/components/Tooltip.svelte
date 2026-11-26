@@ -1,19 +1,23 @@
 <script>
   import { onMount, tick } from 'svelte';
-  import { parseTip } from '../lib/tooltip.js';
+  import { parseTip, withKey, ownLabel } from '../lib/tooltip.js';
+  import { buttonKey } from '../lib/shortcuts.js';
 
   // The app's one tooltip card, in place of the browser's: lib/tooltip.js
   // says how a title splits into it. Any element with title, data-tip or
   // data-tip-img (an image to preview) gets one on hover, and a button or
-  // link also on keyboard focus. The title moves to data-tip the first time
-  // the element is reached, so the browser never shows its own.
+  // link also on keyboard focus. So does a control a command clicks
+  // (data-cmd): its card names the command's key, even with no title. The
+  // title moves to data-tip the first time the element is reached, so the
+  // browser never shows its own.
   //
   // Touch has no hover. There, holding an element shows its card, and so
   // does tapping a disabled control, which would otherwise do nothing; the
   // card then stays until the next touch. A link held keeps the phone's own
   // menu (open in a new tab, copy the link), so holding shows no card on it.
 
-  const SELECTOR = '[title], [data-tip], [data-tip-img]';
+  const TITLED = '[title], [data-tip], [data-tip-img]';
+  const SELECTOR = TITLED + ', [data-cmd]';
   const FOCUSABLE = 'button, a[href], summary, [role="button"]';
   const HOLD = 500; // ms: a touch held this long shows the card
   const SLOP = 10; // px: a touch moving further is a scroll, not a hold
@@ -29,6 +33,7 @@
   let what = $state('');
   let img = $state('');
   let disabled = $state(false);
+  let keyOnly = false; // a card that only names a key: touch shows no keys, so not there
   let byPointer = true;
   let byTouch = $state(false); // shown by a touch: no key caps, and above the finger
   let pointerX = 0;
@@ -62,6 +67,15 @@
     what = t.dataset.tipWhat ?? '';
     img = t.dataset.tipImg ?? '';
     disabled = isDisabled(t);
+    keyOnly = false;
+    const key = t.dataset.cmd ? buttonKey(t.dataset.cmd) : '';
+    if (!key) return;
+    const label = () => ownLabel(t.getAttribute('aria-label') ?? '', t.textContent ?? '', t.dataset.cmd ?? '');
+    if (disabled && what) what = withKey(what, key, label());
+    else {
+      keyOnly = !text;
+      text = withKey(text, key, label());
+    }
   }
 
   function schedule(t, delay) {
@@ -75,7 +89,7 @@
     if (!t.isConnected) return hide();
     el = t;
     read(t);
-    if (!parts.head && !parts.body && !reason && !img) return hide();
+    if ((byTouch && keyOnly) || (!parts.head && !parts.body && !reason && !img)) return hide();
     placed = false;
     shown = true;
     await tick();
@@ -144,7 +158,7 @@
     endPress();
     swallow = null;
     if (e.pointerType !== 'touch' || !e.isPrimary) return;
-    const t = /** @type {Element} */ (e.target).closest?.(SELECTOR);
+    const t = /** @type {Element} */ (e.target).closest?.(TITLED);
     if (!(t instanceof HTMLElement)) return;
     adopt(t);
     press = { t, x: e.clientX, y: e.clientY, held: false, timer: 0 };

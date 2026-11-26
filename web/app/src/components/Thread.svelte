@@ -145,7 +145,7 @@
         <!-- Any agent item can respond; these say what kind they are. -->
         <div class="chips">
           <span class="chip {t.event.kind}">{t.event.kind === 'deliverable' ? 'Deliverable' : 'Done report'}</span>
-          {#if deliverableURL(t.event)}<a class="btn small" href={deliverableURL(t.event)} {...openTarget(deliverableURL(t.event))} title={t.event.meta.url}
+          {#if deliverableURL(t.event)}<a class="btn small open-entry-btn" href={deliverableURL(t.event)} {...openTarget(deliverableURL(t.event))} title={tip(`Open: ${t.event.meta?.url || deliverableURL(t.event)}`, 'open-entry')}
               onclick={(ev) => openedEntry(ev, t)} onauxclick={(ev) => openedEntry(ev, t)}>Open</a>{/if}
           {#if t.unread && onread && t.event.kind === 'deliverable'}
             <button data-keys="none" class="btn small ghost dismiss-entry-btn" title={tip('Dismiss: mark it read without opening it', 'dismiss-entry')} onclick={() => onread(t.display_id, true)}>Dismiss</button>

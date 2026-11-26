@@ -79,6 +79,8 @@
   "t"       :take
   "r"       :message
   "R"       :reply-entry
+  "O"       :open-entry
+  "D"       :dismiss-entry
   "i"       :insert
   "d"       :read
   "U"       :unread
@@ -88,6 +90,8 @@
   "SPC b t" :take
   "SPC b r" :message
   "SPC b R" :reply-entry
+  "SPC b O" :open-entry
+  "SPC b D" :dismiss-entry
   "SPC b d" :read
   "SPC b u" :unread
   "SPC b p" :pin
@@ -321,5 +325,4 @@
  :keyless [:deliverables-unread :deliverables-latest :deliverables-all ; SPC t d cycles them
            :list-show :list-sort                    ; SPC t a, h, o and r set them
            :compose                                 ; i does it, and returns to the box Esc left
-           :deferred-launch :deferred-launch-top    ; they start agents: by name only
-           :dismiss-entry]}                         ; rare; f reaches its button
+           :deferred-launch :deferred-launch-top]}  ; they start agents: by name only

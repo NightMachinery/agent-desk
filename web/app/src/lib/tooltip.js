@@ -13,6 +13,8 @@
 // - A trailing "(...)" after the heading is a note: body text.
 // - off() keeps a disabled control's usual title in data-tip-what, so the
 //   card says what the control does and, below, why it is unavailable now.
+// - A control with data-cmd gets its command's key added (withKey) when the
+//   title names none, and a card naming the key when it has no title.
 
 const KEY = /\s{2}\(([^()]+)\)\s*$/;
 const HEAD_MAX = 64;
@@ -60,8 +62,28 @@ function chord(s) {
   return s.split(/\s+/).filter(Boolean);
 }
 
+/** Capitalizes a body, but not one that starts with a URL. */
 function capital(s) {
-  return s ? s[0].toUpperCase() + s.slice(1) : s;
+  return s && !/^[a-z][a-z0-9+.-]*:\/\//.test(s) ? s[0].toUpperCase() + s.slice(1) : s;
+}
+
+/**
+ * The text with key appended as tip() would, unless it names a key already:
+ * a control a command clicks (data-cmd) teaches its key even when its title
+ * was written without tip(). With no text, label stands in as the heading.
+ * @param {string} text
+ * @param {string} key
+ * @param {string} label
+ */
+export function withKey(text, key, label) {
+  if (!key || parseTip(text).keys.length) return text;
+  return `${(text ?? '').trim() || label}  (${key})`;
+}
+
+/** A heading for a control with no title: its aria-label, its text if short, else its command's name. */
+export function ownLabel(/** @type {string} */ aria, /** @type {string} */ content, /** @type {string} */ cmd) {
+  const t = (content ?? '').replace(/\s+/g, ' ').trim();
+  return (aria ?? '').trim() || (t && t.length <= 48 ? t : capital(cmd.replace(/-/g, ' ')));
 }
 
 /** The tooltip text of el: its title, or the one Tooltip.svelte moved aside. */

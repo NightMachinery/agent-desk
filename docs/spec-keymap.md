@@ -99,7 +99,7 @@ Unchanged:
 - Moving: `j` `k`, `J` `K` (`C-j` `C-k`), `n` `N`, `g g` `G`, `}` `{`,
   `C-d` `C-u`, `C-f` `C-b`, `h` `l`, `RET` `o`, `-`.
 - The open item: `a` answer, `t` take, `r` message its agent, `R` reply to
-  an entry, `i` write in the message box (or the box `Esc` left), `d` read,
+  an entry, `O` / `D` open or dismiss a deliverable in its conversation, `i` write in the message box (or the box `Esc` left), `d` read,
   `U` unread, `p` pin, `x` select, `v` `V` visual, `q` close.
 - Help and pickers: `?` cheatsheet, `:` and `M-x` commands, `f` hints,
   `/` search, `ESC` and `C-g` back out.
@@ -143,7 +143,8 @@ switch item, `SPC ?` every binding, `SPC j` hints.
 
 `SPC b`: the open item. It used to be `SPC i`.
 
-- `b a` answer, `b t` take, `b r` message, `b R` reply to an entry;
+- `b a` answer, `b t` take, `b r` message, `b R` reply to an entry,
+  `b O` / `b D` open or dismiss a deliverable in the conversation;
 - `b d` read, `b u` unread, `b p` pin, `b x` select;
 - `b n` / `b N` next or previous open item, `b b` switch item (unchanged);
 - `b o` its node (was `SPC i o`), `b w` what its session wrote.

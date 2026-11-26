@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseTip } from './tooltip.js';
+import { parseTip, withKey, ownLabel } from './tooltip.js';
 
 test('a title splits into heading, body and keys', () => {
   assert.deepEqual(parseTip('Wait for quota to spare: the quota nudge offers it  (, Z)'), {
@@ -32,4 +32,16 @@ test('a long text with no early break is all body; brackets inside are not keys'
   assert.deepEqual(parseTip(long), { head: '', body: long, keys: [] });
   assert.equal(parseTip('Open it (in a tab)').head, 'Open it');
   assert.deepEqual(parseTip(''), { head: '', body: '', keys: [] });
+});
+
+test('a data-cmd control names its key once, with its label when it has no title', () => {
+  assert.equal(withKey('https://x.org/deck.pdf', ', o', 'Open'), 'https://x.org/deck.pdf  (, o)');
+  assert.equal(parseTip('Open: https://x.org/deck.pdf  (O)').body, 'https://x.org/deck.pdf');
+  assert.deepEqual(parseTip(withKey('Take it back', 'SPC q r', 'x')).keys, [['SPC', 'q', 'r']]);
+  assert.equal(withKey('Pin to the top  (p)', 'p', 'Pin'), 'Pin to the top  (p)');
+  assert.equal(withKey('', 'h · q', '← Back'), '← Back  (h · q)');
+  assert.equal(withKey('Clear', '', 'Clear'), 'Clear');
+  assert.equal(ownLabel('Which items to list', 'All Unread Old', 'list-show'), 'Which items to list');
+  assert.equal(ownLabel('', '  Mark all\n read ', 'read-all'), 'Mark all read');
+  assert.equal(ownLabel('', 'x'.repeat(60), 'deferred-fold'), 'Deferred fold');
 });

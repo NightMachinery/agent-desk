@@ -82,7 +82,9 @@ On a phone there is one pane at a time: the list, or the open item.
   the selected box (the one `Esc` left), else the first message box on the
   page. `R`: reply to an entry of its conversation (with several, hints
   label the reply buttons): the box then replies to that entry, until you
-  send or press the ✕ beside "Replying to" (`SPC i c`).
+  send or press the ✕ beside "Replying to" (`SPC i c`). `O` and `D`: open
+  or dismiss a deliverable shown in its conversation (hints label the
+  buttons when there are several).
 - `d`: mark read; on a question, dismiss it. `U`: mark unread; on a dismissed
   question, put it back in Needs you. `p`: pin or unpin. With a selection,
   these act on every selected item.
@@ -108,7 +110,7 @@ entry reuses the letter of its short key (`p` pins, so `SPC b p` pins).
 - `SPC :`, `:` or `M-x`: commands only. Every command is listed, including the
   ones without a key.
 - `SPC b`: the open item: `a` answer, `t` take, `r` message, `R` reply to an
-  entry, `d` read, `u` unread, `p` pin, `x` select, `n` / `N` the next or
+  entry, `O` / `D` open or dismiss a deliverable in its conversation, `d` read, `u` unread, `p` pin, `x` select, `n` / `N` the next or
   previous open item, `o` its node, `w` what its session wrote, `e` export it
   with its conversation as one .org file.
 - `SPC i`: the message box: `i` write in it, `f` attach a file, `v` start or
@@ -332,7 +334,11 @@ when it acts on one row (hints reach it) or belongs to a dialog's own form
 `lib/shortcuts.js` holds the cheatsheet (rows name commands, not keys) and
 `tip(label, button)`, the tooltip naming a button's key; a button whose
 `data-cmd` differs from its command's name gets an entry in its
-`buttonCmds`.
+`buttonCmds`. A control with `data-cmd` needs no `tip()`: the tooltip adds
+its key when the title names none, and shows a card with its label and key
+when it has no title (not on touch, which shows no keys). Use `tip()` where
+the command differs from what `data-cmd` names, such as a hints command for
+a per-row button.
 A command that belongs to one kind of thing (a task, a deliverable, the
 Settings page) goes in that kind's context map, after the localleader.
 `ctx.context` in `keymap.js` names the kind open now: a zone tagged
