@@ -189,6 +189,28 @@
   // button; none means the open item. It lasts until sent or cleared, and
   // never outlives the open item.
   let replyingTo = $state(/** @type {{ id: string, display: string, who: string, snippet: string } | null} */ (null));
+  // The box being written in docks at the bottom, above Previous and Next,
+  // so it stays in view while you scroll up to read: the one holding focus,
+  // else the one last used while it holds a draft (or a reply to an entry).
+  // An empty box left alone stays where it is. :focus-within docks at once,
+  // so focusing a box never scrolls the page down to it.
+  let answerActive = $state(false);
+  let replyActive = $state(false);
+  let focusedBox = $state('');
+  let lastBox = $state('reply');
+  let stepperH = $state(0);
+  const dock = $derived.by(() => {
+    if (focusedBox) return focusedBox;
+    const live = { answer: answerActive, reply: replyActive || !!replyingTo };
+    return live[lastBox] ? lastBox : live.reply ? 'reply' : live.answer ? 'answer' : '';
+  });
+  const boxFocus = (name) => ({
+    onfocusin: () => { focusedBox = lastBox = name; },
+    onfocusout: (/** @type {FocusEvent} */ ev) => {
+      const to = ev.relatedTarget;
+      if (!(to instanceof Node && /** @type {HTMLElement} */ (ev.currentTarget).contains(to))) focusedBox = '';
+    },
+  });
   $effect(() => {
     void route.item;
     replyingTo = null;
@@ -334,7 +356,7 @@
 {:else if !item}
   <div class="pad"><div class="skeleton"></div></div>
 {:else}
-  <article class="pad">
+  <article class="pad" style:--stepper-h={stepperH + 'px'}>
     <div class="toolbar">
       <button data-cmd="close" class="btn ghost back" onclick={() => go({ item: '' })} aria-label="Close" title={tip('Close', 'close')}>
         <svg width="16" height="16" viewBox="0 0 16 16"><path d="M10 3 5 8l5 5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" /></svg>
@@ -538,12 +560,15 @@
     {/if}
 
     {#if isQuestion && !item.answered && !answerQueued}
-      <section class="act">
-        {#if e.meta?.choices}
+      {#if e.meta?.choices}
+        <section class="act">
           <Choices choices={e.meta.choices} draft={'choices:' + it.display_id} bind:lines={choiceLines} bind:count={choiceCount} onsubmit={() => answerBox?.sendNow()} />
-        {/if}
+        </section>
+      {/if}
+      <section class="act msgbox" class:after-choices={!!e.meta?.choices} class:dock={dock === 'answer'} {...boxFocus('answer')}>
         <Composer
           bind:this={answerBox}
+          bind:active={answerActive}
           id="answer-box"
           draft={'answer:' + it.display_id}
           linked={e.meta?.choices ? ['choices:' + it.display_id] : []}
@@ -563,12 +588,13 @@
     {/if}
 
     {#if item.target}
-      <section class="act">
+      <section class="act msgbox" class:dock={dock === 'reply'} {...boxFocus('reply')}>
         {#if replyingTo}
           <ReplyingTo to={replyingTo} back={it.display_id} oncancel={() => (replyingTo = null)} />
         {/if}
         <Composer
           id="reply-box"
+          bind:active={replyActive}
           draft={'reply:' + it.display_id}
           voiceNode={['set', 'clear', 'link'].includes(e.kind) ? e.path.slice(0, e.path.lastIndexOf('/')) : e.path}
           label={replyingTo ? `Reply to ${replyingTo.display}` : `Message ${agentName(item.target.agent)}`}
@@ -596,7 +622,7 @@
       <a data-cmd="open-node" class="btn small" href={href({ path: item.node, item: '', session: '', q: '' })}>Open {item.node.split('/').slice(-1)[0]}</a>
     </div>
 
-    <nav class="stepper" aria-label="Previous and next">
+    <nav class="stepper" aria-label="Previous and next" bind:offsetHeight={stepperH}>
       <button data-cmd="prev" class="btn small" {...off(tip('Previous item', 'prev'), [!prevId, 'This is the first item in the list'])} onclick={() => go({ item: prevId }, { replace: true })}><Icon name="prev" size={14} /> Previous</button>
       <span class="faint pos">{pos.at ? `${pos.at} of ${pos.of}` : ''}</span>
       <button data-cmd="next" class="btn small" {...off(tip('Next item', 'next'), [!nextId, 'This is the last item in the list'])} onclick={() => go({ item: nextId }, { replace: true })}>Next <Icon name="next" size={14} /></button>
@@ -837,6 +863,28 @@
     margin-top: 22px;
     padding-top: 18px;
     border-top: 1px solid var(--line);
+  }
+  /* The answer box under a question's choices continues their section. */
+  .act.after-choices {
+    margin-top: 12px;
+    padding-top: 0;
+    border-top: 0;
+  }
+  /* Docked: see dock in the script. Sticky, so at the end of the page it
+     sits where it always does; scrolled up, it waits above the stepper. */
+  .msgbox.dock,
+  .msgbox:focus-within {
+    position: sticky;
+    bottom: var(--stepper-h, 0px);
+    z-index: 3;
+    padding-top: 12px;
+    padding-bottom: 10px;
+    background: var(--panel);
+    border-top: 1px solid var(--line);
+  }
+  .msgbox.dock :global(textarea),
+  .msgbox:focus-within :global(textarea) {
+    max-height: 30vh;
   }
   .foot {
     display: flex;

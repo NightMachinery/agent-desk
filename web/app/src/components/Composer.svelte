@@ -28,7 +28,9 @@
   // drafts that Discard drops with this box's (a question's picks).
   // ondiscard(restore), when given, takes over after Discard (the item page
   // moves on, with Undo running restore); else a toast offers Undo.
-  let { voiceNode = '', draft = '', id = undefined, label, placeholder, send, hint = '', quick = [], sendLabel = 'Send', target = null, compose = null, ready = false, alongside = [], linked = [], ondiscard = null } = $props();
+  // active (bindable) says the box holds something unsent: text, files or
+  // a recording; the item page keeps such a box docked in view.
+  let { voiceNode = '', draft = '', id = undefined, label, placeholder, send, hint = '', quick = [], sendLabel = 'Send', target = null, compose = null, ready = false, alongside = [], linked = [], ondiscard = null, active = $bindable(false) } = $props();
   let text = $state('');
   let busy = $state(false);
   let menu = $state(false);
@@ -51,6 +53,9 @@
   let missingOpen = $state(false);
   const preview = $derived([...new Set(voiceTokens(text).map(({ id }) => id))].map((id) => voiceStatus[id]).filter(Boolean));
   const hasVoice = $derived(voiceDraft.length > 0);
+  $effect(() => {
+    active = !!text.trim() || files.length > 0 || !!capture || hasVoice;
+  });
   let closed = false;
 
   function rememberVoice(entries) {

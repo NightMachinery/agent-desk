@@ -172,14 +172,14 @@ const nextPane = (d) => focusPane(panes[(panes.indexOf(pane()) + d + panes.lengt
 function focusBox(id, missing) {
   const el = document.getElementById(id);
   if (!el) return say(missing);
-  el.focus();
+  el.focus({ preventScroll: true }); // a message box docks in view (Detail); anything else scrolls next
   el.scrollIntoView({ block: 'nearest' });
   syncMode();
 }
 function focusComposer() {
   const el = paneEl('detail')?.querySelector('.composer textarea') ?? document.querySelector('.composer textarea');
   if (el instanceof HTMLElement && el.getClientRects().length) {
-    el.focus();
+    el.focus({ preventScroll: true });
     syncMode();
     el.scrollIntoView({ block: 'nearest' });
   } else if (cmdEl('message-node')) {
@@ -192,7 +192,7 @@ function insert() {
   const el = selectedField();
   if (!el) return focusComposer();
   selectField(null);
-  el.focus();
+  el.focus({ preventScroll: true });
   syncMode();
   el.scrollIntoView({ block: 'nearest' });
 }

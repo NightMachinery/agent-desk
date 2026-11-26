@@ -17,7 +17,7 @@ export function replyRef(t) {
 export function focusBoxIn(el, after) {
   setTimeout(() => {
     const box = el?.querySelector('textarea') ?? document.getElementById('reply-box');
-    box?.focus();
+    box?.focus({ preventScroll: true }); // the item page docks the box in view
     box?.scrollIntoView({ block: 'nearest' });
     after?.();
   });
