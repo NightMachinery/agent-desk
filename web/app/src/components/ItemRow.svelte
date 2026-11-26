@@ -1,6 +1,7 @@
 <script>
   import { route, href } from '../lib/route.svelte.js';
   import { kindOf, kindLabel, titleOf, previewLine, deliverableWhere } from '../lib/format.js';
+  import { requestFocus } from '../lib/focus.js';
   import Icon from './Icon.svelte';
   import { hasDraft } from '../lib/drafts.js';
   import { desk } from '../lib/desk.svelte.js';
@@ -37,6 +38,10 @@
     if (e.shiftKey || e.metaKey || e.ctrlKey || selecting()) {
       e.preventDefault();
       toggle(item.display_id, e.shiftKey);
+    } else if (route.item === item.display_id) {
+      // Already open: scroll back to it.
+      e.preventDefault();
+      requestFocus();
     }
   }
   function oncheck(e) {

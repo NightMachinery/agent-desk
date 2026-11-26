@@ -73,6 +73,7 @@ const cheatsheet = [
       [[k('take')], 'Take the recommendation or default'],
       [[LL], 'What only it has: a task, a deliverable, Settings…'],
       [[k('reply-entry')], 'Reply to an entry of its conversation'],
+      [[k('focus-item')], 'Scroll back to it (in a conversation, to the top)'],
       [[k('message')], 'Message its agent'],
       [[k('read'), k('unread')], 'Read (dismiss) or unread'],
       [[k('pin')], 'Pin or unpin'],

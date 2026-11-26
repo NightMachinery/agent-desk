@@ -3,7 +3,8 @@
   // response state, and the agents' responses, oldest first. Each entry has
   // a reply button (onreply): the message box then sends about that entry,
   // so the message stays in this conversation and reaches who wrote it.
-  import { untrack } from 'svelte';
+  import { tick, untrack } from 'svelte';
+  import { focusItem } from '../lib/focus.js';
   import { href } from '../lib/route.svelte.js';
   import { dispositionText, deliveryTitle, desktopText, remoteText, deliverableURL, openTarget } from '../lib/format.js';
   import Markdown from './Markdown.svelte';
@@ -29,10 +30,13 @@
     untrack(() => acknowledgeMessages(currentEntries));
   });
 
+  // Opening an item of the conversation puts its entry at the top, once the
+  // page has laid out: a smooth scroll started earlier stops short when the
+  // entries above it grow.
   $effect(() => {
-    if (!current) return;
-    const el = document.getElementById('e-' + current);
-    el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    const id = current;
+    if (!id) return;
+    tick().then(() => requestAnimationFrame(() => focusItem(id, 'instant')));
   });
 
   // A response from the agent: a plain one, or a question (a question response).

@@ -703,7 +703,9 @@ waiting for compaction or transcription, or failed, with Retry), each until
 it is delivered. Your own messages never count as unread. Messages the desk generates (about a task you
 filed, your task changes, a Status or velocity request) show as one folded
 line, and the agent's response to one hangs from the item it was about. A response in the list reads "Response to
-m-4c2d", and its page shows the conversation it belongs to. Every entry in a
+m-4c2d", and its page shows the conversation it belongs to, scrolled so its
+own entry starts at the top; clicking its row again, or `g i`, scrolls back
+to it. Every entry in a
 conversation has a reply button (an arrow beside its id): the message box
 then says "Replying to t-hk1t" and sends about that entry, so the message
 stays in the same conversation and goes to the agent that wrote it; the ✕

@@ -17,6 +17,7 @@
   import { hold, release } from '../lib/linger.svelte.js';
   import Icon from './Icon.svelte';
   import Thread from './Thread.svelte';
+  import { FOCUS_EVENT, focusItem } from '../lib/focus.js';
   import { autoRead, countOpen, navNext, position, step } from '../lib/nav.svelte.js';
   import { deliversSomething, opensDelivery } from '../lib/opens.js';
   import { ALL_CLEAR, ALL_CLEAR_KEY } from '../lib/moveon.js';
@@ -100,6 +101,13 @@
       .then(() => onchange())
       .catch(() => (autoRead.delete(id), release(id)));
   }
+
+  // Re-clicking the open item's row (or focus-item) scrolls back to it.
+  $effect(() => {
+    const go = () => focusItem(inThread ? it.display_id : '', 'smooth');
+    window.addEventListener(FOCUS_EVENT, go);
+    return () => window.removeEventListener(FOCUS_EVENT, go);
+  });
 
   /** Marks an entry of the conversation read: the open item as readNow
    * does, another one directly. */

@@ -72,6 +72,7 @@
   "g o"     :open-node
   "g w"     :session
   "g t"     :thread-root
+  "g i"     :focus-item
 
   ; SPC b: the open item (or the selection). Short keys first.
   "a"       :answer
