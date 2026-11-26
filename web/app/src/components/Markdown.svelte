@@ -1,10 +1,29 @@
-<script>
-  import { markdown } from '../lib/md.js';
-  import { refs } from '../lib/refs.svelte.js';
+<script module>
+  let renderFormula = $state(null);
+  let loading;
 
-  let { text = '', links = true, class: cls = '' } = $props();
-  const html = $derived(markdown(text, { links, refs }));
+  function loadMath() {
+    loading ??= import('../lib/math-render.js').then((module) => {
+      renderFormula = module.renderFormula;
+    }, () => {
+      // The source stays readable if the assets cannot load.
+      loading = null;
+    });
+  }
 </script>
 
-<!-- Safe: markdown-it runs with html off, so the source cannot add markup. -->
-<div class="md {cls}">{@html html}</div>
+<script>
+  import { parseMarkdown } from '../lib/md.js';
+  import { refs } from '../lib/refs.svelte.js';
+
+  let { text = '', links = true, literalText = false, class: cls = '' } = $props();
+  const parsed = $derived(parseMarkdown(text, { links, refs, literalText }));
+  const html = $derived(parsed.render(parsed.hasMath ? renderFormula : null));
+  $effect(() => {
+    if (parsed.hasMath) loadMath();
+  });
+</script>
+
+<!-- Markdown escapes raw HTML. The only additional markup comes from KaTeX
+     with trust-requiring commands blocked, and the math rule escapes its source and errors. -->
+<svelte:element this={literalText ? 'span' : 'div'} class="md {cls}" class:md-literal={literalText}>{@html html}</svelte:element>

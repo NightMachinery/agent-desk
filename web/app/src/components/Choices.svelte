@@ -124,9 +124,9 @@
             />
             <span class="key">{o.key}</span>
             <span class="lbl">
-              {o.label}
+              <Markdown text={o.label} literalText />
               {#if o.key === q.recommended}<span class="chip ok rec">recommended</span>{/if}
-              {#if o.detail}<span class="detail">{o.detail}</span>{/if}
+              {#if o.detail}<Markdown text={o.detail} literalText class="detail" />{/if}
             </span>
           </label>
         {/each}
@@ -199,7 +199,10 @@
     font-family: var(--mono);
     color: var(--muted);
   }
-  .detail {
+  .lbl {
+    min-width: 0;
+  }
+  .lbl :global(.detail) {
     display: block;
     color: var(--muted);
     font-size: 13px;

@@ -40,7 +40,19 @@
         <span class="n">{viewer.at + 1} / {viewer.images.length}</span>
         <button data-cmd="image-next" class="btn small" title={tip('Next image', 'image-next')} onclick={() => stepImage(1)}>›</button>
       {/if}
-      <span class="name">{img.caption && img.caption !== img.name ? `${img.caption} · ` : ''}{img.name}</span>
+      <span class="name">
+        {#if img.caption && img.caption !== img.name}
+          {#await import('./Markdown.svelte')}
+            {img.caption}
+          {:then { default: Markdown }}
+            <Markdown text={img.caption} literalText />
+          {:catch}
+            {img.caption}
+          {/await}
+          ·
+        {/if}
+        {img.name}
+      </span>
       <a class="btn small" href={src(img.url)} target="_blank" rel="noopener">Open original</a>
       <button data-cmd="sheet-close" class="btn small" title={tip('Close', 'sheet-close')} onclick={closeImage}>Close</button>
     </div>

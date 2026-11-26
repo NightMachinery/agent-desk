@@ -5,6 +5,7 @@
 // wherever an agent pointed it.
 import MarkdownIt from 'markdown-it';
 import { idLinks } from './idlinks.js';
+import { math } from './math.js';
 
 // A single newline is ambiguous on the desk. Agents hard-wrap prose at about
 // 72 columns, where it must flow; older bodies and slots are plain lines
@@ -34,6 +35,10 @@ function smartBreaks(state) {
     const ch = block.children;
     ch.forEach((t, i) => {
       if (t.type !== 'softbreak') return;
+      if (ch[i - 1]?.type === 'math_display' || ch[i + 1]?.type === 'math_display') {
+        t.type = 'text'; // Display math already occupies a line.
+        return;
+      }
       const flows = /[\p{L}\p{N},]$/u.test(lastText(ch, i)) && /^\p{Ll}/u.test(nextText(ch, i));
       if (!flows) t.type = 'hardbreak';
     });
@@ -42,6 +47,7 @@ function smartBreaks(state) {
 
 function make(links) {
   const md = new MarkdownIt({ html: false, linkify: links, breaks: false, typographer: false });
+  math(md);
   md.core.ruler.push('smart_breaks', smartBreaks);
   if (links) md.core.ruler.push('id_links', idLinks);
   md.disable(['image']);
@@ -62,6 +68,20 @@ const full = make(true);
 // For text shown inside a link (a slot card): nested links are invalid HTML.
 const plain = make(false);
 
-export function markdown(text, { links = true, refs = null } = {}) {
-  return (links ? full : plain).render(text || '', { refs });
+// Choice labels and captions keep their plain-text formatting.
+const literal = new MarkdownIt('zero', { html: false });
+math(literal, { literal: true });
+
+export function parseMarkdown(text, { links = true, refs = null, literalText = false } = {}) {
+  const md = literalText ? literal : links ? full : plain;
+  const env = { refs, hasMath: false };
+  const tokens = literalText ? md.parseInline(text || '', env) : md.parse(text || '', env);
+  return {
+    hasMath: env.hasMath,
+    render: (renderMath = null) => md.renderer.render(tokens, md.options, { ...env, renderMath }),
+  };
+}
+
+export function markdown(text, options) {
+  return parseMarkdown(text, options).render();
 }

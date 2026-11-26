@@ -757,6 +757,13 @@ break inside a sentence flows as a soft wrap, so hard-wrapped text reads
 well on a phone; any other line break is kept. Served over HTTPS (or on localhost), it can be installed as an
 app: "Install" or "Add to Home screen" in the browser's menu.
 
+Use `$...$` or `\(...\)` for inline LaTeX, and `$$...$$` or `\[...\]`
+for centered display math. With single dollars, the opening `$` must be
+followed by a non-space character. The closing `$` must follow a non-space
+character and cannot be followed by a digit. Write `\$` for a literal
+dollar. Math delimiters inside code stay literal. Copying a rendered
+formula to plain text gives its LaTeX source.
+
 The dashboard works without a mouse, in the style of Doom Emacs's evil
 mode: `j`/`k` through the list, a `SPC` leader with a which-key popup,
 `M-x`, `f` to click anything by its label, and ⌘/Ctrl+Enter to send. Press `?`

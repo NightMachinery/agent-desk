@@ -107,7 +107,7 @@
       {#each compact ? slots.filter((s) => s.name === 'status') : slots as s (s.event.id)}
         <a class="slot" class:unread={s.unread} href={href({ item: s.display_id })}>
           <div class="slot-name">{s.name}{#if s.unread}<span class="new"></span>{/if}</div>
-          {#if s.file}<div class="text slot-text">{s.file}</div>{:else}<Markdown class="slot-text" text={s.event.body} links={false} />{/if}
+          {#if s.file}<div class="plain-text slot-text">{s.file}</div>{:else}<Markdown class="slot-text" text={s.event.body} links={false} />{/if}
         </a>
         {#if s.name === 'velocity' && target}
           <div class="slot-act">

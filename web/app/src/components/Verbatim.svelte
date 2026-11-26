@@ -107,7 +107,7 @@
             {#if it.host}<span>@{it.host}</span>{/if}
             <button data-keys="none" class="btn ghost small copy" onclick={() => copyText(it.text)} title="Copy the message">Copy</button>
           </div>
-          <div class="text">{#each parts(it.text) as p, i (i)}{#if p.hit}<mark>{p.t}</mark>{:else}{p.t}{/if}{/each}</div>
+          <div class="plain-text">{#each parts(it.text) as p, i (i)}{#if p.hit}<mark>{p.t}</mark>{:else}{p.t}{/if}{/each}</div>
         </li>
       {/each}
     </ol>
@@ -178,7 +178,7 @@
   .copy {
     margin-left: auto;
   }
-  .text {
+  .plain-text {
     white-space: pre-wrap;
     overflow-wrap: anywhere;
     margin-top: 4px;

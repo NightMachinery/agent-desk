@@ -490,7 +490,7 @@
           {/each}
         </div>
         {#each files.filter((m) => m.caption && m.caption !== m.name) as m (m.sha256)}
-          <div class="faint">{m.name}: {m.caption}</div>
+          <div class="faint">{m.name}: <Markdown text={m.caption} literalText /></div>
         {/each}
         {#if it.superseded_by}
           <div class="faint">A newer one has replaced this: <a class="link" href={href({ item: it.superseded_by })}>{it.superseded_by}</a>.</div>

@@ -4,6 +4,7 @@
   // that is not on this host (collected, or not merged yet) says why. An
   // image opens in the viewer (ImageViewer); compact (the Tasks list) shows
   // images as thumbnails and other files as one line each.
+  import Markdown from './Markdown.svelte';
   import { openImage } from '../lib/viewer.svelte.js';
 
   let { media = [], compact = false } = $props();
@@ -52,7 +53,7 @@
           </a>
         {/if}
         <figcaption>
-          {#if m.caption !== m.name}<span class="caption">{m.caption}</span>{/if}
+          {#if m.caption !== m.name}<Markdown text={m.caption} literalText class="caption" />{/if}
           <span class="file">{m.name} · {m.size_text}</span>
         </figcaption>
       </figure>

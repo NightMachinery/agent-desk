@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "edn-data": "^1.2.3",
+    "katex": "^0.19.1",
     "markdown-it": "^14.3.3"
   }
 }

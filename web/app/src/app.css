@@ -257,7 +257,7 @@ button {
   color: #fff;
 }
 
-.text {
+.plain-text {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   line-height: 1.55;
@@ -326,8 +326,28 @@ textarea.input {
 
 /* Markdown from agents (Markdown.svelte). */
 .md {
+  min-width: 0;
   overflow-wrap: anywhere;
   line-height: 1.55;
+}
+.md-literal {
+  line-height: inherit;
+}
+.md .math-display {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  margin: 0.4em 0;
+  padding: 0.25em 0;
+  text-align: center;
+}
+.md .math-display > .katex-display {
+  width: max-content;
+  min-width: 100%;
+  margin: 0;
+}
+.md .math-source {
+  white-space: pre-wrap;
 }
 .md > :first-child {
   margin-top: 0;
