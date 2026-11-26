@@ -18,6 +18,7 @@
   import Icon from './Icon.svelte';
   import Thread from './Thread.svelte';
   import { autoRead, countOpen, navNext, position, step } from '../lib/nav.svelte.js';
+  import { deliversSomething, opensDelivery } from '../lib/opens.js';
   import { ALL_CLEAR, ALL_CLEAR_KEY } from '../lib/moveon.js';
   import { arrival, arrivedAuto, cancelArrival, settleArrival } from '../lib/arrival.js';
   import { ui } from '../lib/ui.svelte.js';
@@ -64,6 +65,8 @@
   );
 
   // Opening an item reads it. Not a question: reading one dismisses it.
+  // Nor a deliverable that offers something to open (lib/opens.js): that is
+  // read once the user opens it (readOpened) or dismisses it.
   // Nor an item the page moved to by itself (arrival.js): that is read once
   // the user acts on it or moves on. Nor one with a draft (here or on the
   // desk): it stays unread until the draft is sent or discarded, and is
@@ -77,11 +80,17 @@
     if (!it || isQuestion || !it.unread || autoRead.has(e.id)) return;
     if (untrack(() => keys.anchor)) return;
     if (hasDraft(it.display_id) || (it.draft && draftTick === 0)) return;
+    if (waitsForOpen) return;
     if (arrival.id === it.display_id) {
       arrival.pending = true;
       arrival.event = e.id;
       return;
     }
+    readNow();
+  });
+
+  /** Mark the open item read, as opening it does. */
+  function readNow() {
     autoRead.add(e.id);
     const id = e.id, display = it.display_id;
     // Held first: the live stream can reload the list before this request
@@ -90,7 +99,18 @@
     post('read', { target: display })
       .then(() => onchange())
       .catch(() => (autoRead.delete(id), release(id)));
-  });
+  }
+
+  /** A deliverable waiting to be opened is read when the user opens what it
+   * delivers: a click (or middle click) on such a link, or playing its audio
+   * or video. A draft keeps it unread, as it keeps any item. */
+  function readOpened(/** @type {Event} */ ev) {
+    if (!waitsForOpen || !it?.unread || autoRead.has(e.id) || hasDraft(it.display_id)) return;
+    if (ev.type === 'auxclick' && /** @type {MouseEvent} */ (ev).button !== 1) return;
+    if (ev.type !== 'play' && !opensDelivery(ev.target)) return;
+    cancelArrival(it.display_id);
+    readNow();
+  }
 
   // Every open counts as a view (api/seen), the page's own moves included:
   // auto-navigation goes to the items opened least, and an item shown but
@@ -251,6 +271,11 @@
   const files = $derived(kind === 'deliverable' ? (item?.media ?? []).filter((m) => m.kind === 'file') : []);
   const shownMedia = $derived(kind === 'deliverable' ? (item?.media ?? []).filter((m) => m.kind !== 'file') : (item?.media ?? []));
   const openURL = $derived(kind === 'deliverable' ? deliverableURL(e) : '');
+  // What this page shows of it to open: in a thread, its text and inline
+  // attachments are the thread's, so only the Open and download buttons count.
+  const waitsForOpen = $derived(
+    kind === 'deliverable' && deliversSomething(inThread ? { openURL, media: files } : { openURL, media: item?.media ?? [], body: e?.body ?? '' }),
+  );
   const openHost = $derived(openURL ? openLabel(openURL) : '');
   async function copyText(text, what) {
     toast((await copy(text)) ? `${what} copied.` : text, 'ok');
@@ -362,6 +387,7 @@
         <Markdown text={it.asked} />
       </div>
     {/if}
+    <div class="delivered" onclickcapture={readOpened} onauxclickcapture={readOpened} onplaycapture={readOpened}>
     {#if kind === 'deliverable'}
       <div class="deliver">
         <div class="deliver-get">
@@ -394,6 +420,7 @@
       {#if e.body}<Markdown class="body" text={e.body} />{/if}
       <Attachments media={shownMedia} />
     {/if}
+    </div>
     {#if item.subtasks?.length}
       {@const done = item.subtasks.filter((s) => s.state === 'done').length}
       <section class="subtasks">
@@ -519,6 +546,10 @@
 {/if}
 
 <style>
+  /* Only listens for opens (readOpened); lays out as if absent. */
+  .delivered {
+    display: contents;
+  }
   .deliver {
     display: flex;
     flex-direction: column;

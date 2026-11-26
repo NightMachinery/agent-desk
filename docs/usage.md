@@ -609,7 +609,11 @@ The list keeps its own sort, so `n` may jump around it; Previous and Next
 (`J` / `K`) still walk the list in order. Click a section's
 title to fold it. Each row names its project, run and agent below what the
 view or its group heading already says. Opening an item marks it read (a
-question excepted: reading one dismisses it), but the row stays where it
+question excepted: reading one dismisses it; and a deliverable that offers
+something to open stays unread until you open it: its Open or download
+button, an attachment, played audio or video, or a link in its text that
+leaves the dashboard, or until you mark it read; an image shown inline does
+not count), but the row stays where it
 is, dimmed once you open another, for a minute (Settings: "Keep a read item
 in the list for", per device). The icon beside its id marks it unread
 again, and the pin icon keeps it under Pinned. Items you mark read with a
