@@ -10,7 +10,7 @@
   import { clearDraft, discardDrafts, hasDraft, itemDraftKeys, onDraftChange } from '../lib/drafts.js';
   import { pendingMessages, queueMessage } from '../lib/outbox.svelte.js';
   import { desk } from '../lib/desk.svelte.js';
-  import { agentName, copy, deliverableURL, openLabel, openTarget, kindLabel, kindOf, sessionOf, short, slotName, titleOf, viaText } from '../lib/format.js';
+  import { agentName, senderName, copy, deliverableURL, openLabel, openTarget, kindLabel, kindOf, sessionOf, short, slotName, titleOf, viaText } from '../lib/format.js';
   import Composer from './Composer.svelte';
   import Markdown from './Markdown.svelte';
   import Attachments from './Attachments.svelte';
@@ -328,9 +328,17 @@
     </div>
     <div class="meta">
       {#if sess}
-        <a data-cmd="session" class="who" href={href({ session: sess, item: route.item })} title="Show everything this session wrote">
-          {agentName(item.from.agent)} · <span class="mono">{short(sess)}</span>
-        </a>
+        {@const f = item.from}
+        {#if f.model}
+          <a data-cmd="session" class="who" href={href({ session: sess, item: route.item })}
+            title={`${[agentName(f.agent), f.model, f.effort && `effort ${f.effort}`].filter(Boolean).join(' · ')}: what it ran when it filed this. Session ${short(sess)}${f.title ? ` (${f.title})` : ''}; click to show everything it wrote.`}>
+            {senderName(f)}
+          </a>
+        {:else}
+          <a data-cmd="session" class="who" href={href({ session: sess, item: route.item })} title="Show everything this session wrote">
+            {agentName(f.agent)} · <span class="mono">{short(sess)}</span>
+          </a>
+        {/if}
       {/if}
       <CopyIds paseo={item.from?.paseo} resume={item.resume} />
     </div>

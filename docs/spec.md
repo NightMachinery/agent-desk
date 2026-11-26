@@ -199,7 +199,11 @@ variable (children inherit the parent's environment, which is how
   (`slot_current`, `question_state`, `unread`), never from stored flags.
 - `meta.from`: agent, seat (the `CLAUDE_CONFIG_DIR` or `CODEX_HOME` that
   selects the account, when set), session id, Paseo agent id, parent, working
-  directory, transcript path, tmux pane. `meta.source`: `cli`, `chat` or `web`.
+  directory, transcript path, tmux pane, and the model and reasoning effort it
+  ran when it filed the event (from its Paseo record, else its transcript's
+  latest turn). The dashboard shows an item's sender as that model and effort
+  ("Opus 5.5 XHigh"), and as the agent and short session id when the desk does
+  not know them. `meta.source`: `cli`, `chat` or `web`.
   Other keys: `default` (ask), `file` (link), `supersedes`.
 - Driver: `modernc.org/sqlite` (pure Go, no cgo).
 - The store refuses a directory on a network filesystem (NFS, SMB, AFP,

@@ -16,6 +16,36 @@ export function agentName(a) {
   return { claude: 'Claude', codex: 'Codex', agy: 'Antigravity' }[a] || a || 'agent';
 }
 
+const upperWords = new Set(['gpt', 'ai', 'oss']);
+
+/** A model id as people say it: claude-opus-5-5 is "Opus 5.5", gpt-6.1-terra
+ * "GPT 6.1 Terra". A trailing date (claude-haiku-4-5-20251001) is dropped. */
+export function modelName(id) {
+  if (!id) return '';
+  const words = [];
+  for (const t of id.replace(/^claude-/, '').split(/[-_\s]+/).filter(Boolean)) {
+    const prev = words[words.length - 1];
+    if (/^\d{8}$/.test(t)) continue;
+    if (/^\d+$/.test(t) && prev && /^\d+(\.\d+)*$/.test(prev)) words[words.length - 1] = `${prev}.${t}`;
+    else if (/^\d/.test(t)) words.push(t);
+    else words.push(upperWords.has(t.toLowerCase()) ? t.toUpperCase() : t[0].toUpperCase() + t.slice(1));
+  }
+  return words.join(' ');
+}
+
+/** A reasoning effort as a label: xhigh is "XHigh", medium "Medium". */
+export function effortName(e) {
+  if (!e) return '';
+  return /^x/i.test(e) && e.length > 1 ? 'X' + e[1].toUpperCase() + e.slice(2) : e[0].toUpperCase() + e.slice(1);
+}
+
+/** Who filed an item, as its header shows it: "Opus 5.5 XHigh" when the
+ * desk knows the model, else the agent ("Claude"). */
+export function senderName(from) {
+  const m = modelName(from?.model);
+  return m ? [m, effortName(from.effort)].filter(Boolean).join(' ') : agentName(from?.agent);
+}
+
 export function kindOf(item) {
   const e = item.event;
   // A deliverable stays one when it responds: it has its own section.

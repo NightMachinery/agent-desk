@@ -23,6 +23,8 @@ type From struct {
 	TmuxPane   string `json:"tmux_pane,omitempty"`  // reply address outside Paseo
 	TmuxPID    string `json:"tmux_pid,omitempty"`   // the pane's process, to tell a reused pane
 	Title      string `json:"title,omitempty"`      // Paseo title, for adhoc slugs and notifications
+	Model      string `json:"model,omitempty"`      // the model it ran when it filed this (claude-opus-5-5)
+	Effort     string `json:"effort,omitempty"`     // its reasoning effort then (xhigh), when known
 }
 
 // Env is what Resolve reads; tests fake it.
@@ -111,11 +113,15 @@ type paseoRecord struct {
 	Persistence struct {
 		NativeHandle string `json:"nativeHandle"`
 	} `json:"persistence"`
-	// Config is what the agent was started with.
+	// Config is what the agent was started with, or last switched to.
 	Config struct {
 		Model    string `json:"model"`
 		Thinking string `json:"thinkingOptionId"`
 	} `json:"config"`
+	// RuntimeInfo is what Paseo saw the agent run.
+	RuntimeInfo struct {
+		Model string `json:"model"`
+	} `json:"runtimeInfo"`
 }
 
 // Parent is the Paseo agent that started this one, if any.
@@ -226,6 +232,10 @@ func Resolve(env Env) From {
 		if ok && f.Session != "" && rec.Persistence.NativeHandle == f.Session {
 			f.Paseo = uuid
 			f.Title = rec.Title
+			f.Model, f.Effort = rec.RuntimeInfo.Model, rec.Config.Thinking
+			if f.Model == "" {
+				f.Model = rec.Config.Model
+			}
 			if p := rec.Labels["paseo.parent-agent-id"]; p != "" {
 				f.Parent = "paseo:" + p
 			}
@@ -266,7 +276,89 @@ func Resolve(env Env) From {
 	} else if get("TMUX_SUBAGENT_NODE") != "" && f.Parent == "" && f.Paseo == "" {
 		f.Parent = "tmux:" + get("TMUX_SUBAGENT_NODE")
 	}
+	if f.Model == "" || f.Effort == "" {
+		model, effort := lastTurn(f.Agent, f.Transcript)
+		if f.Model == "" {
+			f.Model = model
+		}
+		if f.Effort == "" {
+			f.Effort = effort
+		}
+	}
 	return f
+}
+
+// lastTurnBytes is how much of a transcript's end lastTurn reads: enough
+// for the last few turns, small enough to cost nothing on every filing.
+const lastTurnBytes = 256 << 10
+
+// lastTurn reads the model and reasoning effort of the latest turn in a
+// session transcript: a Claude assistant message (message.model, effort) or
+// a Codex turn_context (payload.model, payload.effort). Either may be "".
+func lastTurn(agent, transcript string) (model, effort string) {
+	if transcript == "" || (agent != "claude" && agent != "codex") {
+		return "", ""
+	}
+	fh, err := os.Open(transcript)
+	if err != nil {
+		return "", ""
+	}
+	defer fh.Close()
+	st, err := fh.Stat()
+	if err != nil {
+		return "", ""
+	}
+	off := st.Size() - lastTurnBytes
+	if off < 0 {
+		off = 0
+	}
+	buf := make([]byte, st.Size()-off)
+	if _, err := fh.ReadAt(buf, off); err != nil {
+		return "", ""
+	}
+	lines := strings.Split(string(buf), "\n")
+	for i := len(lines) - 1; i >= 0 && (model == "" || effort == ""); i-- {
+		l := lines[i]
+		var m, e string
+		switch {
+		case agent == "claude" && strings.Contains(l, `"type":"assistant"`):
+			var rec struct {
+				Effort  string `json:"effort"`
+				Message struct {
+					Model string `json:"model"`
+				} `json:"message"`
+			}
+			if json.Unmarshal([]byte(l), &rec) != nil {
+				continue
+			}
+			m, e = rec.Message.Model, rec.Effort
+			if strings.HasPrefix(m, "<") { // <synthetic>: no model ran
+				m = ""
+			}
+		case agent == "codex" && strings.Contains(l, `"turn_context"`):
+			var rec struct {
+				Type    string `json:"type"`
+				Payload struct {
+					Model  string `json:"model"`
+					Effort string `json:"effort"`
+				} `json:"payload"`
+			}
+			if json.Unmarshal([]byte(l), &rec) != nil || rec.Type != "turn_context" {
+				continue
+			}
+			m, e = rec.Payload.Model, rec.Payload.Effort
+		default:
+			continue
+		}
+		// The latest turn decides; an older one fills only what it lacks.
+		if model == "" {
+			model = m
+		}
+		if effort == "" {
+			effort = e
+		}
+	}
+	return model, effort
 }
 
 var slugBad = regexp.MustCompile(`[^a-z0-9]+`)
