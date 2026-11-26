@@ -302,7 +302,10 @@ export const keysOf = (name, anywhere = false) => (anywhere ? all : eff().binds)
 export function commandItems() {
   return [...commands.values()]
     .filter((c) => c.palette !== false && applies(c))
-    .map((c) => ({ name: c.name, label: c.desc, key: keysOf(c.name).slice(0, 2).join(', '), run: () => c.run(1) }));
+    .map((c) => {
+      const ks = keysOf(c.name).slice(0, 2);
+      return { name: c.name, label: c.desc, key: ks.join(' '), keys: ks, run: () => c.run(1) };
+    });
 }
 
 /** Runs a command by name, as a key would (for the palette). */

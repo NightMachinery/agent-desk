@@ -213,7 +213,7 @@
           <button data-keys="none" class="pal-row" class:on={i === keys.palette.index} onpointerdown={(e) => e.preventDefault()} onclick={() => pick(it)}>
             <span class="lbl">{it.label}</span>
             {#if it.detail}<span class="faint">{it.detail}</span>{/if}
-            {#if it.key}<kbd>{it.key}</kbd>{/if}
+            {#if it.key}<span class="pal-keys">{#each it.keys ?? [it.key] as k (k)}<kbd>{k}</kbd>{/each}</span>{/if}
           </button>
         {:else}
           <div class="faint none">No match.</div>
@@ -459,6 +459,11 @@
     font: inherit;
     font-size: 13.5px;
     cursor: pointer;
+  }
+  .pal-keys {
+    display: inline-flex;
+    flex: none;
+    gap: 6px;
   }
   .pal-row .lbl {
     flex: 1;
