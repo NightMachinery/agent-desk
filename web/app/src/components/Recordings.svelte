@@ -4,7 +4,9 @@
   import { href } from '../lib/route.svelte.js';
   import { off, BUSY } from '../lib/why.js';
 
-  let { node = '', insert = null } = $props();
+  // insert puts a transcript into the composer; forget drops a deleted
+  // recording from the composer's draft.
+  let { node = '', insert = null, forget = null } = $props();
   let items = $state([]);
   let backends = $state([]);
   let choices = $state({});
@@ -44,6 +46,7 @@
     error = '';
     try {
       await post(`recordings/${item.id}`, { action, backend: choices[item.id] || item.backend });
+      if (action === 'delete') forget?.(item);
       await refresh();
       confirm = '';
     } catch (err) {

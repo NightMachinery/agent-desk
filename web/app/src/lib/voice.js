@@ -1,35 +1,7 @@
 import worklet from './voice-worklet.js?worker&url';
 import { post, uploadVoice } from './api.js';
 
-const voicePattern = /\[voice (v-[a-z0-9]{12}) \d+:[0-5]\d, (?:recording|transcribing|failed)\]/g;
-
-export function voiceTokens(text) {
-  return [...text.matchAll(voicePattern)].map((match) => {
-    const [token, id] = match;
-    const start = match.index;
-    return { id, token, start, end: start + token.length };
-  });
-}
-
-export function voiceToken(rec) {
-  const secs = Math.floor(rec.bytes / 32000);
-  return `[voice ${rec.id} ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}, ${rec.status}]`;
-}
-
-export function transcriptBlock(text) {
-  const trimmed = text.trim();
-  let fenceLength = 3;
-  for (const [run] of trimmed.matchAll(/`+/g)) fenceLength = Math.max(fenceLength, run.length + 1);
-  const fence = '`'.repeat(fenceLength);
-  return `${fence}speech-to-text\n${trimmed}\n${fence}`;
-}
-
-export function placeBlock(text, start, end, block) {
-  const left = text.slice(0, start);
-  const right = text.slice(end);
-  return (left && !left.endsWith('\n\n') ? (left.endsWith('\n') ? '\n' : '\n\n') : '') + block
-    + (right && !right.startsWith('\n\n') ? (right.startsWith('\n') ? '\n' : '\n\n') : '');
-}
+export { placeBlock, transcriptBlock, voiceToken, voiceTokens } from './voicetext.js';
 
 // The microphone and the browser's uploader have separate lifetimes. Once
 // stopped, queued chunks drain before finishing the recording on the server.

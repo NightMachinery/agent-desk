@@ -14,6 +14,7 @@
   import { toast } from '../lib/toast.svelte.js';
   import Sheet from './Sheet.svelte';
   import { captureVoice, placeBlock, transcriptBlock, voiceToken, voiceTokens } from '../lib/voice.js';
+  import { sortVoice } from '../lib/voicetext.js';
   import { off } from '../lib/why.js';
   import { openImage } from '../lib/viewer.svelte.js';
 
@@ -169,6 +170,16 @@
     changeText(start, end, placeBlock(text, start, end, block));
     rememberVoice([...voiceDraft.filter((item) => item.id !== rec.id), { id: rec.id, block }]);
     recordingBin = false;
+  }
+
+  // A recording deleted under Recordings leaves no token behind to send.
+  function forgetRecording(rec) {
+    for (const token of voiceTokens(text).filter((t) => t.id === rec.id).reverse()) {
+      const space = text[token.end] === ' ' ? 1 : 0;
+      changeText(token.start, token.end + space, '');
+    }
+    rememberVoice(voiceDraft.filter((item) => item.id !== rec.id));
+    delete voiceStatus[rec.id];
   }
 
   function expandTokens(start, end) {
@@ -357,9 +368,8 @@
 
   async function submit(value = text, behavior = '', allowMissing = false) {
     if (busy || uploading) return;
-    const pending = new Set(voiceTokens(value).map(({ id }) => id));
-    const used = voiceDraft.filter((item) => item.block && value.includes(item.block));
-    const removed = voiceDraft.filter((item) => !pending.has(item.id) && !used.includes(item));
+    const status = Object.fromEntries(Object.entries(voiceStatus).map(([id, rec]) => [id, rec.status]));
+    const { used, ask: removed } = sortVoice(value, voiceDraft, status);
     if (!allowMissing && removed.length) {
       missing = { value, behavior, removed };
       missingOpen = true;
@@ -529,7 +539,7 @@
 </div>
 
 <Sheet bind:open={recordingBin} title="Recordings">
-  {#if recordingBin}<LazyPanel view={import('./Recordings.svelte')} node={voiceNode} insert={insertRecording} />{/if}
+  {#if recordingBin}<LazyPanel view={import('./Recordings.svelte')} node={voiceNode} insert={insertRecording} forget={forgetRecording} />{/if}
 </Sheet>
 
 <Sheet bind:open={missingOpen} title="Recording removed">

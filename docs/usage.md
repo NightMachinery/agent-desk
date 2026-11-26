@@ -1537,6 +1537,13 @@ thread shows why. **Retry transcription** uses the saved audio and resumes the
 queued send when it succeeds. **Send without recording** queues the same
 message with a short note in place of the failed recording.
 
+Edit the transcript freely before sending; an edited transcript still counts
+as the recording's. If you delete a recording's token before its transcript
+arrives, **Send** asks whether to put it back at the end or leave it out,
+since you have not seen what it said. It does not ask about a transcript you
+saw and then deleted, or about a failed recording. Deleting a recording under
+**Recordings** also removes its token from the message box.
+
 The running desk server owns transcription. Its config can select a backend
 and set the recording retention period.
 
