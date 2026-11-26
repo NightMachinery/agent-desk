@@ -549,7 +549,8 @@ C('task-reopen', 'Task: reopen it, saying what is still wrong', () => click('tas
 C('deliverable-download', 'Deliverable: download its first file', () => click('deliverable-download'), tagged('deliverable-download', 'a deliverable with a file'));
 // Discard the draft in the box (or New task form) that has focus, else the first one with one.
 function discardDraft() {
-  const here = document.activeElement?.closest?.('.composer, form.add')?.querySelector('[data-cmd="draft-discard"]');
+  const mine = document.activeElement?.closest?.('.composer, form.add')?.querySelector('[data-cmd="draft-discard"]');
+  const here = mine && getComputedStyle(mine).visibility !== 'hidden' ? mine : null; // hidden: this box has no draft
   const el = here || cmdEl('draft-discard');
   if (!el) return say('No draft here');
   if (el instanceof HTMLButtonElement && el.disabled) return say(tipText(el) || 'Not available now');

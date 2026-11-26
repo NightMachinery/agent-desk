@@ -699,7 +699,7 @@ does not mark it read by itself: opening it, moving on from it, and the
 mark-all and selection Mark read buttons leave it unread (the toast says how
 many stayed), and its own Mark read button says why and offers to discard.
 Opening an unread item still reads it at once, so a draft started after
-that keeps it listed but read. **Discard** beside a box with a draft drops
+that keeps it listed but read. **Discard** (the trash icon) beside a box with a draft drops
 it everywhere, with Undo (`SPC i x`); on a question it drops your picks and
 notes with the text. Sending or discarding reads an unread item, as opening
 it would have, and discarding moves on to the next open item as sending
@@ -730,7 +730,10 @@ the bottom of the item's page, above Previous and Next, so it stays in
 view as you scroll up to reread: it docks while it has focus, holds a
 draft (text, files or a recording) or replies to an entry, and an empty
 box you leave goes back to the end of the page. `r` and `i` dock it without
-scrolling the page. The Send button
+scrolling the page. Typing never changes the box's height: Discard keeps its
+place in the row while hidden, a narrow box shows Attach, Record voice and
+Recordings as icons, and the delivery hint beside Send shrinks first (its
+tooltip has the whole text). The Send button
 uses your `deliver.behavior` setting; the menu beside it offers the others,
 greys out one the session cannot do and says why, and asks before "Stop and
 send" (interrupt). "Notify me" beside it changes, for this message only,

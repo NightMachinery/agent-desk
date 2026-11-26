@@ -486,19 +486,20 @@
     <button data-cmd="attach" class="btn ghost small attach" onclick={() => picker.click()}
       {...off(tip('Attach files: images, audio, video or anything else (you can also paste or drop them)', 'attach'), [busy, SENDING], [files.length >= MAX_FILES, `At most ${MAX_FILES} files per message`])} aria-label="Attach files">
       <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M10.5 4.5 5.8 9.2a1.3 1.3 0 0 0 1.9 1.9l5-5a2.7 2.7 0 0 0-3.8-3.8l-5 5a4 4 0 0 0 5.7 5.7l4.2-4.2" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" /></svg>
-      Attach
+      <span class="lbl">Attach</span>
     </button>
     {#if voiceNode}
-      <button data-cmd="voice-toggle" class="btn ghost small attach" {...off(tip(capture ? 'Stop recording' : 'Record a voice message', 'voice-toggle'), [busy, SENDING], [micBusy, 'Wait: the recorder is starting or stopping'])} onclick={toggleMic}>
-        {capture ? 'Stop recording' : 'Record voice'}
+      <button data-cmd="voice-toggle" class="btn ghost small attach" class:recording={!!capture} aria-label={capture ? 'Stop recording' : 'Record voice'} {...off(tip(capture ? 'Stop recording' : 'Record a voice message', 'voice-toggle'), [busy, SENDING], [micBusy, 'Wait: the recorder is starting or stopping'])} onclick={toggleMic}>
+        <Icon name={capture ? 'stop' : 'mic'} size={14} /><span class="lbl">{capture ? 'Stop recording' : 'Record voice'}</span>
       </button>
-      <button data-cmd="voice-recordings" class="btn ghost small attach" title={tip('Your recordings: insert one\'s transcript here', 'voice-recordings')} onclick={() => (recordingBin = true)}>Recordings</button>
+      <button data-cmd="voice-recordings" class="btn ghost small attach" aria-label="Recordings" title={tip('Your recordings: insert one\'s transcript here', 'voice-recordings')} onclick={() => (recordingBin = true)}><Icon name="tape" size={14} /><span class="lbl">Recordings</span></button>
     {/if}
-    {#if text.trim() || linkedFilled}
-      <button data-cmd="draft-discard" class="btn ghost small discard" onclick={discard} {...off(tip(linked.length ? 'Discard this draft: the text and your picks (Undo brings it back)' : 'Discard this draft (Undo brings it back)', 'draft-discard'), [busy, SENDING])}>
-        <Icon name="trash" size={13} /> Discard
-      </button>
-    {/if}
+    <!-- Always in the row, hidden with no draft: typing must not move Send
+         to a second row (the item page docks this box). -->
+    <button data-cmd="draft-discard" class="btn ghost small discard" class:idle={!(text.trim() || linkedFilled)} aria-label="Discard" tabindex={text.trim() || linkedFilled ? undefined : -1}
+      onclick={discard} {...off(tip(linked.length ? 'Discard this draft: the text and your picks (Undo brings it back)' : 'Discard this draft (Undo brings it back)', 'draft-discard'), [busy, SENDING], [!(text.trim() || linkedFilled), 'Nothing to discard'])}>
+      <Icon name="trash" size={14} />
+    </button>
     {#each quick as q (q.label)}
       <button data-cmd="quick" class="btn small" onclick={() => submit(q.text)} {...off(tip(q.text, 'quick'), [busy, SENDING])}>{q.label}</button>
     {/each}
@@ -508,7 +509,7 @@
         <span class="notify-text">{remoteNow === 'off' ? 'Desktop only' : remoteNow === 'always' ? `${remoteName} too` : `${remoteName} when away`}{overridden ? ' · changed' : ''}</span>
       </button>
     {/if}
-    <span class="hint faint">{hint}</span>
+    <span class="hint faint" title={hint || undefined}>{hint}</span>
     <div class="sends">
     {#each alongside as a (a.label)}
       <button data-cmd={a.cmd} class="btn small alongside" {...off(tip(a.title, a.cmd), [busy, SENDING], [uploading, UPLOADING])} onclick={() => submit(a.wrap(text.trim()))}>{a.label}</button>
@@ -593,6 +594,20 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
+    container-type: inline-size;
+  }
+  /* A narrow box shows Attach, Record voice and Recordings as icons (their
+     tooltips name them), so Send keeps the row. */
+  @container (max-width: 640px) {
+    .lbl {
+      display: none;
+    }
+    .attach {
+      padding: 0 8px;
+    }
+  }
+  .attach.recording {
+    color: var(--blocked);
   }
   .voice-preview, .voice-error {
     font-size: 13px;
@@ -688,6 +703,10 @@
   }
   .discard {
     color: var(--muted);
+    padding: 0 7px;
+  }
+  .discard.idle {
+    visibility: hidden;
   }
   .discard:hover:not(:disabled) {
     color: var(--blocked);
@@ -696,10 +715,18 @@
     border-color: color-mix(in srgb, var(--deliverable) 45%, var(--line));
     color: var(--deliverable);
   }
+  /* The hint gives way first: at most two lines, the height of a button,
+     with the whole text in its tooltip, so Send keeps its row. */
   .hint {
-    flex: 1;
-    min-width: 120px;
+    flex: 1 1 90px;
+    min-width: 0;
     font-size: 12px;
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
   }
   .notify {
     color: var(--muted);

@@ -878,7 +878,7 @@
     bottom: var(--stepper-h, 0px);
     z-index: 3;
     padding-top: 12px;
-    padding-bottom: 10px;
+    padding-bottom: 6px; /* with padding-top, the same 18px as undocked: docking does not change its height */
     background: var(--panel);
     border-top: 1px solid var(--line);
   }
