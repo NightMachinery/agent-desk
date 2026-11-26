@@ -15,7 +15,8 @@ and gives the user one place to read it and answer.
   the board never accumulates history.
 - **Read marks** hide what you have seen. A slot that changes comes back.
 - **Attachments**: an agent can show a plot or a screenshot, or leave a voice
-  note, with a caption. The desk keeps a copy for a month after you read it.
+  note, with a caption. The desk deletes the copy a month after filing, once
+  you have read the item, unless you pin it.
 - Everything is an immutable event in one SQLite file, so nothing is lost and
   stores on several machines can be merged.
 
