@@ -331,7 +331,7 @@
         {@const f = item.from}
         {#if f.model}
           <a data-cmd="session" class="who" href={href({ session: sess, item: route.item })}
-            title={`${[agentName(f.agent), f.model, f.effort && `effort ${f.effort}`].filter(Boolean).join(' · ')}: what it ran when it filed this. Session ${short(sess)}${f.title ? ` (${f.title})` : ''}; click to show everything it wrote.`}>
+            title={`${senderName(f)}: session ${short(sess)}${f.title ? ` (${f.title})` : ''}; click to show everything it wrote.`}>
             {senderName(f)}
           </a>
         {:else}
