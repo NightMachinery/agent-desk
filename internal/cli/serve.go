@@ -194,6 +194,8 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("POST /api/deliver", s.action(s.apiDeliver))
 	mux.HandleFunc("POST /api/pin", s.write(s.apiPin))
 	mux.HandleFunc("POST /api/unpin", s.write(s.apiUnpin))
+	mux.HandleFunc("POST /api/defer", s.write(s.apiDefer))
+	mux.HandleFunc("POST /api/undefer", s.write(s.apiUndefer))
 	mux.HandleFunc("POST /api/unread", s.write(s.apiUnread))
 	mux.HandleFunc("POST /api/task", s.write(s.apiTask))
 	mux.HandleFunc("POST /api/screen", s.write(s.apiScreen))
@@ -511,6 +513,14 @@ func (s *server) apiPin(app *App, body request) (any, error) {
 
 func (s *server) apiUnpin(app *App, body request) (any, error) {
 	return map[string]string{}, app.run(append([]string{"unpin", "--"}, body.list(body.ID)...))
+}
+
+func (s *server) apiDefer(app *App, body request) (any, error) {
+	return map[string]string{}, app.run(append([]string{"defer", "--"}, body.list(body.ID)...))
+}
+
+func (s *server) apiUndefer(app *App, body request) (any, error) {
+	return map[string]string{}, app.run(append([]string{"undefer", "--"}, body.list(body.ID)...))
 }
 
 func (s *server) apiUnread(app *App, body request) (any, error) {

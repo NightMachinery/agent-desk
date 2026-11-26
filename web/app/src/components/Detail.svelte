@@ -78,7 +78,7 @@
   $effect(() => onDraftChange(() => draftTick++));
   $effect(() => {
     void draftTick;
-    if (!it || isQuestion || !it.unread || autoRead.has(e.id)) return;
+    if (!it || isQuestion || !it.unread || it.deferred || autoRead.has(e.id)) return;
     if (untrack(() => keys.anchor)) return;
     if (hasDraft(it.display_id) || (it.draft && draftTick === 0)) return;
     if (waitsForOpen) return;
@@ -110,10 +110,13 @@
   });
 
   /** Marks an entry of the conversation read: the open item as readNow
-   * does, another one directly. */
-  function readEntry(display) {
+   * does, another one directly. Opening (auto) leaves a deferred one unread;
+   * only Dismiss (manual) reads it. */
+  function readEntry(display, manual = false) {
+    const entry = item?.thread?.find((t) => t.display_id === display);
+    if (!manual && (entry?.deferred || (display === it?.display_id && it.deferred))) return;
     if (display === it?.display_id) {
-      if (!it.unread || autoRead.has(e.id)) return;
+      if (!it.unread || (!manual && autoRead.has(e.id))) return;
       cancelArrival(display);
       return readNow();
     }
@@ -126,7 +129,7 @@
    * delivers: a click (or middle click) on such a link, or playing its audio
    * or video. A draft keeps it unread, as it keeps any item. */
   function readOpened(/** @type {Event} */ ev) {
-    if (!waitsForOpen || !it?.unread || autoRead.has(e.id) || hasDraft(it.display_id)) return;
+    if (!waitsForOpen || !it?.unread || it.deferred || autoRead.has(e.id) || hasDraft(it.display_id)) return;
     if (ev.type === 'auxclick' && /** @type {MouseEvent} */ (ev).button !== 1) return;
     if (ev.type !== 'play' && !opensDelivery(ev.target)) return;
     cancelArrival(it.display_id);
@@ -154,6 +157,26 @@
     try {
       await post(on ? 'pin' : 'unpin', { id: it.display_id });
       toast(on ? 'Pinned to the top.' : 'Unpinned.', 'ok');
+      onchange();
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  }
+
+  // Defer: listed under its section's Deferred, folded, read or not, until
+  // undeferred or updated by its agent; opening never reads it, and
+  // auto-navigation skips it.
+  const canDefer = $derived(!!e && !item?.task && ['ask', 'tell', 'done', 'deliverable', 'set'].includes(e.kind));
+  async function setDeferred(on) {
+    const display = it.display_id;
+    try {
+      await post(on ? 'defer' : 'undefer', { id: display });
+      // Opening it read it; a deferred item is read only by hand, so that
+      // read is undone.
+      if (on && autoRead.has(e.id) && !it.unread) await post('unread', { id: display });
+      const waits = isQuestion && !item.answered ? (e.level === 'blocked' ? ' The agent stays blocked until you answer.' : ' The agent goes ahead with its default unless you answer.') : '';
+      toast(on ? `Deferred: folded under Deferred in its section until you undefer it.${waits}` : 'Back in its section.', 'ok', on ? 7000 : 3000,
+        on ? { label: 'Undo', run: () => post('undefer', { id: display }).then(onchange, (err) => toast(err.message, 'error')) } : undefined);
       onchange();
     } catch (err) {
       toast(err.message, 'error');
@@ -320,12 +343,19 @@
       <span class="chip {kind}">{kind === 'slot' ? `Slot · ${item.slot}` : kindLabel[kind]}</span>
       {#if isQuestion && item.answered}<span class="chip ok">Answered</span>{/if}
       {#if it.dismissed}<span class="chip">Dismissed</span>{/if}
+      {#if it.deferred}<span class="chip">Deferred</span>{/if}
       {#if it.unread}<span class="chip default">Unread</span>{/if}
       {#if item.task}<span class="chip" class:ok={item.task.state === 'done'}>{item.task.state}</span>{/if}
       <span class="spacer"></span>
       <button data-cmd="pin" class="btn ghost small iconbtn" class:on={it.pinned} aria-pressed={it.pinned} title={tip(it.pinned ? 'Unpin' : 'Pin to the top', 'pin')} onclick={() => pin(!it.pinned)}
         ><Icon name="pin" /></button
       >
+      {#if canDefer}
+        <button data-cmd="defer" class="btn ghost small iconbtn" class:on={it.deferred} aria-pressed={!!it.deferred} aria-label={it.deferred ? 'Undefer' : 'Defer'}
+          title={tip(it.deferred ? 'Undefer: back in its section' : 'Defer: fold it under Deferred in its section, out of auto-navigation, until you undefer it', 'defer')} onclick={() => setDeferred(!it.deferred)}
+          ><Icon name="defer" /></button
+        >
+      {/if}
       {#if !isQuestion && !item.task}
         <button data-cmd="read-toggle" class="btn ghost small iconbtn" title={tip(it.unread ? 'Mark read' : 'Mark unread', it.unread ? 'dismiss' : 'undismiss')} aria-label={it.unread ? 'Mark read' : 'Mark unread'} onclick={() => mark(!!it.unread)}
           ><Icon name={it.unread ? 'read' : 'unread'} /></button

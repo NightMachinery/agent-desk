@@ -13,7 +13,7 @@ import { tipText } from './tooltip.js';
 import { toast, bump } from './toast.svelte.js';
 import { get, post } from './api.js';
 import { exportHref, download } from './exports.js';
-import { ui, setNav, toggleSection, showDeliverables, deliverableModeLabel, showTasks, taskModeLabel } from './ui.svelte.js';
+import { ui, setNav, toggleSection, toggleLater, showDeliverables, deliverableModeLabel, showTasks, taskModeLabel } from './ui.svelte.js';
 import {
   keys, ctx, command, pane, paneEl, cmdEl, say, dialog, moveFocus, focusables, startHints, openPalette, setKeymap,
   commands, commandItems, keysOf, keyFor, applies, describeKey, describeCommand, setVisual, syncMode, selectedField, selectField,
@@ -217,6 +217,10 @@ function markUnread() {
   const t = cmdEl('read-toggle');
   if (t?.getAttribute('aria-label') === 'Mark unread') return t.click();
   say(t ? 'Already unread' : 'An open question stays in Needs you');
+}
+function deferItem() {
+  if (picking()) return click('bulk-defer');
+  click('defer', open() ? 'Only questions, notices, deliverables and slots can be deferred' : 'Nothing open');
 }
 function pin() {
   if (picking()) return click('bulk-pin');
@@ -502,6 +506,8 @@ C('take', 'Take the recommendation or the default', () => click('quick', 'Not an
 C('read', 'Mark read (a question: dismiss it)', after(markRead));
 C('unread', 'Mark unread (a question: back to Needs you)', after(markUnread));
 C('pin', 'Pin or unpin', after(pin));
+C('defer', 'Defer or undefer: fold it under Deferred in its section, out of auto-navigation, until undeferred', after(deferItem));
+C('deferred-fold', 'Show or fold the Deferred items of this section', () => toggleLater(sectionHere()), { pane: 'list' });
 C('notify-menu', 'Notify me: where its response notifies you', () => click('notify-menu', 'No message box'), tagged('notify-menu', 'a message box'));
 C('send-menu', 'Send how? (steer, queue, interrupt)', () => click('send-menu', 'Write the message first'), tagged('send-menu', 'a message being written'));
 C('attach', 'Attach a file to the message', () => click('attach'), tagged('attach', 'a message box'));

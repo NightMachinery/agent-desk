@@ -181,6 +181,8 @@ The API, all JSON:
 - `POST api/read {target}` or `{targets: [...]}` accepts ids and paths.
   An open question named by id is dismissed. `api/unread` accepts `{id}`
   or `{targets: [...]}`, and `api/pin` and `api/unpin` accept `{id}`.
+  `api/defer` and `api/undefer` accept `{id}` or `{targets: [...]}`; a
+  listed item, and a thread entry, carries `deferred` while it stands.
 - `POST api/pref {scope, class?, key, value}`: sets an override; a null
   `value` removes it. The browser acts as the user, so this works even when
   the server was started from an agent's shell.

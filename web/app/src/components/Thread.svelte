@@ -21,7 +21,7 @@
   let { entries = [], pending = [], current = '', remoteLabel = '', replyingTo = '', onreply = null, onread = null } = $props();
   /** Opening a deliverable entry (click or middle click on Open) reads it. */
   function openedEntry(/** @type {MouseEvent} */ ev, t) {
-    if (!t.unread || !onread || (ev.type === 'auxclick' && ev.button !== 1)) return;
+    if (!t.unread || t.deferred || !onread || (ev.type === 'auxclick' && ev.button !== 1)) return;
     onread(t.display_id);
   }
 
@@ -148,7 +148,7 @@
           {#if deliverableURL(t.event)}<a class="btn small" href={deliverableURL(t.event)} {...openTarget(deliverableURL(t.event))} title={t.event.meta.url}
               onclick={(ev) => openedEntry(ev, t)} onauxclick={(ev) => openedEntry(ev, t)}>Open</a>{/if}
           {#if t.unread && onread && t.event.kind === 'deliverable'}
-            <button data-keys="none" class="btn small ghost dismiss-entry-btn" title={tip('Dismiss: mark it read without opening it', 'dismiss-entry')} onclick={() => onread(t.display_id)}>Dismiss</button>
+            <button data-keys="none" class="btn small ghost dismiss-entry-btn" title={tip('Dismiss: mark it read without opening it', 'dismiss-entry')} onclick={() => onread(t.display_id, true)}>Dismiss</button>
           {/if}
         </div>
         {#if t.event.title}<div class="qtitle">{t.event.title}</div>{/if}

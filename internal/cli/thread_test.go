@@ -377,3 +377,83 @@ func TestMessageThreads(t *testing.T) {
 		t.Fatal("filed-task message not answered by a response to a follow-up in its thread")
 	}
 }
+
+// A deferred item stays listed in its section, read or not, until it is
+// undeferred or its agent updates it (a slot's newer text, a newer
+// deliverable of its key). Pinned and deferred exclude each other.
+func TestDefer(t *testing.T) {
+	h := newHarness(t)
+	env := h.as(sessA)
+	h.ok(env, "", "join", "r1/coord")
+	listed := func(section string) map[string]bool {
+		out := map[string]bool{}
+		for _, g := range h.showJSON("", false)[section].([]any) {
+			for _, x := range g.(map[string]any)["items"].([]any) {
+				it := x.(map[string]any)
+				out[it["display_id"].(string)] = it["deferred"] == true
+			}
+		}
+		return out
+	}
+
+	tl := h.ok(env, "Live.", "tell", "--title", "Deploy finished")
+	h.ok(nil, "", "defer", tl)
+	h.ok(nil, "", "read", tl)
+	if d, ok := listed("new")[tl]; !ok || !d {
+		t.Fatalf("a read deferred notice leaves New: %v", listed("new"))
+	}
+	_, errOut, _ := h.run(nil, "", "defer", tl)
+	if !strings.Contains(errOut, "already deferred") {
+		t.Fatalf("second defer: %q", errOut)
+	}
+	h.ok(nil, "", "pin", tl) // pinning undefers
+	if listed("new")[tl] {
+		t.Fatal("a pinned item stays deferred")
+	}
+	h.ok(nil, "", "defer", tl) // deferring unpins
+	if p := h.showJSON("", false)["pinned"].([]any); len(p) != 0 {
+		t.Fatalf("a deferred item stays pinned: %v", p)
+	}
+	h.ok(nil, "", "undefer", tl)
+	if _, ok := listed("new")[tl]; ok {
+		t.Fatal("an undeferred read notice stays in New")
+	}
+
+	// The agent's update ends a deferral: a slot's newer text...
+	s1 := h.ok(env, "", "set", "findings", "first")
+	h.ok(nil, "", "defer", s1)
+	if !listed("new")[s1] {
+		t.Fatal("slot not deferred")
+	}
+	s2 := h.ok(env, "", "set", "findings", "second")
+	if d, ok := listed("new")[s2]; !ok || d {
+		t.Fatalf("an updated slot stays deferred: %v", listed("new"))
+	}
+	// ...and a newer deliverable of the same key.
+	b1 := h.ok(env, "First draft.", "deliverable", "--title", "Page", "--url", "https://example.org/p", "--key", "page")
+	h.ok(nil, "", "defer", b1)
+	h.ok(nil, "", "read", b1)
+	if !listed("deliverables")[b1] {
+		t.Fatal("deliverable not deferred")
+	}
+	b2 := h.ok(env, "Second draft.", "deliverable", "--title", "Page", "--url", "https://example.org/p", "--key", "page")
+	got := listed("deliverables")
+	if d, ok := got[b2]; !ok || d {
+		t.Fatalf("the newer deliverable is deferred: %v", got)
+	}
+	if _, ok := got[b1]; ok {
+		t.Fatalf("the replaced deliverable stays: %v", got)
+	}
+
+	// A dismissed question that is deferred stays in Needs you.
+	q := h.ok(env, "Which split?", "ask", "--blocked", "--title", "Split?")
+	h.ok(nil, "", "read", q)
+	if _, ok := listed("needs_you")[q]; ok {
+		t.Fatal("a dismissed question is listed")
+	}
+	h.ok(nil, "", "defer", q)
+	if !listed("needs_you")[q] {
+		t.Fatal("a deferred dismissed question is not listed")
+	}
+	h.fails(nil, "", "can be deferred", "defer", lastOf(t, h, "defer"))
+}

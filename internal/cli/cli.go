@@ -229,6 +229,9 @@ User side:
   agent-desk read <id|path-prefix>... [--host H]
   agent-desk unread <id>...
   agent-desk pin <id>... | unpin <id>...   keep items under Pinned (a slot stays pinned as it changes)
+  agent-desk defer <id>... | undefer <id>...
+                                      list items under their section's Deferred, folded and
+                                      skipped by auto-navigation, until undeferred or updated
   agent-desk search <text> [--host H]
   agent-desk pref set <key> <value> [--scope PATH] [--class C]
   agent-desk pref unset <key> [--scope PATH] [--class C]
@@ -385,6 +388,10 @@ func (a *App) run(args []string) error {
 		return a.cmdPin(rest, false)
 	case "unpin":
 		return a.cmdPin(rest, true)
+	case "defer":
+		return a.cmdDefer(rest, false)
+	case "undefer":
+		return a.cmdDefer(rest, true)
 	case "reply":
 		return a.cmdReply(rest)
 	case "serve":
@@ -956,7 +963,7 @@ func (a *App) cmdPin(args []string, unpin bool) error {
 			return err
 		}
 		switch e.Kind {
-		case "read", "delivered", "undelivered", "pin", "pref", "notified", "retracted", "join", "leave", "projectset", "focus":
+		case "read", "delivered", "undelivered", "pin", "defer", "pref", "notified", "retracted", "join", "leave", "projectset", "focus":
 			return fmt.Errorf("%s is a %s mark; pin the item itself", d.Display(e.ID), e.Kind)
 		}
 		k := d.PinKey(e)
@@ -979,6 +986,73 @@ func (a *App) cmdPin(args []string, unpin bool) error {
 		p := a.event("pin", e.Path, from, "cli", extra)
 		p.Ref = e.ID
 		evs = append(evs, p)
+		// Pinned and deferred exclude each other: pinning undefers.
+		if !unpin && d.Deferred(e) {
+			u := a.event("defer", e.Path, from, "cli", map[string]any{"cancel": true})
+			u.Ref = e.ID
+			evs = append(evs, u)
+		}
+	}
+	if len(evs) == 0 {
+		fmt.Fprintln(a.Stdout, "ok")
+		return nil
+	}
+	return a.commit(evs, "")
+}
+
+// cmdDefer lists items under their section's Deferred, read or not, until
+// undeferred or updated by their agent; or undefers them. A deferral of a
+// slot holds the slot, and one of a deliverable filed with --key its key.
+func (a *App) cmdDefer(args []string, undefer bool) error {
+	o, err := parse(args, nil, nil, 1, -1)
+	if err != nil {
+		return err
+	}
+	d, err := a.load()
+	if err != nil {
+		return err
+	}
+	from := ident.Resolve(a.Env)
+	var evs []store.Event
+	seen := map[string]bool{}
+	for _, tok := range o.pos {
+		e, err := d.Resolve(tok)
+		if err != nil {
+			return err
+		}
+		switch e.Kind {
+		case "ask", "tell", "done", "deliverable", "set":
+		case "task":
+			return fmt.Errorf("%s is a task; defer it with: agent-desk task defer %s", d.Display(e.ID), d.Display(e.ID))
+		default:
+			return fmt.Errorf("%s is a %s; only questions, notices, done reports, deliverables and slots can be deferred", d.Display(e.ID), e.Kind)
+		}
+		k := d.DeferKey(e)
+		if seen[k] {
+			continue
+		}
+		seen[k] = true
+		if d.Deferred(e) != undefer {
+			state := "deferred"
+			if undefer {
+				state = "not deferred"
+			}
+			fmt.Fprintf(a.Stderr, "agent-desk: %s is already %s\n", d.Display(e.ID), state)
+			continue
+		}
+		var extra map[string]any
+		if undefer {
+			extra = map[string]any{"cancel": true}
+		}
+		p := a.event("defer", e.Path, from, "cli", extra)
+		p.Ref = e.ID
+		evs = append(evs, p)
+		// Deferring unpins.
+		if !undefer && d.Pinned(e) {
+			u := a.event("pin", e.Path, from, "cli", map[string]any{"cancel": true})
+			u.Ref = e.ID
+			evs = append(evs, u)
+		}
 	}
 	if len(evs) == 0 {
 		fmt.Fprintln(a.Stdout, "ok")

@@ -364,6 +364,7 @@ not write anyway.
     agent-desk read m-4c2d                   # clear a message's "no response yet" flag
     agent-desk unread t-k2m9                 # undo a read mark or a dismissal
     agent-desk pin t-k2m9 s-p4d1             # keep under Pinned in every view; unpin to undo
+    agent-desk defer q-7f3a b-3p7m           # fold under Deferred in their sections; undefer to undo
     agent-desk search cache
     agent-desk sets define work agent-desk private/linear-finetune   # a project set
     agent-desk focus work                    # show and notify only for it; focus off ends it
@@ -591,7 +592,7 @@ on the desk, so every device shows it.
 **Auto-navigation** is where Next open item (`n`) goes, and where a wide
 screen moves on to once you answer, approve, deny or dismiss a question or
 send a message. It goes only to open items (an open question, an unread
-item), never to pinned ones, in this order, which Settings, "Auto-navigation"
+item), never to pinned or deferred ones, in this order, which Settings, "Auto-navigation"
 (`SPC o n`), changes for every device:
 
 1. **Fewer views first:** the items the dashboard has opened least, on any
@@ -617,7 +618,22 @@ not count; shown inside a conversation, it has its own Open and Dismiss
 buttons, and either reads it), but the row stays where it
 is, dimmed once you open another, for a minute (Settings: "Keep a read item
 in the list for", per device). The icon beside its id marks it unread
-again, and the pin icon keeps it under Pinned. Items you mark read with a
+again, and the pin icon keeps it under Pinned.
+
+**Defer** (the clock icon beside the pin, `SPC b z`, or Defer in the
+selection bar) is for "not now, but don't lose it". A deferred question,
+notice, response, deliverable or slot moves to a **Deferred** subheading at
+the end of its own section, folded until you open it (`z d` in the list).
+It stays there, read or not, until you undefer it, or until its agent
+updates it: a newer text of the slot, or a newer deliverable with the same
+`--key`. Nothing reads it but you: opening it, or opening its link, leaves
+it unread; only answering it, dismissing it or marking it read does. No
+badge counts it, a section's mark-all leaves it alone, and auto-navigation
+skips it. A deferred question keeps its agent waiting (or going ahead with
+its default) as before; Dismiss still exists and hides a question instead.
+Pinning undefers, and deferring unpins. Tasks keep their own Defer.
+
+Items you mark read with a
 section's mark-all button or the selection's Mark read leave the list at
 once; if the desk refuses, they come back with the error.
 An item id written in any text on the desk ("see q-8tqk", or `` `q-8tqk` ``

@@ -41,21 +41,23 @@ func stateRank(s string) int {
 
 // Desk is everything loaded from one store at one moment.
 type Desk struct {
-	Now       time.Time
-	Host      string // this machine
-	Home      string // the store's directory, where media/ is
-	Events    []store.Event
-	ByID      map[string]store.Event
-	Table     *ids.Table
-	Questions []store.Question
-	answers   map[string]string
-	unread    map[string]bool
-	dismissed map[string]bool      // questions marked read: open, but out of Needs you
-	marked    map[string]bool      // events whose latest read mark stands
-	readAt    map[string]time.Time // when that read mark was made
-	pins      []string             // pin keys, most recently pinned first
-	slots     []store.Event        // slot_current minus clears
-	threads   threadIndex
+	Now        time.Time
+	Host       string // this machine
+	Home       string // the store's directory, where media/ is
+	Events     []store.Event
+	ByID       map[string]store.Event
+	Table      *ids.Table
+	Questions  []store.Question
+	answers    map[string]string
+	unread     map[string]bool
+	dismissed  map[string]bool      // questions marked read: open, but out of Needs you
+	marked     map[string]bool      // events whose latest read mark stands
+	readAt     map[string]time.Time // when that read mark was made
+	pins       []string             // pin keys, most recently pinned first
+	deferrals  map[string]string    // defer key -> the defer event that stands
+	slotByPath map[string]string    // slot path -> its current event
+	slots      []store.Event        // slot_current minus clears
+	threads    threadIndex
 	// latestDeliverable maps project and meta.key to the newest
 	// deliverable with that key: an older one is superseded.
 	latestDeliverable map[string]string
@@ -162,6 +164,23 @@ func Load(s *store.Store, host string, now time.Time) (*Desk, error) {
 		d.pins = append(d.pins, k)
 	}
 	sort.Slice(d.pins, func(i, j int) bool { return pinAt[d.pins[i]] > pinAt[d.pins[j]] })
+	// Deferrals, like pins: the latest defer event per key counts; a cancel
+	// (undefer) ends it.
+	d.slotByPath = map[string]string{}
+	for _, s := range d.slots {
+		d.slotByPath[s.Path] = s.ID
+	}
+	d.deferrals = map[string]string{}
+	for _, e := range evs {
+		if e.Kind == "defer" {
+			k := d.DeferKey(d.ByID[e.Ref])
+			if Meta(e)["cancel"] == true {
+				delete(d.deferrals, k)
+			} else {
+				d.deferrals[k] = e.ID
+			}
+		}
+	}
 	d.dismissed = map[string]bool{}
 	d.marked = map[string]bool{}
 	for id, on := range last {
@@ -210,6 +229,41 @@ func (d *Desk) PinKey(e store.Event) string {
 		return "slot:" + e.Path
 	}
 	return "id:" + e.ID
+}
+
+// DeferKey is what a deferral of e holds on to, like a pin: a slot, or the
+// key of a deliverable filed with --key, or else the event itself.
+func (d *Desk) DeferKey(e store.Event) string {
+	if IsSlotKind(e.Kind) {
+		return "slot:" + e.Path
+	}
+	if k := deliverableKey(e); k != "" {
+		return "key:" + k
+	}
+	return "id:" + e.ID
+}
+
+// Deferred reports whether e is deferred: listed under its section's
+// Deferred until the user undefers it. An agent's update ends it: a newer
+// text of the slot, or a newer deliverable of the key, filed after the
+// deferral.
+func (d *Desk) Deferred(e store.Event) bool {
+	id, ok := d.deferrals[d.DeferKey(e)]
+	if !ok {
+		return false
+	}
+	newest := e.ID
+	switch {
+	case IsSlotKind(e.Kind):
+		if cur, ok := d.slotByPath[e.Path]; ok {
+			newest = cur
+		}
+	case deliverableKey(e) != "":
+		if latest := d.latestDeliverable[deliverableKey(e)]; latest != "" {
+			newest = latest
+		}
+	}
+	return id > newest
 }
 
 // Pinned reports whether e (or its slot) is pinned.
@@ -405,6 +459,9 @@ type Item struct {
 	// NoResponse: a message delivered NoResponseAfter ago with no response.
 	NoResponse bool `json:"no_response,omitempty"`
 	Pinned     bool `json:"pinned,omitempty"`
+	// Deferred: listed under its section's Deferred, read or not, until
+	// the user undefers it or its agent updates it; never read by opening.
+	Deferred bool `json:"deferred,omitempty"`
 	// Response: an agent's response to the user; Asked is what the user
 	// asked (or answered), AskedVia is message, answer or chat.
 	Response bool   `json:"response,omitempty"`
@@ -442,7 +499,7 @@ func (d *Desk) Item(e store.Event) Item { return d.item(e) }
 func (d *Desk) item(e store.Event) Item {
 	_, _, rest := Split(e.Path)
 	it := Item{Event: e, ID: d.Display(e.ID), Label: rest, Age: Age(d.Now.Sub(Time(e))), Unread: d.unread[e.ID],
-		NoResponse: e.Kind == "reply" && d.NoResponse(e.ID), Pinned: d.Pinned(e), Response: IsResponse(e)}
+		NoResponse: e.Kind == "reply" && d.NoResponse(e.ID), Pinned: d.Pinned(e), Deferred: d.Deferred(e), Response: IsResponse(e)}
 	it.Asked, it.AskedVia = d.Asked(e)
 	if t, ok := d.readAt[e.ID]; ok && !it.Unread {
 		it.ReadAt = t.UTC().Format(time.RFC3339)
@@ -494,7 +551,7 @@ func (d *Desk) OpenQuestions(f Filter) []Item {
 	var out []Item
 	for i := range d.Questions {
 		q := d.Questions[i]
-		if !q.Open() || !f.Keep(q.Event) || (d.dismissed[q.ID] && !f.All && !f.Dismissed && !f.Linger[q.ID]) {
+		if !q.Open() || !f.Keep(q.Event) || (d.dismissed[q.ID] && !f.All && !f.Dismissed && !f.Linger[q.ID] && !d.Deferred(q.Event)) {
 			continue
 		}
 		it := d.item(q.Event)
@@ -546,7 +603,7 @@ func (d *Desk) New(f Filter) []Group {
 		default:
 			continue
 		}
-		if !d.unread[e.ID] && !f.All && !f.Linger[e.ID] {
+		if !d.unread[e.ID] && !f.All && !f.Linger[e.ID] && !d.Deferred(e) {
 			continue
 		}
 		items = append(items, d.item(e))
@@ -561,7 +618,7 @@ func (d *Desk) ResponseGroups(f Filter) []Group {
 	var items []Item
 	for _, e := range d.Events {
 		// A question response is a question: it is listed in Needs you.
-		if IsResponse(e) && (e.Kind == "tell" || e.Kind == "done") && f.Keep(e) && (d.unread[e.ID] || f.All || f.Linger[e.ID]) {
+		if IsResponse(e) && (e.Kind == "tell" || e.Kind == "done") && f.Keep(e) && (d.unread[e.ID] || f.All || f.Linger[e.ID] || d.Deferred(e)) {
 			items = append(items, d.item(e))
 		}
 	}
@@ -585,7 +642,7 @@ func (d *Desk) DeliverableGroups(f Filter) []Group {
 			continue
 		}
 		if !f.Linger[e.ID] {
-			if mode == DeliverUnread && !d.unread[e.ID] {
+			if mode == DeliverUnread && !d.unread[e.ID] && !d.Deferred(e) {
 				continue
 			}
 			if mode != DeliverAll && d.SupersededBy(e) != "" {
@@ -776,8 +833,9 @@ func (d *Desk) Tree(f Filter) []*Node {
 			continue
 		}
 		// A dismissed question stays open but no longer needs the user:
-		// it counts nowhere, as it shows nowhere but Show all.
-		if d.dismissed[q.ID] {
+		// it counts nowhere, as it shows nowhere but Show all. A deferred
+		// one is listed, under Deferred, but counts nowhere either.
+		if d.dismissed[q.ID] || d.Deferred(q.Event) {
 			continue
 		}
 		for m := get(q.Event.Path); m != nil && m != root; m = nodes[parentOf(m.Path)] {
@@ -789,7 +847,7 @@ func (d *Desk) Tree(f Filter) []*Node {
 	}
 	for id := range d.unread {
 		e := d.ByID[id]
-		if !counted.Keep(e) {
+		if !counted.Keep(e) || d.Deferred(e) {
 			continue
 		}
 		for m := get(NodeOf(e)); m != nil && m != root; m = nodes[parentOf(m.Path)] {

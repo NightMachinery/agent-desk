@@ -189,7 +189,8 @@ section with an Open or Download button:
   app link to its app.
 - The body says what it is, how to try it, and what you checked.
 - `--key` names what it is a version of. A newer deliverable with the same
-  key replaces the older one, so the user never installs a stale build.
+  key replaces the older one, so the user never installs a stale build, and
+  brings it back if the user had deferred it.
 - The user may answer **Works** or describe a problem; either arrives as a
   message to respond to.
 

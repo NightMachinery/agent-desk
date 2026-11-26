@@ -43,7 +43,9 @@ type Entry struct {
 	Open   bool              `json:"open,omitempty"`
 	Notify map[string]string `json:"notify,omitempty"`
 	Unread bool              `json:"unread,omitempty"`
-	Media  []MediaView       `json:"media,omitempty"`
+	// Deferred: under its section's Deferred; opening never reads it.
+	Deferred bool        `json:"deferred,omitempty"`
+	Media    []MediaView `json:"media,omitempty"`
 }
 
 // Failure is an undelivered mark: why the message did not reach its
@@ -97,7 +99,7 @@ func entries(d *desk.Desk, thread []store.Event, pushed map[string]string) []Ent
 			continue
 		}
 		en := Entry{ID: d.Display(e.ID), Event: e, Auto: d.AutoKind(e), Age: desk.Age(d.Now.Sub(desk.Time(e))),
-			Source: desk.MetaString(e, "source"), Unread: d.Unread(e.ID)}
+			Source: desk.MetaString(e, "source"), Unread: d.Unread(e.ID), Deferred: d.Deferred(e)}
 		if desk.IsResponse(e) {
 			en.Kind, en.By = "response", agentTitle(e)
 			if e.Kind == "ask" {

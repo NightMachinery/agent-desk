@@ -20,9 +20,9 @@
   let taskIds = $state(/** @type {string[]} */ ([]));
   let quotaCount = $state(0);
   let quotaHidden = $state(0);
-  import { sel, toggleAll, clear, prune, markSelected, pinSelected, selecting } from '../lib/select.svelte.js';
+  import { sel, toggleAll, clear, prune, markSelected, pinSelected, selecting, deferSelected } from '../lib/select.svelte.js';
   import { snapshot } from '../lib/nav.svelte.js';
-  import { ui, toggleSection, deliverableModes, deliverableModeLabel, showDeliverables, orderedSections, taskModes, taskModeLabel, taskSpans, showTasks } from '../lib/ui.svelte.js';
+  import { ui, toggleSection, laterOpen, toggleLater, deliverableModes, deliverableModeLabel, showDeliverables, orderedSections, taskModes, taskModeLabel, taskSpans, showTasks } from '../lib/ui.svelte.js';
   import { hide, show, settle, unhidden } from '../lib/hiding.svelte.js';
   import { hasDraft } from '../lib/drafts.js';
   import { runCommand, keymap } from '../lib/keys.svelte.js';
@@ -58,10 +58,20 @@
     const v = view?.view;
     if (v) settle(new Set([v.needs_you, v.new, v.responses, v.deliverables].flatMap((gs) => idsOf(gs ?? []))));
   });
-  const needs = $derived(unhidden(sortMode() === 'old' ? (view?.view?.needs_you ?? []) : recent(view?.view?.needs_you ?? [], true)));
-  const fresh = $derived(unhidden(sortMode() === 'old' ? (view?.view?.new ?? []) : recent(view?.view?.new ?? [], false)));
-  const responses = $derived(unhidden(sortMode() === 'old' ? (view?.view?.responses ?? []) : recent(view?.view?.responses ?? [], false)));
-  const deliverables = $derived(unhidden(sortMode() === 'old' ? (view?.view?.deliverables ?? []) : recent(view?.view?.deliverables ?? [], false)));
+  const sorted = (gs, blockedFirst) => (sortMode() === 'old' ? (gs ?? []) : recent(gs ?? [], blockedFirst));
+  // Deferred items sit under a folded "Deferred" at the end of their
+  // section, read or not: out of its badge, its mark-all and auto-navigation.
+  const part = (gs, deferred) => gs.map((g) => ({ ...g, items: g.items.filter((it) => !!it.deferred === deferred) })).filter((g) => g.items.length);
+  const needs = $derived(unhidden(part(sorted(view?.view?.needs_you, true), false)));
+  const fresh = $derived(unhidden(part(sorted(view?.view?.new, false), false)));
+  const responses = $derived(unhidden(part(sorted(view?.view?.responses, false), false)));
+  const deliverables = $derived(unhidden(part(sorted(view?.view?.deliverables, false), false)));
+  const later = $derived({
+    needs: part(sorted(view?.view?.needs_you, true), true),
+    new: part(sorted(view?.view?.new, false), true),
+    responses: part(sorted(view?.view?.responses, false), true),
+    deliverables: part(sorted(view?.view?.deliverables, false), true),
+  });
   const pinned = $derived(view?.view?.pinned ?? []);
   const deliverablesAny = $derived(view?.view?.deliverables_any ?? 0);
   const sectionOrder = $derived(orderedSections(ui.sectionOrder));
@@ -85,7 +95,7 @@
   // a question there dismisses it, too much for one unguarded click.
   // An item with a draft is left unread (and listed) until the draft is sent
   // or discarded.
-  const byId = $derived(new Map([...needs, ...deliverables, ...responses, ...fresh].flatMap((g) => g.items).concat(pinned).map((it) => [it.display_id, it])));
+  const byId = $derived(new Map([...needs, ...deliverables, ...responses, ...fresh, ...Object.values(later).flat()].flatMap((g) => g.items).concat(pinned).map((it) => [it.display_id, it])));
   const drafted = (id) => !!byId.get(id)?.draft || hasDraft(id);
   async function markAllRead(all) {
     const kept = all.filter(drafted);
@@ -115,8 +125,9 @@
       toast(err.message, 'error');
     }
   }
-  // Folded sections drop out of j/k and previous/next.
-  const shown = (name, ids) => (ui.collapsed[name] ? [] : ids);
+  // Folded sections drop out of j/k and previous/next, and so do the
+  // Deferred under a section while folded (as they are until opened).
+  const shown = (name, ids) => (ui.collapsed[name] ? [] : [...ids, ...(laterOpen(name) ? idsOf(later[name] ?? []) : [])]);
   const allIds = $derived([
     ...new Set(sectionOrder.flatMap((n) => shown(n, { needs: needIds, deliverables: deliverableIds, pinned: pinnedIds, responses: responseIds, new: freshIds, tasks: taskIds }[n] ?? []))),
   ]);
@@ -144,6 +155,7 @@
   // Previous and next walk the list in the order shown.
   $effect(() => snapshot(allIds, route.item, pinnedAll, openAll, infoAll));
   const pickedPinned = $derived(pinnedIds.filter((x) => sel.ids.has(x)).length);
+  const pickedDeferred = $derived([...sel.ids].filter((x) => byId.get(x)?.deferred).length);
   const allOn = (ids) => ids.length > 0 && ids.every((x) => sel.ids.has(x));
   $effect(() => prune(allIds));
   const picked = $derived(sel.ids.size);
@@ -280,6 +292,7 @@
       {:else}
         <div class="empty">Nothing is waiting on you{route.q ? ' that matches' : ''}.</div>
       {/each}
+      {@render deferredPart('needs')}
     {/if}
       {:else if name === 'quota'}
     <div class:hidden={!quotaCount && !quotaHidden}>
@@ -290,7 +303,7 @@
       <QuotaHit stamp={view.stamp} path={route.path} collapsed={!!ui.collapsed.quota} bind:count={quotaCount} bind:hiddenCount={quotaHidden} />
     </div>
       {:else if name === 'deliverables'}
-    {#if deliverables.length || deliverablesAny}
+    {#if deliverables.length || deliverablesAny || later.deliverables.length}
       <h2 class="section-title" data-section="deliverables">
         {@render fold('deliverables', 'Deliverables')}
         {#if unreadCount(deliverables)}<span class="count deliverable">{unreadCount(deliverables)}</span>{/if}
@@ -314,6 +327,7 @@
             {#if route.q}No deliverable matches.{:else if ui.deliverablesShow === 'unread'}Nothing new. <button data-cmd="deliverables-latest" class="linkish" onclick={() => showDeliverables('latest')}>Latest</button> lists the ones you have seen.{:else}No deliverables here.{/if}
           </div>
         {/each}
+        {@render deferredPart('deliverables')}
       {/if}
     {/if}
       {:else if name === 'pinned'}
@@ -329,7 +343,7 @@
       {/if}
     {/if}
       {:else if name === 'responses'}
-    {#if responses.length}
+    {#if responses.length || later.responses.length}
       <h2 class="section-title" data-section="responses">
         {@render fold('responses', 'Responses to you')}
         {#if unreadCount(responses)}<span class="count response">{unreadCount(responses)}</span>{/if}
@@ -343,6 +357,7 @@
             {#each g.items as it (it.event.id)}<ItemRow item={it} base={baseOf(g)} />{/each}
           </div>
         {/each}
+        {@render deferredPart('responses')}
       {/if}
     {/if}
       {:else if name === 'new'}
@@ -361,6 +376,7 @@
       {:else}
         <div class="empty">{route.all ? 'No notices here.' : 'All read.'}</div>
       {/each}
+      {@render deferredPart('new')}
     {/if}
       {:else if name === 'tasks'}
     <h2 class="section-title" data-section="tasks">
@@ -414,6 +430,9 @@
     <button data-cmd="bulk-pin" class="btn small" {...off(undefined, [!picked, NOPICK])} onclick={() => pinSelected(pickedPinned < picked, onchange)}
       >{picked && pickedPinned === picked ? 'Unpin' : 'Pin'}</button
     >
+    <button data-cmd="bulk-defer" class="btn small" {...off(undefined, [!picked, NOPICK])} onclick={() => deferSelected(pickedDeferred < picked, onchange)}
+      >{picked && pickedDeferred === picked ? 'Undefer' : 'Defer'}</button
+    >
     <button data-cmd="bulk-unread" class="btn small" {...off(undefined, [!picked, NOPICK])} onclick={() => markSelected(false, onchange)}>Mark unread</button>
     <button
       data-cmd="bulk-read"
@@ -431,6 +450,28 @@
     onclick={(e) => { e.stopPropagation(); markAllRead(ids); }}>
     <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 8.5l3 3 6-7M7.5 11.5l.5.5 6.5-8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
   </button>
+{/snippet}
+
+{#snippet deferredPart(name)}
+  {@const gs = later[name] ?? []}
+  {#if gs.length}
+    {@const open = laterOpen(name)}
+    <h3 class="later-title" data-later={name}>
+      <button data-keys="none" class="fold" aria-expanded={open} onclick={() => toggleLater(name)} title={tip(open ? 'Fold the deferred items' : 'Show the deferred items: kept here, read or not, until you undefer them', 'deferred-fold')}>
+        <svg class="chev" class:shut={!open} width="10" height="10" viewBox="0 0 12 12" aria-hidden="true"><path d="m3 4.5 3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" /></svg>
+        Deferred
+      </button>
+      <span class="count">{count(gs)}</span>
+    </h3>
+    {#if open}
+      {#each gs as g (g.project + '/' + g.run)}
+        {@render groupHead(g)}
+        <div class="rows">
+          {#each g.items as it (it.event.id)}<ItemRow item={it} base={baseOf(g)} />{/each}
+        </div>
+      {/each}
+    {/if}
+  {/if}
 {/snippet}
 
 {#snippet fold(name, label)}
@@ -453,6 +494,23 @@
 <style>
   .hidden {
     display: none;
+  }
+  .later-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 14px 0 6px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .later-title .fold {
+    font: inherit;
+    color: inherit;
+    text-transform: inherit;
+    letter-spacing: inherit;
   }
   header {
     position: sticky;

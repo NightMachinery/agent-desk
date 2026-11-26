@@ -77,6 +77,20 @@ export async function markSelected(read, onchange, qs = 0) {
   }
 }
 
+/** Defers (or undefers) the selected items. */
+export async function deferSelected(on, onchange) {
+  const targets = [...sel.ids];
+  if (!targets.length) return;
+  try {
+    await post(on ? 'defer' : 'undefer', { targets });
+    toast(`${targets.length} ${targets.length === 1 ? 'item' : 'items'} ${on ? 'deferred: folded under Deferred in their sections' : 'back in their sections'}.`, 'ok');
+    clear();
+    onchange();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
 /** Pins (or unpins) the selected items. */
 export async function pinSelected(pin, onchange) {
   const targets = [...sel.ids];

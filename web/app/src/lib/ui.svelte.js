@@ -98,6 +98,15 @@ export function saveUI() {
   }
 }
 
+/** Whether the Deferred under section name is open: folded until opened. */
+export const laterOpen = (name) => ui.collapsed['deferred:' + name] === false;
+
+/** Opens or folds the Deferred under section name. */
+export function toggleLater(name, open) {
+  ui.collapsed['deferred:' + name] = !(open === undefined ? !laterOpen(name) : open);
+  saveUI();
+}
+
 export function toggleSection(name, open) {
   ui.collapsed[name] = open === undefined ? !ui.collapsed[name] : !open;
   saveUI();

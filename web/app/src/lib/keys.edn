@@ -91,6 +91,7 @@
   "SPC b d" :read
   "SPC b u" :unread
   "SPC b p" :pin
+  "SPC b z" :defer
   "SPC b x" :select
   "SPC b n" :next-open
   "SPC b N" :prev-open
@@ -197,6 +198,7 @@
   "z o"     :fold-open
   "z M"     :fold-all
   "z R"     :unfold-all
+  "z d"     :deferred-fold
   "C-d"     :list-half-down
   "C-u"     :list-half-up
   "RET"     :read-in-detail

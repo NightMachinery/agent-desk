@@ -194,6 +194,9 @@ func (w *Writer) Question(level int, it Item) {
 	if it.Dismissed {
 		lvl += ", dismissed"
 	}
+	if it.Deferred {
+		lvl += ", deferred"
+	}
 	w.h(level, fmt.Sprintf("%s%s %s  (%s · %s · %s%s)", kwd(w.Org, k), it.ID, it.Event.Title,
 		label, lvl, it.Age, w.hostTag(it.Event.Host)))
 	w.props("DESK_ID", it.ID, "DESK_PATH", it.Event.Path, "DESK_TS", it.Event.TS, "DESK_HOST", it.Event.Host)
@@ -229,7 +232,11 @@ func (w *Writer) Notice(level int, it Item) {
 			label = rest
 		}
 	}
-	w.h(level, fmt.Sprintf("%s%s %s: %s  (%s · %s%s)", kwd(w.Org, k), it.ID, what, title, label, it.Age,
+	age := it.Age
+	if it.Deferred {
+		age += " · deferred"
+	}
+	w.h(level, fmt.Sprintf("%s%s %s: %s  (%s · %s%s)", kwd(w.Org, k), it.ID, what, title, label, age,
 		w.hostTag(it.Event.Host)))
 	w.props("DESK_ID", it.ID, "DESK_PATH", it.Event.Path, "DESK_TS", it.Event.TS, "DESK_HOST", it.Event.Host)
 	if it.Response {

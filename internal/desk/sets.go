@@ -170,8 +170,24 @@ func (d *Desk) HiddenBy(f Filter) Hidden {
 	all := f
 	all.Focus = nil
 	return Hidden{
-		NeedsYou: len(d.OpenQuestions(all)) - len(d.OpenQuestions(f)),
-		Unread: count(d.New(all)) + count(d.ResponseGroups(all)) -
-			count(d.New(f)) - count(d.ResponseGroups(f)),
+		NeedsYou: d.countUndeferred(d.OpenQuestions(all)) - d.countUndeferred(d.OpenQuestions(f)),
+		Unread: countUndeferred(d.New(all)) + countUndeferred(d.ResponseGroups(all)) -
+			countUndeferred(d.New(f)) - countUndeferred(d.ResponseGroups(f)),
 	}
 }
+
+// countUndeferred counts the items not deferred: a deferred one is listed
+// (under Deferred) but needs nothing now.
+func countUndeferred(gs []Group) int {
+	n := 0
+	for _, g := range gs {
+		for _, it := range g.Items {
+			if !it.Deferred {
+				n++
+			}
+		}
+	}
+	return n
+}
+
+func (d *Desk) countUndeferred(items []Item) int { return countUndeferred([]Group{{Items: items}}) }

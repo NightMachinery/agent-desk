@@ -39,7 +39,7 @@ func replyTarget(d *desk.Desk, token string) (to ident.From, host, node string, 
 				} else {
 					e = d.ByID[e.Ref]
 				}
-			case "read", "delivered", "undelivered", "pin", "pref", "notified", "retracted":
+			case "read", "delivered", "undelivered", "pin", "defer", "pref", "notified", "retracted":
 				return to, "", "", e, fmt.Errorf("%s is a %s mark; reply to the item it marks", d.Display(e.ID), e.Kind)
 			}
 			about, node, to, host = e, desk.NodeOf(e), fromOf(e), e.Host
