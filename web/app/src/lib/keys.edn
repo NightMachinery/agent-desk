@@ -318,4 +318,5 @@
  :keyless [:deliverables-unread :deliverables-latest :deliverables-all ; SPC t d cycles them
            :list-show :list-sort                    ; SPC t a, h, o and r set them
            :compose                                 ; i does it, and returns to the box Esc left
-           :deferred-launch :deferred-launch-top]}  ; they start agents: by name only
+           :deferred-launch :deferred-launch-top    ; they start agents: by name only
+           :dismiss-entry]}                         ; rare; f reaches its button

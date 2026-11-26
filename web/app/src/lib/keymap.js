@@ -384,6 +384,7 @@ C('go-node', 'Go to a project, run or agent', nodes);
 C('switch-item', 'Switch to an item in the list', items);
 C('hints', 'Click something on screen (hints)', () => startHints(), { anywhere: true });
 C('reply-entry', 'Reply to an entry of the conversation (hints on the reply buttons)', () => startHints('.reply-btn'), { when: () => !!document.querySelector('.reply-btn') });
+C('dismiss-entry', 'Dismiss a deliverable in the conversation without opening it (hints on its Dismiss buttons)', () => startHints('.dismiss-entry-btn'), { when: () => !!document.querySelector('.dismiss-entry-btn') });
 C('next-open', 'Next open item: the open question or unread item opened least, by kind, then oldest (Settings: Auto-navigation)', () => openOpen(1));
 C('prev-open', 'Back along your n steps (else the previous open item)', () => openOpen(-1));
 C('search', 'Search', search);

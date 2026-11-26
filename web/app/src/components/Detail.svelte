@@ -101,6 +101,19 @@
       .catch(() => (autoRead.delete(id), release(id)));
   }
 
+  /** Marks an entry of the conversation read: the open item as readNow
+   * does, another one directly. */
+  function readEntry(display) {
+    if (display === it?.display_id) {
+      if (!it.unread || autoRead.has(e.id)) return;
+      cancelArrival(display);
+      return readNow();
+    }
+    post('read', { target: display })
+      .then(() => onchange())
+      .catch((err) => toast(err.message, 'error'));
+  }
+
   /** A deliverable waiting to be opened is read when the user opens what it
    * delivers: a click (or middle click) on such a link, or playing its audio
    * or video. A draft keeps it unread, as it keeps any item. */
@@ -482,7 +495,7 @@
         {:else}
           <div class="section-title">Conversation</div>
         {/if}
-        <Thread entries={item.thread} {pending} current={item.thread_of ? it.display_id : ''} remoteLabel={item.target?.remote_label} replyingTo={replyingTo?.display ?? ''} onreply={item.target ? replyToEntry : null} />
+        <Thread entries={item.thread} {pending} current={item.thread_of ? it.display_id : ''} remoteLabel={item.target?.remote_label} replyingTo={replyingTo?.display ?? ''} onreply={item.target ? replyToEntry : null} onread={readEntry} />
       </div>
     {/if}
 

@@ -613,7 +613,8 @@ question excepted: reading one dismisses it; and a deliverable that offers
 something to open stays unread until you open it: its Open or download
 button, an attachment, played audio or video, or a link in its text that
 leaves the dashboard, or until you mark it read; an image shown inline does
-not count), but the row stays where it
+not count; shown inside a conversation, it has its own Open and Dismiss
+buttons, and either reads it), but the row stays where it
 is, dimmed once you open another, for a minute (Settings: "Keep a read item
 in the list for", per device). The icon beside its id marks it unread
 again, and the pin icon keeps it under Pinned. Items you mark read with a

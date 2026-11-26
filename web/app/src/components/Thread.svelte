@@ -15,7 +15,14 @@
   import { acknowledgeMessages, retryPost } from '../lib/outbox.svelte.js';
   import { off } from '../lib/why.js';
 
-  let { entries = [], pending = [], current = '', remoteLabel = '', replyingTo = '', onreply = null } = $props();
+  // onread(display) marks an entry read: a deliverable in the conversation
+  // is read when its Open is used or it is dismissed, as on its own page.
+  let { entries = [], pending = [], current = '', remoteLabel = '', replyingTo = '', onreply = null, onread = null } = $props();
+  /** Opening a deliverable entry (click or middle click on Open) reads it. */
+  function openedEntry(/** @type {MouseEvent} */ ev, t) {
+    if (!t.unread || !onread || (ev.type === 'auxclick' && ev.button !== 1)) return;
+    onread(t.display_id);
+  }
 
   $effect(() => {
     const currentEntries = entries;
@@ -134,7 +141,11 @@
         <!-- Any agent item can respond; these say what kind they are. -->
         <div class="chips">
           <span class="chip {t.event.kind}">{t.event.kind === 'deliverable' ? 'Deliverable' : 'Done report'}</span>
-          {#if deliverableURL(t.event)}<a class="btn small" href={deliverableURL(t.event)} {...openTarget(deliverableURL(t.event))} title={t.event.meta.url}>Open</a>{/if}
+          {#if deliverableURL(t.event)}<a class="btn small" href={deliverableURL(t.event)} {...openTarget(deliverableURL(t.event))} title={t.event.meta.url}
+              onclick={(ev) => openedEntry(ev, t)} onauxclick={(ev) => openedEntry(ev, t)}>Open</a>{/if}
+          {#if t.unread && onread && t.event.kind === 'deliverable'}
+            <button data-keys="none" class="btn small ghost dismiss-entry-btn" title={tip('Dismiss: mark it read without opening it', 'dismiss-entry')} onclick={() => onread(t.display_id)}>Dismiss</button>
+          {/if}
         </div>
         {#if t.event.title}<div class="qtitle">{t.event.title}</div>{/if}
       {/if}
