@@ -22,7 +22,11 @@ import (
 // machine's GUI, so the user knows to keep off the keyboard. It is granted
 // at once when the user has been idle long enough ([screen] idle_minutes,
 // default 30, or the take's own --idle); otherwise the request waits in
-// Needs you, where the user may approve it at any time.
+// Needs you, where the user may approve it at any time. Once the user has
+// been away long enough, the oldest request is granted unasked: by the
+// dashboard server's sweep, or by any take on the machine, since a machine
+// may run no server. An unanswered request lapses after
+// desk.ScreenRequestLife.
 
 const (
 	screenDefault = 30 * time.Minute
@@ -107,6 +111,10 @@ func (a *App) screenTake(args []string) error {
 			return usagef("--idle is a duration of at least %s, such as 5m", humanDur(screenIdleMin))
 		}
 	}
+	wait := time.Duration(0) // how long this take waits: its request lives at least that long
+	if o.bools["wait"] {
+		wait = timeout
+	}
 	mine := "" // this session's request, once filed or found
 	for waited := time.Duration(0); ; waited += screenPoll {
 		d, err := a.load()
@@ -114,6 +122,11 @@ func (a *App) screenTake(args []string) error {
 			return err
 		}
 		st := d.Screen(a.Host)
+		if marks := a.lapseMarks(st, from); len(marks) > 0 {
+			if err := a.commit(marks, "-"); err != nil {
+				return err
+			}
+		}
 		if st.Holder(from.Session) {
 			// Granted (perhaps by the user) or renewed: start the banner.
 			request := st.Hold.Event.Ref
@@ -152,12 +165,22 @@ func (a *App) screenTake(args []string) error {
 				return a.screenGranted(c, reason, d.Now.Add(hold), "auto")
 			}
 		}
+		if st.Hold == nil && len(st.Requests) > 0 && !(has && st.Requests[0].ID == req.ID) {
+			// Free, but another session asked first: grant it the screen
+			// if the user is away long enough, as the server's sweep would
+			// (this machine may run no server), and wait behind it.
+			if granted, err := a.screenServeOldest(); err != nil {
+				return err
+			} else if granted {
+				continue
+			}
+		}
 		if !has && mine == "" {
 			if why, when, ok := screenLastDenial(d, from.Session); ok && d.Now.Sub(when) < screenDenyQuiet {
 				return fmt.Errorf("the user denied the screen %s ago: %s; ask again after %s, or ask the user why",
 					humanDur(d.Now.Sub(when)), firstLine(why), humanDur(screenDenyQuiet))
 			}
-			q := a.screenRequest(d, from, reason, hold, away)
+			q := a.screenRequest(d, from, reason, hold, away, wait)
 			if err := a.commit([]store.Event{q}, "-"); err != nil {
 				return err
 			}
@@ -174,8 +197,10 @@ func (a *App) screenTake(args []string) error {
 		}
 		if !o.bools["wait"] || waited+screenPoll > timeout {
 			return exitError{ScreenWaiting, "screen: not yet yours. The answer reaches you as a message; then run screen take again" +
-				" (or wait for it with --wait). It is granted without asking once the user has been away " +
-				humanDur(away) + "."}
+				" (or wait for it with --wait). Once the user has been away " + humanDur(away) +
+				", the oldest request is granted without asking, by the dashboard server where one runs here, else by the next take" +
+				" on this machine (--wait takes again every " + humanDur(screenPoll) + "). Unanswered, the request lapses after " +
+				humanDur(max(desk.ScreenRequestLife, wait)) + "."}
 		}
 		time.Sleep(screenPoll)
 	}
@@ -201,15 +226,19 @@ func (a *App) screenGrant(from ident.From, holder, reason string, hold time.Dura
 }
 
 // screenRequest is the question that asks the user for the screen. away is
-// how long the user must be idle for the server to grant it unasked.
-func (a *App) screenRequest(d *desk.Desk, from ident.From, reason string, hold, away time.Duration) store.Event {
+// how long the user must be idle for the server to grant it unasked; wait,
+// how long a take --wait will keep asking (0 without --wait), which the
+// request lives at least as long as.
+func (a *App) screenRequest(d *desk.Desk, from ident.From, reason string, hold, away, wait time.Duration) store.Event {
 	who := from.Title
 	if who == "" {
 		who = from.Agent + " " + short8(from.Session)
 	}
-	q := a.event("ask", desk.ScreenPath(a.Host), from, "cli", map[string]any{
-		"screen": map[string]any{"host": a.Host, "reason": reason, "for": hold.String(), "minutes": int(hold.Minutes()), "idle": away.String()},
-	})
+	sm := map[string]any{"host": a.Host, "reason": reason, "for": hold.String(), "minutes": int(hold.Minutes()), "idle": away.String()}
+	if wait > 0 {
+		sm["wait"] = wait.String()
+	}
+	q := a.event("ask", desk.ScreenPath(a.Host), from, "cli", map[string]any{"screen": sm})
 	q.Level = "blocked"
 	q.Title = fmt.Sprintf("Screen on %s: %s wants to drive the GUI", a.Host, who)
 	q.Body = fmt.Sprintf("%s\n\nFor up to %s. Approve to hand it the screen now (a banner shows while it holds it), or deny. "+
@@ -409,6 +438,41 @@ func (a *App) screenSweep() ([]store.Event, int, error) {
 		events[1].Meta = meta(grant)
 	}
 	return events, count, nil
+}
+
+// lapseMarks withdraw the requests of st that outlived
+// desk.ScreenRequestLife, so they leave Needs you.
+func (a *App) lapseMarks(st desk.ScreenState, from ident.From) []store.Event {
+	var marks []store.Event
+	for _, q := range st.Lapsed {
+		marks = append(marks, a.readMark(q, from, "screen-lapsed"))
+	}
+	return marks
+}
+
+// screenServeOldest grants the oldest waiting request, as the server's
+// sweep does, when the user has been away long enough for it, and tells
+// its agent. granted reports whether it did. The guarded append keeps it
+// from granting twice when a sweep runs at the same moment.
+func (a *App) screenServeOldest() (granted bool, err error) {
+	events, count, err := a.screenSweep()
+	if err != nil || len(events) == 0 {
+		return false, err
+	}
+	st, err := a.store()
+	if err != nil {
+		return false, err
+	}
+	if granted, err = st.AppendScreenSweep(events, count); err != nil || !granted {
+		return false, err
+	}
+	a.announce(events, false, false)
+	if events[0].Ref != "" {
+		if _, err := a.deliver(events[0].Ref); err != nil {
+			fmt.Fprintf(a.Stderr, "agent-desk: telling the agent its screen request was granted: %v\n", err)
+		}
+	}
+	return true, nil
 }
 
 // requestIdle is how long the user must be away before screen request q is

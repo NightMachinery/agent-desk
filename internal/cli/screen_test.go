@@ -338,3 +338,87 @@ func TestBannerTimeoutKillsGroup(t *testing.T) {
 		t.Fatalf("the banner's child %d survived the timeout", pid)
 	}
 }
+
+// A request nobody answered lapses after desk.ScreenRequestLife: an agent
+// that moved on never withdraws it, and it must not keep later takes from
+// the grant the user's absence allows. The next take withdraws it.
+func TestScreenRequestLapses(t *testing.T) {
+	h := newHarness(t)
+	writeConfig(t, h, "[screen]\nidle_command = 'printf IDLE'\n")
+	idle := "1"
+	h.respond = func(name string, args []string) (string, error) {
+		if name == "sh" && len(args) == 2 && args[1] == "printf IDLE" {
+			return idle + "\n", nil
+		}
+		return "", nil
+	}
+	a, b := h.as(sessA), h.as(sessB)
+	if _, _, code := h.run(a, "", "screen", "take", "--reason", "Old ask"); code != ScreenWaiting {
+		t.Fatalf("A: %d", code)
+	}
+	old := h.loadDesk().Screen(h.host).Requests[0].ID
+
+	// An hour later A's request still holds its place. (A takes no more.)
+	h.now = h.now.Add(time.Hour)
+	if st := h.loadDesk().Screen(h.host); len(st.Requests) != 1 || len(st.Lapsed) != 0 {
+		t.Fatalf("after 1 h: %d requests, %d lapsed", len(st.Requests), len(st.Lapsed))
+	}
+	// Past its life it holds none: with the user away, B gets the screen
+	// at once, and A's request leaves Needs you.
+	h.now = h.now.Add(desk.ScreenRequestLife)
+	idle = "4000"
+	if out := h.ok(b, "", "screen", "take", "--reason", "Fresh ask"); !strings.Contains(out, "is yours") {
+		t.Fatalf("B behind a lapsed request: %s", out)
+	}
+	st := h.loadDesk().Screen(h.host)
+	if len(st.Requests) != 0 || len(st.Lapsed) != 0 || !st.Holder(sessB) {
+		t.Fatalf("after B: %+v", st)
+	}
+	if out := h.ok(nil, "", "show", "--format", "md"); strings.Contains(out, "Old ask") {
+		t.Fatalf("the lapsed request %s is still in Needs you:\n%s", old, out)
+	}
+
+	// take --wait with a longer --timeout keeps its request that long.
+	h.ok(b, "", "screen", "release")
+	idle = "1"
+	defer func(p time.Duration) { screenPoll = p }(screenPoll)
+	screenPoll = 4 * time.Hour // longer than the timeout: files the request and returns at once
+	if _, _, code := h.run(a, "", "screen", "take", "--reason", "Long wait", "--wait", "--timeout", "3h"); code != ScreenWaiting {
+		t.Fatalf("A --wait: %d", code)
+	}
+	h.now = h.now.Add(desk.ScreenRequestLife + time.Minute)
+	if st := h.loadDesk().Screen(h.host); len(st.Requests) != 1 {
+		t.Fatalf("a 3 h wait's request lapsed at %s: %+v", desk.ScreenRequestLife, st.Requests)
+	}
+}
+
+// The oldest request is granted once the user is away even where no
+// dashboard server runs to sweep: any take on the machine grants it, and
+// waits behind it.
+func TestScreenTakeServesTheOldestRequest(t *testing.T) {
+	h := newHarness(t)
+	writeConfig(t, h, "[screen]\nidle_command = 'printf IDLE'\n")
+	idle := "1"
+	h.respond = func(name string, args []string) (string, error) {
+		if name == "sh" && len(args) == 2 && args[1] == "printf IDLE" {
+			return idle + "\n", nil
+		}
+		return "", nil
+	}
+	a, b := h.as(sessA), h.as(sessB)
+	if _, _, code := h.run(a, "", "screen", "take", "--reason", "First ask"); code != ScreenWaiting {
+		t.Fatalf("A: %d", code)
+	}
+	idle = "4000" // the user leaves; A does not take again
+	out, _, code := h.run(b, "", "screen", "take", "--reason", "Second ask")
+	if code != ScreenWaiting || !strings.Contains(out, "Another agent holds the screen") {
+		t.Fatalf("B: %d %s", code, out)
+	}
+	st := h.loadDesk().Screen(h.host)
+	if !st.Holder(sessA) || st.Hold.By != "auto" || len(st.Requests) != 1 {
+		t.Fatalf("after B's take: %+v", st)
+	}
+	if out := h.ok(a, "", "screen", "take", "--reason", "First ask"); !strings.Contains(out, "is yours") {
+		t.Fatalf("A after the grant: %s", out)
+	}
+}

@@ -2,6 +2,7 @@ package desk
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/NightMachinery/agent-desk/internal/store"
@@ -34,7 +35,29 @@ type ScreenState struct {
 	Host     string        `json:"host"`
 	Hold     *ScreenHold   `json:"hold,omitempty"`
 	Requests []store.Event `json:"requests,omitempty"` // open requests, oldest first
-	granted  map[string]bool
+	// Lapsed are open requests past ScreenRequestLife: they hold no place,
+	// and the next take or sweep withdraws them.
+	Lapsed  []store.Event `json:"-"`
+	granted map[string]bool
+}
+
+// ScreenRequestLife is how long an unanswered request for the screen keeps
+// its place. An agent asks for the screen to drive it soon, and one that has
+// moved on or ended never withdraws its request; without a limit, that
+// request would keep every later one from the grant the user's absence
+// allows. A `take --wait` whose --timeout is longer keeps it that long
+// (meta.screen.wait).
+const ScreenRequestLife = 2 * time.Hour
+
+// screenRequestLapsed reports whether request q has outlived its place at now.
+func screenRequestLapsed(q store.Event, now time.Time) bool {
+	life := ScreenRequestLife
+	if sm, ok := Meta(q)["screen"].(map[string]any); ok {
+		if w, err := time.ParseDuration(fmt.Sprint(sm["wait"])); err == nil && w > life {
+			life = w
+		}
+	}
+	return !now.Before(Time(q).Add(life))
 }
 
 type screenMeta struct {
@@ -72,7 +95,11 @@ func (d *Desk) Screen(host string) ScreenState {
 	}
 	for _, q := range d.Questions {
 		if q.Path == path && q.Open() && !st.granted[q.ID] && !d.dismissed[q.ID] {
-			st.Requests = append(st.Requests, q.Event)
+			if screenRequestLapsed(q.Event, d.Now) {
+				st.Lapsed = append(st.Lapsed, q.Event)
+			} else {
+				st.Requests = append(st.Requests, q.Event)
+			}
 		}
 	}
 	return st

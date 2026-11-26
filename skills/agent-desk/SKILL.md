@@ -294,7 +294,9 @@ a request and `take` exits 3; `--wait` blocks until they grant it or stay
 away 30 minutes. `--idle 5m` shortens that wait (at least `1m`); pass it only
 when the user asked for it. A banner asks them to keep off the keyboard while you hold
 it. Headless work, such as a headless browser's screenshots, needs no lock.
-If they deny it, do not ask again at once; ask what to do instead.
+If they deny it, do not ask again at once; ask what to do instead. An
+unanswered request lapses after 2 hours (or your longer `--wait --timeout`):
+take again if you still need the screen.
 
 ## While you wait: the prompt cache
 

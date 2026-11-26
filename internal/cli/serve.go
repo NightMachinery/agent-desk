@@ -1703,6 +1703,13 @@ func (s *server) sweepScreenOnce() error {
 			fmt.Fprintln(s.logger, n)
 		}
 	}()
+	if d, err := app.load(); err == nil {
+		if marks := app.lapseMarks(d.Screen(app.Host), ident.From{}); len(marks) > 0 {
+			if err := app.commit(marks, "-"); err != nil {
+				return err
+			}
+		}
+	}
 	events, count, err := app.screenSweep()
 	if err != nil || len(events) == 0 {
 		return err

@@ -1192,9 +1192,14 @@ is never granted unasked). Input while an agent holds the screen, and for 2
 minutes after its hold runs out (not after it releases it), is the agent's:
 an agent that clicked through its hold and asks again finds you as long away
 as when it was first granted, not freshly back. Otherwise it files a request
-in Needs you and exits 3. While the dashboard's server runs, it checks every
-minute and grants the oldest request once the screen is free and you have
-been away long enough; the agent hears it as the answer. You may approve a request at any time, whatever your idle time:
+in Needs you and exits 3. Once the screen is free and you have been away long
+enough, the oldest request is granted, and its agent hears it as the answer.
+The dashboard's server checks every minute; every take on the machine checks
+too, so a machine that runs no server still grants requests in turn. A
+request nobody answers lapses after 2 hours (or a `take --wait`'s longer
+`--timeout`), and the next take or sweep withdraws it from Needs you: an
+agent that moved on never withdraws its own, and it would otherwise keep
+every later request from that grant. You may approve a request at any time, whatever your idle time:
 **Approve** or **Deny** on the dashboard, `agent-desk screen grant|deny
 <q-id>`, or any answer (an answer that starts with "no", "deny" or "not
 now" denies it). The answer reaches the agent as usual; `take --wait` also
