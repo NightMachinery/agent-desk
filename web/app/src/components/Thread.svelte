@@ -6,7 +6,7 @@
   import { tick, untrack } from 'svelte';
   import { focusItem } from '../lib/focus.js';
   import { href } from '../lib/route.svelte.js';
-  import { dispositionText, deliveryTitle, desktopText, remoteText, deliverableURL, openTarget } from '../lib/format.js';
+  import { dispositionText, deliveryTitle, desktopText, remoteText, deliverableURL, openTarget, copy as copyText } from '../lib/format.js';
   import Markdown from './Markdown.svelte';
   import Attachments from './Attachments.svelte';
   import Icon from './Icon.svelte';
@@ -19,6 +19,12 @@
   // onread(display) marks an entry read: a deliverable in the conversation
   // is read when its Open is used or it is dismissed, as on its own page.
   let { entries = [], pending = [], current = '', remoteLabel = '', replyingTo = '', onreply = null, onread = null } = $props();
+  /** A plain click on an entry's id copies it; a modified or middle click still opens its page. */
+  async function copyId(/** @type {MouseEvent} */ ev, id) {
+    if (ev.button !== 0 || ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey) return;
+    ev.preventDefault();
+    toast((await copyText(id)) ? `${id} copied.` : id, 'ok');
+  }
   /** Opening a deliverable entry (click or middle click on Open) reads it. */
   function openedEntry(/** @type {MouseEvent} */ ev, t) {
     if (!t.unread || t.deferred || !onread || (ev.type === 'auxclick' && ev.button !== 1)) return;
@@ -113,7 +119,7 @@
           <span class="faint">{t.age} ago</span>
           {#if t.delivery}<span class="chip ok" title={deliveryTitle(t.delivery)}>delivered</span>{:else if t.pending}<span class="chip waiting">{t.pending}</span>{/if}
           {#if t.status === 'responded'}<span class="chip response">responded</span>{:else if t.status === 'no_response'}<span class="chip blocked">no response yet</span>{/if}
-          <a class="mono faint idlink" href={href({ item: t.display_id })}>{t.display_id}</a>
+          <a class="mono faint idlink" href={href({ item: t.display_id })} title={`Copy ${t.display_id}; ⌘-click or middle-click opens it`} onclick={(ev) => copyId(ev, t.display_id)}>{t.display_id}</a>
         </summary>
         {#if t.event.body}<Markdown text={t.event.body} />{/if}
       </details>
@@ -125,7 +131,7 @@
         {#if !fromAgent(t) && t.by}<span class="faint">to {t.by}</span>{/if}
         {#if fromAgent(t) && t.unread}<span class="dot" title="Unread"></span>{/if}
         <span class="faint">{t.age} ago</span>
-        <a class="mono faint idlink" href={href({ item: t.display_id })}>{t.display_id}</a>
+        <a class="mono faint idlink" href={href({ item: t.display_id })} title={`Copy ${t.display_id}; ⌘-click or middle-click opens it`} onclick={(ev) => copyId(ev, t.display_id)}>{t.display_id}</a>
         {#if onreply}
           <button data-keys="none" class="reply-btn" class:on={replyingTo === t.display_id} title={tip('Reply', 'reply-entry')} aria-label={`Reply to ${t.display_id}`} onclick={() => onreply(t)}><Icon name="reply" size={14} /></button>
         {/if}
