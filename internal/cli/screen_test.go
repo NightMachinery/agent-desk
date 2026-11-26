@@ -422,3 +422,42 @@ func TestScreenTakeServesTheOldestRequest(t *testing.T) {
 		t.Fatalf("A after the grant: %s", out)
 	}
 }
+
+// screen sweep, which a filed request starts in the background, grants the
+// oldest request once the user is away and exits when none is left; a
+// second sweeper exits at once.
+func TestScreenSweeper(t *testing.T) {
+	h := newHarness(t)
+	writeConfig(t, h, "[screen]\nidle_command = 'printf IDLE'\n")
+	idle := "1"
+	h.respond = func(name string, args []string) (string, error) {
+		if name == "sh" && len(args) == 2 && args[1] == "printf IDLE" {
+			return idle + "\n", nil
+		}
+		return "", nil
+	}
+	defer func(e time.Duration) { screenSweepEvery = e }(screenSweepEvery)
+	screenSweepEvery = time.Millisecond
+	a := h.as(sessA)
+	if _, _, code := h.run(a, "", "screen", "take", "--reason", "Waiting ask"); code != ScreenWaiting {
+		t.Fatalf("A: %d", code)
+	}
+	idle = "4000"
+
+	// Another sweeper holds the lock: this one leaves the request alone.
+	must(t, os.MkdirAll(filepath.Join(h.desk, "screen"), 0o700))
+	lock, err := os.OpenFile(filepath.Join(h.desk, "screen", "sweep.lock"), os.O_CREATE|os.O_RDWR, 0o600)
+	must(t, err)
+	must(t, syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB))
+	h.ok(nil, "", "screen", "sweep")
+	if st := h.loadDesk().Screen(h.host); st.Hold != nil {
+		t.Fatalf("granted under another sweeper's lock: %+v", st.Hold)
+	}
+	must(t, syscall.Flock(int(lock.Fd()), syscall.LOCK_UN))
+	lock.Close()
+
+	h.ok(nil, "", "screen", "sweep")
+	if st := h.loadDesk().Screen(h.host); !st.Holder(sessA) || st.Hold.By != "auto" || len(st.Requests) != 0 {
+		t.Fatalf("after the sweeper: %+v", st)
+	}
+}

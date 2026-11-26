@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/NightMachinery/agent-desk/internal/config"
@@ -39,6 +40,9 @@ const (
 // screenPoll is how often `screen take --wait` looks again.
 var screenPoll = 15 * time.Second
 
+// screenSweepEvery is how often the background sweeper (screen sweep) looks.
+var screenSweepEvery = time.Minute
+
 // exitError ends the command with its own exit status.
 type exitError struct {
 	code int
@@ -55,7 +59,7 @@ const screenNudge = `Hold the screen only while your automation takes focus or n
 
 func (a *App) cmdScreen(args []string) error {
 	if len(args) == 0 {
-		return usagef("screen take|release|status|grant|deny; see agent-desk help")
+		return usagef("screen take|release|status|grant|deny|sweep; see agent-desk help")
 	}
 	rest := args[1:]
 	switch args[0] {
@@ -65,6 +69,11 @@ func (a *App) cmdScreen(args []string) error {
 		return a.screenRelease(rest)
 	case "status":
 		return a.screenStatus(rest)
+	case "sweep":
+		if _, err := parse(rest, nil, nil, 0, 0); err != nil {
+			return err
+		}
+		return a.screenSweeper()
 	case "grant", "deny":
 		o, err := parse(rest, nil, nil, 1, 1)
 		if err != nil {
@@ -185,6 +194,7 @@ func (a *App) screenTake(args []string) error {
 				return err
 			}
 			mine = q.ID
+			a.startSweeper()
 			if d, err = a.load(); err != nil {
 				return err
 			}
@@ -198,8 +208,7 @@ func (a *App) screenTake(args []string) error {
 		if !o.bools["wait"] || waited+screenPoll > timeout {
 			return exitError{ScreenWaiting, "screen: not yet yours. The answer reaches you as a message; then run screen take again" +
 				" (or wait for it with --wait). Once the user has been away " + humanDur(away) +
-				", the oldest request is granted without asking, by the dashboard server where one runs here, else by the next take" +
-				" on this machine (--wait takes again every " + humanDur(screenPoll) + "). Unanswered, the request lapses after " +
+				", the oldest request is granted without asking. Unanswered, the request lapses after " +
 				humanDur(max(desk.ScreenRequestLife, wait)) + "."}
 		}
 		time.Sleep(screenPoll)
@@ -473,6 +482,59 @@ func (a *App) screenServeOldest() (granted bool, err error) {
 		}
 	}
 	return true, nil
+}
+
+// startSweeper starts `screen sweep` in the background, so the request just
+// filed is granted once the user is away even when no dashboard server runs
+// on this machine and its agent does not take again. Tests (WaitHooks) skip
+// it: run in-process, it would wait for as long as the request lives.
+func (a *App) startSweeper() {
+	if a.WaitHooks {
+		return
+	}
+	if err := a.spawn([]string{"screen", "sweep"}); err != nil {
+		fmt.Fprintf(a.Stderr, "agent-desk: warning: starting the screen sweeper: %v\n", err)
+	}
+}
+
+// screenSweeper is `screen sweep`: every screenSweepEvery, withdraw lapsed
+// requests and grant the oldest one once the user is away long enough, until
+// no request is left. One per desk (screen/sweep.lock); a second exits.
+func (a *App) screenSweeper() error {
+	dir := filepath.Join(a.Home, "screen")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
+	f, err := os.OpenFile(filepath.Join(dir, "sweep.lock"), os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+		return nil // another sweeper runs
+	}
+	defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+	for {
+		d, err := a.load()
+		if err != nil {
+			return err
+		}
+		st := d.Screen(a.Host)
+		if marks := a.lapseMarks(st, ident.From{}); len(marks) > 0 {
+			if err := a.commit(marks, "-"); err != nil {
+				return err
+			}
+		}
+		if len(st.Requests) == 0 {
+			return nil
+		}
+		if st.Hold == nil {
+			if _, err := a.screenServeOldest(); err != nil {
+				return err
+			}
+		}
+		time.Sleep(screenSweepEvery)
+	}
 }
 
 // requestIdle is how long the user must be away before screen request q is
