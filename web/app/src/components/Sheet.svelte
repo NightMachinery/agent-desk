@@ -4,6 +4,14 @@
   let { open = $bindable(false), title, children } = $props();
   let box = $state();
 
+  // Rendered under <body>, not where it is declared: an ancestor that makes a
+  // stacking context (the docked message box is sticky) would otherwise trap
+  // its z-index, and the Previous/Next bar would cover its buttons.
+  function portal(node) {
+    document.body.append(node);
+    return () => node.remove();
+  }
+
   $effect(() => {
     if (!open) return;
     const prev = document.activeElement;
@@ -23,7 +31,7 @@
 </script>
 
 {#if open}
-  <div class="sheet-wrap">
+  <div class="sheet-wrap" {@attach portal}>
     <button data-keys="none" class="scrim" aria-label="Close" onclick={() => (open = false)}></button>
     <div class="sheet" role="dialog" aria-modal="true" aria-label={title} bind:this={box}>
       <div class="grab" aria-hidden="true"></div>
