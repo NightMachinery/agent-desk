@@ -21,7 +21,7 @@ func TestDeliverables(t *testing.T) {
 
 	h.fails(env, "x", "needs --title", "deliverable", "--url", "https://example.org")
 	h.fails(env, "x", "open or download", "deliverable", "--title", "Nothing to open")
-	h.fails(env, "x", "http or https", "deliverable", "--title", "Bad", "--url", "javascript:alert(1)")
+	h.fails(env, "x", "app link", "deliverable", "--title", "Bad", "--url", "javascript:alert(1)")
 	h.fails(env, "x", "--quiet goes with --re", "deliverable", "--title", "Q", "--url", "https://example.org", "--quiet")
 
 	apk := filepath.Join(h.home, "app-debug.apk")

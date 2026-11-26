@@ -10,7 +10,7 @@
   import { clearDraft, discardDrafts, hasDraft, itemDraftKeys, onDraftChange } from '../lib/drafts.js';
   import { pendingMessages, queueMessage } from '../lib/outbox.svelte.js';
   import { desk } from '../lib/desk.svelte.js';
-  import { agentName, copy, deliverableURL, kindLabel, kindOf, sessionOf, short, slotName, titleOf, viaText } from '../lib/format.js';
+  import { agentName, copy, deliverableURL, openLabel, openTarget, kindLabel, kindOf, sessionOf, short, slotName, titleOf, viaText } from '../lib/format.js';
   import Composer from './Composer.svelte';
   import Markdown from './Markdown.svelte';
   import Attachments from './Attachments.svelte';
@@ -251,13 +251,7 @@
   const files = $derived(kind === 'deliverable' ? (item?.media ?? []).filter((m) => m.kind === 'file') : []);
   const shownMedia = $derived(kind === 'deliverable' ? (item?.media ?? []).filter((m) => m.kind !== 'file') : (item?.media ?? []));
   const openURL = $derived(kind === 'deliverable' ? deliverableURL(e) : '');
-  const openHost = $derived.by(() => {
-    try {
-      return openURL ? new URL(openURL).host : '';
-    } catch {
-      return '';
-    }
-  });
+  const openHost = $derived(openURL ? openLabel(openURL) : '');
   async function copyText(text, what) {
     toast((await copy(text)) ? `${what} copied.` : text, 'ok');
   }
@@ -372,9 +366,11 @@
       <div class="deliver">
         <div class="deliver-get">
           {#if openURL}
-            <a data-cmd="deliverable-open" class="btn primary big" href={openURL} target="_blank" rel="noopener noreferrer" title={openURL}
+            <a data-cmd="deliverable-open" class="btn primary big" href={openURL} {...openTarget(openURL)} title={openURL}
               ><Icon name="link" /> Open {openHost}</a
             >
+          {:else if e.meta?.url}
+            <span class="faint">Not offered to open: {e.meta.url} is neither a web address nor an app link.</span>
           {/if}
           {#each files as m (m.sha256)}
             {#if m.url}

@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"net/url"
 	"strings"
 
 	"github.com/NightMachinery/agent-desk/internal/desk"
@@ -85,11 +84,8 @@ func (a *App) cmdDeliverable(args []string) error {
 		return usagef("deliverable needs --title: what it is, such as 'Android APK 1.4.2' or 'Site deployed to staging'")
 	}
 	link := strings.TrimSpace(o.vals["url"])
-	if link != "" {
-		u, err := url.Parse(link)
-		if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
-			return usagef("--url must be an http or https address, not %q", link)
-		}
+	if link != "" && !desk.OpenableURL(link) {
+		return usagef("--url must be an http or https address, or an app link such as myapp://open?x=1 (not javascript:, vbscript:, file: or data:), not %q", link)
 	}
 	hasFile := false
 	for _, kv := range o.seq {

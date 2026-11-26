@@ -235,7 +235,10 @@ notice:
     The comparison table is live.
     D
 
-It needs `--url` (http or https), `--attach`, or both. The body says what it
+It needs `--url`, `--attach`, or both. `--url` is an http or https address,
+or an app link: any absolute URL whose scheme a program on the user's
+machine has registered, such as `myapp://open?path=~/report.pdf&page=3`.
+`javascript:`, `vbscript:`, `file:`, `data:` and relative paths are refused. The body says what it
 is, how to try it and what you checked. `--key` names what it is a version
 of: a newer deliverable with the same key in the same project supersedes the
 older one, which leaves the Deliverables section and counts as read (it
@@ -249,7 +252,14 @@ newest of each key, while unread), **Latest** (the newest of each key, read
 or not) or **All** (every one, replaced ones too); `SPC t d` switches, and
 `agent-desk show --deliverables unread|latest|all` does the same in the
 terminal. The item page shows a large **Open** button for the link and a
-download button per file. Beside its message box's Send, **Works** sends
+download button per file. A web link opens in a new tab; an app link opens
+in place, so the browser hands it to its app on the machine you are at (on a
+phone without that app, use the download button). The dashboard checks the
+scheme again before it shows the button, as items can come from other hosts
+and older versions. Notifications always open the item's dashboard page,
+never the link. In the org render the link is `Open: [[URL][Open]]`, which
+Emacs follows by its link type (an app link needs an `org-link` type for its
+scheme that hands the URL to the system opener). Beside its message box's Send, **Works** sends
 the message with "This worked." in front (with the box empty, just that).
 On the keyboard: `, o` opens the link, `, g` downloads the file, `, w` is
 Works (`,` or `SPC m` starts the keys only the open item has). Their notify class is `deliverable` (desktop: the

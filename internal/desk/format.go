@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/url"
 	"strings"
 
 	"github.com/NightMachinery/agent-desk/internal/media"
@@ -235,6 +236,12 @@ func (w *Writer) Notice(level int, it Item) {
 		w.Text(fmt.Sprintf("You asked (%s): %s", it.AskedVia, firstLine(it.Asked)))
 	}
 	if u := MetaString(it.Event, "url"); u != "" {
+		if w.Org && OpenableURL(u) {
+			// A bracket link, so an app link (myapp://...) is followed too,
+			// by whatever handler Emacs has for its link type. An unsafe one
+			// (from another host or an older version) stays plain text.
+			u = "[[" + strings.NewReplacer("[", "%5B", "]", "%5D").Replace(u) + "][Open]]"
+		}
 		w.Text("Open: " + u)
 	}
 	if it.SupersededBy != "" {
@@ -482,4 +489,22 @@ func JSON(out io.Writer, v any) error {
 	enc.SetEscapeHTML(false)
 	enc.SetIndent("", "  ")
 	return enc.Encode(v)
+}
+
+// OpenableURL is what a deliverable's Open button may carry: an http or
+// https address with a host, or any other absolute URL (an app link a local
+// program has registered, such as myapp://open?x=1) whose scheme is not one
+// the dashboard's Markdown renderer refuses.
+func OpenableURL(link string) bool {
+	u, err := url.Parse(link)
+	if err != nil || u.Scheme == "" {
+		return false
+	}
+	switch strings.ToLower(u.Scheme) {
+	case "http", "https":
+		return u.Host != ""
+	case "javascript", "vbscript", "file", "data":
+		return false
+	}
+	return true
 }

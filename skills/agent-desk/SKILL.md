@@ -183,7 +183,10 @@ section with an Open or Download button:
     Checked on the emulator (API 35): login, sync and the new switch.
     D
 
-- Give `--url`, `--attach`, or both; with neither it is a `tell`.
+- Give `--url`, `--attach`, or both; with neither it is a `tell`. `--url`
+  is a web address or an app link the user's machine handles, such as
+  `myapp://open?path=~/x.pdf&page=3`; the dashboard's Open button hands an
+  app link to its app.
 - The body says what it is, how to try it, and what you checked.
 - `--key` names what it is a version of. A newer deliverable with the same
   key replaces the older one, so the user never installs a stale build.

@@ -5,7 +5,7 @@
   // so the message stays in this conversation and reaches who wrote it.
   import { untrack } from 'svelte';
   import { href } from '../lib/route.svelte.js';
-  import { dispositionText, deliveryTitle, desktopText, remoteText, deliverableURL } from '../lib/format.js';
+  import { dispositionText, deliveryTitle, desktopText, remoteText, deliverableURL, openTarget } from '../lib/format.js';
   import Markdown from './Markdown.svelte';
   import Attachments from './Attachments.svelte';
   import Icon from './Icon.svelte';
@@ -134,7 +134,7 @@
         <!-- Any agent item can respond; these say what kind they are. -->
         <div class="chips">
           <span class="chip {t.event.kind}">{t.event.kind === 'deliverable' ? 'Deliverable' : 'Done report'}</span>
-          {#if deliverableURL(t.event)}<a class="btn small" href={deliverableURL(t.event)} target="_blank" rel="noopener noreferrer" title={t.event.meta.url}>Open</a>{/if}
+          {#if deliverableURL(t.event)}<a class="btn small" href={deliverableURL(t.event)} {...openTarget(deliverableURL(t.event))} title={t.event.meta.url}>Open</a>{/if}
         </div>
         {#if t.event.title}<div class="qtitle">{t.event.title}</div>{/if}
       {/if}

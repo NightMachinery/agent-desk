@@ -227,8 +227,9 @@ Event semantics:
 - `tell`: a notice or interim report. `level=notify` raises a notification.
 - `done`: a finished session's summary and report path, from `agent-done`.
 - `deliverable`: something the user can open or download now (a
-  deployment, an Android package, a release): `meta.url` (http or https)
-  and/or files in `meta.media`, with how to try it in the body.
+  deployment, an Android package, a release): `meta.url` (an http or https address,
+  or an app link such as `myapp://open?x=1` whose scheme is not
+  `javascript`, `vbscript`, `file` or `data`) and/or files in `meta.media`, with how to try it in the body.
   `meta.key` names what it is a version of: a newer deliverable with the
   same key in the same project supersedes it, and only the newest is listed.
   Its notify class is `deliverable`.

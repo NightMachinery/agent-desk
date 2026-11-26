@@ -46,23 +46,58 @@ export const kindLabel = {
 export function deliverableWhere(event) {
   const url = event?.meta?.url;
   if (url) {
-    try {
-      const u = new URL(url);
-      return (u.host + u.pathname).replace(/\/$/, '');
-    } catch {
-      return url;
-    }
+    if (!isWebURL(url)) return url;
+    const u = new URL(url);
+    return (u.host + u.pathname).replace(/\/$/, '');
   }
   const files = event?.meta?.media ?? [];
   if (!files.length) return '';
   return (files[0].name || 'a file') + (files.length > 1 ? ` and ${files.length - 1} more` : '');
 }
 
-/** A deliverable's link, only when it is http or https. */
+// The schemes markdown-it refuses as link targets; the CLI refuses them for
+// --url too (openableURL). Checked again here: items come from other hosts
+// and older versions.
+const unsafeSchemes = ['javascript:', 'vbscript:', 'file:', 'data:'];
+
+/** Whether url is an http or https address with a host. */
+export function isWebURL(url) {
+  try {
+    const u = new URL(url);
+    return ['http:', 'https:'].includes(u.protocol) && u.host !== '';
+  } catch {
+    return false;
+  }
+}
+
+/** A deliverable's link: a web address, or an app link (myapp://open?x=1)
+ * the browser hands to the app that registered its scheme. '' for anything
+ * relative or unsafe. */
 export function deliverableURL(event) {
   const url = event?.meta?.url;
+  if (!url || typeof url !== 'string') return '';
+  if (isWebURL(url)) return url;
   try {
-    return url && ['http:', 'https:'].includes(new URL(url).protocol) ? url : '';
+    const u = new URL(url);
+    return ['http:', 'https:', ...unsafeSchemes].includes(u.protocol) ? '' : url;
+  } catch {
+    return '';
+  }
+}
+
+/** The target and rel of a link to url: a web address opens in a new tab;
+ * an app link stays in this one, as a new tab would be left empty behind
+ * the app. */
+export function openTarget(url) {
+  return isWebURL(url) ? { target: '_blank', rel: 'noopener noreferrer' } : {};
+}
+
+/** The Open button's label after "Open": a web address's host, or "in"
+ * and an app link's scheme. */
+export function openLabel(url) {
+  try {
+    const u = new URL(url);
+    return isWebURL(url) ? u.host : 'in ' + u.protocol.replace(/:$/, '');
   } catch {
     return '';
   }
