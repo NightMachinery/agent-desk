@@ -91,17 +91,27 @@ func (a *App) keepDays() int {
 	return 30
 }
 
-// collectable reports whether the attachments of e may go: e is older than
-// keep, not pinned, and read (a notice or report) or answered or dismissed
-// (a question).
+// collectable reports whether the attachments of e may go: e is not pinned,
+// is read (a notice or report) or answered or dismissed (a question), and was
+// so at least keep ago. The clock starts when the user dealt with the item,
+// not when it was filed: one read on day 29 keeps its files another keep.
+// An item read without a mark (a replaced deliverable) counts from filing.
 func collectable(d *desk.Desk, e store.Event, keep time.Duration) bool {
-	if d.Now.Sub(desk.Time(e)) < keep || d.Pinned(e) {
+	if d.Pinned(e) {
 		return false
 	}
 	if e.Kind == "ask" {
-		return !isOpen(d, e.ID) || d.Dismissed(e.ID)
+		if isOpen(d, e.ID) && !d.Dismissed(e.ID) {
+			return false
+		}
+	} else if d.Unread(e.ID) {
+		return false
 	}
-	return !d.Unread(e.ID)
+	since, ok := d.SettledAt(e)
+	if !ok {
+		since = desk.Time(e)
+	}
+	return d.Now.Sub(since) >= keep
 }
 
 // orphanAge is how long a stored file no event names is kept: the window in
@@ -228,7 +238,7 @@ func (a *App) mediaViews(d *desk.Desk, e store.Event) []MediaView {
 				v.URL += "?name=" + url.QueryEscape(r.Name)
 			}
 		case days > 0 && collectable(d, e, time.Duration(days)*24*time.Hour):
-			v.Gone = fmt.Sprintf("deleted: the item was read or answered and is over %d days old (media_keep_days)", days)
+			v.Gone = fmt.Sprintf("deleted %d days after the item was read or answered (media_keep_days)", days)
 		case e.Host != a.Host:
 			v.Gone = "not fetched from " + e.Host + " yet; it comes with the next merge"
 		default:

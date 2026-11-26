@@ -75,6 +75,16 @@ func TestMediaAttachServeAndGC(t *testing.T) {
 		t.Fatalf("gc with a pinned holder: %q", out)
 	}
 	h.ok(nil, "", "unpin", keep)
+	// keep was read only now, a month after filing: its month starts now,
+	// so the file it shares stays until then.
+	if out := h.ok(nil, "", "gc", "--dry-run"); out != "would delete 0 file(s), 0 B" {
+		t.Fatalf("gc the day keep was read: %q", out)
+	}
+	h.now = h.now.Add(29 * 24 * time.Hour)
+	if out := h.ok(nil, "", "gc", "--dry-run"); out != "would delete 0 file(s), 0 B" {
+		t.Fatalf("gc 29 days after keep was read: %q", out)
+	}
+	h.now = h.now.Add(2 * 24 * time.Hour)
 	if out := h.ok(nil, "", "gc", "--dry-run"); !strings.HasPrefix(out, "would delete 1 file(s)") {
 		t.Fatalf("dry run: %q", out)
 	}
@@ -156,5 +166,23 @@ func TestMediaMergeSSH(t *testing.T) {
 		if _, err := os.Stat(f); err != nil {
 			t.Fatalf("not exchanged: %v", err)
 		}
+	}
+}
+
+// A question's attachments count from its answer, not its filing.
+func TestMediaKeptFromTheAnswer(t *testing.T) {
+	h := newHarness(t)
+	a := h.as(sessA)
+	h.ok(a, "", "join", "r1/coord")
+	must(t, os.WriteFile(filepath.Join(h.cwd, "plot.png"), tinyPNG, 0o644))
+	q := strings.TrimSpace(h.ok(a, "Which one?", "ask", "--blocked", "--title", "Pick a plot", "--attach", "plot.png", "--caption", "option A"))
+	h.now = h.now.Add(40 * 24 * time.Hour)
+	h.ok(nil, "", "answer", q, "The first.")
+	if out := h.ok(nil, "", "gc", "--dry-run"); out != "would delete 0 file(s), 0 B" {
+		t.Fatalf("gc just after a late answer: %q", out)
+	}
+	h.now = h.now.Add(31 * 24 * time.Hour)
+	if out := h.ok(nil, "", "gc", "--dry-run"); !strings.HasPrefix(out, "would delete 1 file(s)") {
+		t.Fatalf("gc a month after the answer: %q", out)
 	}
 }

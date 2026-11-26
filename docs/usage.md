@@ -997,8 +997,9 @@ merges and takes them in once updated.
 Attachments are copies kept for reading, not an archive. Once a day, at the
 first write, the desk deletes the file of every item that is
 
-- older than `media_keep_days` (default 30),
-- read, or for a question answered or dismissed, and
+- read, or for a question answered or dismissed, at least `media_keep_days`
+  (default 30) ago: the clock starts when you deal with the item, not when it
+  was filed, so one you read late keeps its files as long as any other, and
 - not pinned.
 
 A file several items share stays while any of them keeps it, and a file no

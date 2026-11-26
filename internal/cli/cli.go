@@ -259,7 +259,7 @@ User side:
   agent-desk render --print [node PATH | item ID | inbox [PATH]]
                                       one scope (default the whole desk) as one org file, to stdout
   agent-desk merge <file>|ssh:<host> [--notify]
-  agent-desk gc [--dry-run] [--days N]   delete attachments of old items read or answered
+  agent-desk gc [--dry-run] [--days N]   delete attachments of items read or answered long ago
                                       (media_keep_days, default 30)
 
 Store: ${AGENT_DESK_HOME:-~/.agents/desk}. See docs/usage.md.

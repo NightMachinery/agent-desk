@@ -34,8 +34,8 @@ type Config struct {
 	// SSHHosts maps a desk host name to an ssh destination, for pushing
 	// events there at once (merge ssh:).
 	SSHHosts map[string]string `toml:"ssh_hosts"`
-	// MediaKeepDays: attachments of items read or answered this many days
-	// ago are deleted by gc (default 30; 0 keeps them for good).
+	// MediaKeepDays: attachments of items read, answered or dismissed this
+	// many days ago are deleted by gc (default 30; 0 keeps them for good).
 	MediaKeepDays *int `toml:"media_keep_days"`
 	// Tasks configures launching deferred tasks and the quota nudge ([tasks]).
 	Tasks Tasks `toml:"tasks"`

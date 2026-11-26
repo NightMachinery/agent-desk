@@ -167,8 +167,8 @@ what it shows and why it matters:
     ...
     R
 
-Keep the point in the text too: files are deleted a month after the item is
-filed, once it is read. Limits: images 10 MB, audio 50 MB, video 100 MB, app packages
+Keep the point in the text too: files are deleted a month after the user
+reads the item. Limits: images 10 MB, audio 50 MB, video 100 MB, app packages
 (APK) 256 MB, anything else 25 MB.
 
 ## Deliverables

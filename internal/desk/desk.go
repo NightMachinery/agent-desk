@@ -246,6 +246,19 @@ func (d *Desk) PinnedItems(f Filter) []Item {
 	return out
 }
 
+// SettledAt is when the user dealt with e: the later of its read mark and,
+// for a question, its answer. ok is false when it has neither (unread, or a
+// replaced deliverable, read without a mark).
+func (d *Desk) SettledAt(e store.Event) (t time.Time, ok bool) {
+	t, ok = d.readAt[e.ID]
+	if a := d.answers[e.ID]; a != "" {
+		if ans, found := d.ByID[a]; found && (!ok || Time(ans).After(t)) {
+			t, ok = Time(ans), true
+		}
+	}
+	return t, ok
+}
+
 // Dismissed reports whether a question has been marked read. It stays open,
 // and its agent stays blocked, but it leaves Needs you until marked unread.
 func (d *Desk) Dismissed(id string) bool { return d.dismissed[id] }
