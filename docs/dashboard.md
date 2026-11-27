@@ -35,6 +35,30 @@ keeps the phone's link menu. Under `(hover: none)`, `app.css` turns off the
 callout and text selection on elements with a tooltip, links and text boxes
 excepted.
 
+## What the user does shows at once
+
+The desk can be seconds away (a phone through the proxy), so an action never
+waits for it before the page shows it. `lib/pending.svelte.js` keeps the
+user's changes the desk has not shown yet and lays them over every view and
+item page (`lib/overlay.js` does the laying over, under node tests): an item
+read, dismissed, answered, pinned or deferred looks so at once, and leaves
+the sections it would leave. Wrap a request in `act(ids, patch, leave,
+request)`, or take a handle with `change()` and call `done()` or `failed()`
+yourself, as the outbox does for an answer. A failed request drops its
+change, so the page shows what the desk says again.
+
+A change stays laid over until an answer asked for after the desk took it is
+shown: every view and item request takes a `ticket()` before it goes and
+reports it with `shown()`, and a change taken when the last ticket out was
+n shows in every answer above n. So a reload the live stream started before
+the change reached the desk cannot undo it on screen. A change taken asks
+for a fresh view (`onTaken`), and none outlives two minutes.
+
+Two more things keep a send instant: a box emptied here sends the drop to
+the desk at once (`saveDraft`), and its row stops saying Draft through the
+same changes; and the cold-cache question is asked while the user types
+(`warmSendCache`), so Send has its answer.
+
 ## Looking at a change
 
 Check a change in a real browser, on a desk of fabricated data, before

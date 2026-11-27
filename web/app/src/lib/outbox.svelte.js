@@ -5,6 +5,10 @@ import { toast } from './toast.svelte.js';
 const prefix = 'agent-desk:send:';
 const messages = new SvelteMap();
 const sending = new Set();
+// The page change each message stands for (pending.svelte.js), by key:
+// done once the desk records the message, dropped if it refuses it. Not
+// saved: after a reload the page shows what the desk says.
+const changes = new Map();
 let refresh = () => {};
 
 function save(message) {
@@ -52,8 +56,9 @@ export function startOutbox(onRecorded) {
   };
 }
 
-/** quiet skips the "queued" toast, for a caller that shows its own. */
-export function queueMessage(kind, body, target = body.id || body.to, { quiet = false } = {}) {
+/** quiet skips the "queued" toast, for a caller that shows its own; change
+ * is the page change (pending.svelte.js) the message stands for. */
+export function queueMessage(kind, body, target = body.id || body.to, { quiet = false, change = null } = {}) {
   const bytes = crypto.getRandomValues(new Uint8Array(16));
   const key = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
   const message = { key, kind, target, body: { ...body, send_key: key }, time: Date.now() };
@@ -64,6 +69,7 @@ export function queueMessage(kind, body, target = body.id || body.to, { quiet = 
     return false;
   }
   messages.set(key, message);
+  if (change) changes.set(key, change);
   if (!quiet) toast(kind === 'answer' ? 'Answer queued.' : 'Message queued.', 'info');
   flush();
   return true;
@@ -109,6 +115,8 @@ async function send(message) {
     if (res.status !== 'queued' || !res.event_id) throw new Error('No queue acknowledgement from the desk.');
     remove(message.key);
     if (messages.has(message.key)) messages.set(message.key, { ...message, recorded: true, error: '' });
+    changes.get(message.key)?.done();
+    changes.delete(message.key);
     refresh();
   } catch (err) {
     if (!messages.has(message.key)) return;
@@ -122,7 +130,11 @@ async function send(message) {
     } catch {
       // The original queued message is already persisted.
     }
-    if (blocked) toast(err.message, 'error');
+    if (blocked) {
+      changes.get(message.key)?.failed();
+      changes.delete(message.key);
+      toast(err.message, 'error');
+    }
   } finally {
     clearTimeout(timer);
     sending.delete(message.key);

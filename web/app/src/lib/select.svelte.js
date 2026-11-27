@@ -5,7 +5,7 @@ import { cancelArrival } from './arrival.js';
 import { SvelteSet } from 'svelte/reactivity';
 import { post } from './api.js';
 import { route } from './route.svelte.js';
-import { hide, show } from './hiding.svelte.js';
+import { act, READ_LEAVES } from './pending.svelte.js';
 import { toast } from './toast.svelte.js';
 
 // `mode` is selection mode, from the Select button or a long press: rows show
@@ -59,11 +59,12 @@ export async function markSelected(read, onchange, qs = 0) {
     return;
   }
   targets.forEach((t) => cancelArrival(t)); // the user decided its state
-  const hidden = read && !route.all && !route.hour ? targets : []; // All and Last hour keep read items listed
-  hide(hidden);
+  // Shown at once; All and Last hour keep read items listed. A question read
+  // is dismissed.
+  const leave = read && !route.all && !route.hour ? READ_LEAVES : [];
   if (read) clear();
   try {
-    await post(read ? 'read' : 'unread', { targets });
+    await act(targets, read ? { unread: false } : { unread: true }, leave, () => post(read ? 'read' : 'unread', { targets }));
     const n = (k, w) => `${k} ${k === 1 ? w : w + 's'}`;
     let msg = `${n(targets.length, 'item')} marked ${read ? 'read' : 'unread'}.`;
     if (kept.length) msg += ` ${n(kept.length, 'item')} with a draft stayed unread.`;
@@ -72,7 +73,6 @@ export async function markSelected(read, onchange, qs = 0) {
     clear();
     onchange();
   } catch (err) {
-    show(hidden);
     toast(err.message, 'error');
   }
 }
@@ -82,7 +82,7 @@ export async function deferSelected(on, onchange) {
   const targets = [...sel.ids];
   if (!targets.length) return;
   try {
-    await post(on ? 'defer' : 'undefer', { targets });
+    await act(targets, { deferred: on }, [], () => post(on ? 'defer' : 'undefer', { targets }));
     toast(`${targets.length} ${targets.length === 1 ? 'item' : 'items'} ${on ? 'deferred: folded under Deferred in their sections' : 'back in their sections'}.`, 'ok');
     clear();
     onchange();

@@ -563,6 +563,12 @@ is upgraded under it (its stream names the build it serves, on every
 reconnection), a strip above the list says so with **Reload** (drafts are
 kept).
 
+What you do shows at once, however far away the desk is: an answered or
+dismissed question leaves Needs you as you click, an item read, pinned or
+deferred looks so, and a sent or discarded draft stops saying Draft. The page
+keeps showing it while the desk catches up, so nothing flickers back; if the
+desk refuses, the item goes back to what the desk says.
+
 The sidebar's Focus list switches the focus between your project sets (see
 Project sets and the focus); the gear beside Focus edits the focused set (or
 the first one), and creates others, by ticking projects, or runs or roles

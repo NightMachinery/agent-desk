@@ -5,8 +5,9 @@
   import { tip } from '../lib/shortcuts.js';
   import { route, href, go } from '../lib/route.svelte.js';
   import { post } from '../lib/api.js';
+  import { act, change } from '../lib/pending.svelte.js';
   import { toast } from '../lib/toast.svelte.js';
-  import { chooseSendCache } from '../lib/cache.svelte.js';
+  import { chooseSendCache, warmSendCache } from '../lib/cache.svelte.js';
   import { clearDraft, discardDrafts, hasDraft, itemDraftKeys, onDraftChange } from '../lib/drafts.js';
   import { pendingMessages, queueMessage } from '../lib/outbox.svelte.js';
   import { desk } from '../lib/desk.svelte.js';
@@ -111,7 +112,7 @@
     // Held first: the live stream can reload the list before this request
     // returns, and the row must not drop out meanwhile.
     hold(id, display);
-    post('read', { target: display })
+    act([display], { unread: false }, [], () => post('read', { target: display }))
       .then(() => onchange())
       .catch(() => (autoRead.delete(id), release(id)));
   }
@@ -134,7 +135,7 @@
       cancelArrival(display);
       return readNow();
     }
-    post('read', { target: display })
+    act([display], { unread: false }, [], () => post('read', { target: display }))
       .then(() => onchange())
       .catch((err) => toast(err.message, 'error'));
   }
@@ -169,7 +170,8 @@
 
   async function pin(on) {
     try {
-      await post(on ? 'pin' : 'unpin', { id: it.display_id });
+      const display = it.display_id;
+      await act([display], { pinned: on }, on ? [] : ['pinned'], () => post(on ? 'pin' : 'unpin', { id: display }));
       toast(on ? 'Pinned to the top.' : 'Unpinned.', 'ok');
       onchange();
     } catch (err) {
@@ -184,13 +186,13 @@
   async function setDeferred(on) {
     const display = it.display_id;
     try {
-      await post(on ? 'defer' : 'undefer', { id: display });
+      await act([display], { deferred: on }, [], () => post(on ? 'defer' : 'undefer', { id: display }));
       // Opening it read it; a deferred item is read only by hand, so that
       // read is undone.
       if (on && autoRead.has(e.id) && !it.unread) await post('unread', { id: display });
       const waits = isQuestion && !item.answered ? (e.level === 'blocked' ? ' The agent stays blocked until you answer.' : ' The agent goes ahead with its default unless you answer.') : '';
       toast(on ? `Deferred: folded under Deferred in its section until you undefer it.${waits}` : 'Back in its section.', 'ok', on ? 7000 : 3000,
-        on ? { label: 'Undo', run: () => post('undefer', { id: display }).then(onchange, (err) => toast(err.message, 'error')) } : undefined);
+        on ? { label: 'Undo', run: () => act([display], { deferred: false }, [], () => post('undefer', { id: display })).then(onchange, (err) => toast(err.message, 'error')) } : undefined);
       onchange();
     } catch (err) {
       toast(err.message, 'error');
@@ -309,17 +311,28 @@
     return () => {
       autoRead.delete(id);
       release(id);
-      post('unread', { id: display })
+      act([display], { unread: true }, [], () => post('unread', { id: display }))
         .then(() => onchange())
         .catch((err) => toast(err.message, 'error'));
     };
   }
+  // A box with something in it is about to be sent: ask now whether the
+  // agent's cache is cold, so Send acts at once.
+  $effect(() => {
+    if (answerActive && e?.id) warmSendCache('answer', e.id);
+  });
+  $effect(() => {
+    if (replyActive && e?.id) warmSendCache('reply', replyingTo?.id || e.id);
+  });
   async function answer(text, opts = {}) {
     const { id } = e;
     const page = route.item;
     const choice = await chooseSendCache('answer', id);
     if (choice === 'cancel' || route.item !== page) return false;
-    const queued = queueMessage('answer', { id, text, ...opts, ...(choice === 'compact' && { after_compaction: true }) }, id, { quiet: true });
+    // The question looks answered at once: out of Needs you, no Draft.
+    const shownAnswered = change([it.display_id], { answered: true, draft: false, unread: false }, ['needs']);
+    const queued = queueMessage('answer', { id, text, ...opts, ...(choice === 'compact' && { after_compaction: true }) }, id, { quiet: true, change: shownAnswered });
+    if (!queued) shownAnswered.failed();
     if (queued) {
       clearDraft('choices:' + it.display_id);
       moveOn(`Answer to ${it.display_id} queued.`);
@@ -350,16 +363,22 @@
       return;
     }
     cancelArrival(it.display_id); // the user said read or unread
+    // Shown at once: a question read is dismissed, out of Needs you unless
+    // Show: All lists the dismissed, and the page moves on without waiting.
+    const display = it.display_id;
+    const question = isQuestion; // the page may have moved on by the reply
+    const patch = question ? { unread: !read, dismissed: read } : { unread: !read };
+    const sent = act([display], patch, question && read && !route.all ? ['needs'] : [], () =>
+      post(read ? 'read' : 'unread', read ? { target: display } : { id: display }));
+    if (question && read)
+      moveOn(
+        `Dismissed: out of Needs you, still open. ${e.level === 'blocked' ? 'The agent stays blocked until you answer.' : 'The agent goes ahead with its default unless you answer.'}`,
+        () => act([display], { unread: true, dismissed: false }, [], () => post('unread', { id: display })).then(onchange),
+      );
     try {
-      await post(read ? 'read' : 'unread', read ? { target: it.display_id } : { id: it.display_id });
-      if (isQuestion && read) {
-        const display = it.display_id;
-        moveOn(
-          `Dismissed: out of Needs you, still open. ${e.level === 'blocked' ? 'The agent stays blocked until you answer.' : 'The agent goes ahead with its default unless you answer.'}`,
-          () => post('unread', { id: display }).then(onchange),
-        );
-      } else if (isQuestion) toast('Back in Needs you.', 'ok', 5000);
-      else toast(read ? 'Marked read.' : 'Marked unread.', 'ok');
+      await sent;
+      if (question && !read) toast('Back in Needs you.', 'ok', 5000);
+      else if (!question) toast(read ? 'Marked read.' : 'Marked unread.', 'ok');
       onchange();
     } catch (err) {
       toast(err.message, 'error');

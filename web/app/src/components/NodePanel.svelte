@@ -14,7 +14,7 @@
   import Settings from './Settings.svelte';
   import AutoContinue from './AutoContinue.svelte';
   import CacheControl from './CacheControl.svelte';
-  import { chooseSendCache } from '../lib/cache.svelte.js';
+  import { chooseSendCache, warmSendCache } from '../lib/cache.svelte.js';
   import { desk } from '../lib/desk.svelte.js';
   import { archiveAgent } from '../lib/agents.js';
 
@@ -50,6 +50,12 @@
     if (choice === 'cancel' || route.path !== page) return false;
     return queueMessage('reply', { to, ...body, ...(choice === 'compact' && { after_compaction: true }) });
   }
+  // Something typed is about to be sent: ask now whether the coordinator's
+  // cache is cold, so Send acts at once.
+  let typing = $state(false);
+  $effect(() => {
+    if (typing && node?.path) warmSendCache('reply', node.path);
+  });
   async function reply(text, opts = {}) {
     const queued = await queueReply({ text, ...opts });
     if (queued) writing = false;
@@ -169,6 +175,7 @@
           hint={viaText(target)}
           {target}
           send={reply}
+          bind:active={typing}
         />
       </div>
     {/if}

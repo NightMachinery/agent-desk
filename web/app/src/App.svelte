@@ -4,7 +4,8 @@
   import { get, watch } from './lib/api.js';
   import { sawBuild } from './lib/build.svelte.js';
   import { ui, loadSharedUI } from './lib/ui.svelte.js';
-  import { hasDraft, onDraftChange } from './lib/drafts.js';
+  import { hasDraft, onDraftChange, onItemDraftDropped } from './lib/drafts.js';
+  import { act, change, onTaken, patchedPage, shown, ticket } from './lib/pending.svelte.js';
   import { startOutbox } from './lib/outbox.svelte.js';
   import { toasts } from './lib/toast.svelte.js';
   import { desk } from './lib/desk.svelte.js';
@@ -31,6 +32,8 @@
   let globalView = $state.raw(null);
   let error = $state('');
   let item = $state.raw(null);
+  // The item page shows the user's changes the desk has not shown yet.
+  const shownItem = $derived(patchedPage(item));
   let itemError = $state('');
   let live = $state('connecting');
   let drawer = $state(false);
@@ -44,6 +47,7 @@
     // not make every hold refetch the view.
     const asked = untrack(lingerIds);
     params.linger = asked.join(',');
+    const t = ticket();
     try {
       const scoped = get('view', params);
       const filtered = params.path || params.session || params.all || params.q || params.linger;
@@ -53,6 +57,7 @@
       // A row held after this was asked for may be read already and left
       // out: ask again rather than drop it from the list for a moment.
       if (untrack(lingerIds).some((id) => !asked.includes(id))) return void loadView();
+      shown('view', t);
       view = v;
       globalView = g;
       desk.host = v.host;
@@ -69,9 +74,11 @@
       item = null;
       return;
     }
+    const t = ticket();
     try {
       const it = await get('item', { id });
       if (my !== itemSeq) return;
+      shown('item', t);
       item = it;
       itemError = '';
     } catch (e) {
@@ -116,7 +123,13 @@
     untrack(() => moved(cur));
   });
   // Leaving an item the page moved to by itself reads it (arrival.js).
-  arrivalHooks({ poster: (id) => post('read', { target: id }), onRead: () => refresh(), kept: hasDraft, hold });
+  arrivalHooks({ poster: (id) => act([id], { unread: false }, [], () => post('read', { target: id })), onRead: () => refresh(), kept: hasDraft, hold });
+  // A box emptied here (sent, discarded, cleared): its row stops saying
+  // Draft at once, and stays so until the desk's answers agree.
+  onItemDraftDropped((display, taken) => {
+    const c = change([display], { draft: false });
+    taken.then((ok) => (ok ? c.done() : c.failed()));
+  });
   // A draft started or dropped changes what the list keeps (an item with a
   // draft stays listed): look again once it has reached the desk.
   $effect(() => onDraftChange(() => setTimeout(() => loadView(), 1600)));
@@ -136,6 +149,12 @@
   $effect(() => watchCache());
 
   let timer;
+  // The desk took a change: look again soon, so the page stops laying it
+  // over what the desk says (pending.svelte.js).
+  onTaken(() => {
+    clearTimeout(timer);
+    timer = setTimeout(refresh, 120);
+  });
   $effect(() =>
     watch(
       () => {
@@ -173,7 +192,7 @@
   });
 
   ctx.refresh = refresh;
-  ctx.item = () => item;
+  ctx.item = () => shownItem;
   ctx.view = () => view;
   ctx.runs = () => globalView?.view?.runs ?? [];
   // Pane focus shows once the keyboard has driven the page.
@@ -207,7 +226,7 @@
 
   <aside class="detail" data-pane="detail" class:focused={focused === 'detail'}>
     {#if route.item}
-      <LazyPanel view={import('./components/Detail.svelte')} {item} error={itemError} onchange={refresh} />
+      <LazyPanel view={import('./components/Detail.svelte')} item={shownItem} error={itemError} onchange={refresh} />
     {:else if route.settings}
       <section class="settings-page">
         <div class="settings-bar">

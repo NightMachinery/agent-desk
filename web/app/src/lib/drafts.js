@@ -120,14 +120,27 @@ export function loadDraft(key) {
   return r && r.v != null ? r.v : null;
 }
 
-/** Save value under key, or drop the draft when empty is true. */
+let onDrop = (/** @type {string} */ _display, /** @type {Promise<boolean>} */ _taken) => {};
+/** f(display, taken) runs when one of an item's boxes is emptied here;
+ * taken resolves to whether the desk has dropped that draft too. */
+export function onItemDraftDropped(f) {
+  onDrop = f;
+}
+
+/** Save value under key, or drop the draft when empty is true. A drop goes
+ * to the desk at once, not after a pause in typing: sending or discarding
+ * is done, and the row should stop saying Draft. */
 export function saveDraft(key, value, empty = false) {
   if (!key || !store()) return;
   const v = empty ? null : value;
   const r = read(key);
   if (r ? same(r.v, v) : v === null) return;
   write(key, { t: Date.now(), v, s: r?.s ?? 0, d: true });
-  later(key);
+  if (v === null) {
+    const taken = pushNow(key);
+    const box = ITEM_BOXES.find((b) => key.startsWith(b));
+    if (box) onDrop(key.slice(box.length), taken);
+  } else later(key);
   changed(key, r?.v, v);
 }
 
@@ -189,14 +202,22 @@ function later(key) {
   timers.set(key, setTimeout(() => push(key), QUIET));
 }
 
+/** Sends key's draft now, after any send of it already on its way;
+ * resolves to whether the desk has this copy. */
+async function pushNow(key) {
+  while (inflight.has(key)) await new Promise((res) => setTimeout(res, 50));
+  return push(key);
+}
+
+/** Resolves to whether the desk has key's copy here once it is done. */
 async function push(key, keepalive = false) {
   clearTimeout(timers.get(key));
   timers.delete(key);
   const r = read(key);
-  if (!r || !dirty(r)) return;
+  if (!r || !dirty(r)) return true;
   if (inflight.has(key)) {
     again.add(key);
-    return;
+    return false;
   }
   inflight.add(key);
   try {
@@ -212,14 +233,15 @@ async function push(key, keepalive = false) {
       // A draft the desk refuses (too large, a key it does not take) stays
       // on this device only; anything else is tried again later.
       if (res.status >= 400 && res.status < 500 && ![408, 429].includes(res.status) && now && now.t === r.t) write(key, { ...now, d: false });
-      return;
+      return false;
     }
-    if (!now) return;
+    if (!now) return true;
     if (now.t !== r.t) write(key, { ...now, s: body.updated }); // typed on meanwhile: still to go up
     else if (r.v === null) remove(key);
     else write(key, { ...now, s: body.updated, d: false });
+    return true;
   } catch {
-    // offline: flush tries again
+    return false; // offline: flush tries again
   } finally {
     inflight.delete(key);
     if (again.delete(key)) push(key);

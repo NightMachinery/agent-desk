@@ -23,7 +23,7 @@
   import { sel, toggleAll, clear, prune, markSelected, pinSelected, selecting, deferSelected } from '../lib/select.svelte.js';
   import { snapshot } from '../lib/nav.svelte.js';
   import { ui, toggleSection, laterOpen, toggleLater, deliverableModes, deliverableModeLabel, showDeliverables, orderedSections, taskModes, taskModeLabel, taskSpans, showTasks } from '../lib/ui.svelte.js';
-  import { hide, show, settle, unhidden } from '../lib/hiding.svelte.js';
+  import { act, left, patched, patchedGroups, READ_LEAVES } from '../lib/pending.svelte.js';
   import { hasDraft } from '../lib/drafts.js';
   import { runCommand, keymap } from '../lib/keys.svelte.js';
   import { off } from '../lib/why.js';
@@ -52,27 +52,36 @@
       .sort((a, b) => cmp(byProject.get(b.group.project), byProject.get(a.group.project)) || cmp(b.newest, a.newest))
       .map(({ group }) => group);
   }
-  // Items being marked read are hidden at once (hiding.svelte.js); a view
-  // that no longer lists them settles them.
-  $effect(() => {
-    const v = view?.view;
-    if (v) settle(new Set([v.needs_you, v.new, v.responses, v.deliverables].flatMap((gs) => idsOf(gs ?? []))));
-  });
   const sorted = (gs, blockedFirst) => (sortMode() === 'old' ? (gs ?? []) : recent(gs ?? [], blockedFirst));
   // Deferred items sit under a folded "Deferred" at the end of their
   // section, read or not: out of its badge, its mark-all and auto-navigation.
   const part = (gs, deferred) => gs.map((g) => ({ ...g, items: g.items.filter((it) => !!it.deferred === deferred) })).filter((g) => g.items.length);
-  const needs = $derived(unhidden(part(sorted(view?.view?.needs_you, true), false)));
-  const fresh = $derived(unhidden(part(sorted(view?.view?.new, false), false)));
-  const responses = $derived(unhidden(part(sorted(view?.view?.responses, false), false)));
-  const deliverables = $derived(unhidden(part(sorted(view?.view?.deliverables, false), false)));
+  // Each section shows the user's changes the desk has not shown yet
+  // (pending.svelte.js): an item answered, read, deferred or pinned looks so
+  // at once, and an answered question leaves Needs you at once.
+  const section = (gs, name, blockedFirst) => patchedGroups(sorted(gs, blockedFirst), name);
+  const needsAll = $derived(section(view?.view?.needs_you, 'needs', true));
+  const freshAll = $derived(section(view?.view?.new, 'new', false));
+  const responsesAll = $derived(section(view?.view?.responses, 'responses', false));
+  const deliverablesAll = $derived(section(view?.view?.deliverables, 'deliverables', false));
+  const needs = $derived(part(needsAll, false));
+  const fresh = $derived(part(freshAll, false));
+  const responses = $derived(part(responsesAll, false));
+  const deliverables = $derived(part(deliverablesAll, false));
   const later = $derived({
-    needs: part(sorted(view?.view?.needs_you, true), true),
-    new: part(sorted(view?.view?.new, false), true),
-    responses: part(sorted(view?.view?.responses, false), true),
-    deliverables: part(sorted(view?.view?.deliverables, false), true),
+    needs: part(needsAll, true),
+    new: part(freshAll, true),
+    responses: part(responsesAll, true),
+    deliverables: part(deliverablesAll, true),
   });
-  const pinned = $derived(view?.view?.pinned ?? []);
+  // Pinned: an item pinned here joins it from its section at once, one
+  // unpinned leaves it.
+  const pinned = $derived.by(() => {
+    const own = (view?.view?.pinned ?? []).filter((it) => !left(it.display_id, 'pinned')).map((it) => patched(it)).filter((it) => it.pinned !== false);
+    const ids = new Set(own.map((it) => it.display_id));
+    const joined = [needsAll, freshAll, responsesAll, deliverablesAll].flat().flatMap((g) => g.items).filter((it) => it.pinned && !ids.has(it.display_id) && ids.add(it.display_id));
+    return [...own, ...joined];
+  });
   const deliverablesAny = $derived(view?.view?.deliverables_any ?? 0);
   const sectionOrder = $derived(orderedSections(ui.sectionOrder));
   const runs = $derived(view?.view?.runs ?? []);
@@ -103,16 +112,15 @@
     const keptNote = kept.length ? ` ${kept.length} with a draft stayed unread.` : '';
     if (!targets.length) return toast(`${kept.length === 1 ? 'It has a draft' : 'They have drafts'}: send or discard first.`, 'info');
     targets.forEach((t) => cancelArrival(t));
-    const hidden = route.all || route.hour ? [] : targets; // All and Last hour keep read items listed
-    hide(hidden);
+    // All and Last hour keep read items listed; Unread drops them at once.
+    const leave = route.all || route.hour ? [] : READ_LEAVES;
     try {
-      await post('read', { targets });
+      await act(targets, { unread: false }, leave, () => post('read', { targets }));
       toast(`${targets.length} ${targets.length === 1 ? 'item' : 'items'} marked read.${keptNote}`, 'ok', 7000, {
         label: 'Undo',
         run: async () => {
-          show(hidden);
           try {
-            await post('unread', { targets });
+            await act(targets, { unread: true }, [], () => post('unread', { targets }));
             onchange?.();
           } catch (err) {
             toast(err.message, 'error');
@@ -121,7 +129,6 @@
       });
       onchange?.();
     } catch (err) {
-      show(hidden);
       toast(err.message, 'error');
     }
   }
