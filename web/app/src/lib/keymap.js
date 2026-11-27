@@ -4,6 +4,7 @@
 // M-x, SPC SPC and help list a command even when it has no key.
 import { requestFocus } from './focus.js';
 import { ALL_CLEAR, ALL_CLEAR_KEY } from './moveon.js';
+import { arrival, isAutoArrival } from './arrival.js';
 import { itemMarkdown } from './itemmd.js';
 import { route, go, pageOpen, showMode, showOver } from './route.svelte.js';
 import { nav, navNext, step } from './nav.svelte.js';
@@ -86,15 +87,24 @@ function openOpen(dir) {
   }
   if (!id) {
     // n looks both ways, so nothing found there means nothing else is open;
-    // it is a clear desk unless the item shown is itself still open.
-    if (dir < 0 && navNext(here)) return say('Nothing open before this');
-    if (here && nav.open.has(here) && !nav.pinned.has(here)) return say('Nothing else open');
+    // it is a clear desk unless the item shown stays open once left.
+    if (dir < 0 && navNext(here)) return endOf('Nothing open before this');
+    if (staysOpen(here)) return endOf('Nothing else open: this is the last one');
     return clearDesk();
   }
   if (here) (dir > 0 ? back : ahead).push(here);
   if (back.length > 100) back.shift();
   openItem(id);
 }
+
+/** Whether id stays open after it is left: a question, an item a draft
+ * keeps, a delivery not opened yet. One the page moved to by itself that
+ * opening would have read does not: leaving reads it (arrival.js). */
+const staysOpen = (id) => !!id && nav.open.has(id) && !nav.pinned.has(id) && !(isAutoArrival(id) && arrival.pending);
+
+/** Where n and N stop: one toast, the all-clear's, so a repeat pulses it
+ * instead of stacking another (or flashing the mode line). */
+const endOf = (text) => toast(text, 'info', 4500, null, ALL_CLEAR_KEY);
 
 /** n on a clear desk: the next thing is the work itself, so it opens the
  * Tasks page here, even an empty one (Back returns). A repeat pulses the

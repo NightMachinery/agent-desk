@@ -82,6 +82,7 @@ function before(a, b) {
 
 // When nothing open is left (n finds nothing, or the last open item was just
 // dealt with), the toast says so, once: ALL_CLEAR_KEY keeps a repeat from
-// stacking a second copy.
+// stacking a second copy. n and N's other stops (only the item shown is
+// open, nothing open before it) use the same key, so they replace it.
 export const ALL_CLEAR = '🎉 All caught up';
 export const ALL_CLEAR_KEY = 'all-clear';

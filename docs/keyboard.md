@@ -67,8 +67,12 @@ On a phone there is one pane at a time: the list, or the open item.
   to retrace, `N` goes to the nearest open item before. When nothing open is
   left anywhere, `n` says "🎉 All caught up" and opens the Tasks page here,
   even an empty one (the toast's Back returns; pressing `n` again pulses
-  the toast instead of adding another). Answering or sending on your last
-  open item shows the same toast beside its own, with a Tasks button.
+  the toast instead of adding another). An item the page moved to by itself
+  after an answer counts as dealt with here, since leaving it reads it. When
+  only the item shown is still open (a question, an item with a draft, a
+  delivery not opened yet), `n` stays and the same toast says "Nothing else
+  open: this is the last one". Answering or sending on your last open item
+  shows the same toast beside its own, with a Tasks button.
 
 ## The detail pane
 
