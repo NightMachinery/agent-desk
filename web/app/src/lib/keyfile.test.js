@@ -221,3 +221,18 @@ test('every button runs a command (data-cmd) or is keyless on purpose (data-keys
   assert.deepEqual(bare, [], 'buttons with neither data-cmd nor data-keys="none"');
   assert.deepEqual(unknown, [], 'data-cmd values that name no command');
 });
+
+test('every modal is a Sheet the keys reach: no native modal <dialog>, no element swallowing every key', () => {
+  // showModal() puts a <dialog> in the top layer, over the hints and the key
+  // guide and making them inert, and the keymap knows a sheet only by
+  // role="dialog"; a keydown handler that stops every key keeps them all
+  // from the keymap (f, j, k, q did nothing in the cold-cache prompt).
+  const dir = new URL('../components/', here);
+  const bad = [];
+  for (const f of readdirSync(dir).filter((f) => f.endsWith('.svelte'))) {
+    const src = readFileSync(new URL(f, dir), 'utf8');
+    if (/<dialog\b|showModal\(/.test(src)) bad.push(`${f}: a native <dialog>; use Sheet`);
+    if (/onkeydown=\{\(?\w*\)?\s*=>\s*\w+\.stop(?:Immediate)?Propagation\(\)\s*\}/.test(src)) bad.push(`${f}: onkeydown stops every key`);
+  }
+  assert.deepEqual(bad, []);
+});

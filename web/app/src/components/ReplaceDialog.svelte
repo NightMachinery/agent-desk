@@ -10,6 +10,8 @@
   import { pickProvider, pickModel, pickThinking, profileOf, parseProfile } from '../lib/replace.js';
   import { short } from '../lib/format.js';
   import { off } from '../lib/why.js';
+  import { onMount } from 'svelte';
+  import Sheet from './Sheet.svelte';
 
   /** agent: a card of api/quota; presets: the config's [quota] profiles. */
   let { agent = null, presets = [], onclose = () => {}, ondone = () => {} } = $props();
@@ -24,7 +26,7 @@
   })();
   const remembered = saved.models ?? {};
 
-  let dialog = $state();
+  let form = $state();
   let providers = $state(/** @type {any[]} */ ([]));
   let loading = $state(true);
   let error = $state('');
@@ -108,21 +110,14 @@
     }
   }
 
-  function close() {
-    if (dialog?.open) dialog.close();
-    onclose();
-  }
+  const close = () => onclose();
 
-  $effect(() => {
-    if (!dialog) return;
-    dialog.showModal();
-    load();
-  });
+  onMount(() => void load());
   // Focus the selected provider once the list is there, so the arrow keys
   // move between providers and Enter starts.
   $effect(() => {
-    if (loading || !provider || !dialog) return;
-    queueMicrotask(() => dialog?.querySelector(`input[name="provider"][value="${CSS.escape(provider)}"]`)?.focus());
+    if (loading || !provider || !form) return;
+    queueMicrotask(() => form?.querySelector(`input[name="provider"][value="${CSS.escape(provider)}"]`)?.focus());
   });
 
   const quotaText = (p) => {
@@ -137,12 +132,11 @@
   const modelLabel = (id) => models.find((m) => m.id === id)?.label ?? id;
 </script>
 
-<dialog bind:this={dialog} aria-labelledby="replace-title" data-pane="dialog"
-  onkeydown={(e) => e.stopPropagation()}
-  oncancel={(e) => { e.preventDefault(); close(); }}>
-  <form onsubmit={start}>
+<!-- A Sheet, so the keys work in it; Escape, a tap outside, q and Cancel close it. -->
+<Sheet title={`Replace “${agent?.title || short(agent?.paseo ?? '')}”`} done="" width={540}
+  bind:open={() => true, (v) => { if (!v) close(); }}>
+  <form bind:this={form} onsubmit={start}>
     <header>
-      <h3 id="replace-title">Replace “{agent?.title || short(agent?.paseo ?? '')}”</h3>
       <p class="lead">A new agent recovers its partial work, takes over its role and desk nodes, and archives it.
         {#if agent?.model}It ran <span class="mono">{agent.provider}/{agent.model}{agent.thinking ? '@' + agent.thinking : ''}</span>.{/if}</p>
     </header>
@@ -214,45 +208,23 @@
 
     <footer>
       <span class="profile faint" title="The profile handed to launch_command">{profile ? `${current?.label ?? provider} · ${modelLabel(model) || 'default model'}${thinking ? ' · ' + thinking : ''}` : ''}</span>
-      <button data-keys="none" type="button" class="btn" onclick={close}>Cancel</button>
+      <button data-cmd="sheet-close" type="button" class="btn" onclick={close}>Cancel</button>
       <button type="submit" class="btn primary" data-keys="none" {...off(undefined, [starting, 'Wait: starting the new agent'], [loading && !providers.length, 'Wait: loading the providers'], [!profile, 'Pick a provider first'])}>
         {starting ? 'Starting…' : 'Start replacement'}
       </button>
     </footer>
     <p class="keys faint">↑↓ provider · Tab to model and effort · Enter starts · Esc cancels</p>
   </form>
-</dialog>
+</Sheet>
 
 <style>
-  dialog {
-    box-sizing: border-box;
-    width: min(540px, calc(100% - 24px));
-    max-height: calc(100dvh - 24px);
-    padding: 0;
-    border: 1px solid var(--line);
-    border-radius: 14px;
-    color: var(--text);
-    background: var(--panel);
-    box-shadow: 0 20px 60px rgb(0 0 0 / 0.25);
-  }
-  dialog::backdrop {
-    background: rgb(0 0 0 / 42%);
-  }
   form {
     display: flex;
     flex-direction: column;
     gap: 14px;
-    padding: 18px 20px 14px;
-  }
-  h3 {
-    margin: 0;
-    font-size: 16px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
   .lead {
-    margin: 6px 0 0;
+    margin: 0;
     color: var(--muted);
     font-size: 13px;
     line-height: 1.45;

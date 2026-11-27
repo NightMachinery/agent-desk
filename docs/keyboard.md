@@ -218,10 +218,13 @@ Verbatim log, `/` focuses its search box.
 
 ## Sheets
 
-The menus that slide up ("Send how?", "Notify me", settings) take `j` / `k`
-(or `C-n` / `C-p`) to move between their controls, `RET` to press one, `f` for
-hints, and `q`, `Esc` or `C-g` to close. Other keys do nothing while a sheet
-is open.
+Every dialog is a sheet: the menus that slide up ("Send how?", "Notify me",
+settings) and the prompts ("This agent's cache is probably cold", Replace).
+They take `j` / `k` (or `C-n` / `C-p`) to move between their controls, `RET`
+to press one, `f` for hints, and `q`, `Esc` or `C-g` to close. In a text box
+or a picker, `Esc` first leaves it, as it does everywhere; with hints showing
+it cancels them. On a choice of options (Replace's providers) the arrows pick
+the next one. Other keys do nothing while a sheet is open.
 
 ## Back out with Esc
 
@@ -352,3 +355,11 @@ reason]...)` from `lib/why.js` on it instead of writing `disabled=` and
 styles go on `:hover:not(:disabled)`, so a disabled button never looks live.
 `components/Keys.svelte` draws the mode line, which-key, the binding list, the
 describe sheet, the palette and the hints.
+A modal is a `Sheet` (`components/Sheet.svelte`; `done=""` drops its Done for
+a sheet with its own Cancel, tagged `data-cmd="sheet-close"`). The keymap
+knows a sheet by `role="dialog"` and draws its hints above it. A native
+`<dialog>` shown with `showModal()` sits in the browser's top layer, over the
+hints and the guide and making them inert, and a component that stops every
+keydown keeps all keys from the keymap: `keyfile.test.js` fails on either.
+A component that handles a key itself takes only that key, and leaves Escape
+to key UI that is up (`keyUiOpen()`) and to a focused field.

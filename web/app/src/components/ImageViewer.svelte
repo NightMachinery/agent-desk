@@ -4,6 +4,7 @@
   // images. Escape, q, C-g or a tap beside the image closes it.
   import { viewer, closeImage, stepImage } from '../lib/viewer.svelte.js';
   import { tip } from '../lib/shortcuts.js';
+  import { keyUiOpen } from '../lib/keys.svelte.js';
 
   let box = $state();
   const open = $derived(viewer.at >= 0);
@@ -16,7 +17,7 @@
     const prev = document.activeElement;
     queueMicrotask(() => box?.querySelector('[data-cmd="sheet-close"]')?.focus());
     const onkey = (e) => {
-      if (e.key === 'Escape') {
+      if (e.key === 'Escape' && !keyUiOpen()) {
         e.stopPropagation();
         e.preventDefault();
         closeImage();

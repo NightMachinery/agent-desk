@@ -1,7 +1,16 @@
 <script>
   // A modal sheet: slides up from the bottom on a phone, a centred card on
-  // a wide screen. Escape or a tap outside closes it.
-  let { open = $bindable(false), title, children } = $props();
+  // a wide screen. Escape (once out of any field) or a tap outside closes
+  // it. Every modal is one: the keymap acts on what has role="dialog"
+  // (keys.svelte.js), and the key UI (hints, the guide) draws above it. A
+  // native dialog element shown as a modal would sit in the browser's top
+  // layer, over that UI and making it inert.
+  // done: the label of the close button in its head; '' leaves it out, for a
+  // sheet with its own Cancel (tag that data-cmd="sheet-close", so q and C-g
+  // still close it). width: the card's width on a wide screen, in pixels.
+  import { keyUiOpen, typing } from '../lib/keys.svelte.js';
+
+  let { open = $bindable(false), title, done = 'Done', width = 420, children } = $props();
   let box = $state();
 
   // Rendered under <body>, not where it is declared: an ancestor that makes a
@@ -17,7 +26,9 @@
     const prev = document.activeElement;
     queueMicrotask(() => box?.querySelector('button, select, input, textarea')?.focus());
     const onkey = (e) => {
-      if (e.key === 'Escape') {
+      // Escape in a field leaves the field first, as everywhere (the keymap
+      // does that); with key UI up it closes that. Then it closes the sheet.
+      if (e.key === 'Escape' && !keyUiOpen() && !typing(document.activeElement)) {
         e.stopPropagation();
         open = false;
       }
@@ -33,11 +44,11 @@
 {#if open}
   <div class="sheet-wrap" {@attach portal}>
     <button data-keys="none" class="scrim" aria-label="Close" onclick={() => (open = false)}></button>
-    <div class="sheet" role="dialog" aria-modal="true" aria-label={title} bind:this={box}>
+    <div class="sheet" role="dialog" aria-modal="true" aria-label={title} style:--sheet-width="{width}px" bind:this={box}>
       <div class="grab" aria-hidden="true"></div>
       <div class="head">
         <h3>{title}</h3>
-        <button data-cmd="sheet-close" class="btn ghost small" onclick={() => (open = false)}>Done</button>
+        {#if done}<button data-cmd="sheet-close" class="btn ghost small" onclick={() => (open = false)}>{done}</button>{/if}
       </div>
       <div class="content">{@render children()}</div>
     </div>
@@ -62,7 +73,7 @@
   }
   .sheet {
     position: relative;
-    width: min(420px, calc(100vw - 32px));
+    width: min(var(--sheet-width), calc(100vw - 32px));
     max-height: min(640px, 85vh);
     overflow: auto;
     background: var(--panel);

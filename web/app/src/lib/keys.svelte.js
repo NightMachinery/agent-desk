@@ -38,6 +38,11 @@ export const keys = $state({
   tick: 0, // bumped by every key, so derived labels recompute
 });
 
+/** Whether key UI is up (hints, the palette, the guide, describe-key, a
+ * sequence half typed). It takes Escape before the sheet under it does, so
+ * Escape closes it and leaves the sheet open. */
+export const keyUiOpen = () => !!(keys.hints || keys.palette || keys.help || keys.capture || keys.pending.length);
+
 /** What the keymap needs from the app. App.svelte fills it in. */
 export const ctx = {
   refresh() {},
@@ -436,6 +441,9 @@ export function onkeydown(e) {
   // A focused button or link keeps Enter, unless it is a list row.
   if (tok === 'RET' && !keys.pending.length && el instanceof HTMLElement && el.matches('a[href], button, summary') && !el.matches('[data-item]'))
     return;
+  // A focused radio keeps its arrows: they pick the next option of its group
+  // (in a sheet, <up> and <down> would only move the focus).
+  if (!keys.pending.length && el instanceof HTMLInputElement && el.type === 'radio' && /^<(up|down|left|right)>$/.test(tok)) return;
   if (!keys.pending.length && /^[0-9]$/.test(tok) && (tok !== '0' || keys.count)) {
     keys.count += tok;
     e.preventDefault();
