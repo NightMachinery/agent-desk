@@ -90,6 +90,20 @@
     readNow();
   });
 
+  // A read item listed only because of its draft: once the draft goes
+  // (Discard, an emptied box, a send), its row is kept like one just read,
+  // dimmed once you move on and gone after the linger time, instead of
+  // dropping out at the next reload. Not a question: Needs you lists those.
+  let draftSeen = { display: '', on: false };
+  $effect(() => {
+    void draftTick;
+    if (!it) return;
+    const display = it.display_id, on = hasDraft(display);
+    const was = draftSeen.display === display && draftSeen.on;
+    draftSeen = { display, on };
+    if (was && !on && untrack(() => !it.unread && !isQuestion)) hold(e.id, display);
+  });
+
   /** Mark the open item read, as opening it does (or another, by its full
    * and display ids). */
   function readNow(id = e.id, display = it.display_id) {
@@ -274,13 +288,19 @@
     });
   }
 
-  // Discarding a draft is done with the item, like sending. It is read at
-  // once, even a deliverable still waiting to be opened or a deferred item,
-  // and its row stays listed for the linger time like any row read by
-  // opening it. Not a question: reading one dismisses it, and its agent
-  // still waits for the answer. The ref is taken when the draft is
-  // discarded, as the page may have moved on by then; the function returns
-  // what Undo runs with the draft back, which leaves the item unread again.
+  // Discarding a draft is done with the item, like sending: move on the
+  // same way, with Undo bringing the draft back here. It reads nothing by
+  // itself: an item opening would have read is read then, by the effect
+  // above, and a deliverable still waiting to be opened stays unread.
+  function discarded(restore) {
+    moveOn('Draft discarded.', restore, ui.nextAfterMessage);
+  }
+
+  // "Discard and mark read" (Mark read on an item with a draft) does read
+  // it, deliverables waiting to be opened included, as Mark read does. The
+  // ref is taken when it is offered, as the page may have moved on by the
+  // click; the function returns what Undo runs with the draft back, which
+  // leaves the item unread again.
   const discardRef = () => ({ id: e.id, display: it.display_id, unread: !!it.unread && !isQuestion });
   function readDiscarded({ id, display, unread }) {
     if (!unread) return () => {};
@@ -293,11 +313,6 @@
         .then(() => onchange())
         .catch((err) => toast(err.message, 'error'));
     };
-  }
-  // Then move on the same way, with Undo bringing the draft back here.
-  function discarded(restore) {
-    const unread = readDiscarded(discardRef());
-    moveOn('Draft discarded.', () => (restore(), unread()), ui.nextAfterMessage);
   }
   async function answer(text, opts = {}) {
     const { id } = e;

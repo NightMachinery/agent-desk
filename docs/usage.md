@@ -701,15 +701,14 @@ many stayed), and its own Mark read button says why and offers to discard.
 Opening an unread item still reads it at once, so a draft started after
 that keeps it listed but read. **Discard** (the trash icon) beside a box with a draft drops
 it everywhere, with Undo (`SPC i x`); on a question it drops your picks and
-notes with the text. Sending reads an unread item, as opening it would
-have. Discarding reads it at once, even a deliverable still waiting for you
-to open what it delivers, or a deferred item, though not a question (reading
-one would dismiss it, and its agent still waits for your answer); the
-"Discard and mark read" offer on Mark read does the same. Its row then
-stays listed, dimmed, for the time set under Settings ("Keep a read item in
-the list for"), like any item read by opening it. Discarding also moves on
-to the next open item as sending does; Undo brings the draft back and
-leaves the item unread again.
+notes with the text. Sending or discarding reads an unread item only if
+opening it would have: a deliverable still waiting for you to open what it
+delivers stays unread. An item that was already read, listed only because
+of its draft, is then kept like one just read: in place while open, dimmed
+once you move on, and gone after the time set under Settings ("Keep a read
+item in the list for"). Discarding moves on to the next open item as
+sending does (Undo brings the draft back). The "Discard and mark read" offer
+on Mark read does read the item, deliverables included, as Mark read does.
 
 An item shows its conversation under it: your messages and answers, each
 with what happened to it ("joined the running turn", "queued, position 2",
