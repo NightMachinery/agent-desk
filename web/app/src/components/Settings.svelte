@@ -12,6 +12,7 @@
   import NavSettings from './NavSettings.svelte';
   import { off, BUSY } from '../lib/why.js';
   import { keyFor } from '../lib/keys.svelte.js';
+  import { failed } from '../lib/errors.svelte.js';
   const lingerChoices = [0, 15, 30, 60, 120, 300];
   const lingerText = (n) => (n === 0 ? 'Drop it at once' : n < 60 ? `${n} seconds` : n === 60 ? '1 minute' : `${n / 60} minutes`);
 
@@ -48,7 +49,7 @@
       await post('dashboard-prefs', { key: 'task-changes', data });
       tc = { ...tc, ...data };
     } catch (err) {
-      toast(err.message, 'error');
+      failed(err);
     }
   }
   $effect(() => {
@@ -62,7 +63,7 @@
       org = { ...org, ...data };
       setTimeout(loadOrg, 800); // turning it on renders at once
     } catch (err) {
-      toast(err.message, 'error');
+      failed(err);
     }
   }
   async function renderOrg() {
@@ -71,7 +72,7 @@
       org = await post('render', {});
       toast(`Org files rendered in ${org.took_ms} ms.`, 'ok');
     } catch (err) {
-      toast(err.message, 'error');
+      failed(err);
     } finally {
       orgBusy = false;
     }
@@ -143,7 +144,7 @@
       await load();
       onchange();
     } catch (e) {
-      toast(e.message, 'error');
+      failed(e);
     } finally {
       busy = false;
     }

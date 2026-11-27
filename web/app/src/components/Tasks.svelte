@@ -19,6 +19,7 @@
   import { off, BUSY } from '../lib/why.js';
   import { listDrafts, loadDraft, saveDraft, clearDraft, discardDrafts } from '../lib/drafts.js';
   import { untrack } from 'svelte';
+  import { failed } from '../lib/errors.svelte.js';
 
   let { path = '', stamp = '', runs = [], adding = $bindable(false) } = $props();
 
@@ -108,7 +109,7 @@
       toast(`Tags saved: ${t.display_id}.`, 'ok', 3000);
       await load();
     } catch (err) {
-      toast(err.message, 'error');
+      failed(err);
     } finally {
       busy = '';
     }
@@ -128,7 +129,7 @@
       if (reopening === t.event.id) reopening = '';
       await load();
     } catch (err) {
-      toast(err.message, 'error');
+      failed(err);
     } finally {
       busy = '';
     }
@@ -362,7 +363,7 @@
       adding = false;
       await load();
     } catch (err) {
-      toast(err.message, 'error', 9000);
+      failed(err);
     } finally {
       filing = false;
     }

@@ -569,6 +569,13 @@ deferred looks so, and a sent or discarded draft stops saying Draft. The page
 keeps showing it while the desk catches up, so nothing flickers back; if the
 desk refuses, the item goes back to what the desk says.
 
+When something you asked for fails, a sheet says what could not be done and
+why (the desk was not reached, refused it, or failed), with the desk's own
+message, and offers what can be done: **Retry** where sending it again is
+safe, **Back to the box** for a message or answer the desk refused (the text
+returns to its box), **Copy log** (what failed and the last requests, to
+paste to an agent or into an issue) and **Dismiss**.
+
 The sidebar's Focus list switches the focus between your project sets (see
 Project sets and the focus); the gear beside Focus edits the focused set (or
 the first one), and creates others, by ticking projects, or runs or roles

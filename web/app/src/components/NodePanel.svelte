@@ -17,6 +17,7 @@
   import { chooseSendCache, warmSendCache } from '../lib/cache.svelte.js';
   import { desk } from '../lib/desk.svelte.js';
   import { archiveAgent } from '../lib/agents.js';
+  import { failed } from '../lib/errors.svelte.js';
 
   // conversations: the node's threads, one per message sent to it about no
   // item, newest first (api/view). The panel does not list them: a message
@@ -48,7 +49,7 @@
     const page = route.path;
     const choice = await chooseSendCache('reply', to);
     if (choice === 'cancel' || route.path !== page) return false;
-    return queueMessage('reply', { to, ...body, ...(choice === 'compact' && { after_compaction: true }) });
+    return queueMessage('reply', { to, ...body, ...(choice === 'compact' && { after_compaction: true }) }, to, { box: 'node:' + to });
   }
   // Something typed is about to be sent: ask now whether the coordinator's
   // cache is cold, so Send acts at once.
@@ -71,7 +72,7 @@
       toast(res.note || 'Marked read.', 'ok');
       onchange();
     } catch (err) {
-      toast(err.message, 'error');
+      failed(err);
     }
   }
 </script>

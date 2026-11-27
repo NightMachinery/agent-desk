@@ -2,6 +2,7 @@
 // it if it is running; messaging it from the desk later revives it.
 import { post } from './api.js';
 import { toast } from './toast.svelte.js';
+import { failed } from './errors.svelte.js';
 
 /** Asks, then archives. Resolves true once archived. */
 export async function archiveAgent(paseo, title = '') {
@@ -12,7 +13,7 @@ export async function archiveAgent(paseo, title = '') {
     toast(res.note || `Archived ${name}.`, 'ok', 6000);
     return true;
   } catch (err) {
-    toast(err.message, 'error', 9000);
+    failed(err);
     return false;
   }
 }

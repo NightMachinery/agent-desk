@@ -8,6 +8,7 @@
   import { toast } from '../lib/toast.svelte.js';
   import { brave, copyPushLogs, ensureRegistered, pushSupported, subscribeHere } from '../lib/push.js';
   import { off, BUSY } from '../lib/why.js';
+  import { failed } from '../lib/errors.svelte.js';
 
   const KEY = 'agent-desk:push-nudge-off';
   const QUIET = 30 * 24 * 3600 * 1000;
@@ -45,7 +46,7 @@
       show = false;
       toast('Push is on for this device. Settings has a Test button.', 'ok');
     } catch (e) {
-      toast(e.message, 'error', 12000, { label: 'Copy logs', run: copyPushLogs });
+      failed(e, 'turn push on for this device', { actions: [{ label: 'Copy push logs', run: copyPushLogs }] });
     } finally {
       busy = false;
     }

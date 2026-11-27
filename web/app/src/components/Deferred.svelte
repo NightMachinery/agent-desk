@@ -7,6 +7,7 @@
   import { toast } from '../lib/toast.svelte.js';
   import { tip } from '../lib/shortcuts.js';
   import { off, BUSY } from '../lib/why.js';
+  import { failed } from '../lib/errors.svelte.js';
 
   let { tasks = [], launch = { ready: false, max: 3 }, base = '', onchange } = $props();
   let picked = $state(new Set());
@@ -32,7 +33,7 @@
       picked = new Set();
       onchange?.();
     } catch (e) {
-      toast(e.message, 'error', 9000);
+      failed(e);
       onchange?.();
     } finally {
       busy = false;

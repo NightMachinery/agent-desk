@@ -9,6 +9,7 @@
   import { copy } from '../lib/format.js';
   import { brave, braveSetting, copyPushLogs, current, ensureRegistered, idOf, ios, pushSupported, subscribeHere } from '../lib/push.js';
   import { off, BUSY } from '../lib/why.js';
+  import { failed } from '../lib/errors.svelte.js';
 
   let { stamp = '' } = $props();
 
@@ -51,7 +52,7 @@
       await load();
     } catch (e) {
       failure = { message: e.message, raw: e.raw ?? '' };
-      toast(e.message, 'error', 12000, { label: 'Copy logs', run: copyLogs });
+      failed(e, 'turn push on for this device', { actions: [{ label: 'Copy push logs', run: copyLogs }] });
     } finally {
       busy = false;
     }
@@ -67,7 +68,7 @@
       toast('Push is off for this device.', 'ok');
       await load();
     } catch (e) {
-      toast(e.message, 'error');
+      failed(e);
     } finally {
       busy = false;
     }
@@ -79,7 +80,7 @@
       toast(action === 'test' ? 'Sent. It should appear within a few seconds.' : 'Removed.', 'ok');
       await load();
     } catch (e) {
-      toast(e.message, 'error');
+      failed(e);
       await load();
     } finally {
       busy = false;

@@ -18,6 +18,7 @@ import {
   keys, ctx, command, pane, paneEl, cmdEl, say, dialog, moveFocus, focusables, startHints, openPalette, setKeymap,
   commands, commandItems, keysOf, keyFor, applies, describeKey, describeCommand, setVisual, syncMode, selectedField, selectField,
 } from './keys.svelte.js';
+import { failed } from './errors.svelte.js';
 
 // --- helpers -----------------------------------------------------------------
 
@@ -435,7 +436,7 @@ C('org-render', 'Render the org files now (inbox, boards, ledger)', async () => 
     const r = await post('render', {});
     toast(`Org files rendered in ${r.took_ms} ms.`, 'ok');
   } catch (err) {
-    toast(err.message, 'error');
+    failed(err);
   }
 });
 C('org-export', 'Export the whole desk as one .org file', () => download(exportHref()));

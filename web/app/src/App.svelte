@@ -21,6 +21,7 @@
   import Sidebar from './components/Sidebar.svelte';
   import ListPane from './components/ListPane.svelte';
   import ColdCacheDialog from './components/ColdCacheDialog.svelte';
+  import ErrorSheet from './components/ErrorSheet.svelte';
   import { watchCache } from './lib/cache.svelte.js';
   import Settings from './components/Settings.svelte';
   import SetEditor from './components/SetEditor.svelte';
@@ -209,6 +210,7 @@
 </script>
 
 <ColdCacheDialog />
+<ErrorSheet />
 
 <svelte:window {onkeydown} />
 

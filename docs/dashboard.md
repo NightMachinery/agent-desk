@@ -59,6 +59,23 @@ the desk at once (`saveDraft`), and its row stops saying Draft through the
 same changes; and the cold-cache question is asked while the user types
 (`warmSendCache`), so Send has its answer.
 
+## When something fails
+
+A failed request the user made opens the error sheet
+(`components/ErrorSheet.svelte`) rather than a toast: catch it and call
+`failed(err)` from `lib/errors.svelte.js`. The sheet says what could not be
+done ("Couldn't pin it", from the request's name, or the phrase passed as
+the second argument), why in words (the desk was not reached, refused it,
+or failed), the desk's own message, and offers Dismiss, Copy log, Retry
+when the request is safe to send again (`AGAIN` in `lib/api.js`, or a
+`retry` passed in), and any `actions` the caller passes, such as the
+outbox's Back to the box for a refused message. The same failure again
+counts instead of stacking. `lib/api.js` keeps the last 40 requests;
+Copy log puts the failure, the page, the build and the last 25 of them
+(long arguments cut short) on the clipboard. Toasts with kind `error` stay
+for what is not a failed request: input to fix, a clipboard the browser
+refused.
+
 ## Looking at a change
 
 Check a change in a real browser, on a desk of fabricated data, before

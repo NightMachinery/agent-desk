@@ -18,6 +18,7 @@
   import { toast } from '../lib/toast.svelte.js';
   import { copy, short } from '../lib/format.js';
   import { off, BUSY } from '../lib/why.js';
+  import { failed } from '../lib/errors.svelte.js';
 
   let { stamp = '', path = '', collapsed = false, count = $bindable(0), hiddenCount = $bindable(0) } = $props();
   let data = $state({ agents: [], profiles: [] });
@@ -109,7 +110,7 @@
       if (!dismissed) showDismissed = false;
     } catch (err) {
       setHidden(targets, !hidden);
-      toast(err.message, 'error', 9000);
+      failed(err);
     } finally {
       revision++;
       busy = '';
@@ -144,7 +145,7 @@
       toast(res.note || label, 'ok', 6000);
       await load(true);
     } catch (err) {
-      toast(err.message, 'error', 9000);
+      failed(err);
     } finally {
       busy = '';
     }

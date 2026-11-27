@@ -4,6 +4,7 @@
 import { get, post } from './api.js';
 import { toast } from './toast.svelte.js';
 import { normNav, isDefaultNav } from './moveon.js';
+import { failed } from './errors.svelte.js';
 const KEY = 'agent-desk.ui';
 
 function load() {
@@ -154,7 +155,7 @@ export async function setSectionOrder(order) {
   } catch (e) {
     ui.sectionOrder = before;
     saveUI();
-    toast(`The order was not saved: ${e.message}`, 'error');
+    failed(e, 'save the section order');
   }
 }
 
@@ -169,6 +170,6 @@ export async function setNav(change) {
   } catch (e) {
     ui.nav = before;
     saveUI();
-    toast(`The auto-navigation order was not saved: ${e.message}`, 'error');
+    failed(e, 'save the auto-navigation order');
   }
 }

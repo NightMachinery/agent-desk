@@ -1,6 +1,8 @@
 import { SvelteMap } from 'svelte/reactivity';
 import { post } from './api.js';
 import { toast } from './toast.svelte.js';
+import { failed } from './errors.svelte.js';
+import { saveDraft } from './drafts.js';
 
 const prefix = 'agent-desk:send:';
 const messages = new SvelteMap();
@@ -57,11 +59,13 @@ export function startOutbox(onRecorded) {
 }
 
 /** quiet skips the "queued" toast, for a caller that shows its own; change
- * is the page change (pending.svelte.js) the message stands for. */
-export function queueMessage(kind, body, target = body.id || body.to, { quiet = false, change = null } = {}) {
+ * is the page change (pending.svelte.js) the message stands for; box, the
+ * draft key of the box it was typed in, where a refused message can go
+ * back. */
+export function queueMessage(kind, body, target = body.id || body.to, { quiet = false, change = null, box = '' } = {}) {
   const bytes = crypto.getRandomValues(new Uint8Array(16));
   const key = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
-  const message = { key, kind, target, body: { ...body, send_key: key }, time: Date.now() };
+  const message = { key, kind, target, box, body: { ...body, send_key: key }, time: Date.now() };
   try {
     save(message);
   } catch {
@@ -90,6 +94,14 @@ export function acknowledgeMessages(entries) {
       messages.delete(key);
     }
   }
+}
+
+/** Drops a queued message without sending it. */
+export function dropMessage(key) {
+  remove(key);
+  messages.delete(key);
+  changes.get(key)?.failed();
+  changes.delete(key);
 }
 
 export function retryPost(key) {
@@ -133,7 +145,11 @@ async function send(message) {
     if (blocked) {
       changes.get(message.key)?.failed();
       changes.delete(message.key);
-      toast(err.message, 'error');
+      // The desk refused it (sending it again would not help): offer to put
+      // the text back in its box, dropping the queued copy.
+      const { box } = message;
+      const text = message.body.text;
+      failed(err, '', { actions: box && text ? [{ label: 'Back to the box', run: () => (saveDraft(box, text), dropMessage(message.key)) }] : [] });
     }
   } finally {
     clearTimeout(timer);

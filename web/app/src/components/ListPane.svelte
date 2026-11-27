@@ -27,6 +27,7 @@
   import { hasDraft } from '../lib/drafts.js';
   import { runCommand, keymap } from '../lib/keys.svelte.js';
   import { off } from '../lib/why.js';
+  import { failed } from '../lib/errors.svelte.js';
 
 
   let { view, error, onmenu, onchange } = $props();
@@ -123,13 +124,13 @@
             await act(targets, { unread: true }, [], () => post('unread', { targets }));
             onchange?.();
           } catch (err) {
-            toast(err.message, 'error');
+            failed(err);
           }
         },
       });
       onchange?.();
     } catch (err) {
-      toast(err.message, 'error');
+      failed(err);
     }
   }
   // Folded sections drop out of j/k and previous/next, and so do the

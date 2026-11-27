@@ -3,6 +3,7 @@
   import { cache, refreshCache } from '../lib/cache.svelte.js';
   import { toast } from '../lib/toast.svelte.js';
   import { off, BUSY } from '../lib/why.js';
+  import { failed } from '../lib/errors.svelte.js';
 
   let { paseo, showUnavailable = false } = $props();
   let busy = $state(false);
@@ -32,7 +33,7 @@
       await refreshCache();
     } catch (err) {
       control.value = agent?.policy || 'off';
-      toast(err.message, 'error');
+      failed(err);
     } finally {
       busy = false;
     }

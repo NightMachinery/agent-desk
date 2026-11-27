@@ -7,6 +7,7 @@ import { post } from './api.js';
 import { route } from './route.svelte.js';
 import { act, READ_LEAVES } from './pending.svelte.js';
 import { toast } from './toast.svelte.js';
+import { failed } from './errors.svelte.js';
 
 // `mode` is selection mode, from the Select button or a long press: rows show
 // checkboxes and a tap selects instead of opening.
@@ -73,7 +74,7 @@ export async function markSelected(read, onchange, qs = 0) {
     clear();
     onchange();
   } catch (err) {
-    toast(err.message, 'error');
+    failed(err);
   }
 }
 
@@ -87,7 +88,7 @@ export async function deferSelected(on, onchange) {
     clear();
     onchange();
   } catch (err) {
-    toast(err.message, 'error');
+    failed(err);
   }
 }
 
@@ -101,6 +102,6 @@ export async function pinSelected(pin, onchange) {
     clear();
     onchange();
   } catch (err) {
-    toast(err.message, 'error');
+    failed(err);
   }
 }

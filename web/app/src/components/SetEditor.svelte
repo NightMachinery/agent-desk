@@ -11,6 +11,7 @@
   import { untrack } from 'svelte';
   import { off, BUSY } from '../lib/why.js';
   import { ancestors, buildTree, marks, search, under, words } from '../lib/settree.js';
+  import { failed } from '../lib/errors.svelte.js';
 
   let { sets = [], paths = [], onchange } = $props();
 
@@ -100,7 +101,7 @@
       setsUi.open = false;
       onchange?.();
     } catch (e) {
-      toast(e.message, 'error', 8000);
+      failed(e);
     } finally {
       busy = false;
     }
@@ -115,7 +116,7 @@
       setsUi.open = false;
       onchange?.();
     } catch (e) {
-      toast(e.message, 'error', 8000);
+      failed(e);
     } finally {
       busy = false;
     }

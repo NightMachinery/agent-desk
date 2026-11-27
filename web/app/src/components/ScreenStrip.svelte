@@ -4,6 +4,7 @@
   import { post } from '../lib/api.js';
   import { toast } from '../lib/toast.svelte.js';
   import { agentName } from '../lib/format.js';
+  import { failed } from '../lib/errors.svelte.js';
 
   let { screens = [], host = '', onchange } = $props();
   const held = $derived(screens.filter((s) => s.held));
@@ -15,7 +16,7 @@
       toast('Took the screen back. The banner is down.', 'ok');
       onchange();
     } catch (err) {
-      toast(err.message, 'error');
+      failed(err);
     }
   }
 </script>

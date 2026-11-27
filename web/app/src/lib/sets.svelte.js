@@ -2,6 +2,7 @@
 // and the notifications), kept on the desk itself.
 import { post } from './api.js';
 import { toast } from './toast.svelte.js';
+import { failed } from './errors.svelte.js';
 
 // The set editor's sheet; name is the set being edited, '' for a new one.
 export const setsUi = $state({ open: false, name: '' });
@@ -18,7 +19,7 @@ export async function focusOn(name, onchange) {
     toast(name ? `Focus: ${name}. Only its items show and notify.` : 'Focus off: everything shows.', 'ok');
     onchange?.();
   } catch (e) {
-    toast(e.message, 'error', 8000);
+    failed(e);
   }
 }
 

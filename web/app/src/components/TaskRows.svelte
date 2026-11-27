@@ -11,6 +11,7 @@
   import { toldText } from '../lib/taskstatus.js';
   import ReopenForm from './ReopenForm.svelte';
   import { off, BUSY } from '../lib/why.js';
+  import { failed } from '../lib/errors.svelte.js';
 
   let { path = '', stamp = '', base = '', collapsed = false, span = 0, count = $bindable(0), ids = $bindable([]), onchange } = $props();
 
@@ -97,7 +98,7 @@
       await load();
       onchange?.();
     } catch (err) {
-      toast(err.message, 'error');
+      failed(err);
     } finally {
       busy = '';
     }

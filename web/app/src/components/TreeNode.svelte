@@ -7,6 +7,7 @@
   import { stateClass } from '../lib/format.js';
   import { post } from '../lib/api.js';
   import { toast } from '../lib/toast.svelte.js';
+  import { failed } from '../lib/errors.svelte.js';
 
   let { node } = $props();
   const status = $derived(node.slots?.find((s) => s.name === 'status')?.event?.body || '');
@@ -32,7 +33,7 @@
       const res = await post('read', { target: node.path });
       toast(res.note || `Marked ${node.name} read.`, 'ok');
     } catch (err) {
-      toast(err.message, 'error');
+      failed(err);
     }
   }
   const label = $derived(

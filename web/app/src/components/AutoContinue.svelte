@@ -9,6 +9,7 @@
   import { toast } from '../lib/toast.svelte.js';
   import { off, BUSY } from '../lib/why.js';
   import { tip } from '../lib/shortcuts.js';
+  import { failed } from '../lib/errors.svelte.js';
 
   let { paseo = '' } = $props();
   /** @typedef {{available: boolean, on: boolean, set_by?: string, default?: {key: string, on: boolean, scope: string, orphan?: boolean, origin?: {source: string, scope?: string}}}} ACState */
@@ -49,7 +50,7 @@
       toast(res.note || 'It follows its default again.', 'ok');
       await load();
     } catch (err) {
-      toast(err.message, 'error');
+      failed(err);
     } finally {
       busy = false;
     }
@@ -63,7 +64,7 @@
       toast(on ? 'Auto-continue on: it resumes when its quota returns.' : 'Auto-continue off.', 'ok');
       await load();
     } catch (err) {
-      toast(err.message, 'error');
+      failed(err);
     } finally {
       busy = false;
     }

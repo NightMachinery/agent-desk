@@ -31,6 +31,7 @@
   import ReplyingTo from './ReplyingTo.svelte';
   import { focusBoxIn, replyRef } from '../lib/replyto.js';
   import { off } from '../lib/why.js';
+  import { failed } from '../lib/errors.svelte.js';
 
   let { item, error, onchange } = $props();
 
@@ -137,7 +138,7 @@
     }
     act([display], { unread: false }, [], () => post('read', { target: display }))
       .then(() => onchange())
-      .catch((err) => toast(err.message, 'error'));
+      .catch((err) => failed(err));
   }
 
   /** A deliverable waiting to be opened is read when the user opens what it
@@ -175,7 +176,7 @@
       toast(on ? 'Pinned to the top.' : 'Unpinned.', 'ok');
       onchange();
     } catch (err) {
-      toast(err.message, 'error');
+      failed(err);
     }
   }
 
@@ -192,10 +193,10 @@
       if (on && autoRead.has(e.id) && !it.unread) await post('unread', { id: display });
       const waits = isQuestion && !item.answered ? (e.level === 'blocked' ? ' The agent stays blocked until you answer.' : ' The agent goes ahead with its default unless you answer.') : '';
       toast(on ? `Deferred: folded under Deferred in its section until you undefer it.${waits}` : 'Back in its section.', 'ok', on ? 7000 : 3000,
-        on ? { label: 'Undo', run: () => act([display], { deferred: false }, [], () => post('undefer', { id: display })).then(onchange, (err) => toast(err.message, 'error')) } : undefined);
+        on ? { label: 'Undo', run: () => act([display], { deferred: false }, [], () => post('undefer', { id: display })).then(onchange, (err) => failed(err)) } : undefined);
       onchange();
     } catch (err) {
-      toast(err.message, 'error');
+      failed(err);
     }
   }
 
@@ -244,7 +245,7 @@
       reopening = '';
       onchange();
     } catch (err) {
-      toast(err.message, 'error', 9000);
+      failed(err);
       onchange();
     }
   }
@@ -255,7 +256,7 @@
       moveOn(action === 'grant' ? 'Approved: the agent has the screen.' : 'Denied.');
       onchange();
     } catch (err) {
-      toast(err.message, 'error');
+      failed(err);
     }
   }
 
@@ -313,7 +314,7 @@
       release(id);
       act([display], { unread: true }, [], () => post('unread', { id: display }))
         .then(() => onchange())
-        .catch((err) => toast(err.message, 'error'));
+        .catch((err) => failed(err));
     };
   }
   // A box with something in it is about to be sent: ask now whether the
@@ -331,7 +332,7 @@
     if (choice === 'cancel' || route.item !== page) return false;
     // The question looks answered at once: out of Needs you, no Draft.
     const shownAnswered = change([it.display_id], { answered: true, draft: false, unread: false }, ['needs']);
-    const queued = queueMessage('answer', { id, text, ...opts, ...(choice === 'compact' && { after_compaction: true }) }, id, { quiet: true, change: shownAnswered });
+    const queued = queueMessage('answer', { id, text, ...opts, ...(choice === 'compact' && { after_compaction: true }) }, id, { quiet: true, change: shownAnswered, box: 'answer:' + it.display_id });
     if (!queued) shownAnswered.failed();
     if (queued) {
       clearDraft('choices:' + it.display_id);
@@ -344,7 +345,7 @@
     const page = route.item;
     const choice = await chooseSendCache('reply', to);
     if (choice === 'cancel' || route.item !== page) return false;
-    const queued = queueMessage('reply', { to, text, ...opts, ...(choice === 'compact' && { after_compaction: true }) }, to, { quiet: ui.nextAfterMessage });
+    const queued = queueMessage('reply', { to, text, ...opts, ...(choice === 'compact' && { after_compaction: true }) }, to, { quiet: ui.nextAfterMessage, box: 'reply:' + it.display_id });
     if (queued && to !== e.id) replyingTo = null;
     if (queued && ui.nextAfterMessage) moveOn(`Message on ${it.display_id} queued.`, null, true);
     return queued;
@@ -381,7 +382,7 @@
       else if (!question) toast(read ? 'Marked read.' : 'Marked unread.', 'ok');
       onchange();
     } catch (err) {
-      toast(err.message, 'error');
+      failed(err);
     }
   }
   // A deliverable's Works, beside Send: the message starts "This worked.",

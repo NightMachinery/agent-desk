@@ -9,6 +9,7 @@ import { get } from './api.js';
 import { chooseSendCache } from './cache.svelte.js';
 import { queueMessage } from './outbox.svelte.js';
 import { toast } from './toast.svelte.js';
+import { failed } from './errors.svelte.js';
 
 /** Ask about the task with event id `id`, shown as `display`. */
 export async function askStatus(id, display) {
@@ -16,7 +17,7 @@ export async function askStatus(id, display) {
   try {
     target = await get('target', { to: id });
   } catch (err) {
-    toast(`Nobody to ask about ${display}: ${err.message}`, 'error', 9000);
+    failed(err, `find who to ask about ${display}`);
     return false;
   }
   const choice = await chooseSendCache('reply', id);

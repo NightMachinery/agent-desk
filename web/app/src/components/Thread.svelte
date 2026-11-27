@@ -15,6 +15,7 @@
   import { toast } from '../lib/toast.svelte.js';
   import { acknowledgeMessages, retryPost } from '../lib/outbox.svelte.js';
   import { off } from '../lib/why.js';
+  import { failed } from '../lib/errors.svelte.js';
 
   // onread(display) marks an entry read: a deliverable in the conversation
   // is read when its Open is used or it is dismissed, as on its own page.
@@ -68,7 +69,7 @@
       const res = await post('deliver', { id, force, failure_id: failureID });
       toast(res.status === 'delivered' ? 'Already delivered.' : 'Retry queued.', 'info');
     } catch (e) {
-      toast(e.message, 'error');
+      failed(e);
     } finally {
       retrying = '';
     }
@@ -88,7 +89,7 @@
         toast(res.status === 'delivered' ? 'Already delivered.' : 'Queued without the recording.', 'info');
       }
     } catch (err) {
-      toast(err.message, 'error');
+      failed(err);
     } finally {
       retrying = '';
     }
