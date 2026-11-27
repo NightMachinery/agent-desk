@@ -90,10 +90,10 @@
     readNow();
   });
 
-  /** Mark the open item read, as opening it does. */
-  function readNow() {
-    autoRead.add(e.id);
-    const id = e.id, display = it.display_id;
+  /** Mark the open item read, as opening it does (or another, by its full
+   * and display ids). */
+  function readNow(id = e.id, display = it.display_id) {
+    autoRead.add(id);
     // Held first: the live stream can reload the list before this request
     // returns, and the row must not drop out meanwhile.
     hold(id, display);
@@ -274,10 +274,30 @@
     });
   }
 
-  // Discarding a draft is done with the item, like sending: move on the
-  // same way, with Undo bringing the draft back here.
+  // Discarding a draft is done with the item, like sending. It is read at
+  // once, even a deliverable still waiting to be opened or a deferred item,
+  // and its row stays listed for the linger time like any row read by
+  // opening it. Not a question: reading one dismisses it, and its agent
+  // still waits for the answer. The ref is taken when the draft is
+  // discarded, as the page may have moved on by then; the function returns
+  // what Undo runs with the draft back, which leaves the item unread again.
+  const discardRef = () => ({ id: e.id, display: it.display_id, unread: !!it.unread && !isQuestion });
+  function readDiscarded({ id, display, unread }) {
+    if (!unread) return () => {};
+    cancelArrival(display);
+    readNow(id, display);
+    return () => {
+      autoRead.delete(id);
+      release(id);
+      post('unread', { id: display })
+        .then(() => onchange())
+        .catch((err) => toast(err.message, 'error'));
+    };
+  }
+  // Then move on the same way, with Undo bringing the draft back here.
   function discarded(restore) {
-    moveOn('Draft discarded.', restore, ui.nextAfterMessage);
+    const unread = readDiscarded(discardRef());
+    moveOn('Draft discarded.', () => (restore(), unread()), ui.nextAfterMessage);
   }
   async function answer(text, opts = {}) {
     const { id } = e;
@@ -303,12 +323,13 @@
   }
   async function mark(read) {
     if (read && !isQuestion && hasDraft(it.display_id)) {
-      const display = it.display_id;
+      const ref = discardRef();
       toast('It has a draft, so it stays unread until you send or discard it.', 'info', 8000, {
         label: 'Discard and mark read',
         run: () => {
-          const restore = discardDrafts(itemDraftKeys(display));
-          toast('Draft discarded.', 'ok', 8000, { label: 'Undo', run: restore });
+          const restore = discardDrafts(itemDraftKeys(ref.display));
+          const unread = readDiscarded(ref);
+          toast('Draft discarded.', 'ok', 8000, { label: 'Undo', run: () => (restore(), unread()) });
         },
       });
       return;
