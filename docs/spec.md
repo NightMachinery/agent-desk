@@ -476,7 +476,9 @@ hooks that file on the agent's behalf (2026-11-15). So:
   close it.
 
 No hook files questions, notices or slots; do not add one. The single
-approved hook, deferred to phase 8, copies the user's own messages.
+approved hook, deferred to phase 8, copies the user's own messages. It may
+also print a reminder into the prompt (an agent with no started task;
+docs/usage.md, "Reminders to agents"), which files nothing.
 
 ## Answer delivery
 

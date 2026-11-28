@@ -159,7 +159,8 @@ entry reuses the letter of its short key (`p` pins, so `SPC b p` pins).
   Verbatim log here or everywhere, `t` / `T` Tasks here or everywhere, `r`
   recordings, `o` the order of the list's sections (in Settings, with the
   first handle focused; `↑` / `↓` on a handle move its section), `n` the
-  auto-navigation order (the same, for its kinds), `f` edit focus sets.
+  auto-navigation order (the same, for its kinds), `a` reminders to agents
+  and the prompt templates (in Settings), `f` edit focus sets.
 - `SPC q`: the session: `r` reload the page (also `g R`), `s` take the screen
   back from an agent holding the lock.
 - `SPC s s` search, `SPC s c` clear the search; `/` searches too.

@@ -67,7 +67,8 @@ func (s *server) apiDashboardPrefs(w http.ResponseWriter, r *http.Request) {
 // "sections" is the list's sections in order, each named once; "render"
 // is when the server renders the org files (orgfiles.go); "task-changes"
 // is whether and when it tells agents of the user's task changes
-// (taskchanges.go); "nav" is auto-navigation's order (navPrefs).
+// (taskchanges.go); "nav" is auto-navigation's order (navPrefs);
+// "reminders" is which reminders agents get, and on what (reminders.go).
 func (s *server) apiDashboardPrefPut(_ *App, body request) (any, error) {
 	switch body.Key {
 	case "sections":
@@ -106,8 +107,14 @@ func (s *server) apiDashboardPrefPut(_ *App, body request) (any, error) {
 				return nil, err
 			}
 		}
+	case "reminders":
+		if len(body.Data) > 0 && string(body.Data) != "null" {
+			if err := checkReminderPrefs(body.Data); err != nil {
+				return nil, err
+			}
+		}
 	default:
-		return nil, usagef("the shared dashboard settings are sections, render, task-changes and nav")
+		return nil, usagef("the shared dashboard settings are sections, render, task-changes, nav and reminders")
 	}
 	st, err := s.a.store()
 	if err != nil {

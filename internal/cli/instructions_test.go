@@ -27,6 +27,8 @@ func TestInstructionHook(t *testing.T) {
 		}
 	}
 
+	// Reminders off: this is about recording (reminders_test.go has them).
+	setReminders(t, h, `{"no_task": {"on": false}, "velocity": {"on": false}}`)
 	hook("before joining: not recorded")
 	h.ok(a, "", "join", "r1/coord")
 	typed := deskMessage(t, h, a)

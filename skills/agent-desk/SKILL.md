@@ -264,7 +264,7 @@ diary. A text over the limit is refused: shorten it.
   session: recent pace, where tokens went (rework, polling, idle waits,
   oversized contexts, review fan-outs), and one to three suggestions. Base
   it on what you observed, write "unknown" rather than guess, and update it
-  at milestones.
+  at milestones; `task done` says when it is due.
 - **Pins**, any other slug (15 lines): something the user wants kept in
   view, such as a results table, the numbers they are watching or a link to
   the current draft. Make one when they ask to keep something in sight, or

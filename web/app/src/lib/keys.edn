@@ -141,6 +141,7 @@
   "SPC o r" :recordings
   "SPC o o" :section-order
   "SPC o n" :nav-order
+  "SPC o a" :reminders
   "SPC o f" :edit-sets
 
   ; SPC q: the session.

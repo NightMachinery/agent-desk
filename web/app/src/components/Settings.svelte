@@ -10,6 +10,7 @@
   import PushSettings from './PushSettings.svelte';
   import SectionOrder from './SectionOrder.svelte';
   import NavSettings from './NavSettings.svelte';
+  import PromptEditor from './PromptEditor.svelte';
   import { off, BUSY } from '../lib/why.js';
   import { keyFor } from '../lib/keys.svelte.js';
   import { failed } from '../lib/errors.svelte.js';
@@ -52,9 +53,39 @@
       failed(err);
     }
   }
+  // Reminders to agents (reminders.go): which are on, and on what; shared
+  // by every device. Their templates, and every other prompt the desk
+  // sends, are files on this machine (api/prompts).
+  const hourChoices = [0, 1, 3, 6, 12, 24];
+  const hourText = (n) => (n === 0 ? 'every time' : n === 1 ? '1 hour' : `${n} hours`);
+  let rem = $state(/** @type {any} */ (null));
+  let prompts = $state(/** @type {any[]} */ ([]));
+  async function loadRem() {
+    try {
+      rem = await get('reminders');
+    } catch {
+      rem = null;
+    }
+    try {
+      prompts = (await get('prompts')).prompts ?? [];
+    } catch {
+      prompts = [];
+    }
+  }
+  async function saveRem(part, over) {
+    const data = { ...rem, [part]: { ...rem[part], ...over } };
+    try {
+      await post('dashboard-prefs', { key: 'reminders', data });
+      rem = data;
+    } catch (err) {
+      failed(err, 'save the reminders');
+    }
+  }
+  const reminderNames = ['nag-no-task.md', 'nag-velocity.md'];
+  const promptAt = (name) => prompts.findIndex((x) => x.name === name);
   $effect(() => {
     stamp;
-    if (!path) loadOrg(), loadTc();
+    if (!path) loadOrg(), loadTc(), loadRem();
   });
   async function saveOrg(over) {
     const data = { enabled: org.enabled, debounce: org.debounce, ...over };
@@ -294,6 +325,49 @@
         <span class="faint">Cannot read this setting from the desk.</span>
       {/if}
     </div>
+    <div class="key" id="reminders">
+      <div class="key-head">
+        <span class="key-name">Reminders to agents</span>
+        <span class="mono faint">every device</span>
+      </div>
+      {#if rem}
+        <div class="sub">No started task</div>
+        <label class="check"><input type="checkbox" data-cmd="reminders" checked={rem.no_task.on} onchange={(e) => saveRem('no_task', { on: e.currentTarget.checked })} /> When a message reaches an agent with no started task at its node, add one line asking it to file and start one. On:</label>
+        <div class="occasions">
+          {#each [['user', 'messages you type'], ['desk', 'your answers and messages from the desk'], ['heartbeat', 'Paseo heartbeats and schedules'], ['agent', 'messages from other agents']] as [k, label] (k)}
+            <label class="check"><input type="checkbox" checked={rem.no_task[k]} disabled={!rem.no_task.on} onchange={(e) => saveRem('no_task', { [k]: e.currentTarget.checked })} /> {label}</label>
+          {/each}
+        </div>
+        <div class="origin"><span class="faint">Never on cache keepalive pings, <code>/compact</code> and other slash commands, harness notices or the auto-continue ping. It comes from the prompt hook (<code>agent-desk hook prompt</code>), which adds its output to the message.</span></div>
+        {#if promptAt('nag-no-task.md') >= 0}<PromptEditor bind:prompt={prompts[promptAt('nag-no-task.md')]} />{/if}
+        <div class="sub">Velocity</div>
+        <label class="check"><input type="checkbox" checked={rem.velocity.on} onchange={(e) => saveRem('velocity', { on: e.currentTarget.checked })} /> When a coordinator marks a task done, ask it to update its velocity slot when the slot is missing or older than</label>
+        <select class="input" aria-label="How old the velocity slot may be before the reminder" value={rem.velocity.hours} {...off(undefined, [!rem.velocity.on, 'Turn on the velocity reminder first'])} onchange={(e) => saveRem('velocity', { hours: +e.currentTarget.value })}>
+          {#each [...new Set([...hourChoices, rem.velocity.hours])].sort((a, b) => a - b) as n (n)}<option value={n}>{hourText(n)}</option>{/each}
+        </select>
+        <div class="origin"><span class="faint">A coordinator holds a run's top node, or a node with nodes under it. <code>agent-desk task done</code> prints the line to it.</span></div>
+        {#if promptAt('nag-velocity.md') >= 0}<PromptEditor bind:prompt={prompts[promptAt('nag-velocity.md')]} />{/if}
+      {:else}
+        <span class="faint">Cannot read this setting from the desk.</span>
+      {/if}
+    </div>
+    {#if prompts.length}
+      <div class="key" id="prompts">
+        <div class="key-head">
+          <span class="key-name">Other prompts the desk sends</span>
+          <span class="mono faint">this machine</span>
+        </div>
+        <div class="origin"><span class="faint">Go templates. Your copy of one, saved here or written by hand, replaces the built-in one on this machine.</span></div>
+        {#each prompts as p, i (p.name)}
+          {#if !reminderNames.includes(p.name)}
+            <details class="more-prompt">
+              <summary><span class="mono">{p.name}</span>{#if p.overridden} <span class="chip">your copy</span>{/if}</summary>
+              <PromptEditor bind:prompt={prompts[i]} />
+            </details>
+          {/if}
+        {/each}
+      </div>
+    {/if}
   {/if}
 </div>
 
@@ -308,6 +382,22 @@
   }
   .err {
     color: var(--blocked);
+  }
+  .sub {
+    margin-top: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--muted);
+  }
+  .occasions {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-left: 20px;
+  }
+  .more-prompt summary {
+    cursor: pointer;
+    font-size: 13px;
   }
   .check {
     display: flex;

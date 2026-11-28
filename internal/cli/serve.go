@@ -211,6 +211,9 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("POST /api/draft", s.action(s.apiDraftPut))
 	mux.HandleFunc("GET /api/dashboard-prefs", s.apiDashboardPrefs)
 	mux.HandleFunc("POST /api/dashboard-prefs", s.action(s.apiDashboardPrefPut))
+	mux.HandleFunc("GET /api/reminders", s.apiReminders)
+	mux.HandleFunc("GET /api/prompts", s.apiPrompts)
+	mux.HandleFunc("POST /api/prompt", s.action(s.apiPromptPut))
 	mux.HandleFunc("GET /api/auto-continue", s.apiAutoContinue)
 	mux.HandleFunc("GET /api/render", s.apiRender)
 	mux.HandleFunc("POST /api/render", s.action(s.apiRenderNow))
@@ -334,6 +337,9 @@ type request struct {
 	Device string          `json:"device"`
 	// dashboard-prefs: Key names the shared setting, Data is its JSON.
 	Data json.RawMessage `json:"data"`
+	// prompt: Name (with Text) saves the user's copy of a prompt; Reset
+	// removes it.
+	Reset bool `json:"reset"`
 }
 
 func (r request) notify() (map[string]string, error) {

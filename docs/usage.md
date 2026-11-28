@@ -1521,12 +1521,48 @@ Install it as a `UserPromptSubmit` hook. Claude Code (`settings.json`):
       "command": "agent-desk hook prompt --agent claude", "timeout": 10}]}]}}
 
 Codex (`hooks.json`, same shape) uses `--agent codex`. The hook prints
-nothing and always exits 0; its errors go to `hook-errors.log` in the store
-directory. In `config.toml`:
+nothing but a reminder (below) and always exits 0; its errors go to
+`hook-errors.log` in the store directory. In `config.toml`:
 
     [instructions]
     record = false                  # turn it off
     skip = ['^PING ', '^Nightly:']  # more prompts that are not the user's
+
+## Reminders to agents
+
+Two reminders keep agents' desk records current. Each is one line the desk
+prints at the moment it matters; neither files anything.
+
+- **No started task.** When a message reaches an agent that holds a node
+  with no started task, the prompt hook above adds a line asking it to file
+  a task and start it (naming up to three open ones). By default it comes on
+  messages you type, your answers and messages from the desk, and Paseo
+  heartbeats and schedules; messages from other agents are off. It never
+  comes on cache keepalive pings, `/compact` and other bare slash commands,
+  harness notices, the auto-continue ping, or prompts matching
+  `[instructions] skip`. It does not depend on `record`: with recording off
+  the reminder still comes. Claude Code adds a `UserPromptSubmit` hook's
+  output to the message.
+- **Velocity.** When a coordinator runs `task done`, the command also prints
+  a line asking it to update its velocity slot, if the slot is missing or
+  older than 3 hours. A coordinator here is an agent holding a run's top
+  node (`project/run/role`, not `adhoc`), or a node with nodes under it.
+
+Settings (global), **Reminders to agents** (`SPC o a`), turns each on or
+off, picks the occasions and the hours, and shows each reminder's template
+with an editor. The setting is kept in the desk (the dashboard setting
+`reminders`), so the hook reads it without the server.
+
+The templates are `internal/prompts/nag-no-task.md` and
+`nag-velocity.md`, Go templates whose opening comment lists their fields.
+A file of the same name in `~/.config/agent-desk/prompts/` replaces the
+built-in one; Settings saves that copy when you edit, and **Back to
+built-in** deletes it. Saving refuses a template that does not parse or
+names a field the reminder does not have; a copy broken by hand is skipped
+for the built-in one, with a line in `hook-errors.log`. **Other prompts the
+desk sends**, below it, does the same for the rest (`task-changes.md`,
+`velocity-report.md` and others). Templates are files on the machine
+running the desk, so each machine has its own.
 
 ## Several machines
 

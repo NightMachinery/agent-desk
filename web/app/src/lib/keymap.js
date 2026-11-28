@@ -490,6 +490,7 @@ function orderCard(cmd) {
 }
 C('section-order', "Order the list's sections (Settings; every device)", () => orderCard('section-order'));
 C('nav-order', 'Auto-navigation: order the kinds n and moving on go to first (Settings; every device)', () => orderCard('nav-order'));
+C('reminders', 'Reminders to agents and the prompt templates the desk sends (Settings)', () => orderCard('reminders'));
 C('nav-order-reset', 'Auto-navigation: put the kinds back in the default order', () => setNav({ kinds: null }));
 C('nav-views', 'Auto-navigation: toggle fewer views first', () => {
   setNav({ views: !ui.nav.views });

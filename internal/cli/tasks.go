@@ -321,7 +321,15 @@ func (a *App) taskMark(sub string, args []string) error {
 		e.Ref = next.Event.ID
 		evs = append(evs, e)
 	}
-	return a.commit(evs, "")
+	if err := a.commit(evs, ""); err != nil {
+		return err
+	}
+	// A coordinator that finished a task hears when its velocity slot is due.
+	if sub == "done" && isAgent(from) {
+		t, _ := a.task(d, o.pos[len(o.pos)-1])
+		printReminder(a.Stderr, a.velocityReminder(d, from, t.ID))
+	}
+	return nil
 }
 
 // isAgent reports whether from is an agent session, not the user at a shell

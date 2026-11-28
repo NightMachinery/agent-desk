@@ -68,8 +68,9 @@ type hookInput struct {
 }
 
 // cmdHook is the entry point for agent hooks. It never fails the hook and
-// prints nothing: a UserPromptSubmit hook's output is added to the prompt.
-// Errors go to hook-errors.log in the store directory.
+// prints nothing but a reminder (reminders.go): a UserPromptSubmit hook's
+// output is added to the prompt. Errors go to hook-errors.log in the store
+// directory.
 func (a *App) cmdHook(args []string) error {
 	o, err := parse(args, nil, []string{"agent"}, 1, 1)
 	if err != nil {
@@ -105,14 +106,16 @@ func (a *App) hookPrompt(agent string) error {
 	if err != nil {
 		return err
 	}
-	if c.Instructions.Off() {
-		return nil
-	}
 	extra, err := c.Instructions.SkipPatterns()
 	if err != nil {
 		return err
 	}
-	if isAutomated(in.Prompt, extra) {
+	// Two jobs: record the user's own messages, and remind an agent with no
+	// started task, on the occasions the "reminders" setting names. Each
+	// runs without the other.
+	record := !c.Instructions.Off() && !isAutomated(in.Prompt, extra)
+	occasion := promptOccasion(in.Prompt, extra)
+	if !record && occasion == "" {
 		return nil
 	}
 	env := a.hookEnv(agent, in)
@@ -135,9 +138,27 @@ func (a *App) hookPrompt(agent string) error {
 	}
 	held := a.heldFrom(events, from)
 	if len(held) == 0 {
-		return nil // only sessions on the desk keep their instructions
+		return nil // only sessions on the desk keep their instructions or get reminders
 	}
-	text := strings.TrimSpace(in.Prompt)
+	if record {
+		if err := a.recordInstruction(st, from, held, in.Prompt); err != nil {
+			return err
+		}
+	}
+	if occasion != "" && reminderPrefsFrom(st).noTaskOn(occasion) {
+		text, err := a.noTaskReminder(st, held, occasion)
+		if err != nil {
+			return err
+		}
+		printReminder(a.Stdout, text)
+	}
+	return nil
+}
+
+// recordInstruction keeps the user's message under every node the session
+// holds.
+func (a *App) recordInstruction(st *store.Store, from ident.From, held []store.Event, prompt string) error {
+	text := strings.TrimSpace(prompt)
 	extraMeta := map[string]any{}
 	if len(text) > MaxInstruction {
 		text = strings.ToValidUTF8(text[:MaxInstruction], "") + "\n[cut: longer than 256 KiB]"
