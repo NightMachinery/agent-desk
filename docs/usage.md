@@ -1116,6 +1116,13 @@ dashboard, needs neither.
 - `--parent w-...` makes it a step of another task, so a milestone holds
   its items. The parent's page in the dashboard lists its steps, finished
   ones too, with a box to mark each done.
+- `--steps` files the task and its steps in one call: stdin holds one step
+  per line (blank lines and list marks such as `-`, `1.` or `[ ]` are
+  dropped), the brief comes from `--brief TEXT`, and the output is the
+  task's id, then each step's id and title. Steps of a task filed with
+  `--defer` are parked with it; `--quota` does not take steps.
+- `task done w-... --note '...' --start w-...` (or `task drop`) finishes one
+  task and starts the next in one write.
 - `--tag ui --tag phone` (or `--tag 'ui, phone'`) adds free tags beside the
   type: lowercase, a letter or digit then letters, digits, `. _ / -`, at
   most 12. `task tag w-... desk` and `task untag w-... phone` change them

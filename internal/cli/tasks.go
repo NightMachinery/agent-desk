@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -57,7 +58,7 @@ func (a *App) cmdTask(args []string) error {
 }
 
 func (a *App) taskAdd(args []string) error {
-	o, err := parse(args, []string{"defer", "quota"}, []string{"title", "brief", "size", "profile", "priority", "cwd", "node", "project", "type", "parent", "tag"}, 0, 0)
+	o, err := parse(args, []string{"defer", "quota", "steps"}, []string{"title", "brief", "size", "profile", "priority", "cwd", "node", "project", "type", "parent", "tag"}, 0, 0)
 	if err != nil {
 		return err
 	}
@@ -116,7 +117,27 @@ func (a *App) taskAdd(args []string) error {
 	// (--defer, --quota): an agent's shell may hold stdin open, and reading
 	// it unasked would hang.
 	brief := o.vals["brief"]
-	if brief == "-" || ((m.Deferred || m.Later) && !o.set["brief"]) {
+	fromStdin := brief == "-" || ((m.Deferred || m.Later) && !o.set["brief"])
+	var steps []string
+	if o.bools["steps"] {
+		switch {
+		case m.Deferred:
+			return usagef("--steps does not go with --quota: the brief is the plan, and the agent that takes the task files its own steps")
+		case fromStdin:
+			return usagef("--steps reads the steps from stdin, so give the brief as --brief TEXT")
+		}
+		text, err := a.stdinText()
+		if err != nil {
+			return err
+		}
+		if steps = stepLines(text); len(steps) == 0 {
+			return usagef("--steps found no steps on stdin: write one per line")
+		}
+		if len(steps) > MaxSteps {
+			return usagef("--steps takes at most %d steps; this has %d", MaxSteps, len(steps))
+		}
+	}
+	if fromStdin {
 		if brief, err = a.stdinText(); err != nil {
 			return err
 		}
@@ -132,7 +153,9 @@ func (a *App) taskAdd(args []string) error {
 	if brief == "" && m.Parent == "" && isAgent(ident.Resolve(a.Env)) {
 		return usagef("task add needs --brief: a short executive summary the user reads under the title (what and why, one to three sentences; --brief - reads it from stdin). A step under --parent may go without one")
 	}
-	build := func(from ident.From, node string) store.Event {
+	// The task, then each step under it (a step is a task with a parent),
+	// parked with it when it is filed deferred.
+	build := func(from ident.From, node string) []store.Event {
 		if m.Cwd == "" && m.Deferred {
 			m.Cwd = from.Cwd
 		}
@@ -141,27 +164,83 @@ func (a *App) taskAdd(args []string) error {
 		_ = json.Unmarshal(b, &extra)
 		e := a.event("task", node, from, "cli", extra)
 		e.Title, e.Body = title, brief
-		return e
+		evs := []store.Event{e}
+		for _, st := range steps {
+			sm := map[string]any{"parent": e.ID}
+			if m.Later {
+				sm["later"] = true
+			}
+			se := a.event("task", node, from, "cli", sm)
+			se.Title = st
+			evs = append(evs, se)
+		}
+		return evs
 	}
-	nodeArg := strings.Trim(o.vals["node"], "/")
-	if nodeArg != "" {
-		// A node this session holds (also relative to its project), else
-		// filed by the user, or for another node, by its full path.
-		from := ident.Resolve(a.Env)
-		d, err := a.load()
+	var filed []store.Event
+	err = func() error {
+		nodeArg := strings.Trim(o.vals["node"], "/")
+		if nodeArg != "" {
+			// A node this session holds (also relative to its project), else
+			// filed by the user, or for another node, by its full path.
+			from := ident.Resolve(a.Env)
+			d, err := a.load()
+			if err != nil {
+				return err
+			}
+			if _, err := pickHeld(heldPaths(a.held(d, from)), nodeArg); err != nil {
+				if strings.Count(nodeArg, "/") < 2 {
+					return usagef("--node is a full node path: project/run/role, or a node this session holds")
+				}
+				filed = build(from, nodeArg)
+				return a.commit(filed, filed[0].ID)
+			}
+		}
+		return a.agentWrite(o.vals["project"], nodeArg, "task add", func(from ident.From, node string, _ *desk.Desk) ([]store.Event, error) {
+			filed = build(from, node)
+			return filed, nil
+		})
+	}()
+	if err != nil || len(filed) < 2 {
+		return err
+	}
+	// The task's id is printed; each step's follows, with its title.
+	st, err := a.store()
+	if err != nil {
+		return err
+	}
+	for _, e := range filed[1:] {
+		display, err := st.DisplayID(e)
 		if err != nil {
 			return err
 		}
-		if _, err := pickHeld(heldPaths(a.held(d, from)), nodeArg); err != nil {
-			if strings.Count(nodeArg, "/") < 2 {
-				return usagef("--node is a full node path: project/run/role, or a node this session holds")
+		fmt.Fprintf(a.Stdout, "  %s %s\n", display, e.Title)
+	}
+	return nil
+}
+
+// MaxSteps bounds the steps task add --steps files at once.
+const MaxSteps = 50
+
+var stepMark = regexp.MustCompile(`^(?:[-*+]|\d+[.)]|\[[ xX]?\])\s+`)
+
+// stepLines are the steps in text, one per line: blank lines skipped, and a
+// list mark (-, *, 1., [ ]) taken off, so a pasted checklist works too.
+func stepLines(text string) []string {
+	var out []string
+	for _, l := range strings.Split(text, "\n") {
+		l = strings.TrimSpace(l)
+		for {
+			t := stepMark.ReplaceAllString(l, "")
+			if t == l {
+				break
 			}
-			return a.commit1(build(from, nodeArg))
+			l = strings.TrimSpace(t)
+		}
+		if l != "" {
+			out = append(out, l)
 		}
 	}
-	return a.agentWrite(o.vals["project"], nodeArg, "task add", func(from ident.From, node string, _ *desk.Desk) ([]store.Event, error) {
-		return []store.Event{build(from, node)}, nil
-	})
+	return out
 }
 
 var markState = map[string]string{
@@ -170,11 +249,14 @@ var markState = map[string]string{
 }
 
 func (a *App) taskMark(sub string, args []string) error {
-	o, err := parse(args, []string{"quota"}, []string{"note"}, 1, -1)
+	o, err := parse(args, []string{"quota"}, []string{"note", "start"}, 1, -1)
 	if err != nil {
 		return err
 	}
 	state := markState[sub]
+	if o.set["start"] && sub != "done" && sub != "drop" {
+		return usagef("--start goes with task done or task drop: finish one task and start the next")
+	}
 	if o.bools["quota"] {
 		if sub != "defer" {
 			return usagef("--quota goes with task defer")
@@ -213,6 +295,30 @@ func (a *App) taskMark(sub string, args []string) error {
 		}
 		e := a.event("taskstate", t.Event.Path, from, "cli", extra)
 		e.Ref, e.Body = t.Event.ID, note
+		evs = append(evs, e)
+	}
+	if tok := strings.TrimSpace(o.vals["start"]); o.set["start"] {
+		if tok == "" {
+			return usagef("--start needs the id of the task to start next")
+		}
+		next, err := a.task(d, tok)
+		if err != nil {
+			return err
+		}
+		for _, e := range evs {
+			if e.Ref == next.Event.ID {
+				return usagef("--start names %s, which this command finishes", next.ID)
+			}
+		}
+		if !next.Active() {
+			return usagef("%s is %s: reopen it first (agent-desk task reopen %s)", next.ID, next.State, next.ID)
+		}
+		extra := map[string]any{"state": desk.TaskStarted}
+		if from.Session != "" {
+			extra["agent"] = agentLabel(from)
+		}
+		e := a.event("taskstate", next.Event.Path, from, "cli", extra)
+		e.Ref = next.Event.ID
 		evs = append(evs, e)
 	}
 	return a.commit(evs, "")

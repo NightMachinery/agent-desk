@@ -202,13 +202,20 @@ for `TASKS.org`, write it with `agent-desk task list --org --all > TASKS.org`.
 
     agent-desk task add --title 'Ship 1.4' --brief 'Release the loader fix and the new plots; users on 1.3 lose runs.'
     agent-desk task add --title 'Login fails on Android 15' --type bug --parent w-3k9d --tag android
+    agent-desk task add --title 'Rerun seeds' --brief 'The label fix changed the inputs.' --steps <<'S'
+    Rerun seeds 1 to 3
+    Rerun seeds 4 and 5
+    Write the table
+    S
     agent-desk task start w-8f2a
     agent-desk task done w-8f2a --note 'Table in results.md, seeds 1-5; checked against the logs.'
+    agent-desk task done w-8f2a --note '...' --start w-9c1e   # and start the next one
     agent-desk task drop w-8f2a --note 'Superseded by w-9c1e.'
     agent-desk task list [--all] [--type bug] [--tag android]
 
 - `--brief` is what and why in one to three sentences, shown under the
-  title. Every task needs one except a step (`--parent`).
+  title. Every task needs one except a step (`--parent`). `--steps` files
+  a step under the task for each line of stdin and prints their ids.
 - `--type` is `task` (the default), `bug`, `feature`, `idea` or `chore`.
   `--tag` adds free tags; `task tag|untag <id> TAG...` changes them later.
   `--priority` is 1 to 3, `--size` is S, M or L.
