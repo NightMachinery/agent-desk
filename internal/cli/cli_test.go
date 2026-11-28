@@ -731,6 +731,26 @@ func TestStandardSlotOrder(t *testing.T) {
 	}
 }
 
+// The retired next and done slots still take a set, which says where that
+// text belongs now; other slots say nothing.
+func TestRetiredSlotHint(t *testing.T) {
+	h := newHarness(t)
+	a := h.as(sessA)
+	h.ok(a, "", "join", "r1/coord")
+	for slot, want := range map[string]string{"next": "open and started tasks", "done": "finished tasks"} {
+		_, errOut, code := h.run(a, "", "set", slot, "x")
+		if code != 0 || !strings.Contains(errOut, want) || !strings.Contains(errOut, "clear "+slot) {
+			t.Fatalf("set %s: %d %q", slot, code, errOut)
+		}
+	}
+	if _, errOut, _ := h.run(a, "", "set", "findings", "x"); errOut != "" {
+		t.Fatalf("set findings printed %q", errOut)
+	}
+	if !strings.Contains(h.ok(nil, "", "show", "--format", "md"), "next") {
+		t.Fatal("the next slot was not written")
+	}
+}
+
 // A slot written with literal \n in one shell argument gets line breaks, both
 // when it is written and, for text already stored that way, when it is read.
 func TestSlotLiteralNewlines(t *testing.T) {

@@ -300,27 +300,33 @@ reference, and old files are deleted (see Attachments are temporary, below).
 
 Slots hold what is true now, not history:
 
-    agent-desk set status 'Seeds 3/5 done. ETA 14:00.'
+    agent-desk set status $'Seeds 3/5 done. ETA 14:00.\nWaiting: CI on a0be15b.'
     agent-desk set findings < findings.txt
-    agent-desk clear next
+    agent-desk clear findings
     agent-desk link tasks TASKS.org
 
 A linked slot shows the file as it is when read. Views show at most its first
 64 KB, cut at a line end, and only a note with the size for a binary file
 (link an APK and the board says so, without copying 40 MB into it).
 
-Every agent on a task of more than a few turns keeps three **standard** slots:
-`status` (now), `next` (the next steps) and `done` (results so far, with where
-they live). A coordinator also keeps `velocity`: its recent pace, where its
-tokens went, and one to three suggestions to improve either. The board shows
-these first, in that order, so every node reads the same.
+Every agent on a task of more than a few turns keeps `status`: what it is
+doing now, and on the second line a **wait**, anything it is blocked on that
+is not its own task (CI, a deploy, a quota reset, your answer to a question).
+What comes next is its open and started tasks, and what is finished is its
+finished tasks with their notes, so the `next` and `done` slots are retired:
+`set next` and `set done` still write, and say so. A coordinator also keeps
+`velocity`: its recent pace, where its tokens went, and one to three
+suggestions to improve either. Any other slot is a **pin**: something you
+asked an agent to keep in view, such as a results table or the numbers you
+are watching. The board shows `status` and `velocity` first, so every node
+reads the same.
 On the dashboard a `velocity` slot has an **Ask for a velocity report**
 button (`SPC n v`): it messages the agent with a prepared prompt asking for a
 short executive report on its pace and whether the work is progressing well
 (`reply --prompt velocity-report`; edit it by copying
 `internal/prompts/velocity-report.md` into `~/.config/agent-desk/prompts/`).
 
-Caps: `status` 2 lines, `next` 5, everything else 15. A `set` over its cap
+Caps: `status` 2 lines, everything else 15 (an old `next` slot, 5). A `set` over its cap
 fails, says by how much, and writes nothing. `tasks`, `user-verbatim` and
 `state` only take `link`: the board shows the linked file's current content.
 

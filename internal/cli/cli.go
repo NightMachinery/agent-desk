@@ -1102,11 +1102,19 @@ func (a *App) cmdWhoami(args []string) error {
 }
 
 // SlotCaps are the line caps of the conventional slots. Every agent keeps
-// status, next and done; a coordinator also keeps velocity.
+// status; a coordinator also keeps velocity. next and done are retired
+// (RetiredSlots) but keep their caps.
 var SlotCaps = map[string]int{"status": 2, "next": 5, "done": 15, "velocity": 15, "findings": 15, "artifacts": 15}
 
 // DefaultCap is the cap of any other slot.
 const DefaultCap = 15
+
+// RetiredSlots still take a set, which then says where their text belongs
+// now: tasks hold what comes next and what is finished.
+var RetiredSlots = map[string]string{
+	"next": "the next slot is retired: your open and started tasks say what comes next (agent-desk task add, task start), and a wait goes on the second line of status",
+	"done": "the done slot is retired: your finished tasks and their notes show on your node (agent-desk task done ID --note TEXT)",
+}
 
 // Reserved slots only ever link a file.
 var Reserved = map[string]bool{"tasks": true, "user-verbatim": true, "state": true}
@@ -1177,11 +1185,15 @@ func (a *App) cmdSet(args []string) error {
 	if agents {
 		extra = map[string]any{"audience": "agents"}
 	}
-	return a.agentWrite(o.vals["project"], o.vals["node"], "set", func(from ident.From, node string, _ *desk.Desk) ([]store.Event, error) {
+	err = a.agentWrite(o.vals["project"], o.vals["node"], "set", func(from ident.From, node string, _ *desk.Desk) ([]store.Event, error) {
 		e := a.event("set", node+"/"+name, from, "cli", extra)
 		e.Body = text
 		return []store.Event{e}, nil
 	})
+	if hint, ok := RetiredSlots[name]; ok && err == nil && !agents {
+		fmt.Fprintf(a.Stderr, "agent-desk: %s. Written anyway; agent-desk clear %s removes it.\n", hint, name)
+	}
+	return err
 }
 
 func (a *App) cmdClear(args []string) error {

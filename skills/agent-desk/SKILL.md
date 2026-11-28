@@ -23,7 +23,7 @@ messages are `m-...`, their answers `a-...`.
 4. Your checklist is desk tasks: `task add --brief`, `task start`,
    `task done --note`.
 5. Results go in `tell`, things to open in `deliverable`, the end in `done`.
-   Keep the `status` and `next` slots true.
+   Keep the `status` slot true; your tasks say what comes next.
 
 ## Who writes
 
@@ -240,29 +240,28 @@ the brief from stdin; otherwise give `--brief TEXT` (or `--brief -`).
 ## Slots: what is true now
 
 A slot is a named box at your node whose text you replace; the board shows
-the current text.
+the current text. Write what is true now, for someone arriving fresh: no
+diary. A text over the limit is refused: shorten it.
 
-    agent-desk set status 'Seeds 3/5 done. ETA 14:00.'
-    agent-desk set next $'Finish seeds 4 and 5.\nWrite the table.'   # $'...' for line breaks
-    agent-desk set findings < findings.txt
-    agent-desk clear next
+    agent-desk set status $'Running seeds 4 and 5.\nWaiting: CI on a0be15b, about 10 min.'   # $'...' for line breaks
+    agent-desk set eval-table < table.md
+    agent-desk clear eval-table
 
-On anything longer than a few turns, keep the standard slots so every node
-reads the same:
-
-- `status` (2 lines): what you are doing now.
-- `next` (5 lines): your next steps, in order.
-- `done` (15 lines): results so far, one line each with where it lives (a
-  commit, a path), newest first.
+- `status` (2 lines), on anything longer than a few turns: what you are
+  doing now. Its second line is for a **wait**, something you are blocked on
+  that is not your own task: CI, a deploy, a quota reset, the user's answer
+  to `q-...`. Your open and started tasks say what comes next, and finished
+  ones carry their notes, so keep no `next` or `done` slot.
 - `velocity` (15 lines), if you coordinate workers or a run longer than a
   session: recent pace, where tokens went (rework, polling, idle waits,
   oversized contexts, review fan-outs), and one to three suggestions. Base
   it on what you observed, write "unknown" rather than guess, and update it
   at milestones.
-
-Add others as they help (`findings`, `artifacts`, any slug; 15 lines). Write
-what is true now, for someone arriving fresh: no diary. Update a slot when
-its truth changes. A text over the limit is refused: shorten it.
+- **Pins**, any other slug (15 lines): something the user wants kept in
+  view, such as a results table, the numbers they are watching or a link to
+  the current draft. Make one when they ask to keep something in sight, or
+  when a result is worth seeing at a glance and keeps changing; update it
+  when its truth changes.
 
 **Notes for agents.** Run state you keep for yourself (decisions and their
 reasons, live workers and jobs, result paths, traps) can be a note only
