@@ -19,15 +19,27 @@ import (
 	"github.com/NightMachinery/agent-desk/internal/store"
 )
 
-// Out of quota: the Paseo agents stopped at a usage limit ([quota]
-// stopped_command lists them), with what the user can do about each: let it
-// resume itself when its quota returns (auto-continue), ask its parent to
-// hand its role to an agent with quota left, or start a new agent that
-// takes over from it.
+// Stopped agents: the Paseo agents stopped at a usage limit ([quota]
+// stopped_command lists them; the dashboard's Out of quota) and those whose
+// last turn failed with an error (Paseo's lastError; Stopped by an error),
+// with what the user can do about each: let it resume itself when its quota
+// returns (auto-continue), resume it now, ask its parent to hand its role to
+// another agent, or start a new agent that takes over from it.
+
+// Why an agent stopped (QuotaAgent.Why).
+const (
+	StoppedQuota = "quota" // at a usage limit
+	StoppedError = "error" // its last turn failed
+)
 
 // QuotaAgent is one stopped agent.
 type QuotaAgent struct {
-	Paseo      string     `json:"paseo"`
+	Paseo string `json:"paseo"`
+	Why   string `json:"why"` // StoppedQuota or StoppedError
+	// Error is what its failed turn said; Login, that it is a login error
+	// (the account is logged out), which only the user can fix.
+	Error      string     `json:"error,omitempty"`
+	Login      bool       `json:"login,omitempty"`
 	Title      string     `json:"title"`
 	Provider   string     `json:"provider"`
 	Model      string     `json:"model,omitempty"`    // as started, for Replace's defaults
@@ -81,35 +93,50 @@ func (a *App) paseoHome() string {
 }
 
 // quotaAgents lists the stopped agents, newest activity first.
+// quotaAgents lists the stopped agents: those stopped_command names (at a
+// usage limit), then every other one whose last turn failed.
 func (a *App) quotaAgents(ctx context.Context, d *desk.Desk, c config.Config) ([]QuotaAgent, error) {
 	out := []QuotaAgent{}
-	if c.Quota.StoppedCommand == "" {
-		return out, nil
-	}
-	text, err := a.runExt(ctx, nil, "sh", "-c", c.Quota.StoppedCommand)
-	if err != nil {
-		return nil, fmt.Errorf("stopped_command: %v", err)
-	}
 	stopped := map[string]bool{}
-	for _, l := range strings.Fields(text) {
-		stopped[l] = true
+	if c.Quota.StoppedCommand != "" {
+		text, err := a.runExt(ctx, nil, "sh", "-c", c.Quota.StoppedCommand)
+		if err != nil {
+			return nil, fmt.Errorf("stopped_command: %v", err)
+		}
+		for _, l := range strings.Fields(text) {
+			stopped[l] = true
+		}
 	}
-	auto, _ := a.autoContinueList(ctx, c)
-	hidden := a.quotaDismissed()
 	recs := ident.PaseoRecords(a.paseoHome())
 	byID := map[string]ident.PaseoAgent{}
+	why := map[string]string{}
 	for _, r := range recs {
 		byID[r.ID] = r
+		switch {
+		case stopped[r.ID]:
+			why[r.ID] = StoppedQuota
+		case strings.TrimSpace(r.LastError) != "":
+			why[r.ID] = StoppedError
+		}
 	}
+	if len(why) == 0 {
+		return out, nil
+	}
+	auto := map[string]bool{}
+	if len(stopped) > 0 {
+		auto, _ = a.autoContinueList(ctx, c)
+	}
+	hidden := a.quotaDismissed()
 	ref := func(id string) AgentRef { return AgentRef{Paseo: id, Title: byID[id].Title, Stopped: stopped[id]} }
 	nodes := a.paseoHeld(d, byID)
-	for id := range stopped {
-		r, ok := byID[id]
-		if !ok {
-			continue // archived since, or not this daemon's
-		}
-		q := QuotaAgent{Paseo: id, Title: r.Title, Provider: r.Provider, Model: r.Config.Model, Thinking: r.Config.Thinking, Cwd: r.Cwd, LastActive: r.LastActive,
+	for id, w := range why {
+		r := byID[id]
+		q := QuotaAgent{Paseo: id, Why: w, Title: r.Title, Provider: r.Provider, Model: r.Config.Model, Thinking: r.Config.Thinking, Cwd: r.Cwd, LastActive: r.LastActive,
 			Children: []AgentRef{}, Nodes: nodes(id), Scopes: []string{}, AutoContinue: auto[id]}
+		if w == StoppedError {
+			q.Error = strings.TrimSpace(r.LastError)
+			q.Login = LoginError.MatchString(q.Error)
+		}
 		if at, ok := hidden[id]; ok && at == r.LastActive {
 			q.Dismissed = true
 		}
@@ -176,6 +203,10 @@ func (a *App) paseoHeld(d *desk.Desk, byID map[string]ident.PaseoAgent) func(id 
 type quotaPromptData struct {
 	ID, Title, Cwd, Parent, Children, Node, Join, Project string
 	Nodes                                                 []promptNode
+	// Error is what its failed turn said, when it stopped with an error
+	// rather than at a usage limit; Login, that the error is a login one.
+	Error string
+	Login bool
 }
 
 // promptNode is a desk node in a prompt: its path, and the join arguments
@@ -185,7 +216,7 @@ type promptNode struct {
 }
 
 func promptData(q QuotaAgent) quotaPromptData {
-	p := quotaPromptData{ID: q.Paseo, Title: q.Title, Cwd: q.Cwd, Nodes: []promptNode{}}
+	p := quotaPromptData{ID: q.Paseo, Title: q.Title, Cwd: q.Cwd, Nodes: []promptNode{}, Error: q.Error, Login: q.Login}
 	if p.Title == "" {
 		p.Title = "untitled"
 	}
@@ -213,7 +244,7 @@ func promptData(q QuotaAgent) quotaPromptData {
 
 func (a *App) cmdQuota(args []string) error {
 	if len(args) == 0 {
-		return usagef("quota list | auto-continue on|off|default <paseo-id> | defaults [--dry-run] | dismiss|undismiss <paseo-id> | ask-parent <paseo-id> | replace <paseo-id> [--profile P]")
+		return usagef("quota list | auto-continue on|off|default <paseo-id> | defaults [--dry-run] | dismiss|undismiss <paseo-id> | resume <paseo-id> | ask-parent <paseo-id> | replace <paseo-id> [--profile P]")
 	}
 	switch args[0] {
 	case "list":
@@ -229,7 +260,7 @@ func (a *App) cmdQuota(args []string) error {
 			return json.NewEncoder(a.Stdout).Encode(qs)
 		}
 		if len(qs) == 0 {
-			fmt.Fprintln(a.Stdout, "(no agent is stopped at a usage limit)")
+			fmt.Fprintln(a.Stdout, "(no agent is stopped at a usage limit or by an error)")
 		}
 		for _, q := range qs {
 			extra := ""
@@ -251,6 +282,9 @@ func (a *App) cmdQuota(args []string) error {
 			}
 			if q.Dismissed {
 				extra += ", dismissed"
+			}
+			if q.Why == StoppedError {
+				extra += ", stopped by an error: " + clipLine(q.Error, 200)
 			}
 			fmt.Fprintf(a.Stdout, "%s  %s  (%s%s)\n", q.Paseo, q.Title, q.Provider, extra)
 		}
@@ -289,7 +323,7 @@ func (a *App) cmdQuota(args []string) error {
 			return err
 		}
 		return a.quotaDismiss(o.pos[0], args[0] == "dismiss")
-	case "ask-parent", "replace":
+	case "ask-parent", "replace", "resume":
 		o, err := parse(args[1:], []string{"dry-run"}, []string{"profile"}, 1, 1)
 		if err != nil {
 			return err
@@ -388,7 +422,7 @@ func (a *App) quotaSetDismissed(ids []string, on bool, stopped, displayed map[st
 			at, found = rec.LastActive, ok && rec.ID == id && rec.ArchivedAt == nil
 		}
 		if !found {
-			return fmt.Errorf("%s is not an agent stopped at a usage limit (agent-desk quota list)", id)
+			return fmt.Errorf("%s is not a stopped agent (agent-desk quota list)", id)
 		}
 		if snapshot, ok := displayed[id]; ok {
 			at = snapshot
@@ -426,8 +460,9 @@ func (a *App) quotaAutoContinue(id string, on bool) error {
 }
 
 // quotaAct asks the parent of stopped agent id to reassign its role
-// (ask-parent), or starts a new agent to take over from it (replace). It
-// returns what it did; with dryRun, the prompt it would send.
+// (ask-parent), starts a new agent to take over from it (replace), or tells
+// it to carry on (resume). It returns what it did; with dryRun, the prompt
+// it would send.
 func (a *App) quotaAct(action, id, profile string, dryRun bool) (string, error) {
 	qs, err := a.quotaLoad()
 	if err != nil {
@@ -440,7 +475,7 @@ func (a *App) quotaAct(action, id, profile string, dryRun bool) (string, error) 
 		}
 	}
 	if q == nil {
-		return "", fmt.Errorf("%s is not an agent stopped at a usage limit (agent-desk quota list)", id)
+		return "", fmt.Errorf("%s is not a stopped agent (agent-desk quota list)", id)
 	}
 	data := promptData(*q)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
@@ -457,11 +492,22 @@ func (a *App) quotaAct(action, id, profile string, dryRun bool) (string, error) 
 		if q.Parent.Stopped {
 			return "", fmt.Errorf("its parent %s is out of quota too", q.Parent)
 		}
-		out, err := a.runExt(ctx, nil, "paseo", "send", "--no-wait", "--json", q.Parent.Paseo, text)
-		if err != nil {
-			return "", fmt.Errorf("paseo send to %s: %v: %s", q.Parent.Paseo, err, clipLine(out, 300))
+		if err := a.paseoSend(ctx, q.Parent.Paseo, text); err != nil {
+			return "", err
+		}
+		if q.Why == StoppedError {
+			return "Asked " + q.Parent.String() + " to hand its role to another agent.", nil
 		}
 		return "Asked " + q.Parent.String() + " to hand its role to an agent with quota.", nil
+	case "resume":
+		text, err := prompts.Render(a.promptsDir(), "resume-agent.md", data)
+		if err != nil || dryRun {
+			return text, err
+		}
+		if err := a.paseoSend(ctx, id, text); err != nil {
+			return "", err
+		}
+		return "Told " + AgentRef{Paseo: id, Title: q.Title}.String() + " to carry on.", nil
 	case "replace":
 		text, err := prompts.Render(a.promptsDir(), "replace-agent.md", data)
 		if err != nil || dryRun {
@@ -482,5 +528,14 @@ func (a *App) quotaAct(action, id, profile string, dryRun bool) (string, error) 
 		}
 		return "Started " + lastLine(out) + " to take over from " + id + ".", nil
 	}
-	return "", usagef("quota action is ask-parent or replace")
+	return "", usagef("quota action is ask-parent, replace or resume")
+}
+
+// paseoSend sends text to the Paseo agent id as a new turn.
+func (a *App) paseoSend(ctx context.Context, id, text string) error {
+	out, err := a.runExt(ctx, nil, "paseo", "send", "--no-wait", "--json", id, text)
+	if err != nil {
+		return fmt.Errorf("paseo send to %s: %v: %s", id, err, clipLine(out, 300))
+	}
+	return nil
 }

@@ -252,6 +252,11 @@ button {
   color: var(--deliverable);
 }
 
+.count.stopped {
+  background: var(--blocked-soft);
+  color: var(--blocked);
+}
+
 .count.hot {
   background: var(--accent);
   color: #fff;

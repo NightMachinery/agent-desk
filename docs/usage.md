@@ -969,7 +969,8 @@ failure also go to `hooks.log` in the desk directory.
 A **setting** is a named value that the desk looks up for each event. You
 set it for a **scope**: everywhere, or one project, run or node path. A
 notification setting can also be set for one **class** of event:
-`ask-blocked`, `ask-default`, `response`, `tell-notify`, `tell` or `done`.
+`ask-blocked`, `stopped` (an agent stopped by an error), `ask-default`,
+`response`, `deliverable`, `tell-notify`, `tell` or `done`.
 
     agent-desk pref set deliver.behavior queue --scope example-proj
     agent-desk pref set notify.remote always --class ask-blocked
@@ -1303,6 +1304,38 @@ children, after a stack sample of each (macOS `sample`) is written to
 `hs` command has hung there before, leaving `screen take` and `release`
 processes behind for days; the samples are there to find out why.
 
+## Agents stopped by an error
+
+Above Out of quota, the dashboard's **Stopped by an error** section lists
+the Paseo agents whose last turn failed: Paseo keeps the error in the
+agent's record (`lastError`) until its next turn starts, so an agent listed
+here has done nothing since. Each card shows the error; a login error (the
+account is logged out, or its login expired or was refused: "Not logged in ·
+Please run /login", an expired OAuth token, a refresh token already used) is
+marked **logged out**, since only you can log the account in again. Agents
+at a usage limit stay under Out of quota. A card has the same Archive,
+Replace, Ask parent and Dismiss as there, and **Resume** (`c` in the
+section), which tells the agent to carry on with the turn that failed
+(prompt `internal/prompts/resume-agent.md`; for a login error, press it once
+the account is logged in again). From a terminal, `agent-desk quota list`
+lists these agents too ("stopped by an error: ..."), and `agent-desk quota
+resume <paseo-id> [--dry-run]` resumes one.
+
+Once per failed turn, the dashboard server files a notice about it: under
+the node the agent's session holds (else its nearest Paseo ancestor's), from
+that node's holder, so Reply on it reaches the agent (or the parent running
+it). Its notification class is `stopped`, which by default notifies like a
+blocking question: the desktop card on the machine it happened on, the
+remote channel when you are away, and Web Push always. Once the agent runs
+again, the desk marks the notice read, which takes the notification back.
+An agent on no desk node, or one that stopped more than a day before the
+server first saw it, is listed but not told.
+
+The server sees only what Paseo records as a failed turn. Claude Code ends
+some turns at an API error with an ordinary reply, which Paseo records as a
+finished turn (agent-quotas reads such a reply for usage limits); those
+stops are not listed.
+
 ## Agents out of quota
 
 Under Needs you, the dashboard's **Out of quota** section lists the Paseo
@@ -1414,12 +1447,15 @@ The same from a terminal:
     agent-desk quota auto-continue on|off|default <paseo-id>
     agent-desk quota defaults [--dry-run] [--quiet]        # apply the auto-continue settings now
     agent-desk quota ask-parent <paseo-id> [--dry-run]     # --dry-run prints the prompt
+    agent-desk quota resume <paseo-id> [--dry-run]         # an agent stopped by an error
     agent-desk quota replace <paseo-id> [--profile claude/opus@high] [--dry-run]
     agent-desk quota dismiss|undismiss <paseo-id>
 
-The two prompts are `internal/prompts/reassign-role.md` and
-`replace-agent.md` (Go templates); a file of the same name in
-`~/.config/agent-desk/prompts/` replaces either. They get `.Nodes`, the
+The prompts are `internal/prompts/reassign-role.md`, `replace-agent.md`
+and `resume-agent.md` (Go templates); a file of the same name in
+`~/.config/agent-desk/prompts/` replaces any of them. For an agent stopped
+by an error they also get `.Error`, what its failed turn said, and `.Login`,
+whether that is a login error. They get `.Nodes`, the
 agent's desk nodes (each with `.Path`, and `.Join` and `.Project` for `join`);
 `.Node`, `.Join` and `.Project` are the first of them, for prompts written
 when an agent held one. The list comes from

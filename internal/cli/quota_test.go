@@ -64,7 +64,7 @@ func TestQuota(t *testing.T) {
 	if !called("paseo send --no-wait --json " + parent + " Your subagent Eval worker") {
 		t.Fatalf("send: %v", *h.calls)
 	}
-	h.fails(env, "", "not an agent stopped", "quota", "ask-parent", parent)
+	h.fails(env, "", "is not a stopped agent", "quota", "ask-parent", parent)
 	out = h.ok(env, "", "quota", "replace", stopped, "--profile", "claude/opus@high")
 	if !strings.Contains(out, "Started 55555555-new to take over") ||
 		!called(`"profile":"claude/opus@high"`) || !called("paseo archive "+stopped) {
@@ -96,7 +96,7 @@ func TestQuota(t *testing.T) {
 	if _, body, _ := do(t, hd, "GET", "/api/quota?fresh=1", "", nil); strings.Contains(body, `"dismissed":true`) {
 		t.Fatalf("undismissed still hidden: %s", body)
 	}
-	h.fails(env, "", "not an agent stopped", "quota", "dismiss", parent)
+	h.fails(env, "", "is not a stopped agent", "quota", "dismiss", parent)
 }
 
 // An agent out of quota that holds several desk nodes: all are listed, it

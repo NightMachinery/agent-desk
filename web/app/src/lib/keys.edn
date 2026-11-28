@@ -317,6 +317,7 @@
  ; While focus is in the Out of quota section.
  :quota
  {"a"       :quota-archive
+  "c"       :quota-resume
   "r"       :quota-replace
   "d"       :quota-dismiss
   "p"       :quota-ask-parent

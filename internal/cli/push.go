@@ -171,9 +171,13 @@ func labelOf(s push.Sub) string {
 
 // pushTitles leads a notification's title, by class.
 var pushTitles = map[string]string{
-	"ask-blocked": "Blocked: ", "ask-default": "Question: ", "response": "Reply: ",
+	"ask-blocked": "Blocked: ", "stopped": "Stopped: ", "ask-default": "Question: ", "response": "Reply: ",
 	"tell-notify": "", "tell": "", "done": "Done: ", "deliverable": "Ready: ",
 }
+
+// blocks reports whether class is about an agent that cannot go on without
+// the user: its notification stays until dismissed, and is pushed urgently.
+func blocks(class string) bool { return class == "ask-blocked" || class == "stopped" }
 
 // pushRaise pushes e's notification and returns the notified event.
 func (a *App) pushRaise(d *desk.Desk, c config.Config, e store.Event, rt route) (store.Event, bool) {
@@ -190,9 +194,9 @@ func (a *App) pushRaise(d *desk.Desk, c config.Config, e store.Event, rt route) 
 		lines = append(lines, b)
 	}
 	n := pushNote{Type: "show", Tag: tag, Title: clipRunes(pushTitles[rt.class]+title, 120),
-		Body: clipRunes(strings.Join(lines, "\n"), 700), URL: itemHash(d, e), Sticky: rt.class == "ask-blocked"}
+		Body: clipRunes(strings.Join(lines, "\n"), 700), URL: itemHash(d, e), Sticky: blocks(rt.class)}
 	m := push.Message{TTL: 24 * time.Hour, Urgency: "normal", Topic: pushTopic(tag)}
-	if rt.class == "ask-blocked" {
+	if blocks(rt.class) {
 		m.TTL, m.Urgency = 72*time.Hour, "high"
 	}
 	sent, err := a.pushSend(c, n, m, "")

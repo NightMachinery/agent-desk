@@ -9,7 +9,7 @@ import (
 
 // The sections of the dashboard's list, in their default order: what
 // "sections" may name.
-var dashboardSections = []string{"needs", "quota", "deliverables", "pinned", "responses", "tasks", "new", "runs", "deferred"}
+var dashboardSections = []string{"needs", "stopped", "quota", "deliverables", "pinned", "responses", "tasks", "new", "runs", "deferred"}
 
 // navKinds are the kinds of item auto-navigation ranks (the "nav" setting):
 // questions the agent waits on, questions asked with a default, then

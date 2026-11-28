@@ -1,6 +1,7 @@
 package desk
 
 import (
+	"bytes"
 	"regexp"
 	"strings"
 	"time"
@@ -355,6 +356,12 @@ func (d *Desk) AwaitingAt(path string) []store.Event {
 // ask-blocked or ask-default; a tell is response when it responds, else
 // tell-notify with --notify, else tell; a done report is done; a deliverable
 // is deliverable, responding or not. Other events have no class.
+// StoppedNotice reports whether e is the desk's notice that a Paseo agent
+// stopped with an error (cli/stopped.go).
+func StoppedNotice(e store.Event) bool {
+	return e.Kind == "tell" && bytes.Contains(e.Meta, []byte(`"stopped":`)) && Meta(e)["stopped"] != nil
+}
+
 func ClassOf(e store.Event) string {
 	switch e.Kind {
 	case "ask":
@@ -363,6 +370,9 @@ func ClassOf(e store.Event) string {
 		}
 		return "ask-default"
 	case "tell":
+		if StoppedNotice(e) {
+			return "stopped"
+		}
 		if IsResponse(e) {
 			return "response"
 		}

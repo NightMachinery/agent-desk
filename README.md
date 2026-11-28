@@ -40,7 +40,8 @@ directory into your agents' skills directory, such as `~/.claude/skills/` or
 Built so far: the store, the agent and user commands, the terminal inbox,
 rendered org files, notifications on the desktop and the phone (taken back
 once you have read the item; the installed dashboard gets Web Push for
-blocked questions, with no extra service), answer delivery and merging stores (by file or
+blocked questions and [agents stopped by an error](docs/usage.md#agents-stopped-by-an-error), such as a logged-out
+account, with no extra service), answer delivery and merging stores (by file or
 over ssh), done reports filed when a session ends, the agent skill, and a web
 dashboard (`agent-desk serve`) that is also usable entirely from the
 keyboard. In Emacs, [emacs/agent-desk.el](emacs/agent-desk.el) answers,

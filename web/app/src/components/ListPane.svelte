@@ -20,6 +20,8 @@
   let taskIds = $state(/** @type {string[]} */ ([]));
   let quotaCount = $state(0);
   let quotaHidden = $state(0);
+  let stoppedCount = $state(0);
+  let stoppedHidden = $state(0);
   import { sel, toggleAll, clear, prune, markSelected, pinSelected, selecting, deferSelected } from '../lib/select.svelte.js';
   import { snapshot } from '../lib/nav.svelte.js';
   import { ui, toggleSection, laterOpen, toggleLater, deliverableModes, deliverableModeLabel, showDeliverables, orderedSections, taskModes, taskModeLabel, taskSpans, showTasks } from '../lib/ui.svelte.js';
@@ -302,6 +304,14 @@
       {/each}
       {@render deferredPart('needs')}
     {/if}
+      {:else if name === 'stopped'}
+    <div class:hidden={!stoppedCount && !stoppedHidden}>
+      <h2 class="section-title" data-section="stopped">
+        {@render fold('stopped', 'Stopped by an error')}
+        <span class="count stopped">{stoppedCount}</span>
+      </h2>
+      <QuotaHit why="error" stamp={view.stamp} path={route.path} collapsed={!!ui.collapsed.stopped} bind:count={stoppedCount} bind:hiddenCount={stoppedHidden} />
+    </div>
       {:else if name === 'quota'}
     <div class:hidden={!quotaCount && !quotaHidden}>
       <h2 class="section-title" data-section="quota">

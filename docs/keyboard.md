@@ -73,7 +73,8 @@ On a phone, or a window under 900 pixels wide, there is one pane at a time
 - `j` / `k`: the next or previous item, opened as you move (it is marked
   read, as a click would). `gg` / `G`: the first or last item.
 - `}` / `{`: the first item of the next or previous section (Needs you,
-  Out of quota, Deliverables, Pinned, Responses to you, New).
+  Stopped by an error, Out of quota, Deliverables, Pinned, Responses to
+  you, New).
 - `za` folds or unfolds the section the open item is in; `zc` / `zo` fold
   or unfold it, `zM` / `zR` every section. A folded section stays folded on
   this device, and `j` / `k` skip its items. Clicking a section's title does
@@ -204,9 +205,10 @@ swallows the next key, so it never runs a short key by accident.
 - A question asking for the screen: `y` grant, `n` deny.
 - A message that failed: `r` retry the delivery, `t` retry the
   transcription, `s` send it without the recording.
-- An out-of-quota agent, while focus is in that section: `a` archive, `r`
-  replace, `d` dismiss, `p` ask its parent to reassign it, `y` copy the
-  picked ids (also `y q`). With focus on an agent's
+- An out-of-quota agent, or one stopped by an error, while focus is in
+  that section: `a` archive, `r` replace, `d` dismiss, `p` ask its parent
+  to reassign it, `c` resume (stopped by an error), `y` copy the picked ids
+  (also `y q`). With focus on an agent's
   card, they act on that agent, else on the first.
 - Settings: `o` / `O` the section order or back to the default, `a` / `A`
   the auto-navigation kinds or back to the default, `c` fewer views first

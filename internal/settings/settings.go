@@ -24,7 +24,7 @@ var Keys = []string{"deliver.behavior", "notify.desktop", "notify.remote", "noti
 	"auto-continue.main", "auto-continue.subagents"}
 
 // Classes are the kinds of event a setting can be set for, besides Any.
-var Classes = []string{"ask-blocked", "ask-default", "response", "deliverable", "tell-notify", "tell", "done"}
+var Classes = []string{"ask-blocked", "stopped", "ask-default", "response", "deliverable", "tell-notify", "tell", "done"}
 
 // Any is the class that applies to every event.
 const Any = "*"
@@ -111,14 +111,14 @@ func BuiltIn(key, class string) string {
 		}
 		return "origin"
 	case "notify.remote":
-		if class == "ask-blocked" || class == "response" || class == "deliverable" {
+		if class == "ask-blocked" || class == "stopped" || class == "response" || class == "deliverable" {
 			return "away"
 		}
 		return "off"
 	case "notify.push":
 		// Pushed to the devices that subscribed: a phone hears at once
-		// about what stops an agent.
-		if class == "ask-blocked" {
+		// about what stops an agent (a blocking question, or an error).
+		if class == "ask-blocked" || class == "stopped" {
 			return "always"
 		}
 		return "off"

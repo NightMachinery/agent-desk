@@ -119,6 +119,7 @@
   const classNames = {
     '*': 'All kinds',
     'ask-blocked': 'Blocked questions',
+    stopped: 'Agents stopped by an error',
     'ask-default': 'Questions with a default',
     response: 'Responses to your messages',
     deliverable: 'Deliverables (deployments, packages)',

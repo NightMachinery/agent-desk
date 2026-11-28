@@ -21,6 +21,7 @@ const saved = load();
 // browser keeps the last one it saw, so the list never jumps on load.
 export const sectionNames = {
   needs: 'Needs you',
+  stopped: 'Stopped by an error',
   quota: 'Out of quota',
   deliverables: 'Deliverables',
   pinned: 'Pinned',

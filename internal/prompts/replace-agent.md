@@ -1,4 +1,4 @@
-You are taking over from the Paseo agent {{.ID}} ("{{.Title}}"), which stopped at its usage limit. Finish its task.
+You are taking over from the Paseo agent {{.ID}} ("{{.Title}}"), which stopped {{if .Error}}with an error: "{{.Error}}"{{else}}at its usage limit{{end}}. Finish its task.
 
 First recover its work, so nothing is redone or lost: run `paseo inspect {{.ID}}`, read its transcript, and look in its working directory ({{.Cwd}}) for what it was asked to do, what it finished, what was in progress, its uncommitted changes, and any plan, state or checklist files it kept.
 {{- if .Nodes}}

@@ -1,10 +1,13 @@
 <script>
-  // Out of quota: the Paseo agents stopped at a usage limit ([quota]
-  // stopped_command), with what can be done about each: let it resume when
-  // its quota returns, ask its parent to hand its role to an agent with
-  // quota, or start a new agent to take over from it. Under a node, only the
-  // agents working there (any of their own nodes, else an ancestor's) are
-  // listed.
+  // Stopped agents (api/quota), one section per why: Out of quota, the
+  // Paseo agents stopped at a usage limit ([quota] stopped_command), and
+  // Stopped by an error (why "error"), those whose last turn failed, with
+  // the error (a login error marked: only the user can log the account in).
+  // What can be done about each: let it resume when its quota returns, tell
+  // it to carry on now (an error), ask its parent to hand its role to
+  // another agent, or start a new agent to take over from it. Under a node,
+  // only the agents working there (any of their own nodes, else an
+  // ancestor's) are listed.
   // Several can be selected (checkboxes in the list's Select mode, or
   // ⌘/Ctrl-click a card) to copy their Paseo ids, one per line.
   import { availableText } from '../lib/quotatime.js';
@@ -20,7 +23,8 @@
   import { off, BUSY } from '../lib/why.js';
   import { failed } from '../lib/errors.svelte.js';
 
-  let { stamp = '', path = '', collapsed = false, count = $bindable(0), hiddenCount = $bindable(0) } = $props();
+  let { why = 'quota', stamp = '', path = '', collapsed = false, count = $bindable(0), hiddenCount = $bindable(0) } = $props();
+  const failedHere = $derived(why === 'error');
   let data = $state({ agents: [], profiles: [] });
   let busy = $state('');
   let replacing = $state(null); // the agent the Replace dialog is open for
@@ -32,7 +36,7 @@
   // The card names its desk nodes: several as "N nodes" with the paths in
   // the tooltip, one by its path unless it is this page's node.
   const nodes = (a) => a.nodes ?? [];
-  const scoped = $derived((data.agents ?? []).filter(inScope));
+  const scoped = $derived((data.agents ?? []).filter((a) => (a.why || 'quota') === why && inScope(a)));
   const dismissed = $derived(scoped.filter((a) => a.dismissed).length);
   const shown = $derived(scoped.filter((a) => !!a.dismissed === (showDismissed && dismissed > 0)));
   $effect(() => {
@@ -182,7 +186,7 @@
   {/if}
   {#each shown as a (a.paseo)}
     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-    <div class="q" data-scope class:faded={a.dismissed} class:picked={picked.has(a.paseo)} onclick={(e) => cardClick(e, a)}>
+    <div class="q" data-scope class:failed={failedHere} class:faded={a.dismissed} class:picked={picked.has(a.paseo)} onclick={(e) => cardClick(e, a)}>
       <div class="top">
         {#if picking}
           <input type="checkbox" class="pickbox" checked={picked.has(a.paseo)} aria-label={`Select ${a.title || short(a.paseo)}`}
@@ -205,14 +209,17 @@
       <div class="meta faint">
         <span>{a.provider}</span>
         {#if a.last_active}<span>stopped {ago(a.last_active)}</span>{/if}
-        {#if availableText(a.seat, now)}<span class="seat" class:ok={a.seat.verdict === 'usable'} title={'Account ' + a.seat.account}>{availableText(a.seat, now)}</span>{/if}
+        {#if !failedHere && availableText(a.seat, now)}<span class="seat" class:ok={a.seat.verdict === 'usable'} title={'Account ' + a.seat.account}>{availableText(a.seat, now)}</span>{/if}
         {#if a.parent}<span>parent {a.parent.title || short(a.parent.paseo)}{#if a.parent.stopped}&nbsp;(out of quota too){/if}</span>{/if}
         {#if a.children.length}<span>{a.children.length} subagent{a.children.length > 1 ? 's' : ''}{#if a.children.some((c) => c.stopped)}, {a.children.filter((c) => c.stopped).length} out of quota{/if}</span>{/if}
         {#if nodes(a).length > 1}<span class="nodes" title={nodes(a).join('\n')}>{nodes(a).length} nodes</span>
         {:else if nodes(a).length && nodes(a)[0] !== path}<span class="mono">{nodes(a)[0]}</span>{/if}
       </div>
+      {#if a.error}
+        <div class="err">{#if a.login}<span class="login" title="The account is logged out, or its login expired: log it in again (Claude Code: /login; Codex: codex login), then press Resume">logged out</span>{/if}<span class="mono">{a.error}</span></div>
+      {/if}
       <div class="acts">
-        {#if data.auto_continue}
+        {#if !failedHere && data.auto_continue}
           <label class="toggle" title="Send it Continue. when its own quota returns (the auto-continue watcher)">
             <input type="checkbox" checked={a.auto_continue} {...off(undefined, [busy, BUSY])}
               onchange={() => act(a, a.auto_continue ? 'auto-continue-off' : 'auto-continue-on', a.auto_continue ? 'Auto-continue off.' : 'Auto-continue on.')} />
@@ -221,8 +228,12 @@
         {/if}
         <CacheControl paseo={a.paseo} />
         <div class="btns">
+        {#if failedHere}
+          <button data-cmd="quota-resume" class="btn small primary" {...off(`Tell it to carry on with the turn that failed${a.login ? ', once its account is logged in again' : ''} (prompt: resume-agent.md)`, [busy, BUSY])}
+            onclick={() => act(a, 'resume', 'Told it to carry on.')}>Resume</button>
+        {/if}
         {#if a.parent && !a.parent.stopped}
-          <button data-cmd="quota-ask-parent" class="btn small" {...off('Message its parent: archive it and give its role to a new subagent on an account with quota left, recovering its partial work and minding its own subagents (prompt: reassign-role.md)', [busy, BUSY])}
+          <button data-cmd="quota-ask-parent" class="btn small" {...off(`Message its parent: archive it and give its role to a new subagent${failedHere ? '' : ' on an account with quota left'}, recovering its partial work and minding its own subagents (prompt: reassign-role.md)`, [busy, BUSY])}
             onclick={() => act(a, 'ask-parent', 'Asked its parent.')}>Ask parent to reassign</button>
         {/if}
         <button class="btn small" data-cmd="quota-archive" {...off('Archive it in Paseo: it leaves this list (messaging it from the desk revives it)', [busy, BUSY])}
@@ -264,6 +275,25 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
+  }
+  .q.failed {
+    border-left-color: var(--blocked);
+  }
+  .err {
+    display: flex;
+    gap: 6px;
+    align-items: baseline;
+    font-size: 12px;
+    overflow-wrap: anywhere;
+  }
+  .login {
+    flex: none;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: var(--blocked-soft);
+    color: var(--blocked);
+    font-size: 11px;
+    font-weight: 700;
   }
   .q.faded {
     opacity: 0.6;

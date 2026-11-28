@@ -102,15 +102,22 @@ func firstGlob(pattern string) string {
 type PaseoAgent = paseoRecord
 
 type paseoRecord struct {
-	ID          string            `json:"id"`
-	Title       string            `json:"title"`
-	Labels      map[string]string `json:"labels"`
-	ArchivedAt  *string           `json:"archivedAt"`
-	Provider    string            `json:"provider"`
-	Cwd         string            `json:"cwd"`
-	LastStatus  string            `json:"lastStatus"`
-	LastActive  string            `json:"lastActivityAt"`
-	Persistence struct {
+	ID         string            `json:"id"`
+	Title      string            `json:"title"`
+	Labels     map[string]string `json:"labels"`
+	ArchivedAt *string           `json:"archivedAt"`
+	Provider   string            `json:"provider"`
+	Cwd        string            `json:"cwd"`
+	LastStatus string            `json:"lastStatus"`
+	LastActive string            `json:"lastActivityAt"`
+	// LastError is why its last turn failed; Paseo clears it when the next
+	// turn starts, so set it means the agent stopped there.
+	LastError string `json:"lastError"`
+	// LastUserMessageAt is when its last turn's prompt arrived: with
+	// LastError, it names one failed turn (lastActivityAt also moves for
+	// incidental events).
+	LastUserMessageAt string `json:"lastUserMessageAt"`
+	Persistence       struct {
 		NativeHandle string `json:"nativeHandle"`
 	} `json:"persistence"`
 	// Config is what the agent was started with, or last switched to.

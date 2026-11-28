@@ -629,6 +629,12 @@ One atomic commit group each. Stop after each phase and run its check.
      ask the parent to reassign, replace with a new agent (prompts in
      internal/prompts, overridable), and copy Paseo id. Built 2026-11-18
      (docs/usage.md, "Agents out of quota").
+   - Agents stopped by an error (asked by the user 2026-11-28, "detect agents
+     blocked by auth ... show above out of quota, send notifs", then "show
+     any error-stopped agents in general"): a section above Out of quota
+     from Paseo's `lastError`, login errors marked, with Resume; one notice
+     per failed turn (class `stopped`), read once the agent runs again.
+     Built 2026-11-28 (docs/usage.md, "Agents stopped by an error").
    - The screen lock (asked by the user 2026-11-17): one per machine, kind
      `screen` at `_desk/screen/<host>`; granted unasked only after the user
      has been idle 30 minutes, approved on the desk at any time otherwise;

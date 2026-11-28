@@ -1264,7 +1264,7 @@ func (s *server) apiAutoContinue(w http.ResponseWriter, r *http.Request) {
 }
 
 // apiQuotaAct acts on a stopped agent: auto-continue-on, auto-continue-off,
-// ask-parent or replace (with an optional profile).
+// ask-parent, resume or replace (with an optional profile).
 func (s *server) apiQuotaAct(app *App, body request) (any, error) {
 	switch body.Action {
 	case "auto-continue-on", "auto-continue-off":
@@ -1286,12 +1286,12 @@ func (s *server) apiQuotaAct(app *App, body request) (any, error) {
 		return map[string]string{"note": "It follows its default again: " + state + " (" + def.From() + ")."}, err
 	case "dismiss", "undismiss":
 		return map[string]string{}, app.quotaSetDismissed(body.list(body.ID), body.Action == "dismiss", nil, body.QuotaActivity)
-	case "ask-parent", "replace":
+	case "ask-parent", "replace", "resume":
 		defer s.expireQuota()
 		out, err := app.quotaAct(body.Action, body.ID, body.Profile, false)
 		return map[string]string{"note": out}, err
 	}
-	return nil, usagef("quota action is auto-continue-on, auto-continue-off, auto-continue-default, dismiss, undismiss, ask-parent or replace")
+	return nil, usagef("quota action is auto-continue-on, auto-continue-off, auto-continue-default, dismiss, undismiss, ask-parent, resume or replace")
 }
 
 func (s *server) expireQuota() {
@@ -1668,6 +1668,7 @@ func (a *App) cmdServe(args []string) error {
 	go s.renderLoop(ctx)
 	go s.taskChangeLoop(ctx)
 	go s.autoContinueLoop(ctx)
+	go s.stoppedNoticeLoop(ctx)
 	drained := make(chan struct{})
 	go func() {
 		defer close(drained)
