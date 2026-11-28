@@ -178,7 +178,8 @@ even with one line:
 The response is a notice titled "Re: Deploy finished" (`--title` overrides
 it) that sits in the item's thread. `--quiet` marks a bare acknowledgement.
 You may respond to a message sent to your node, or to an answer to one of
-your questions; anything else is refused. A message with no response 15
+your questions (`--re` takes the answer's id or the question's, which names
+its answer); anything else is refused. A message with no response 15
 minutes after it was delivered is flagged "no response yet", and
 `show --mine` lists every message still awaiting your response.
 `agent-desk whoami` prints the nodes this session holds, one per line, and

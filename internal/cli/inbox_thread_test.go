@@ -76,3 +76,27 @@ func TestInboxAndLedgerThreads(t *testing.T) {
 		t.Fatalf("the response is listed twice:\n%s", l)
 	}
 }
+
+// tell --re names an answered question: the response is to its answer,
+// since the prompt that delivers an answer names only the question.
+func TestRespondToAnsweredQuestion(t *testing.T) {
+	h := newHarness(t)
+	const uuid = "22222222-0000-4000-8000-000000000031"
+	writePaseoRecord(t, h.paseo, uuid, sessA, "", "Rerun coordinator")
+	env := map[string]string{"AI_AGENT": "claude-code", "CLAUDE_CODE_SESSION_ID": sessA, "PASEO_AGENT_ID": uuid}
+	h.ok(env, "", "join", "r1/coord")
+	h.respond = func(name string, args []string) (string, error) { return `{"status":"sent"}`, nil }
+	q := h.ok(env, "Cached or fresh?", "ask", "--title", "Which split?", "--default", "cached")
+	h.fails(env, "Noted.", "has no answer yet", "tell", "--re", q)
+	h.ok(nil, "", "answer", q, "fresh")
+	r := h.ok(env, "Regenerating it.", "tell", "--re", q)
+	a, _, _ := h.app(nil, "")
+	d, err := a.load()
+	must(t, err)
+	e, err := d.Resolve(r)
+	must(t, err)
+	qe, _ := d.Resolve(q)
+	if e.Ref == "" || e.Ref != d.AnswerID(qe.ID) || e.Title != "Re: Which split?" {
+		t.Fatalf("response: ref %s (answer %s), title %q", e.Ref, d.AnswerID(qe.ID), e.Title)
+	}
+}

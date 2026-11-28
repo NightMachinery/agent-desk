@@ -122,6 +122,15 @@ func linkResponse(d *desk.Desk, re, node string, extra map[string]any) (ref, tit
 	if err != nil {
 		return "", "", err
 	}
+	// A question answered: the response is to its answer (the prompt that
+	// delivers an answer names the question).
+	if target.Kind == "ask" {
+		aid := d.AnswerID(target.ID)
+		if aid == "" {
+			return "", "", fmt.Errorf("%s has no answer yet; --re takes a message (m-...), an answered question (q-...) or its answer (a-...), or a task (w-...) sent to you", d.Display(target.ID))
+		}
+		target = d.ByID[aid]
+	}
 	if title, err = respondsTo(d, target, node); err != nil {
 		return "", "", err
 	}
@@ -156,7 +165,7 @@ func respondsTo(d *desk.Desk, e store.Event, node string) (string, error) {
 		}
 		return "Re: " + clipLine(e.Title, 60), nil
 	default:
-		return "", fmt.Errorf("%s is a %s; --re takes a message (m-...), an answer (a-...) or a task (w-...) sent to you", shown, e.Kind)
+		return "", fmt.Errorf("%s is a %s; --re takes a message (m-...), an answered question (q-...) or its answer (a-...), or a task (w-...) sent to you", shown, e.Kind)
 	}
 	if root, ok := d.Root(e); ok {
 		return "Re: " + clipLine(desk.ThreadTitle(root), 60), nil

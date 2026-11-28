@@ -152,11 +152,11 @@ Agent side (only coordinators write; workers report to their parent):
       and --on-answer CMD: run CMD (answer on stdin) when the user answers;
       exit 0 means it handled the answer, anything else passes it on
   agent-desk tell [--notify] --title T                <<'R' ... R
-  agent-desk tell --re <m-id|a-id|w-id> [--quiet] [--title T] <<'R' ... R
+  agent-desk tell --re <m-id|q-id|a-id|w-id> [--quiet] [--title T] <<'R' ... R
                                       respond to the user's message or answer
   agent-desk tell --re-chat 'what the user asked' [--quiet] [--title T] <<'R' ... R
                                       file your answer to a question asked in chat
-  agent-desk ask --re <m-id|a-id|w-id> | --re-chat '...' --blocked|--default '...' [--title T] <<'Q' ... Q
+  agent-desk ask --re <m-id|q-id|a-id|w-id> | --re-chat '...' --blocked|--default '...' [--title T] <<'Q' ... Q
                                       respond with a question: you need a decision first
   agent-desk whoami                   this session's nodes, one per line, or exit 1
   agent-desk instructions [<path-prefix>] [--since 2d] [--format json]
@@ -203,7 +203,7 @@ Agent side (only coordinators write; workers report to their parent):
                                       --key K: a newer one with the same key supersedes it
       ask, tell, done and deliverable take [--attach FILE --caption 'what it shows']...:
       any file, up to 8; images, audio and video play in the dashboard
-      tell, done and deliverable take --re <m-id|a-id|w-id> or --re-chat '...': every agent
+      tell, done and deliverable take --re <m-id|q-id|a-id|w-id> or --re-chat '...': every agent
       item can respond to a message and so sit in its thread
 
 User side:
