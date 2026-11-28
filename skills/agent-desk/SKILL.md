@@ -221,7 +221,8 @@ for `TASKS.org`, write it with `agent-desk task list --org --all > TASKS.org`.
   `--priority` is 1 to 3, `--size` is S, M or L.
 - Start a task when you begin it. Finish or drop it with a `--note`
   (`--note -` reads stdin): how it was done and checked, or why not. The
-  user reads it on the task.
+  user reads it on the task. A started task untouched for a day, or whose
+  agent has finished, shows `stale?`: finish it, drop it, or start it again.
 - **Tasks the user files** arrive as a message naming the task: respond on
   the task and track it like your own. If it has several parts, first file
   each as a step under it (`task add --parent <id>`). If it has no title,

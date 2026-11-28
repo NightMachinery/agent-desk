@@ -9,6 +9,7 @@
   import Composer from './Composer.svelte';
   import Markdown from './Markdown.svelte';
   import Thread from './Thread.svelte';
+  import StaleMark from './StaleMark.svelte';
   import { untrack } from 'svelte';
   import Sheet from './Sheet.svelte';
   import Settings from './Settings.svelte';
@@ -146,7 +147,7 @@
         <a class="add-task faint" data-cmd="node-task-add" href={href({ path: node.path, item: '', tasks: true })} onclick={() => setTimeout(() => document.querySelector('[data-cmd="task-add"]')?.click(), 120)} title={tip('File a task, bug or idea here', 'task-add')}>+ New</a>
       </div>
       {#each all.filter((t) => t.state !== 'done' && t.state !== 'dropped') as t (t.event.id)}
-        <a class="task" href={href({ item: t.display_id })}><span class="chip">{t.type && t.type !== 'task' ? t.type : t.state}</span> {t.event.title}</a>
+        <a class="task" href={href({ item: t.display_id })}><span class="chip">{t.type && t.type !== 'task' ? t.type : t.state}</span> {t.event.title} <StaleMark why={t.stale} /></a>
       {/each}
     </div>
     {#if all.length}

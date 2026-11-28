@@ -660,6 +660,9 @@ func (a *App) taskList(args []string) error {
 		for _, g := range t.Tags {
 			extra = append(extra, "#"+g)
 		}
+		if t.Stale != "" {
+			extra = append(extra, "stale? "+t.Stale)
+		}
 		x := ""
 		if len(extra) > 0 {
 			x = "  [" + strings.Join(extra, " ") + "]"

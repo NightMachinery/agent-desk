@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/NightMachinery/agent-desk/internal/store"
 )
@@ -123,7 +124,48 @@ type Task struct {
 	Updated string      `json:"updated"`
 	// ParentID is the parent task's display id, when it has one.
 	ParentID string `json:"parent_display,omitempty"`
+	// Stale says why a started task may no longer be worked on (shown as
+	// "stale?"): its agent has finished, or nothing touched it for a day.
+	Stale string `json:"stale,omitempty"`
 	TaskMeta
+}
+
+// StaleAfter is how long a started task goes untouched (no state change,
+// message or response about it) before it is marked stale?.
+const StaleAfter = 24 * time.Hour
+
+// fromIDs reads the session and the Paseo agent an event came from.
+func fromIDs(e store.Event) (session, paseo string) {
+	var m struct {
+		From struct {
+			Session string `json:"session"`
+			Paseo   string `json:"paseo"`
+		} `json:"from"`
+	}
+	_ = json.Unmarshal(e.Meta, &m)
+	return m.From.Session, m.From.Paseo
+}
+
+// staleWhy is why the started task t may no longer be worked on, or "".
+// touched is when anything last happened about it; heldAtStart says the
+// agent that started it held the task's node then, and holds whether it
+// holds it still.
+func (d *Desk) staleWhy(t *Task, touched time.Time, heldAtStart, holds bool) string {
+	if t.State != TaskStarted {
+		return ""
+	}
+	// What started it: paseo:<id> from task start, or the bare id a
+	// launch_command printed.
+	if s := d.Live[strings.TrimPrefix(t.Agent, "paseo:")]; t.Agent != "" && (s == "archived" || s == "closed") {
+		return "its agent is " + s
+	}
+	if heldAtStart && !holds {
+		return "its agent no longer holds this node"
+	}
+	if idle := d.Now.Sub(touched); idle > StaleAfter {
+		return "untouched for " + Age(idle)
+	}
+	return ""
 }
 
 // Kind is the task's type, task when none was given.
@@ -176,7 +218,32 @@ func FiledState(e store.Event) string {
 func (d *Desk) Tasks(f Filter) []Task {
 	byID := map[string]*Task{}
 	var order []string
+	// For the stale? mark: who holds each node (the session of its latest
+	// join, until it leaves), whether a started task's agent held its node
+	// when it started it, and when anything last happened about each task:
+	// an event about it, or about an event about it (a response to a
+	// message on it).
+	holder := map[string][2]string{}
+	heldAtStart := map[string][2]string{}
+	touched := map[string]string{}
+	about := map[string]string{}
 	for _, e := range d.Events {
+		if task, ok := about[e.Ref]; ok && e.Ref != "" {
+			about[e.ID] = task
+			touched[task] = e.TS
+		} else if _, ok := byID[e.Ref]; ok {
+			about[e.ID] = e.Ref
+			touched[e.Ref] = e.TS
+		}
+		switch e.Kind {
+		case "join":
+			sess, paseo := fromIDs(e)
+			holder[e.Path] = [2]string{sess, paseo}
+		case "leave":
+			if sess, _ := fromIDs(e); holder[e.Path][0] == sess {
+				delete(holder, e.Path)
+			}
+		}
 		switch e.Kind {
 		case "task":
 			if !f.Keep(e) {
@@ -209,6 +276,12 @@ func (d *Desk) Tasks(f Filter) []Task {
 			}
 			if s := MetaString(e, "state"); s != "" {
 				t.State = s
+				delete(heldAtStart, e.Ref)
+				if sess, paseo := fromIDs(e); s == TaskStarted && sess != "" {
+					if h := holder[t.Event.Path]; h[0] == sess || (paseo != "" && h[1] == paseo) {
+						heldAtStart[e.Ref] = h
+					}
+				}
 			}
 			if a := MetaString(e, "agent"); a != "" {
 				t.Agent = a
@@ -223,6 +296,14 @@ func (d *Desk) Tasks(f Filter) []Task {
 		if t.Parent != "" {
 			t.ParentID = d.Display(t.Parent)
 		}
+		last := t.Event.TS
+		if touched[id] > last {
+			last = touched[id]
+		}
+		ts, _ := time.Parse(time.RFC3339Nano, last)
+		h, held := heldAtStart[id]
+		now := holder[t.Event.Path]
+		t.Stale = d.staleWhy(t, ts, held, now == h || (h[1] != "" && now[1] == h[1]))
 		out = append(out, *t)
 	}
 	sort.SliceStable(out, func(i, j int) bool {

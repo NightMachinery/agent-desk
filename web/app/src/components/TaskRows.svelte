@@ -10,6 +10,7 @@
   import { toast } from '../lib/toast.svelte.js';
   import { toldText } from '../lib/taskstatus.js';
   import ReopenForm from './ReopenForm.svelte';
+  import StaleMark from './StaleMark.svelte';
   import { off, BUSY } from '../lib/why.js';
   import { failed } from '../lib/errors.svelte.js';
 
@@ -120,6 +121,7 @@
             <span class="title">{t.event.title}</span>
             {#if t.untitled}<span class="chip" title="Filed without a title: its details' first line stands in until the agent names it">untitled</span>{/if}
             {#if t.state === 'started'}<span class="chip active">started</span>{/if}
+            <StaleMark why={t.stale} />
             {#if over}<span class="chip" title={t.updated}>{t.state} {ago(t.updated)}</span>{/if}
             {#if t.priority === 1}<span class="chip blocked" title="Priority 1">p1</span>{/if}
           </span>

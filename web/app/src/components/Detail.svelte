@@ -1,5 +1,6 @@
 <script>
   import { untrack } from 'svelte';
+  import StaleMark from './StaleMark.svelte';
   import CopyIds from './CopyIds.svelte';
   import Choices from './Choices.svelte';
   import { tip } from '../lib/shortcuts.js';
@@ -423,7 +424,7 @@
       {#if it.dismissed}<span class="chip">Dismissed</span>{/if}
       {#if it.deferred}<span class="chip">Deferred</span>{/if}
       {#if it.unread}<span class="chip default">Unread</span>{/if}
-      {#if item.task}<span class="chip" class:ok={item.task.state === 'done'}>{item.task.state}</span>{/if}
+      {#if item.task}<span class="chip" class:ok={item.task.state === 'done'}>{item.task.state}</span><StaleMark why={item.task.stale} />{/if}
       <span class="spacer"></span>
       <button data-cmd="pin" class="btn ghost small iconbtn" class:on={it.pinned} aria-pressed={it.pinned} title={tip(it.pinned ? 'Unpin' : 'Pin to the top', 'pin')} onclick={() => pin(!it.pinned)}
         ><Icon name="pin" /></button

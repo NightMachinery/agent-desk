@@ -436,7 +436,11 @@ func (w *Writer) Node(level int, n *Node) {
 				done++
 			}
 			if t.Active() {
-				active = append(active, fmt.Sprintf("- %s %s %s", t.State, t.ID, t.Event.Title))
+				line := fmt.Sprintf("- %s %s %s", t.State, t.ID, t.Event.Title)
+				if t.Stale != "" {
+					line += " (stale? " + t.Stale + ")"
+				}
+				active = append(active, line)
 			}
 		}
 		w.Text(fmt.Sprintf("Tasks: %d of %d done\n%s", done, len(n.Tasks), strings.Join(active, "\n")))

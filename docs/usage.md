@@ -1123,6 +1123,12 @@ dashboard, needs neither.
   `--defer` are parked with it; `--quota` does not take steps.
 - `task done w-... --note '...' --start w-...` (or `task drop`) finishes one
   task and starts the next in one write.
+- A started task is marked **stale?** (on the dashboard, in `task list` and
+  in `show`) when it may no longer be worked on: the Paseo agent that
+  started it is archived or closed, another session holds its node now (a
+  takeover or a leave), or nothing happened about it for a day (no state
+  change, message or response on it). Starting it again, by anyone, clears
+  the agent part; any message or response on it clears the day.
 - `--tag ui --tag phone` (or `--tag 'ui, phone'`) adds free tags beside the
   type: lowercase, a letter or digit then letters, digits, `. _ / -`, at
   most 12. `task tag w-... desk` and `task untag w-... phone` change them

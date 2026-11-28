@@ -5,6 +5,7 @@
   // off, started, dropped or reopened here, and new ones filed at any node,
   // optionally messaging its coordinator about it.
   import { get, post, upload } from '../lib/api.js';
+  import StaleMark from './StaleMark.svelte';
   import { leaveField, typing } from '../lib/keys.svelte.js';
   import { href, go } from '../lib/route.svelte.js';
   import { toast } from '../lib/toast.svelte.js';
@@ -522,6 +523,7 @@
         <button data-keys="none" class="title" onclick={() => (expanded[t.event.id] = !expanded[t.event.id])} aria-expanded={!!expanded[t.event.id]}>{t.event.title}</button>
         {#if t.untitled}<span class="chip" title="Filed without a title: its details' first line stands in until the agent names it">untitled</span>{/if}
         {#if t.state === 'started'}<span class="chip active">started</span>{:else if t.state === 'later' || t.state === 'deferred'}<span class="chip waiting">{stateLabel(t.state)}</span>{:else if dropped}<span class="chip">dropped</span>{/if}
+        <StaleMark why={t.stale} />
         {#if t.priority === 1}<span class="chip blocked" title="Priority 1">p1</span>{/if}
         {#each t.tags ?? [] as g (g)}<button data-keys="none" class="tag small" class:on={tag === g} title={`Only #${g}`} onclick={() => (tag = tag === g ? '' : g)}>#{g}</button>{/each}
         {#if t.media?.length}
