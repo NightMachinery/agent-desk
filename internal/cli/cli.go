@@ -1325,7 +1325,7 @@ func (a *App) answerEvents(d *desk.Desk, q store.Event, text, source, behavior s
 	e := a.event("answer", q.Path, ident.Resolve(a.Env), source, extra)
 	e.Ref, e.Body = q.ID, text
 	evs := []store.Event{e}
-	if se, ok := a.screenDecision(q, source); ok {
+	if se, ok := a.screenDecision(d, q, source); ok {
 		evs = append(evs, se) // an answer to a screen request grants it
 	}
 	return evs, nil
@@ -1448,7 +1448,7 @@ func (a *App) cmdRead(args []string) error {
 		}
 	}
 	for _, id := range deny {
-		if err := a.screenDecide(id, false, "cli"); err != nil {
+		if _, err := a.screenDecide(id, false, "cli"); err != nil {
 			return err
 		}
 	}

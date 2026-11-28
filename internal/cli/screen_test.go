@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/NightMachinery/agent-desk/internal/desk"
+	"github.com/NightMachinery/agent-desk/internal/settings"
+	"github.com/NightMachinery/agent-desk/internal/store"
 )
 
 // The screen lock: granted at once when the user is idle long enough,
@@ -53,7 +55,7 @@ func TestScreen(t *testing.T) {
 
 	// B asks while A holds it: a request in Needs you, exit 3.
 	out, _, code := h.run(b, "", "screen", "take", "--reason", "Recording a screencast")
-	if code != ScreenWaiting || !strings.Contains(out, "Another agent holds the screen") {
+	if code != ScreenWaiting || !strings.Contains(out, "holds the screen until") {
 		t.Fatalf("B: %d %s", code, out)
 	}
 	if out := h.ok(nil, "", "show", "--format", "md"); !strings.Contains(out, "wants to drive the GUI") {
@@ -411,7 +413,7 @@ func TestScreenTakeServesTheOldestRequest(t *testing.T) {
 	}
 	idle = "4000" // the user leaves; A does not take again
 	out, _, code := h.run(b, "", "screen", "take", "--reason", "Second ask")
-	if code != ScreenWaiting || !strings.Contains(out, "Another agent holds the screen") {
+	if code != ScreenWaiting || !strings.Contains(out, "holds the screen until") {
 		t.Fatalf("B: %d %s", code, out)
 	}
 	st := h.loadDesk().Screen(h.host)
@@ -517,5 +519,145 @@ func TestScreenAnswerSaysWhatItDecided(t *testing.T) {
 	}
 	if st := d.Screen(h.host); len(st.Requests) != 0 || st.Hold != nil {
 		t.Fatalf("still asking: %+v", st)
+	}
+}
+
+// The user's approval never takes the screen from the agent holding it: it
+// queues the request, which gets the screen when that hold ends (released,
+// or run out), before any unapproved request, and its agent is told. A
+// request filed behind a hold while the user is away notifies nobody until
+// it is still waiting on a free screen.
+func TestScreenApprovalQueuesBehindHolder(t *testing.T) {
+	h := newHarness(t)
+	writeConfig(t, h, "[screen]\nidle_command = 'printf IDLE'\nbanner_on = 'printf ON'\nbanner_off = 'printf OFF'\n")
+	idle := "1" // at the machine
+	h.respond = func(name string, args []string) (string, error) {
+		if name == "sh" && len(args) == 2 && args[1] == "printf IDLE" {
+			return idle + "\n", nil
+		}
+		return "", nil
+	}
+	a, b, c := h.as(sessA), h.as(sessB), h.as(sessC)
+	request := func(env map[string]string, reason string) (string, string) {
+		t.Helper()
+		out, _, code := h.run(env, "", "screen", "take", "--reason", reason)
+		if code != ScreenWaiting {
+			t.Fatalf("take %s: %d %s", reason, code, out)
+		}
+		for _, f := range strings.Split(h.ok(nil, "", "search", reason), "\n") {
+			if fs := strings.Fields(f); len(fs) > 0 && strings.HasPrefix(fs[0], "q-") {
+				return fs[0], out
+			}
+		}
+		t.Fatalf("no request for %s", reason)
+		return "", ""
+	}
+	state := func() desk.ScreenState { return h.loadDesk().Screen(h.host) }
+
+	// A asks and is approved: it holds the screen.
+	qa, _ := request(a, "Resizing windows")
+	h.ok(nil, "", "screen", "grant", qa)
+	h.ok(a, "", "screen", "take", "--reason", "Resizing windows")
+
+	// B asks behind A: the request says whom it waits behind, until when.
+	qb, out := request(b, "Recording a screencast")
+	if !strings.Contains(out, "holds the screen until") || !strings.Contains(out, "it is yours once that hold ends") {
+		t.Fatalf("B's take: %s", out)
+	}
+	d := h.loadDesk()
+	rb, _ := d.Resolve(qb)
+	if !strings.Contains(rb.Body, "It waits behind") || !strings.Contains(rb.Body, "(Resizing windows)") || screenQuiet(d, rb) {
+		t.Fatalf("B's request: quiet %v body %q", screenQuiet(d, rb), rb.Body)
+	}
+
+	// Approving B queues it: A keeps the screen.
+	if out := h.ok(nil, "", "screen", "grant", qb); !strings.Contains(out, "so this request goes next") {
+		t.Fatalf("grant behind a hold: %s", out)
+	}
+	st := state()
+	if !st.Holder(sessA) || len(st.Queued) != 1 || st.Queued[0].Session != sessB || len(st.Requests) != 0 {
+		t.Fatalf("after approving B: %+v", st)
+	}
+	d = h.loadDesk()
+	rb, _ = d.Resolve(qb)
+	var answer store.Event
+	for _, q := range d.Questions {
+		if q.ID == rb.ID {
+			answer = d.ByID[q.AnswerID]
+		}
+	}
+	if text := DeliveryText(d, rb, answer); !strings.Contains(text, "so you are next") || !strings.Contains(text, "releases the screen or its hold ends at") {
+		t.Fatalf("B hears: %s", text)
+	}
+	// B's take waits its turn, without asking again; A is not renewed.
+	n := h.count()
+	if out, _, code := h.run(b, "", "screen", "take", "--reason", "Recording a screencast"); code != ScreenWaiting || !strings.Contains(out, "you are next once") || h.count() != n {
+		t.Fatalf("B's take while queued: %d %s", code, out)
+	}
+	until := state().Hold.Until
+	h.now = h.now.Add(29 * time.Minute)
+	if out := h.ok(a, "", "screen", "take", "--reason", "Resizing windows"); !strings.Contains(out, "not renewed") || !state().Hold.Until.Equal(until) {
+		t.Fatalf("A renewed past the queue: %s", out)
+	}
+
+	// A releases: B has it at once, and is told.
+	if out := h.ok(a, "", "screen", "release"); !strings.Contains(out, "It goes to") {
+		t.Fatalf("release: %s", out)
+	}
+	if st := state(); !st.Holder(sessB) || len(st.Queued) != 0 || st.Hold.By != "user" {
+		t.Fatalf("after A let go: %+v", st)
+	}
+	replies := kinds(h, "reply")
+	if len(replies) != 1 || !strings.Contains(replies[0].Body, "is yours now") || !strings.Contains(replies[0].Body, "it released it") ||
+		desk.MetaString(replies[0], "auto") != "screen-granted" {
+		t.Fatalf("B told: %+v", replies)
+	}
+	if out := h.ok(b, "", "screen", "take", "--reason", "Recording a screencast"); !strings.Contains(out, "is yours") {
+		t.Fatalf("B's take: %s", out)
+	}
+
+	// C is approved behind B, and B's time runs out: the sweep hands C the
+	// screen, ahead of A's newer unapproved request.
+	qc, _ := request(c, "Dragging files")
+	h.ok(nil, "", "screen", "grant", qc)
+	request(a, "Resizing again")
+	h.now = h.now.Add(31 * time.Minute)
+	app, _, _ := h.app(nil, "")
+	must(t, app.screenServeNext())
+	if st := state(); !st.Holder(sessC) || len(st.Requests) != 1 {
+		t.Fatalf("after B ran out: %+v", st)
+	}
+	if replies := kinds(h, "reply"); len(replies) != 2 || !strings.Contains(replies[1].Body, "its time ran out") {
+		t.Fatalf("C told: %+v", replies)
+	}
+	h.ok(c, "", "screen", "release")
+	h.ok(a, "", "screen", "release") // withdraws A's request
+
+	// Away: B gets it unasked; C asks behind it, quietly.
+	idle = "4000"
+	h.ok(b, "", "screen", "take", "--reason", "Recording a screencast")
+	qc, _ = request(c, "Dragging files again")
+	d = h.loadDesk()
+	rc, _ := d.Resolve(qc)
+	if !screenQuiet(d, rc) || !strings.Contains(rc.Body, "without asking") {
+		t.Fatalf("quiet request: %v %q", screenQuiet(d, rc), rc.Body)
+	}
+	c2, err := app.config()
+	must(t, err)
+	if rt := routeOf(d, settings.New(d.Events, c2.Defaults), rc); rt.desktop != "none" || rt.push != "off" || rt.remote != "off" {
+		t.Fatalf("a quiet request routes: %+v", rt)
+	}
+	// The user comes back before B lets go: once free, C still waits, so
+	// it wakes and notifies.
+	idle = "1"
+	h.ok(b, "", "screen", "release")
+	app, _, _ = h.app(nil, "")
+	must(t, app.screenServeNext())
+	d = h.loadDesk()
+	if st := d.Screen(h.host); st.Hold != nil || len(st.Requests) != 1 || screenQuiet(d, rc) {
+		t.Fatalf("not woken: %+v quiet %v", st, screenQuiet(d, rc))
+	}
+	if rt := routeOf(d, settings.New(d.Events, c2.Defaults), rc); rt.push == "off" && rt.desktop == "none" && rt.remote == "off" {
+		t.Fatalf("a woken request does not route: %+v", rt)
 	}
 }

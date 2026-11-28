@@ -25,7 +25,11 @@ const DeliverTimeout = 60 * time.Second
 
 // DeliveryText is the prompt typed into the asking session.
 func DeliveryText(d *desk.Desk, q, ans store.Event) string {
-	return fmt.Sprintf("Answer to %s \"%s\": %s", d.Display(q.ID), q.Title, ans.Body)
+	text := fmt.Sprintf("Answer to %s \"%s\": %s", d.Display(q.ID), q.Title, ans.Body)
+	if note := screenNote(d, q); note != "" {
+		text += "\n\n" + note
+	}
+	return text
 }
 
 // Runner runs an external program and returns its combined output.

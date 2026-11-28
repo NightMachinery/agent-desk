@@ -1291,9 +1291,24 @@ dashboard, a toast says until when). Only Deny denies, and so does
 dismissing the request (`d`, or `agent-desk read <q-id>`): a request set
 aside unanswered would still be granted once you are away. To ask the
 agent something first, **Ask** beside Answer (`s`) sends what you typed as
-a message and leaves the request open. The answer reaches the agent as usual; `take --wait` also
-notices the grant itself. After a denial the agent may not ask again for 10
-minutes.
+a message and leaves the request open. The answer reaches the agent as usual, with a line from
+the desk saying what it did; `take --wait` also notices the grant itself.
+After a denial the agent may not ask again for 10 minutes.
+
+Approving never takes the screen from an agent that holds it, which may be
+in the middle of a click. While another agent holds it, an approval (the
+button, `screen grant` or any answer) puts the request next in line: it gets
+the screen the moment the holder releases it (or you **Take it back**) or
+its time runs out, ahead of any request you have not approved, and its
+agent gets a message then. The toast, `screen grant` and the agent's answer
+say so; the strip above Needs you lists who is next; the holder's `take`
+no longer renews its hold; and an agent that runs `screen release` while
+next in line gives up its place. A request filed while another agent holds
+the screen says whom it waits behind and until when. If you have been away
+long enough already, it will be granted without you when that hold ends, so
+it notifies nobody (it still shows in Needs you); if it is still waiting
+once the screen is free, because you came back, the next sweep raises its
+notifications as usual.
 
 A grant lasts `--for` (30 minutes by default, at most 2 hours); `take` again
 renews it. While an agent holds the screen, the dashboard shows who, why and

@@ -17,6 +17,13 @@ import (
 // meta.by "auto" or "user", meta.request: the question that asked for it),
 // releases it, or denies a request. An agent that cannot have it at once
 // files a question there with meta.screen; the question is the request.
+//
+// The user's approval never takes the screen from an agent that holds it:
+// it queues the request (action "queue", meta.for: how long it may hold
+// it), and the first queued request is granted when the hold ends, by its
+// release or its time, before any unapproved one. A later screen event
+// naming the request (its grant, a denial, or "unqueue" when its agent
+// withdraws) takes it off the queue.
 
 // ScreenPath is where host's screen events and requests live.
 func ScreenPath(host string) string { return "_desk/screen/" + host }
@@ -30,11 +37,22 @@ type ScreenHold struct {
 	By      string      `json:"by"` // auto or user
 }
 
+// ScreenQueued is a request the user approved while another agent held the
+// screen: it is granted next.
+type ScreenQueued struct {
+	Event   store.Event   `json:"event"` // the queue event
+	Request string        `json:"request"`
+	Session string        `json:"session"`
+	Reason  string        `json:"reason"`
+	For     time.Duration `json:"for"`
+}
+
 // ScreenState is a machine's screen: who holds it, and who asks for it.
 type ScreenState struct {
-	Host     string        `json:"host"`
-	Hold     *ScreenHold   `json:"hold,omitempty"`
-	Requests []store.Event `json:"requests,omitempty"` // open requests, oldest first
+	Host     string         `json:"host"`
+	Hold     *ScreenHold    `json:"hold,omitempty"`
+	Queued   []ScreenQueued `json:"queued,omitempty"`   // approved, granted in this order once the hold ends
+	Requests []store.Event  `json:"requests,omitempty"` // open requests, oldest first
 	// Lapsed are open requests past ScreenRequestLife: they hold no place,
 	// and the next take or sweep withdraws them.
 	Lapsed  []store.Event `json:"-"`
@@ -66,7 +84,8 @@ type screenMeta struct {
 	Reason  string `json:"reason"`
 	By      string `json:"by"`
 	Request string `json:"request"`
-	Holder  string `json:"holder"` // the session it is granted to
+	Holder  string `json:"holder"` // the session it is granted (or queued) to
+	For     string `json:"for"`    // queue: how long it may hold the screen
 }
 
 // Screen is host's screen now. A grant past its time no longer holds.
@@ -80,19 +99,31 @@ func (d *Desk) Screen(host string) ScreenState {
 		var m screenMeta
 		_ = json.Unmarshal(e.Meta, &m)
 		if m.Request != "" {
-			st.granted[m.Request] = true // granted or denied: no longer asking
+			st.granted[m.Request] = true // granted, queued or denied: no longer asking
+			if m.Action != "queue" {
+				st.Queued = unqueue(st.Queued, func(x ScreenQueued) bool { return x.Request == m.Request })
+			}
 		}
 		switch m.Action {
 		case "grant":
 			until, _ := time.Parse(time.RFC3339, m.Until)
 			st.Hold = &ScreenHold{Event: e, Session: m.Holder, Reason: m.Reason, Until: until, By: m.By}
+			st.Queued = unqueue(st.Queued, func(x ScreenQueued) bool { return x.Session == m.Holder })
 		case "release":
 			st.Hold = nil
+		case "queue":
+			hold, _ := time.ParseDuration(m.For)
+			st.Queued = append(st.Queued, ScreenQueued{Event: e, Request: m.Request, Session: m.Holder, Reason: m.Reason, For: hold})
 		}
 	}
 	if st.Hold != nil && !d.Now.Before(st.Hold.Until) {
 		st.Hold = nil
 	}
+	// A queued request lapses with its request: its agent may be long gone.
+	st.Queued = unqueue(st.Queued, func(x ScreenQueued) bool {
+		q, ok := d.ByID[x.Request]
+		return !ok || screenRequestLapsed(q, d.Now)
+	})
 	for _, q := range d.Questions {
 		if q.Path == path && q.Open() && !st.granted[q.ID] && !d.dismissed[q.ID] {
 			if screenRequestLapsed(q.Event, d.Now) {
@@ -103,6 +134,27 @@ func (d *Desk) Screen(host string) ScreenState {
 		}
 	}
 	return st
+}
+
+// unqueue is queue without the entries drop matches.
+func unqueue(queue []ScreenQueued, drop func(ScreenQueued) bool) []ScreenQueued {
+	out := queue[:0:0]
+	for _, x := range queue {
+		if !drop(x) {
+			out = append(out, x)
+		}
+	}
+	return out
+}
+
+// QueuedFor is session's place on the queue, if it has one.
+func (s ScreenState) QueuedFor(session string) (ScreenQueued, bool) {
+	for _, x := range s.Queued {
+		if session != "" && x.Session == session {
+			return x, true
+		}
+	}
+	return ScreenQueued{}, false
 }
 
 // Request is the open request of session, if any.
@@ -133,7 +185,7 @@ func (d *Desk) Screens() []ScreenState {
 			continue
 		}
 		seen[host] = true
-		if s := d.Screen(host); s.Hold != nil || len(s.Requests) > 0 {
+		if s := d.Screen(host); s.Hold != nil || len(s.Requests) > 0 || len(s.Queued) > 0 {
 			out = append(out, s)
 		}
 	}

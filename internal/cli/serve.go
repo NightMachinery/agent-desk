@@ -539,7 +539,7 @@ func (s *server) apiUnread(app *App, body request) (any, error) {
 func (s *server) apiScreen(app *App, body request) (any, error) {
 	switch body.Action {
 	case "grant", "deny":
-		return map[string]string{}, app.screenDecide(body.ID, body.Action == "grant", "web")
+		return app.screenDecide(body.ID, body.Action == "grant", "web")
 	case "answer":
 		return app.screenAnswer(body.ID, body.Text, "web")
 	case "release":
@@ -551,7 +551,8 @@ func (s *server) apiScreen(app *App, body request) (any, error) {
 		if st.Hold == nil {
 			return nil, usagef("no agent holds the screen on %s", app.Host)
 		}
-		return map[string]string{}, app.screenLetGo(ident.Resolve(app.Env), st, "user")
+		next, err := app.screenLetGo(ident.Resolve(app.Env), st, "user")
+		return map[string]string{"next": next}, err
 	}
 	return nil, usagef("screen action is grant, deny, answer or release")
 }
@@ -734,6 +735,14 @@ type screenInfo struct {
 	Until    string   `json:"until,omitempty"`
 	By       string   `json:"by,omitempty"`
 	Requests []string `json:"requests"` // display ids of open requests
+	// Queued are the requests the user approved while it was held, next first.
+	Queued []screenQueuedInfo `json:"queued,omitempty"`
+}
+
+type screenQueuedInfo struct {
+	Request string `json:"request"` // its display id
+	Agent   string `json:"agent"`
+	Reason  string `json:"reason"`
 }
 
 // screens describes the held and asked-for screens.
@@ -743,6 +752,9 @@ func screens(d *desk.Desk) []screenInfo {
 		si := screenInfo{Host: st.Host, Requests: []string{}}
 		for _, q := range st.Requests {
 			si.Requests = append(si.Requests, d.Display(q.ID))
+		}
+		for _, x := range st.Queued {
+			si.Queued = append(si.Queued, screenQueuedInfo{Request: d.Display(x.Request), Agent: screenAgentName(d, x.Session), Reason: x.Reason})
 		}
 		if h := st.Hold; h != nil {
 			si.Held, si.Reason, si.By = true, h.Reason, h.By
@@ -1730,9 +1742,27 @@ func (s *server) sweepScreenOnce() error {
 			}
 		}
 	}
+	// The first request the user approved while the screen was held goes
+	// first; then the oldest, once the user is away; else quiet requests
+	// start notifying.
+	if d, err := app.load(); err == nil {
+		if events := app.screenNextEvents(d, d.Screen(app.Host), "its time ran out"); len(events) > 0 {
+			if events[0].Kind == "reply" {
+				events[0] = markQueued(events[0], "", "")
+			}
+			recorded, err := app.st.AppendScreenSweep(events, eventsAt(d, events[0].Path))
+			if err == nil && recorded {
+				s.sendCommitted(events)
+			}
+			return err
+		}
+	}
 	events, count, err := app.screenSweep()
-	if err != nil || len(events) == 0 {
+	if err != nil {
 		return err
+	}
+	if len(events) == 0 {
+		return app.screenWake()
 	}
 	events[0] = markQueued(events[0], "", "")
 	recorded, err := app.st.AppendScreenSweep(events, count)

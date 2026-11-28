@@ -251,10 +251,19 @@
     }
   }
 
+  // What a screen decision did, for its toast: an approval while another
+  // agent holds the screen queues the request rather than taking it over.
+  const hm = (iso) => (iso ? new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '');
+  function screenToast(res, how) {
+    const host = e.meta.screen.host;
+    if (res.decision === 'queue') return `${how} approved it: ${agentName(res.after) || 'another agent'} holds the screen on ${host}${res.at ? ' until ' + hm(res.at) : ''}, so this agent goes next, when that hold ends.`;
+    if (res.decision === 'deny') return 'Denied.';
+    return `${how} approved it: the agent has the screen on ${host}${res.until ? ' until ' + hm(res.until) : ''}.`;
+  }
   async function screenAct(action) {
     try {
-      await post('screen', { action, id: it.display_id });
-      moveOn(action === 'grant' ? 'Approved: the agent has the screen.' : 'Denied.');
+      const res = await post('screen', { action, id: it.display_id });
+      moveOn(screenToast(res, 'You'));
       onchange();
     } catch (err) {
       failed(err);
@@ -327,13 +336,11 @@
     if (replyActive && e?.id) warmSendCache('reply', replyingTo?.id || e.id);
   });
   // A screen request answered in words: any answer approves it, and the
-  // desk says until when, so the toast can.
+  // desk says what that did (granted until when, or queued), so the toast can.
   async function screenAnswer(text) {
-    const host = e.meta.screen.host;
     try {
       const res = await post('screen', { action: 'answer', id: it.display_id, text });
-      const until = res.until ? new Date(res.until).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-      moveOn(`Your answer approved it: the agent has the screen on ${host}${until ? ' until ' + until : ''}.`);
+      moveOn(screenToast(res, 'Your answer'));
       onchange();
       return true;
     } catch (err) {
@@ -503,7 +510,7 @@
       <div class="task-bar">
         <span class="faint">Asks for the screen on {e.meta.screen.host} for {e.meta.screen.minutes ? `${e.meta.screen.minutes} min` : e.meta.screen.for}</span>
         <span class="spacer"></span>
-        <button data-cmd="screen-grant" class="btn small primary" title="Hand it the screen now; a banner shows while it holds it" onclick={() => screenAct('grant')}>Approve</button>
+        <button data-cmd="screen-grant" class="btn small primary" title="Hand it the screen now, or next if another agent holds it; a banner shows while it holds it" onclick={() => screenAct('grant')}>Approve</button>
         <button data-cmd="screen-deny" class="btn small" onclick={() => screenAct('deny')}>Deny</button>
       </div>
     {/if}

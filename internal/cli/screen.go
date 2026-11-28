@@ -28,6 +28,14 @@ import (
 // dashboard server's sweep, or by any take on the machine, since a machine
 // may run no server. An unanswered request lapses after
 // desk.ScreenRequestLife.
+//
+// An approval while another agent holds the screen queues the request
+// (desk.ScreenQueued): it is granted when the hold ends, by the holder's
+// release, the next sweep, or its own take, and its agent is told. A
+// request filed behind a hold while the user is away notifies nobody
+// (meta.screen.quiet): it will be granted without them. If it still waits
+// once the screen is free, because the user came back, the sweep wakes it
+// (a screen event "wake"), which raises its notifications.
 
 const (
 	screenDefault = 30 * time.Minute
@@ -79,7 +87,11 @@ func (a *App) cmdScreen(args []string) error {
 		if err != nil {
 			return err
 		}
-		return a.screenDecide(o.pos[0], args[0] == "grant", "cli")
+		out, err := a.screenDecide(o.pos[0], args[0] == "grant", "cli")
+		if err == nil && out["decision"] == "queue" {
+			fmt.Fprintf(a.Stdout, "Approved: %s holds the screen until %s, so this request goes next.\n", out["after"], localHM(out["at"]))
+		}
+		return err
 	}
 	return usagef("unknown screen command %q: take, release, status, grant or deny", args[0])
 }
@@ -139,7 +151,11 @@ func (a *App) screenTake(args []string) error {
 		if st.Holder(from.Session) {
 			// Granted (perhaps by the user) or renewed: start the banner.
 			request := st.Hold.Event.Ref
-			if !st.Hold.Until.After(d.Now.Add(time.Minute)) || st.Hold.Reason != reason {
+			if len(st.Queued) > 0 {
+				// The user approved another agent to go next: no renewal.
+				fmt.Fprintf(a.Stdout, "The user approved %s to have the screen next, so your hold is not renewed.\n",
+					screenAgentName(d, st.Queued[0].Session))
+			} else if !st.Hold.Until.After(d.Now.Add(time.Minute)) || st.Hold.Reason != reason {
 				g := a.screenGrant(from, from.Session, reason, hold, st.Hold.By, request)
 				if err := a.commit([]store.Event{g}, "-"); err != nil {
 					return err
@@ -147,6 +163,35 @@ func (a *App) screenTake(args []string) error {
 				st.Hold.Until = d.Now.Add(hold)
 			}
 			return a.screenGranted(c, reason, st.Hold.Until, st.Hold.By)
+		}
+		if x, queued := st.QueuedFor(from.Session); queued {
+			if st.Hold == nil && st.Queued[0].Session == from.Session {
+				// Approved while another agent held it, and now free.
+				h := x.For
+				if h <= 0 || h > screenMax {
+					h = hold
+				}
+				g := a.screenGrant(from, from.Session, reason, h, "user", x.Request)
+				if err := a.commit([]store.Event{g}, "-"); err != nil {
+					return err
+				}
+				return a.screenGranted(c, reason, d.Now.Add(h), "user")
+			}
+			if st.Hold == nil { // free, and another approved request is first: its turn
+				if granted, err := a.screenServeQueued(); err != nil {
+					return err
+				} else if granted {
+					continue
+				}
+			}
+			if waited == 0 {
+				fmt.Fprintf(a.Stdout, "The user approved your request (%s): you are next once %s.\n", d.Display(x.Request), screenTurn(d, st, from.Session))
+			}
+			if !o.bools["wait"] || waited+screenPoll > timeout {
+				return exitError{ScreenWaiting, "screen: approved, not yet yours. You get a message when the screen is yours, or wait for it with --wait."}
+			}
+			time.Sleep(screenPoll)
+			continue
 		}
 		req, has := st.Request(from.Session)
 		if has {
@@ -157,7 +202,7 @@ func (a *App) screenTake(args []string) error {
 				return fmt.Errorf("the user denied the screen: %s", firstLine(why))
 			}
 		}
-		if st.Hold == nil && (len(st.Requests) == 0 || (has && st.Requests[0].ID == req.ID)) {
+		if st.Hold == nil && len(st.Queued) == 0 && (len(st.Requests) == 0 || (has && st.Requests[0].ID == req.ID)) {
 			// Free, and nobody asked before this session: granted if the
 			// user is away.
 			idle, known := a.userAway(c, d)
@@ -174,7 +219,16 @@ func (a *App) screenTake(args []string) error {
 				return a.screenGranted(c, reason, d.Now.Add(hold), "auto")
 			}
 		}
-		if st.Hold == nil && len(st.Requests) > 0 && !(has && st.Requests[0].ID == req.ID) {
+		if st.Hold == nil && len(st.Queued) > 0 {
+			// Free, and the user approved another request to go next:
+			// hand it the screen, as the server's sweep would.
+			if granted, err := a.screenServeQueued(); err != nil {
+				return err
+			} else if granted {
+				continue
+			}
+		}
+		if st.Hold == nil && len(st.Queued) == 0 && len(st.Requests) > 0 && !(has && st.Requests[0].ID == req.ID) {
 			// Free, but another session asked first: grant it the screen
 			// if the user is away long enough, as the server's sweep would
 			// (this machine may run no server), and wait behind it.
@@ -189,7 +243,7 @@ func (a *App) screenTake(args []string) error {
 				return fmt.Errorf("the user denied the screen %s ago: %s; ask again after %s, or ask the user why",
 					humanDur(d.Now.Sub(when)), firstLine(why), humanDur(screenDenyQuiet))
 			}
-			q := a.screenRequest(d, from, reason, hold, away, wait)
+			q := a.screenRequest(d, c, st, from, reason, hold, away, wait)
 			if err := a.commit([]store.Event{q}, "-"); err != nil {
 				return err
 			}
@@ -199,8 +253,8 @@ func (a *App) screenTake(args []string) error {
 				return err
 			}
 			if st.Hold != nil {
-				fmt.Fprintf(a.Stdout, "Another agent holds the screen until %s (%s); asked the user (%s).\n",
-					st.Hold.Until.Local().Format("15:04"), st.Hold.Reason, d.Display(q.ID))
+				fmt.Fprintf(a.Stdout, "%s holds the screen until %s (%s); asked the user (%s). If they approve, it is yours once that hold ends.\n",
+					screenAgentName(d, st.Hold.Session), st.Hold.Until.Local().Format("15:04"), st.Hold.Reason, d.Display(q.ID))
 			} else {
 				fmt.Fprintf(a.Stdout, "Asked the user for the screen (%s): they are at the machine, so it needs their approval.\n", d.Display(q.ID))
 			}
@@ -234,11 +288,15 @@ func (a *App) screenGrant(from ident.From, holder, reason string, hold time.Dura
 	return e
 }
 
-// screenRequest is the question that asks the user for the screen. away is
-// how long the user must be idle for the server to grant it unasked; wait,
-// how long a take --wait will keep asking (0 without --wait), which the
-// request lives at least as long as.
-func (a *App) screenRequest(d *desk.Desk, from ident.From, reason string, hold, away, wait time.Duration) store.Event {
+// screenRequest is the question that asks the user for the screen, with
+// st the screen as it is. away is how long the user must be idle for the
+// server to grant it unasked; wait, how long a take --wait will keep asking
+// (0 without --wait), which the request lives at least as long as. Filed
+// behind another agent's hold, it says so; and if the user is away long
+// enough already, it is quiet (meta.screen.quiet): it will be granted
+// without them when the hold ends, so it notifies nobody unless it is still
+// waiting then.
+func (a *App) screenRequest(d *desk.Desk, c config.Config, st desk.ScreenState, from ident.From, reason string, hold, away, wait time.Duration) store.Event {
 	who := from.Title
 	if who == "" {
 		who = from.Agent + " " + short8(from.Session)
@@ -247,12 +305,60 @@ func (a *App) screenRequest(d *desk.Desk, from ident.From, reason string, hold, 
 	if wait > 0 {
 		sm["wait"] = wait.String()
 	}
+	body := fmt.Sprintf("%s\n\nFor up to %s. Approve to hand it the screen now (a banner shows while it holds it), or deny. "+
+		"It is granted without asking once you have been away %s.", reason, humanDur(hold), humanDur(away))
+	if st.Hold != nil {
+		ahead := ""
+		if n := len(st.Queued); n > 0 {
+			ahead = fmt.Sprintf(", and after the %d request(s) you approved before it", n)
+		}
+		body = fmt.Sprintf("%s\n\nFor up to %s. It waits behind %s, which holds the screen until %s (%s)%s. "+
+			"Approve to give it the screen next, when that hold ends, or deny. ",
+			reason, humanDur(hold), screenAgentName(d, st.Hold.Session), st.Hold.Until.Local().Format("15:04"), st.Hold.Reason, ahead)
+		if idle, known := a.userAway(c, d); known && idle >= away {
+			sm["quiet"] = true
+			body += fmt.Sprintf("You have been away %s, so it gets the screen then without asking; "+
+				"you are told only if it is still waiting then.", humanDur(idle))
+		} else {
+			body += fmt.Sprintf("Unanswered, it gets the screen then only once you have been away %s.", humanDur(away))
+		}
+	}
 	q := a.event("ask", desk.ScreenPath(a.Host), from, "cli", map[string]any{"screen": sm})
 	q.Level = "blocked"
 	q.Title = fmt.Sprintf("Screen on %s: %s wants to drive the GUI", a.Host, who)
-	q.Body = fmt.Sprintf("%s\n\nFor up to %s. Approve to hand it the screen now (a banner shows while it holds it), or deny. "+
-		"It is granted without asking once you have been away %s.", reason, humanDur(hold), humanDur(away))
+	q.Body = body
 	return q
+}
+
+// screenAgentName names session's agent for the user: the title its latest
+// word carries, else its agent and a short id.
+func screenAgentName(d *desk.Desk, session string) string {
+	name := ""
+	for _, e := range d.Events {
+		if sessionOf(e) == session {
+			if t := agentTitle(e); t != "" {
+				name = t
+			}
+		}
+	}
+	if name == "" {
+		return "agent " + short8(session)
+	}
+	return name
+}
+
+// screenTurn says when queued session gets the screen.
+func screenTurn(d *desk.Desk, st desk.ScreenState, session string) string {
+	turn := "the screen is free"
+	if st.Hold != nil {
+		turn = fmt.Sprintf("%s releases the screen or its hold ends at %s", screenAgentName(d, st.Hold.Session), st.Hold.Until.Local().Format("15:04"))
+	}
+	for i, x := range st.Queued {
+		if x.Session == session && i > 0 {
+			turn += fmt.Sprintf(", after the %d request(s) approved before yours", i)
+		}
+	}
+	return turn
 }
 
 // bannerTimeout bounds banner_on and banner_off. Hammerspoon's hs command
@@ -322,7 +428,7 @@ func (a *App) screenRelease(args []string) error {
 	}
 	st := d.Screen(a.Host)
 	if !st.Holder(from.Session) {
-		// Also withdraw an open request.
+		// Also withdraw an open request, or a place on the queue.
 		if req, ok := st.Request(from.Session); ok {
 			if err := a.commit([]store.Event{a.readMark(req, from, "screen")}, "-"); err != nil {
 				return err
@@ -330,17 +436,40 @@ func (a *App) screenRelease(args []string) error {
 			fmt.Fprintln(a.Stdout, "Withdrew your request for the screen.")
 			return nil
 		}
+		if x, ok := st.QueuedFor(from.Session); ok {
+			e := a.event("screen", desk.ScreenPath(a.Host), from, "cli", map[string]any{"action": "unqueue", "request": x.Request})
+			e.Ref = x.Request
+			if err := a.commit([]store.Event{e}, "-"); err != nil {
+				return err
+			}
+			fmt.Fprintln(a.Stdout, "Gave up your place next in line for the screen.")
+			return nil
+		}
 		return errors.New("you do not hold the screen on " + a.Host)
 	}
-	return a.screenLetGo(from, st, "agent")
+	_, err = a.screenLetGo(from, st, "agent")
+	return err
 }
 
-// screenLetGo releases the screen and takes the banner down.
-func (a *App) screenLetGo(from ident.From, st desk.ScreenState, by string) error {
+// screenLetGo releases the screen and takes the banner down. The first
+// request the user approved while it was held gets it at once, and its
+// agent is told; next names that agent ("" for none).
+func (a *App) screenLetGo(from ident.From, st desk.ScreenState, by string) (next string, err error) {
 	e := a.event("screen", desk.ScreenPath(a.Host), from, "cli", map[string]any{"action": "release", "by": by})
 	e.Ref = st.Hold.Event.ID
-	if err := a.commit([]store.Event{e}, "-"); err != nil {
-		return err
+	d, err := a.load()
+	if err != nil {
+		return "", err
+	}
+	free := st
+	free.Hold = nil
+	why := "it released it"
+	if by == "user" {
+		why = "the user took the screen back from it"
+	}
+	evs := append([]store.Event{e}, a.screenNextEvents(d, free, why)...)
+	if err := a.commit(evs, "-"); err != nil {
+		return "", err
 	}
 	c, err := a.config()
 	if err == nil && c.Screen.BannerOff != "" && st.Host == a.Host {
@@ -349,7 +478,128 @@ func (a *App) screenLetGo(from ident.From, st desk.ScreenState, by string) error
 		}
 	}
 	fmt.Fprintf(a.Stdout, "Released the screen on %s.\n", a.Host)
+	if len(evs) > 1 {
+		next = screenAgentName(d, free.Queued[0].Session)
+		fmt.Fprintf(a.Stdout, "It goes to %s, which the user approved next.\n", next)
+		if evs[1].Kind == "reply" {
+			if _, err := a.deliver(evs[1].ID); err != nil {
+				fmt.Fprintf(a.Stderr, "agent-desk: telling %s the screen is its: %v\n", next, err)
+			}
+		}
+	}
+	return next, nil
+}
+
+// screenNextEvents hand the free screen st to its first queued request: a
+// message telling its agent (first, so a guarded append counts the screen
+// path), and the grant. why says how the last hold ended.
+func (a *App) screenNextEvents(d *desk.Desk, st desk.ScreenState, why string) []store.Event {
+	if st.Hold != nil || len(st.Queued) == 0 {
+		return nil
+	}
+	x := st.Queued[0]
+	q, ok := d.ByID[x.Request]
+	if !ok {
+		return nil
+	}
+	hold := x.For
+	if hold <= 0 || hold > screenMax {
+		hold = screenDefault
+	}
+	g := a.screenGrant(ident.From{}, x.Session, x.Reason, hold, "user", x.Request)
+	text := fmt.Sprintf("The screen on %s is yours now, until %s: the user approved your request while another agent held the screen, and %s. "+
+		"Run `agent-desk screen take --reason %s` again to put up the banner, and release it as soon as you are done.",
+		st.Host, a.Now().Add(hold).Local().Format("15:04"), why, shellQuote(x.Reason))
+	r, err := a.replyTo(d, fromOf(q), q.Host, q.Path, q, text, "screen", "", nil)
+	if err != nil {
+		return []store.Event{g}
+	}
+	markAuto(&r, "screen-granted")
+	return []store.Event{r, g}
+}
+
+// screenServeQueued hands the free screen to the first queued request and
+// tells its agent; granted reports whether it did. The guarded append keeps
+// it from granting twice when a sweep runs at the same moment.
+func (a *App) screenServeQueued() (granted bool, err error) {
+	d, err := a.load()
+	if err != nil {
+		return false, err
+	}
+	evs := a.screenNextEvents(d, d.Screen(a.Host), "its time ran out")
+	if len(evs) == 0 {
+		return false, nil
+	}
+	st, err := a.store()
+	if err != nil {
+		return false, err
+	}
+	if granted, err = st.AppendScreenSweep(evs, eventsAt(d, evs[0].Path)); err != nil || !granted {
+		return false, err
+	}
+	a.announce(evs, false, false)
+	if evs[0].Kind == "reply" {
+		if _, err := a.deliver(evs[0].ID); err != nil {
+			fmt.Fprintf(a.Stderr, "agent-desk: telling the agent its approved request has the screen: %v\n", err)
+		}
+	}
+	return true, nil
+}
+
+// eventsAt counts the events at path, for a guarded append.
+func eventsAt(d *desk.Desk, path string) int {
+	n := 0
+	for _, e := range d.Events {
+		if e.Path == path {
+			n++
+		}
+	}
+	return n
+}
+
+// screenWake raises the notifications of the quiet requests (see
+// screenRequest) still waiting on a free screen that nobody was granted:
+// the user came back before the hold they waited behind ended.
+func (a *App) screenWake() error {
+	d, err := a.load()
+	if err != nil {
+		return err
+	}
+	st := d.Screen(a.Host)
+	if st.Hold != nil || len(st.Queued) > 0 {
+		return nil
+	}
+	var wakes, woken []store.Event
+	for _, q := range st.Requests {
+		if screenQuiet(d, q) {
+			w := a.event("screen", q.Path, ident.From{}, "cli", map[string]any{"action": "wake"})
+			w.Ref = q.ID
+			wakes, woken = append(wakes, w), append(woken, q)
+		}
+	}
+	if len(wakes) == 0 {
+		return nil
+	}
+	if err := a.appendQuiet(wakes); err != nil {
+		return err
+	}
+	a.announce(woken, false, false)
 	return nil
+}
+
+// screenQuiet reports whether request q notifies nobody yet: filed quiet,
+// and not woken since.
+func screenQuiet(d *desk.Desk, q store.Event) bool {
+	sm, ok := desk.Meta(q)["screen"].(map[string]any)
+	if !ok || sm["quiet"] != true {
+		return false
+	}
+	for _, e := range d.Events {
+		if e.Kind == "screen" && e.Ref == q.ID && desk.MetaString(e, "action") == "wake" {
+			return false
+		}
+	}
+	return true
 }
 
 func (a *App) screenStatus(args []string) error {
@@ -371,6 +621,9 @@ func (a *App) screenStatus(args []string) error {
 	} else {
 		fmt.Fprintf(a.Stdout, "The screen on %s is held until %s (%s, granted %s): %s\n", host,
 			st.Hold.Until.Local().Format("15:04"), short8(st.Hold.Session), st.Hold.By, st.Hold.Reason)
+	}
+	for _, x := range st.Queued {
+		fmt.Fprintf(a.Stdout, "Next, approved: %s (%s): %s\n", screenAgentName(d, x.Session), d.Display(x.Request), x.Reason)
 	}
 	for _, q := range st.Requests {
 		fmt.Fprintf(a.Stdout, "Asking: %s %s\n", d.Display(q.ID), q.Title)
@@ -400,30 +653,34 @@ func (a *App) screenRequestOf(token string) (*desk.Desk, store.Event, error) {
 }
 
 // screenDecide grants or denies a request (a screen question) as the user,
-// and answers it, so its agent hears at once. Only this denies: an answer
-// in words grants whatever it says (screenDecision).
-func (a *App) screenDecide(token string, grant bool, source string) error {
+// and answers it, so its agent hears at once (the delivered answer says
+// what the desk did: screenNote). Only this denies: an answer in words
+// grants whatever it says (screenDecision). It returns the outcome
+// (screenOutcome).
+func (a *App) screenDecide(token string, grant bool, source string) (map[string]string, error) {
 	d, q, err := a.screenRequestOf(token)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	text := "No, not now: keep off the screen."
 	if grant {
-		text = "Approved: the screen is yours. Run `agent-desk screen take` again to put up the banner, and release it as soon as you are done."
+		text = "Approved."
 	}
 	evs, err := a.answerEvents(d, q, text, source, "", nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if !grant {
 		evs[len(evs)-1] = a.screenDeny(q)
 	}
-	return a.sendAnswer(d, q, evs, source)
+	if err := a.sendAnswer(d, q, evs, source); err != nil {
+		return nil, err
+	}
+	return screenOutcome(d, evs[len(evs)-1]), nil
 }
 
 // screenAnswer answers a request in the user's own words, which grant it
-// (screenDecision), and returns the decision: {decision: grant, until: when
-// the grant ends}.
+// (screenDecision), and returns the outcome (screenOutcome).
 func (a *App) screenAnswer(token, text, source string) (map[string]string, error) {
 	d, q, err := a.screenRequestOf(token)
 	if err != nil {
@@ -439,12 +696,24 @@ func (a *App) screenAnswer(token, text, source string) (map[string]string, error
 	if err := a.sendAnswer(d, q, evs, source); err != nil {
 		return nil, err
 	}
-	se := evs[len(evs)-1]
+	return screenOutcome(d, evs[len(evs)-1]), nil
+}
+
+// screenOutcome describes decision se for the dashboard: {decision: grant,
+// until}, {decision: queue, after: the holder's name, at: when its hold
+// ends}, or {decision: deny}.
+func screenOutcome(d *desk.Desk, se store.Event) map[string]string {
 	out := map[string]string{"decision": desk.MetaString(se, "action")}
 	if u := desk.MetaString(se, "until"); u != "" {
 		out["until"] = u
 	}
-	return out, nil
+	if out["decision"] == "queue" {
+		st := d.Screen(strings.TrimPrefix(se.Path, "_desk/screen/"))
+		if st.Hold != nil {
+			out["after"], out["at"] = screenAgentName(d, st.Hold.Session), st.Hold.Until.Format(time.RFC3339)
+		}
+	}
+	return out
 }
 
 // screenSweep prepares an automatic answer to the oldest waiting request.
@@ -460,8 +729,8 @@ func (a *App) screenSweep() ([]store.Event, int, error) {
 		return nil, 0, err
 	}
 	st := d.Screen(a.Host)
-	if st.Hold != nil || len(st.Requests) == 0 {
-		return nil, 0, nil
+	if st.Hold != nil || len(st.Queued) > 0 || len(st.Requests) == 0 {
+		return nil, 0, nil // held, or an approved request goes first (screenServeQueued)
 	}
 	q := st.Requests[0]
 	away, ok := a.userAway(c, d)
@@ -474,12 +743,7 @@ func (a *App) screenSweep() ([]store.Event, int, error) {
 	if err != nil {
 		return nil, 0, err
 	}
-	count := 0
-	for _, event := range d.Events {
-		if event.Path == q.Path {
-			count++
-		}
-	}
+	count := eventsAt(d, q.Path)
 	if len(events) > 1 {
 		grant := desk.Meta(events[1])
 		grant["away_since"] = d.Now.Add(-away).UTC().Format(time.RFC3339)
@@ -523,6 +787,19 @@ func (a *App) screenServeOldest() (granted bool, err error) {
 	return true, nil
 }
 
+// screenServeNext gives the free screen to whoever is next: the first
+// request the user approved, else the oldest once the user is away long
+// enough. If it goes to nobody, quiet requests start notifying.
+func (a *App) screenServeNext() error {
+	if granted, err := a.screenServeQueued(); err != nil || granted {
+		return err
+	}
+	if granted, err := a.screenServeOldest(); err != nil || granted {
+		return err
+	}
+	return a.screenWake()
+}
+
 // startSweeper starts `screen sweep` in the background, so the request just
 // filed is granted once the user is away even when no dashboard server runs
 // on this machine and its agent does not take again. Tests (WaitHooks) skip
@@ -564,11 +841,11 @@ func (a *App) screenSweeper() error {
 				return err
 			}
 		}
-		if len(st.Requests) == 0 {
+		if len(st.Requests) == 0 && len(st.Queued) == 0 {
 			return nil
 		}
 		if st.Hold == nil {
-			if _, err := a.screenServeOldest(); err != nil {
+			if err := a.screenServeNext(); err != nil {
 				return err
 			}
 		}
@@ -590,8 +867,11 @@ func requestIdle(q store.Event, c config.Config) time.Duration {
 // screenDecision is the screen event an answer to request q implies: a
 // grant, whatever the answer says. A typed answer never denies, so a
 // question back, or a "no" meant as "no problem", cannot cost the agent the
-// screen; only Deny (screenDecide, or dismissing the request) denies.
-func (a *App) screenDecision(q store.Event, source string) (store.Event, bool) {
+// screen; only Deny (screenDecide, or dismissing the request) denies. While
+// another agent holds the screen (or an earlier approval waits for it), the
+// approval queues the request instead: it never takes the screen from an
+// agent that may be mid-click.
+func (a *App) screenDecision(d *desk.Desk, q store.Event, source string) (store.Event, bool) {
 	sm, ok := desk.Meta(q)["screen"].(map[string]any)
 	if !ok {
 		return store.Event{}, false
@@ -602,8 +882,16 @@ func (a *App) screenDecision(q store.Event, source string) (store.Event, bool) {
 		hold = screenDefault
 	}
 	reason, _ := sm["reason"].(string)
+	session := sessionOf(q)
+	if st := d.Screen(host); (st.Hold != nil && st.Hold.Session != session) || (len(st.Queued) > 0 && st.Queued[0].Session != session) {
+		e := a.event("screen", desk.ScreenPath(host), ident.Resolve(a.Env), "answer", map[string]any{
+			"action": "queue", "holder": session, "reason": reason, "for": hold.String(), "by": "user", "request": q.ID,
+		})
+		e.Ref = q.ID
+		return e, true
+	}
 	m := map[string]any{
-		"action": "grant", "holder": sessionOf(q), "reason": reason, "by": "user", "request": q.ID,
+		"action": "grant", "holder": session, "reason": reason, "by": "user", "request": q.ID,
 		"until": a.Now().Add(hold).UTC().Format(time.RFC3339),
 	}
 	if source == "auto" {
@@ -721,6 +1009,47 @@ func humanDur(d time.Duration) string {
 		return fmt.Sprintf("%d h", h)
 	}
 	return fmt.Sprintf("%d h %d min", h, m)
+}
+
+// localHM is RFC 3339 time s as local hours and minutes.
+func localHM(s string) string {
+	t, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		return s
+	}
+	return t.Local().Format("15:04")
+}
+
+// screenNote is what the desk adds to an answer to screen request q when
+// it is delivered: what the answer did, which the user's words may not say.
+func screenNote(d *desk.Desk, q store.Event) string {
+	sm, ok := desk.Meta(q)["screen"].(map[string]any)
+	if !ok {
+		return ""
+	}
+	host, _ := sm["host"].(string)
+	var last store.Event
+	for _, e := range d.Events {
+		if e.Kind == "screen" && e.Ref == q.ID {
+			if a := desk.MetaString(e, "action"); a == "grant" || a == "queue" || a == "deny" {
+				last = e
+			}
+		}
+	}
+	switch desk.MetaString(last, "action") {
+	case "queue":
+		st := d.Screen(host)
+		if x, ok := st.QueuedFor(desk.MetaString(last, "holder")); ok && x.Request == q.ID {
+			return fmt.Sprintf("(From the desk: this approves your request, but another agent holds the screen on %s, so you are next: "+
+				"you get the screen once %s, and a message then tells you. Do not drive the GUI before that.)", host, screenTurn(d, st, x.Session))
+		}
+	case "grant":
+		if desk.MetaString(last, "by") == "user" {
+			return fmt.Sprintf("(From the desk: this approves your request: the screen on %s is yours until %s. "+
+				"Run `agent-desk screen take` again to put up the banner, and release it as soon as you are done.)", host, localHM(desk.MetaString(last, "until")))
+		}
+	}
+	return ""
 }
 
 func short8(s string) string {

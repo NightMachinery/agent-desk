@@ -1,6 +1,7 @@
 <script>
   // Machines whose screen an agent holds (agent-desk screen take): who,
-  // why and until when, with a button to take it back on this machine.
+  // why and until when, and who the user approved to go next, with a button
+  // to take it back on this machine.
   import { post } from '../lib/api.js';
   import { toast } from '../lib/toast.svelte.js';
   import { agentName } from '../lib/format.js';
@@ -12,8 +13,8 @@
 
   async function takeBack() {
     try {
-      await post('screen', { action: 'release' });
-      toast('Took the screen back. The banner is down.', 'ok');
+      const res = await post('screen', { action: 'release' });
+      toast(res?.next ? `Took the screen back. ${agentName(res.next)}, which you approved next, has it now.` : 'Took the screen back. The banner is down.', 'ok');
       onchange();
     } catch (err) {
       failed(err);
@@ -27,6 +28,9 @@
     <div class="what">
       <strong>{agentName(s.agent) || 'An agent'}</strong> is driving the screen on {s.host} until {time(s.until)}{s.by === 'auto' ? ' (you were away)' : ''}.
       <span class="faint">{s.reason}</span>
+      {#each s.queued ?? [] as q (q.request)}
+        <span class="faint">Next, approved by you: <strong>{agentName(q.agent) || 'an agent'}</strong> ({q.request}), {q.reason}</span>
+      {/each}
     </div>
     {#if s.host === host}<button data-cmd="screen-release" class="btn small" title="Release the screen lock and take the banner down; the agent is not stopped" onclick={takeBack}>Take it back</button>{/if}
   </div>

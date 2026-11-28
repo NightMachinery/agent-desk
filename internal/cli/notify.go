@@ -74,6 +74,9 @@ func routeOf(d *desk.Desk, r *settings.Resolver, e store.Event) route {
 	if rt.class == "" || (desk.IsResponse(e) && e.Kind != "ask" && desk.Meta(e)["quiet"] == true) {
 		return rt
 	}
+	if e.Kind == "ask" && screenQuiet(d, e) {
+		return rt // granted without the user once the hold it waits behind ends
+	}
 	node := desk.NodeOf(e)
 	rt.desktop, _ = r.Resolve("notify.desktop", node, rt.class)
 	rt.remote, _ = r.Resolve("notify.remote", node, rt.class)

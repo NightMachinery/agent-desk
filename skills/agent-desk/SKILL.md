@@ -302,7 +302,10 @@ a request and `take` exits 3; `--wait` blocks until they grant it or stay
 away 30 minutes. `--idle 5m` shortens that wait (at least `1m`); pass it only
 when the user asked for it. A banner asks them to keep off the keyboard while you hold
 it. Headless work, such as a headless browser's screenshots, needs no lock.
-If they deny it, do not ask again at once; ask what to do instead. An
+If they deny it, do not ask again at once; ask what to do instead. If they
+approve it while another agent holds the screen, you are next: keep off the
+GUI until a message says the screen is yours (or `take --wait` gets it),
+then take again for the banner; `screen release` gives up your place. An
 unanswered request lapses after 2 hours (or your longer `--wait --timeout`):
 take again if you still need the screen.
 
