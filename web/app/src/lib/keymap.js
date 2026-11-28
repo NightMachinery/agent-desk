@@ -15,7 +15,7 @@ import { tipText } from './tooltip.js';
 import { toast, bump } from './toast.svelte.js';
 import { get, post } from './api.js';
 import { exportHref, download } from './exports.js';
-import { ui, setNav, toggleSection, toggleLater, showDeliverables, deliverableModeLabel, showTasks, taskModeLabel } from './ui.svelte.js';
+import { ui, setNav, toggleSection, toggleLater, showDeliverables, deliverableModeLabel, showTasks, taskModeLabel, showFinished, finishedModeLabel } from './ui.svelte.js';
 import {
   keys, ctx, command, pane, paneEl, cmdEl, say, dialog, moveFocus, focusables, startHints, openPalette, setKeymap,
   commands, commandItems, keysOf, keyFor, applies, describeKey, describeCommand, setVisual, syncMode, selectedField, selectField,
@@ -554,6 +554,7 @@ C('deliverables-unread', 'Deliverables: the newest of each, unread', deliverable
 C('deliverables-latest', 'Deliverables: the newest of each, read or not', deliverablesShow('latest'));
 C('deliverables-all', 'Deliverables: every one, replaced ones too', deliverablesShow('all'));
 C('tasks-show', 'Tasks section: open only, or also those finished in the last 15 minutes to 30 days (cycle)', () => say(`Tasks: ${taskModeLabel[showTasks()]}`));
+C('finished-show', "Node panel's Recently finished: tasks finished in the last hour to the last week (cycle)", () => say(`Recently finished: ${finishedModeLabel[showFinished()].toLowerCase()}`));
 C('toggle-select', 'Toggle select mode', () => click('select-mode'));
 C('toggle-auto-continue', 'Toggle auto-continue', () => click('auto-continue'), tagged('auto-continue', 'the settings page'));
 C('auto-continue-default', "Let this agent's auto-continue follow its default again", () => click('auto-continue-default'), tagged('auto-continue-default', 'an agent with its own auto-continue choice'));

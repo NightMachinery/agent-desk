@@ -1097,8 +1097,11 @@ launched on it later is pointed at that thread.
 
  Desk tasks replace a `TASKS.org`
 checklist: agents keep theirs with `task add`, `task start`, `task done`;
-the node panel shows "Tasks: 3 of 7 done" with the open ones, and `show`
-lists the ones still active.
+the node panel shows "Tasks: 3 of 7 done" with the open ones, then
+**Recently finished**: the tasks done or dropped in the last 12 hours, each
+with the first line of its note (the menu beside it, or `SPC t n`, goes back
+from the last hour to the last week, kept per device). `show` lists the ones
+still active.
 
 An agent must say what it files and how it finished: `task add` refuses an
 agent's task without `--brief` (a short summary of what and why; a step

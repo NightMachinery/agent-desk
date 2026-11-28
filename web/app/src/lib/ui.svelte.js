@@ -56,6 +56,11 @@ export const taskModeLabel = {
   '7d': 'Open + last week',
   '30d': 'Open + last 30 days',
 };
+// The node panel's Recently finished lists the node's tasks done or dropped
+// in a span (finished.js): its length in ms by name.
+export const finishedSpans = { '1h': 3600e3, '6h': 6 * 3600e3, '12h': 12 * 3600e3, '1d': 864e5, '3d': 3 * 864e5, '7d': 7 * 864e5 };
+export const finishedModes = Object.keys(finishedSpans);
+export const finishedModeLabel = { '1h': 'Last hour', '6h': 'Last 6 hours', '12h': 'Last 12 hours', '1d': 'Last day', '3d': 'Last 3 days', '7d': 'Last week' };
 export const deliverableModes = ['unread', 'latest', 'all'];
 export const deliverableModeLabel = { unread: 'Unread latest', latest: 'Latest', all: 'All' };
 
@@ -75,6 +80,8 @@ export const ui = $state({
   deliverablesShow: deliverableModes.includes(saved.deliverablesShow) ? saved.deliverablesShow : 'unread',
   // Which tasks the Tasks section lists (taskModes), per device.
   tasksShow: taskModes.includes(saved.tasksShow) ? saved.tasksShow : 'open',
+  // How far back the node panel's Recently finished goes (finishedModes), per device.
+  finishedShow: finishedModes.includes(saved.finishedShow) ? saved.finishedShow : '12h',
   // The list's sections in order (orderedSections), shared by every device.
   sectionOrder: orderedSections(saved.sectionOrder),
   // Auto-navigation's order (moveon.js), shared by every device.
@@ -90,6 +97,7 @@ export function saveUI() {
         collapsed: ui.collapsed,
         deliverablesShow: ui.deliverablesShow,
         tasksShow: ui.tasksShow,
+        finishedShow: ui.finishedShow,
         sectionOrder: ui.sectionOrder,
         nav: ui.nav,
       }),
@@ -127,6 +135,14 @@ export function showTasks(mode) {
   ui.tasksShow = taskModes.includes(mode) ? mode : taskModes[(at + 1) % taskModes.length];
   saveUI();
   return ui.tasksShow;
+}
+
+/** How far back Recently finished goes: mode, or the next one when it is not a mode. */
+export function showFinished(mode) {
+  const at = finishedModes.indexOf(ui.finishedShow);
+  ui.finishedShow = finishedModes.includes(mode) ? mode : finishedModes[(at + 1) % finishedModes.length];
+  saveUI();
+  return ui.finishedShow;
 }
 
 /** Take the section order and auto-navigation order shared on the desk, if they differ from this browser's. */

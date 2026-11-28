@@ -154,6 +154,7 @@
   "SPC t r" :toggle-read-sort
   "SPC t d" :deliverables-show
   "SPC t t" :tasks-show
+  "SPC t n" :finished-show
   "SPC t s" :toggle-select
   "SPC t c" :toggle-auto-continue
   "SPC t C" :auto-continue-default

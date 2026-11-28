@@ -168,7 +168,8 @@ entry reuses the letter of its short key (`p` pins, so `SPC b p` pins).
   hour's read items too), `s` select mode, `d`
   which deliverables to list (unread latest, latest, all), `t` the Tasks
   section's menu (open only, or also those finished in the last 15 minutes
-  to 30 days), `c` auto-continue, `C` let the agent's auto-continue follow
+  to 30 days), `n` how far back the node panel's Recently finished goes
+  (the last hour to the last week), `c` auto-continue, `C` let the agent's auto-continue follow
   its default again, `b` / `l` hide or show the sidebar or the list, `f`
   fullscreen (see Panes).
 - `SPC x`: selecting: `a` every item, `c` clear, `d` mark every unread item

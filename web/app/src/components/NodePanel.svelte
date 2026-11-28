@@ -18,6 +18,8 @@
   import { desk } from '../lib/desk.svelte.js';
   import { archiveAgent } from '../lib/agents.js';
   import { failed } from '../lib/errors.svelte.js';
+  import { ui, finishedModes, finishedModeLabel, finishedSpans, showFinished } from '../lib/ui.svelte.js';
+  import { recentlyFinished, noteLine, agoShort } from '../lib/finished.js';
 
   // conversations: the node's threads, one per message sent to it about no
   // item, newest first (api/view). The panel does not list them: a message
@@ -35,6 +37,15 @@
   const kind = $derived(node.depth === 1 ? 'Project' : node.depth === 2 ? 'Run' : 'Agent');
   const label = $derived(node.state === 'active' || node.state === 'quiet' ? `${node.state} ${node.age}` : node.state);
   let writing = $state(false);
+
+  // The clock for Recently finished, so a task leaves its span on time.
+  let now = $state(Date.now());
+  $effect(() => {
+    stamp;
+    now = Date.now();
+    const t = setInterval(() => (now = Date.now()), 60e3);
+    return () => clearInterval(t);
+  });
 
   // A message from the box starts a thread of its own. The send queue lets
   // go of a message once the desk lists it, wherever this panel shows it.
@@ -138,6 +149,31 @@
         <a class="task" href={href({ item: t.display_id })}><span class="chip">{t.type && t.type !== 'task' ? t.type : t.state}</span> {t.event.title}</a>
       {/each}
     </div>
+    {#if all.length}
+      {@const recent = recentlyFinished(all, finishedSpans[ui.finishedShow], now)}
+      <div class="finished">
+        <div class="slot-name">
+          <span>Recently finished</span>
+          <label class="show-pick" title={tip('How far back to list finished tasks, each with the first line of its note', 'finished-show')}>
+            <select data-cmd="finished-show" aria-label="How far back to list finished tasks" value={ui.finishedShow} onchange={(e) => showFinished(e.currentTarget.value)}>
+              {#each finishedModes as m (m)}<option value={m}>{finishedModeLabel[m]}</option>{/each}
+            </select>
+            <svg width="9" height="9" viewBox="0 0 10 10" aria-hidden="true"><path d="m2 3.5 3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+          </label>
+        </div>
+        {#each recent as t (t.event.id)}
+          {@const line = noteLine(t.note)}
+          <a class="fin" class:dropped={t.state === 'dropped'} href={href({ item: t.display_id })} title={t.note || 'Finished without a note'}>
+            <span class="chip">{t.state}</span>
+            <span class="fin-title">{t.event.title}</span>
+            <span class="fin-when faint" title={t.updated}>{agoShort(t.updated, now)}</span>
+            {#if line}<span class="fin-note">{line}</span>{/if}
+          </a>
+        {:else}
+          <span class="faint fin-none">None in the {finishedModeLabel[ui.finishedShow].toLowerCase()}</span>
+        {/each}
+      </div>
+    {/if}
   {/if}
 
   {#if !compact && node.notes?.length}
@@ -280,6 +316,78 @@
   .tasks .task {
     color: inherit;
     font-size: 14px;
+  }
+  .finished {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0 0 12px;
+  }
+  .fin {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    column-gap: 6px;
+    align-items: baseline;
+    color: inherit;
+    text-decoration: none;
+    font-size: 14px;
+  }
+  .fin:hover .fin-title {
+    text-decoration: underline;
+  }
+  .fin.dropped .fin-title {
+    color: var(--muted);
+  }
+  .fin-when {
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  .fin-note {
+    grid-column: 2 / -1;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 12.5px;
+  }
+  .fin-none {
+    font-size: 13px;
+  }
+  .show-pick {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    margin-left: 4px;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+  .show-pick select {
+    appearance: none;
+    -webkit-appearance: none;
+    field-sizing: content;
+    height: 20px;
+    padding: 0 18px 0 8px;
+    border: 1px solid color-mix(in srgb, var(--ok) 35%, var(--line));
+    border-radius: 999px;
+    background: var(--ok-soft);
+    color: var(--ok);
+    font: inherit;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .show-pick select:hover:not(:disabled),
+  .show-pick select:focus-visible {
+    border-color: var(--ok);
+    outline: none;
+  }
+  .show-pick svg {
+    position: absolute;
+    right: 6px;
+    pointer-events: none;
+    color: var(--ok);
   }
   .notes {
     margin: 4px 0 12px;

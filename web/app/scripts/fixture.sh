@@ -49,8 +49,17 @@ s() {
 }
 cd ${root}/example-proj
 s 1 ${B} join rerun-nov/coord >/dev/null
-s 1 ${B} set status 'Seeds 3/5 done. ETA 14:00.' >/dev/null
-s 1 ${B} set next $'Finish seeds 4 and 5.\nWrite the comparison table.' >/dev/null
+s 1 ${B} set status $'Seeds 3/5 done. ETA 14:00.\nWaiting: the answer on the split.' >/dev/null
+# Tasks: what comes next is the open ones, what is finished their notes.
+t1=$(s 1 ${B} task add --title 'Rerun seeds 1 to 3' --brief 'The label fix changed the inputs; rerun the first three seeds.')
+t2=$(s 1 ${B} task add --title 'Check the loader cache' --brief 'Make sure the cached batches predate nothing stale.')
+t3=$(s 1 ${B} task add --title 'Plot per-seed curves' --brief 'One figure per seed for the appendix.')
+s 1 ${B} task add --title 'Finish seeds 4 and 5' --brief 'The last two seeds, then the table.' >/dev/null
+s 1 ${B} task add --title 'Write the comparison table' --brief 'Seeds against the baseline, in results.md.' >/dev/null
+s 1 ${B} task start ${t1} >/dev/null
+s 1 ${B} task done ${t1} --note $'Seeds 1-3 in results/rerun-nov/; all within 0.2% of the baseline.\nChecked against the logs.' >/dev/null
+s 1 ${B} task done ${t2} --note 'Cache rebuilt after the label fix (prep.py at a0be15b); batch hashes match.' >/dev/null
+s 1 ${B} task drop ${t3} --note 'Superseded by the combined loss figure.' >/dev/null
 s 1 ${B} ask --blocked --title 'Which split for the rerun?' >/dev/null <<'Q'
 The rerun needs a train/test split, and the cached one predates the
 label fix in `prep.py`.
