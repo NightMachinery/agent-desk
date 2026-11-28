@@ -270,14 +270,22 @@ function message() {
   focusComposer();
 }
 
-/** Marks the selection, or else the open item, read (dismissing a question). */
+/** Marks the selection, or else the open item, read (dismissing a question).
+ * Done with the item, it moves on as n does; a question moves on by itself
+ * (Detail's moveOn, as Settings say). A draft keeps the item unread, and its
+ * toast asks what to do, so d stays there. */
+const readToggle = () => cmdEl('read-toggle')?.getAttribute('aria-label');
 function markRead() {
   if (picking()) return click('bulk-read');
   if (!open()) return say('Nothing open');
   if (cmdEl('dismiss')) return click('dismiss');
-  const t = cmdEl('read-toggle');
-  if (t?.getAttribute('aria-label') === 'Mark read') return t.click();
-  say('Already read');
+  if (!readToggle()) return say('Already read');
+  if (readToggle() === 'Mark read') {
+    cmdEl('read-toggle').click();
+    flushSync(); // n must see it read: the list's snapshot (nav.open) follows in an effect
+    if (readToggle() === 'Mark read') return;
+  }
+  openOpen(1);
 }
 function markUnread() {
   if (picking()) return click('bulk-unread');
@@ -583,7 +591,7 @@ C('reply-to-cancel', 'Message: stop replying to a thread entry (send about the o
 C('compose', 'Write in the first message box', focusComposer);
 C('insert', 'Back into the selected field (the one Esc left), else the first message box', insert);
 C('take', 'Take the recommendation or the default', () => click('quick', 'Not an open question'), tagged('quick', 'an open question with a recommendation or default'));
-C('read', 'Mark read (a question: dismiss it)', after(markRead));
+C('read', 'Mark read and go to the next open item, as n does (a question: dismiss it)', after(markRead));
 C('unread', 'Mark unread (a question: back to Needs you)', after(markUnread));
 C('pin', 'Pin or unpin', after(pin));
 C('defer', 'Defer or undefer: fold it under Deferred in its section, out of auto-navigation, until undeferred', after(deferItem));

@@ -114,7 +114,9 @@ On a phone, or a window under 900 pixels wide, there is one pane at a time
   send or press the ✕ beside "Replying to" (`SPC i c`). `O` and `D`: open
   or dismiss a deliverable shown in its conversation (hints label the
   buttons when there are several).
-- `d`: mark read; on a question, dismiss it. `U`: mark unread; on a dismissed
+- `d`: mark read and go to the next open item, as `n` does (an item a draft
+  keeps unread stays, and its toast asks); on a question, dismiss it, moving
+  on as Settings say. `U`: mark unread; on a dismissed
   question, put it back in Needs you. `p`: pin or unpin. With a selection,
   these act on every selected item.
 - `x`: select or unselect it.

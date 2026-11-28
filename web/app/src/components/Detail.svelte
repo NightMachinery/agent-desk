@@ -367,8 +367,12 @@
     cancelArrival(it.display_id); // the user said read or unread
     // Shown at once: a question read is dismissed, out of Needs you unless
     // Show: All lists the dismissed, and the page moves on without waiting.
-    const display = it.display_id;
+    const display = it.display_id, eventId = e.id;
     const question = isQuestion; // the page may have moved on by the reply
+    // Read by hand, it stays listed like a row read by opening (linger), so
+    // it does not vanish from under the cursor and N (after d) comes back.
+    const held = read && !question;
+    if (held) hold(eventId, display);
     const patch = question ? { unread: !read, dismissed: read } : { unread: !read };
     const sent = act([display], patch, question && read && !route.all ? ['needs'] : [], () =>
       post(read ? 'read' : 'unread', read ? { target: display } : { id: display }));
@@ -383,6 +387,7 @@
       else if (!question) toast(read ? 'Marked read.' : 'Marked unread.', 'ok');
       onchange();
     } catch (err) {
+      if (held) release(eventId);
       failed(err);
     }
   }
