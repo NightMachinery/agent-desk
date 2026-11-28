@@ -162,7 +162,7 @@ Agent side (only coordinators write; workers report to their parent):
   agent-desk instructions [<path-prefix>] [--since 2d] [--format json]
                                       the user's messages to this run, word for word
   agent-desk hook prompt --agent claude|codex   the UserPromptSubmit hook that records them
-  agent-desk set <slot> [text]          text or stdin; status 2 lines, next 5, others 15
+  agent-desk set <slot> [text]          text or stdin; status 2 lines, others 15
   agent-desk set --for agents <slot> [text]   a note only agents see (run state): never unread, 400 lines
   agent-desk get <slot> [--node PATH]   print a slot's current text (yours by default)
   agent-desk clear <slot>
