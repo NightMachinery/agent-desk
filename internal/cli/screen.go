@@ -383,59 +383,69 @@ func (a *App) screenStatus(args []string) error {
 	return nil
 }
 
-// screenDecide grants or denies a request (a screen question) as the user,
-// and answers it, so its agent hears at once.
-func (a *App) screenDecide(token string, grant bool, source string) error {
+// screenRequestOf resolves token to a request for the screen.
+func (a *App) screenRequestOf(token string) (*desk.Desk, store.Event, error) {
 	d, err := a.load()
 	if err != nil {
-		return err
+		return nil, store.Event{}, err
 	}
 	q, err := d.Resolve(token)
 	if err != nil {
-		return err
+		return nil, store.Event{}, err
 	}
 	if q.Kind != "ask" || desk.Meta(q)["screen"] == nil {
-		return usagef("%s is not a request for the screen", d.Display(q.ID))
+		return nil, store.Event{}, usagef("%s is not a request for the screen", d.Display(q.ID))
+	}
+	return d, q, nil
+}
+
+// screenDecide grants or denies a request (a screen question) as the user,
+// and answers it, so its agent hears at once. Only this denies: an answer
+// in words grants whatever it says (screenDecision).
+func (a *App) screenDecide(token string, grant bool, source string) error {
+	d, q, err := a.screenRequestOf(token)
+	if err != nil {
+		return err
 	}
 	text := "No, not now: keep off the screen."
 	if grant {
 		text = "Approved: the screen is yours. Run `agent-desk screen take` again to put up the banner, and release it as soon as you are done."
 	}
-	return a.recordAnswer(d, q, text, source, "", nil)
+	evs, err := a.answerEvents(d, q, text, source, "", nil)
+	if err != nil {
+		return err
+	}
+	if !grant {
+		evs[len(evs)-1] = a.screenDeny(q)
+	}
+	return a.sendAnswer(d, q, evs, source)
 }
 
-// screenAnswer answers a request in the user's own words, which decide it
-// (screenDecision), and returns the decision: {decision: grant or deny,
-// until: when a grant ends}.
+// screenAnswer answers a request in the user's own words, which grant it
+// (screenDecision), and returns the decision: {decision: grant, until: when
+// the grant ends}.
 func (a *App) screenAnswer(token, text, source string) (map[string]string, error) {
-	d, err := a.load()
+	d, q, err := a.screenRequestOf(token)
 	if err != nil {
 		return nil, err
-	}
-	q, err := d.Resolve(token)
-	if err != nil {
-		return nil, err
-	}
-	if q.Kind != "ask" || desk.Meta(q)["screen"] == nil {
-		return nil, usagef("%s is not a request for the screen", d.Display(q.ID))
 	}
 	if strings.TrimSpace(text) == "" {
 		return nil, usagef("an answer needs words: approve or deny it instead")
 	}
-	se, _ := a.screenDecision(q, text, source)
-	if err := a.recordAnswer(d, q, text, source, "", nil); err != nil {
+	evs, err := a.answerEvents(d, q, text, source, "", nil)
+	if err != nil {
 		return nil, err
 	}
+	if err := a.sendAnswer(d, q, evs, source); err != nil {
+		return nil, err
+	}
+	se := evs[len(evs)-1]
 	out := map[string]string{"decision": desk.MetaString(se, "action")}
 	if u := desk.MetaString(se, "until"); u != "" {
 		out["until"] = u
 	}
 	return out, nil
 }
-
-// screenDecision is the screen event an answer to a screen request implies:
-// a grant, unless the answer says no.
-var screenNo = regexp.MustCompile(`(?i)^\s*(no|deny|denied|not now|don'?t|do not)\b`)
 
 // screenSweep prepares an automatic answer to the oldest waiting request.
 // The server checks the screen path again when it commits the grant, since
@@ -577,19 +587,16 @@ func requestIdle(q store.Event, c config.Config) time.Duration {
 	return time.Duration(c.Screen.Idle()) * time.Minute
 }
 
-func (a *App) screenDecision(q store.Event, answer, source string) (store.Event, bool) {
+// screenDecision is the screen event an answer to request q implies: a
+// grant, whatever the answer says. A typed answer never denies, so a
+// question back, or a "no" meant as "no problem", cannot cost the agent the
+// screen; only Deny (screenDecide, or dismissing the request) denies.
+func (a *App) screenDecision(q store.Event, source string) (store.Event, bool) {
 	sm, ok := desk.Meta(q)["screen"].(map[string]any)
 	if !ok {
 		return store.Event{}, false
 	}
-	from := ident.Resolve(a.Env)
 	host, _ := sm["host"].(string)
-	path := desk.ScreenPath(host)
-	if screenNo.MatchString(answer) {
-		e := a.event("screen", path, from, "answer", map[string]any{"action": "deny", "request": q.ID})
-		e.Ref = q.ID
-		return e, true
-	}
 	hold, err := time.ParseDuration(fmt.Sprint(sm["for"]))
 	if err != nil || hold <= 0 || hold > screenMax {
 		hold = screenDefault
@@ -602,9 +609,18 @@ func (a *App) screenDecision(q store.Event, answer, source string) (store.Event,
 	if source == "auto" {
 		m["by"] = "auto"
 	}
-	e := a.event("screen", path, from, "answer", m)
+	e := a.event("screen", desk.ScreenPath(host), ident.Resolve(a.Env), "answer", m)
 	e.Ref = q.ID
 	return e, true
+}
+
+// screenDeny is the screen event denying request q.
+func (a *App) screenDeny(q store.Event) store.Event {
+	sm, _ := desk.Meta(q)["screen"].(map[string]any)
+	host, _ := sm["host"].(string)
+	e := a.event("screen", desk.ScreenPath(host), ident.Resolve(a.Env), "answer", map[string]any{"action": "deny", "request": q.ID})
+	e.Ref = q.ID
+	return e
 }
 
 // screenDenyQuiet is how long after a denial a session may not ask again.

@@ -82,7 +82,7 @@ func TestScreen(t *testing.T) {
 	}
 	h.ok(b, "", "screen", "release")
 
-	// A asks with the user active; the user answers no in words.
+	// A asks with the user active; the user denies it.
 	if _, _, code := h.run(a, "", "screen", "take", "--reason", "Resizing windows"); code != ScreenWaiting {
 		t.Fatalf("A: %d", code)
 	}
@@ -92,7 +92,7 @@ func TestScreen(t *testing.T) {
 			qa = fs[0]
 		}
 	}
-	h.ok(nil, "", "answer", qa, "No, I am using it.")
+	h.ok(nil, "", "screen", "deny", qa)
 	h.fails(a, "", "denied the screen", "screen", "take", "--reason", "Resizing windows", "--wait", "--timeout", "0s")
 	h.fails(nil, "", "not a request for the screen", "screen", "grant", strings.Fields(h.ok(a, "x", "tell", "--title", "t"))[0])
 
@@ -283,7 +283,7 @@ func TestScreenSweepDoesNotBlockWritesOrOverrideDenial(t *testing.T) {
 			writes <- body
 			return
 		}
-		code, body, _ = do(t, hd, "POST", "/api/answer", fmt.Sprintf(`{"id":%q,"text":"No, keep off the screen."}`, question.ID), dashboard)
+		code, body, _ = do(t, hd, "POST", "/api/screen", fmt.Sprintf(`{"action":"deny","id":%q}`, question.ID), dashboard)
 		if code != 200 {
 			writes <- body
 			return
@@ -300,7 +300,7 @@ func TestScreenSweepDoesNotBlockWritesOrOverrideDenial(t *testing.T) {
 	}
 	resume <- struct{}{}
 	must(t, <-probeDone)
-	if answers := kinds(h, "answer"); len(answers) != 1 || answers[0].Body != "No, keep off the screen." {
+	if answers := kinds(h, "answer"); len(answers) != 1 || answers[0].Body != "No, not now: keep off the screen." {
 		t.Fatalf("sweep overrode a newer decision: %+v", answers)
 	}
 	if hold := h.loadDesk().Screen(h.host).Hold; hold != nil {
@@ -492,13 +492,30 @@ func TestScreenAnswerSaysWhatItDecided(t *testing.T) {
 		t.Fatalf("yes: %v %v", out, err)
 	}
 	h.ok(h.as(sessA), "", "screen", "release")
+	// Words never deny: "no" may open "no problem", or a question.
 	qb := request(sessB, "Recording a screencast")
 	a, _, _ = h.app(nil, "")
-	if out, err = a.screenAnswer(qb, "No, I am typing.", "web"); err != nil || out["decision"] != "deny" {
+	if out, err = a.screenAnswer(qb, "No problem, but why?", "web"); err != nil || out["decision"] != "grant" {
 		t.Fatalf("no: %v %v", out, err)
 	}
 	a, _, _ = h.app(nil, "")
 	if _, err = a.screenAnswer(qb, "  ", "web"); err == nil {
 		t.Fatal("an empty answer was taken")
+	}
+	h.ok(h.as(sessB), "", "screen", "release")
+
+	// Dismissing a request denies it: set aside, it would still be
+	// granted once the user is away.
+	qc := request(sessA, "Dragging files")
+	_, errOut, code := h.run(nil, "", "read", qc)
+	if code != 0 || !strings.Contains(errOut, "dismissing it denies it") {
+		t.Fatalf("dismiss: %d %s", code, errOut)
+	}
+	d := h.loadDesk()
+	if why, denied := screenDeniedReq(d, mustResolve(t, d, qc)); !denied || !strings.Contains(why, "No, not now") {
+		t.Fatalf("not denied: %v %q", denied, why)
+	}
+	if st := d.Screen(h.host); len(st.Requests) != 0 || st.Hold != nil {
+		t.Fatalf("still asking: %+v", st)
 	}
 }

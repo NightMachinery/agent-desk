@@ -639,7 +639,9 @@ One atomic commit group each. Stop after each phase and run its check.
      `screen` at `_desk/screen/<host>`; granted unasked only after the user
      has been idle 30 minutes, approved on the desk at any time otherwise;
      banner commands in `[screen]`. Built 2026-11-17 (docs/usage.md, "The
-     screen lock").
+     screen lock"). The user decided 2026-11-28 (q-38nv) that an answer in
+     words always approves (only Deny denies) and that dismissing a request
+     denies it.
    - Emacs commands on rendered headings. Built 2026-11-17 as
      `emacs/agent-desk.el`: a minor mode in the render directory's files
      (read-only, auto-revert) with the dashboard's keys in evil's normal

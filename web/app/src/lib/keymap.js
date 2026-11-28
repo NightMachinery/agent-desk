@@ -278,6 +278,7 @@ const readToggle = () => cmdEl('read-toggle')?.getAttribute('aria-label');
 function markRead() {
   if (picking()) return click('bulk-read');
   if (!open()) return say('Nothing open');
+  if (cmdEl('screen-deny')) return click('screen-deny'); // a screen request is not set aside: d denies it
   if (cmdEl('dismiss')) return click('dismiss');
   if (!readToggle()) return say('Already read');
   if (readToggle() === 'Mark read') {

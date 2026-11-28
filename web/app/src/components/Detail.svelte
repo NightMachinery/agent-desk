@@ -326,14 +326,14 @@
   $effect(() => {
     if (replyActive && e?.id) warmSendCache('reply', replyingTo?.id || e.id);
   });
-  // A screen request answered in words: the desk decides it from them
-  // (grant, unless they say no) and says which, so the toast can.
+  // A screen request answered in words: any answer approves it, and the
+  // desk says until when, so the toast can.
   async function screenAnswer(text) {
     const host = e.meta.screen.host;
     try {
       const res = await post('screen', { action: 'answer', id: it.display_id, text });
       const until = res.until ? new Date(res.until).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-      moveOn(res.decision === 'grant' ? `Your answer approved it: the agent has the screen on ${host}${until ? ' until ' + until : ''}.` : 'Your answer starts with no, so it denied the screen.');
+      moveOn(`Your answer approved it: the agent has the screen on ${host}${until ? ' until ' + until : ''}.`);
       onchange();
       return true;
     } catch (err) {
@@ -693,7 +693,7 @@
     {/if}
 
     <div class="foot">
-      {#if isQuestion && !item.answered}
+      {#if isQuestion && !item.answered && !e.meta?.screen}
         {#if it.dismissed}
           <button data-cmd="undismiss" class="btn small" onclick={() => mark(false)}>Back to Needs you</button>
         {:else}

@@ -1325,8 +1325,8 @@ func (a *App) answerEvents(d *desk.Desk, q store.Event, text, source, behavior s
 	e := a.event("answer", q.Path, ident.Resolve(a.Env), source, extra)
 	e.Ref, e.Body = q.ID, text
 	evs := []store.Event{e}
-	if se, ok := a.screenDecision(q, text, source); ok {
-		evs = append(evs, se) // an answer to a screen request grants or denies it
+	if se, ok := a.screenDecision(q, source); ok {
+		evs = append(evs, se) // an answer to a screen request grants it
 	}
 	return evs, nil
 }
@@ -1337,6 +1337,12 @@ func (a *App) recordAnswer(d *desk.Desk, q store.Event, text, source, behavior s
 	if err != nil {
 		return err
 	}
+	return a.sendAnswer(d, q, evs, source)
+}
+
+// sendAnswer commits the answer to q that answerEvents made (evs[0], and
+// what it decided), and delivers it.
+func (a *App) sendAnswer(d *desk.Desk, q store.Event, evs []store.Event, source string) error {
 	e := evs[0]
 	if err := a.commit(evs, e.ID); err != nil {
 		return err
@@ -1358,7 +1364,7 @@ func (a *App) recordAnswer(d *desk.Desk, q store.Event, text, source, behavior s
 			d.Display(q.ID), filepath.Join(a.Home, "hooks.log"))
 		return nil
 	}
-	_, err = a.deliver(q.ID)
+	_, err := a.deliver(q.ID)
 	return err
 }
 
@@ -1373,6 +1379,7 @@ func (a *App) cmdRead(args []string) error {
 	}
 	from := ident.Resolve(a.Env)
 	var evs []store.Event
+	var deny []string // screen requests, which dismissing denies
 	seen := map[string]bool{}
 	add := func(e store.Event) {
 		if !seen[e.Ref] {
@@ -1387,6 +1394,12 @@ func (a *App) cmdRead(args []string) error {
 				switch {
 				case e.Kind == "ask" && !isOpen(d, e.ID):
 					fmt.Fprintf(a.Stderr, "agent-desk: %s is already answered\n", d.Display(e.ID))
+				case e.Kind == "ask" && desk.Meta(e)["screen"] != nil:
+					// Left open out of sight, a request for the screen would
+					// still be granted unasked once the user is away: there
+					// is no setting it aside, so dismissing it denies it.
+					deny = append(deny, e.ID)
+					fmt.Fprintf(a.Stderr, "agent-desk: %s asks for the screen, so dismissing it denies it\n", d.Display(e.ID))
 				case e.Kind == "ask" && d.Dismissed(e.ID):
 					fmt.Fprintf(a.Stderr, "agent-desk: %s is already dismissed\n", d.Display(e.ID))
 				case e.Kind == "ask":
@@ -1432,6 +1445,11 @@ func (a *App) cmdRead(args []string) error {
 		}
 		for _, m := range marks {
 			add(m)
+		}
+	}
+	for _, id := range deny {
+		if err := a.screenDecide(id, false, "cli"); err != nil {
+			return err
 		}
 	}
 	if len(evs) == 0 {

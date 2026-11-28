@@ -1286,11 +1286,12 @@ request nobody answers lapses after 2 hours (or a `take --wait`'s longer
 agent that moved on never withdraws its own, and it would otherwise keep
 every later request from that grant. You may approve a request at any time, whatever your idle time:
 **Approve** or **Deny** on the dashboard, `agent-desk screen grant|deny
-<q-id>`, or any answer (an answer that starts with "no", "deny" or "not
-now" denies it; on the dashboard, a toast says which it was and until
-when a grant lasts). To ask the agent something first, **Ask** beside
-Answer (`s`) sends what you typed as a message and leaves the request
-open. The answer reaches the agent as usual; `take --wait` also
+<q-id>`, or any answer, which approves it whatever it says (on the
+dashboard, a toast says until when). Only Deny denies, and so does
+dismissing the request (`d`, or `agent-desk read <q-id>`): a request set
+aside unanswered would still be granted once you are away. To ask the
+agent something first, **Ask** beside Answer (`s`) sends what you typed as
+a message and leaves the request open. The answer reaches the agent as usual; `take --wait` also
 notices the grant itself. After a denial the agent may not ask again for 10
 minutes.
 
