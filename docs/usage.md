@@ -1541,8 +1541,11 @@ prints at the moment it matters; neither files anything.
   comes on cache keepalive pings, `/compact` and other bare slash commands,
   harness notices, the auto-continue ping, or prompts matching
   `[instructions] skip`. It does not depend on `record`: with recording off
-  the reminder still comes. Claude Code adds a `UserPromptSubmit` hook's
-  output to the message.
+  the reminder still comes. The hook prints it as `UserPromptSubmit`
+  additional context (`{"hookSpecificOutput": {"hookEventName":
+  "UserPromptSubmit", "additionalContext": "..."}}`), which Claude Code and
+  Codex both add to the message, so the hook line must keep its stdout:
+  send only stderr to `/dev/null`.
 - **Velocity.** When a coordinator runs `task done`, the command also prints
   a line asking it to update its velocity slot, if the slot is missing or
   older than 3 hours. A coordinator here is an agent holding a run's top

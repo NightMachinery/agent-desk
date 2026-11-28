@@ -150,7 +150,7 @@ func (a *App) hookPrompt(agent string) error {
 		if err != nil {
 			return err
 		}
-		printReminder(a.Stdout, text)
+		hookContext(a.Stdout, text)
 	}
 	return nil
 }

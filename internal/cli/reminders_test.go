@@ -9,6 +9,25 @@ import (
 	"time"
 )
 
+// hookText is the additional context a hook's output gives the agent.
+func hookText(t *testing.T, out string) string {
+	t.Helper()
+	if out == "" {
+		return ""
+	}
+	var v struct {
+		H struct {
+			Event   string `json:"hookEventName"`
+			Context string `json:"additionalContext"`
+		} `json:"hookSpecificOutput"`
+	}
+	must(t, json.Unmarshal([]byte(out), &v))
+	if v.H.Event != "UserPromptSubmit" {
+		t.Fatalf("hook output %q", out)
+	}
+	return v.H.Context
+}
+
 // setReminders sets the shared "reminders" setting as the dashboard does.
 func setReminders(t *testing.T, h *harness, data string) {
 	t.Helper()
@@ -50,7 +69,7 @@ func TestNoTaskReminder(t *testing.T) {
 	none := map[string]string{}
 	hook := func(prompt string) string {
 		t.Helper()
-		return h.ok(none, hookJSON(sessA, prompt), "hook", "prompt", "--agent", "claude")
+		return hookText(t, h.ok(none, hookJSON(sessA, prompt), "hook", "prompt", "--agent", "claude"))
 	}
 	if out := hook("before joining"); out != "" {
 		t.Fatalf("a session off the desk got %q", out)
@@ -122,7 +141,7 @@ func TestReminderTemplateOverride(t *testing.T) {
 		t.Fatalf("save: %d %s", code, body)
 	}
 	hook := func() string {
-		return h.ok(map[string]string{}, hookJSON(sessA, "Go."), "hook", "prompt", "--agent", "claude")
+		return hookText(t, h.ok(map[string]string{}, hookJSON(sessA, "Go."), "hook", "prompt", "--agent", "claude"))
 	}
 	if out := hook(); out != "Start a task at example-proj/r1/coord." {
 		t.Fatalf("with the user's copy: %q", out)

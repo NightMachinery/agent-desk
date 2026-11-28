@@ -328,6 +328,16 @@ func (s *server) apiPromptPut(_ *App, body request) (any, error) {
 	return prompts.Read(dir, body.Name)
 }
 
+// hookContext writes text as a UserPromptSubmit hook's additional context,
+// in the JSON both Claude Code and Codex read, if there is any.
+func hookContext(w io.Writer, text string) {
+	if text = strings.TrimSpace(text); text == "" {
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]any{"hookSpecificOutput": map[string]string{
+		"hookEventName": "UserPromptSubmit", "additionalContext": text}})
+}
+
 // printReminder writes a reminder to w, if there is one.
 func printReminder(w io.Writer, text string) {
 	if text = strings.TrimSpace(text); text != "" {
