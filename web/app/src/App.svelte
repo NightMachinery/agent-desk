@@ -26,6 +26,9 @@
   import Settings from './components/Settings.svelte';
   import SetEditor from './components/SetEditor.svelte';
   import { setsUi } from './lib/sets.svelte.js';
+  import { layout, screen, shows, columns, setHidden, setSide, setListWidth, saveLayout, HIDE_AT, SIDE_DEFAULT, SPLIT_DEFAULT } from './lib/layout.svelte.js';
+  import { selecting } from './lib/select.svelte.js';
+  import { tip } from './lib/shortcuts.js';
 
   let showRecordings = $state(false);
   // API responses are replaced as a unit, so rows can read plain objects.
@@ -207,6 +210,67 @@
     keys.tick;
     return keys.used ? pane() : '';
   });
+
+  // Wide screens: the panes' layout (layout.svelte.js).
+  const full = $derived(screen.wide && layout.full);
+  // Dragging a grip: which one, and whether letting go now hides its pane.
+  let dragging = $state('');
+  let hiding = $state('');
+  /** Drags the grip right of the sidebar (which = 'side') or of the list
+   * ('list'); closer than HIDE_AT to the pane's left edge hides it. */
+  function drag(e, which) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const grip = e.currentTarget;
+    const shell = grip.parentElement;
+    grip.setPointerCapture(e.pointerId);
+    const list = shell.querySelector('.list').getBoundingClientRect();
+    const right = shell.querySelector('.detail').getBoundingClientRect().right;
+    const left = which === 'side' ? shell.getBoundingClientRect().left : list.left;
+    // A pane dragged out of sight comes back at the width it had.
+    const before = { side: layout.side, split: layout.split };
+    dragging = which;
+    const move = (ev) => {
+      const x = ev.clientX - left;
+      hiding = x < HIDE_AT[which] ? which : '';
+      if (which === 'side') setSide(x);
+      else setListWidth(x, right - left);
+    };
+    const end = () => {
+      grip.removeEventListener('pointermove', move);
+      grip.removeEventListener('pointerup', end);
+      grip.removeEventListener('pointercancel', end);
+      if (hiding) {
+        Object.assign(layout, before);
+        setHidden(hiding, true);
+      } else saveLayout();
+      dragging = hiding = '';
+    };
+    grip.addEventListener('pointermove', move);
+    grip.addEventListener('pointerup', end);
+    grip.addEventListener('pointercancel', end);
+  }
+  function resetWidth(which) {
+    if (which === 'side') setSide(SIDE_DEFAULT);
+    else layout.split = SPLIT_DEFAULT;
+    saveLayout();
+  }
+  // In fullscreen a click that opens something shows the pane it opens in,
+  // as on a phone: from the sidebar or the list, an item or a page opens in
+  // the detail, a place in the list.
+  $effect(() => {
+    const follow = (e) => {
+      if (!full || e.button !== 0 || e.shiftKey || e.metaKey || e.ctrlKey || e.altKey || selecting()) return;
+      const t = e.target instanceof Element ? e.target : null;
+      const from = t?.closest('[data-pane]')?.getAttribute('data-pane');
+      const a = t?.closest('a[href^="#"]');
+      if (!a || (from !== 'side' && from !== 'list')) return;
+      const q = new URLSearchParams(a.getAttribute('href').split('?')[1] ?? '');
+      keys.pane = ['item', 'settings', 'verbatim', 'tasks'].some((k) => q.has(k)) ? 'detail' : 'list';
+    };
+    document.addEventListener('click', follow);
+    return () => document.removeEventListener('click', follow);
+  });
 </script>
 
 <ColdCacheDialog />
@@ -214,19 +278,37 @@
 
 <svelte:window {onkeydown} />
 
-<div class="shell" class:has-item={!!route.item || pageOpen()}>
-  <div class="side" class:open={drawer} data-pane="side" class:focused={focused === 'side'}>
+<div class="shell" class:has-item={!!route.item || pageOpen()} class:full class:dragging={!!dragging} style:--cols={columns()}>
+  {#if layout.hidden.side}
+    <button class="rail rail-side" data-cmd="toggle-sidebar" aria-label="Show the sidebar" title={tip('Show the sidebar', 'toggle-sidebar')} onclick={() => setHidden('side', false)}><span>Sidebar</span></button>
+  {/if}
+  <div class="side" class:open={drawer} class:gone={!shows('side')} data-pane="side" class:focused={focused === 'side'}>
     <Sidebar view={globalView} {live} onchange={refresh} />
   </div>
+  {#if !layout.hidden.side}
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="grip grip-side" class:active={dragging === 'side'} class:hiding={hiding === 'side'} aria-hidden="true"
+      title="Drag to resize the sidebar, to the edge to hide it; double-click for its default width"
+      onpointerdown={(e) => drag(e, 'side')} ondblclick={() => resetWidth('side')}></div>
+  {/if}
   {#if drawer}
     <button class="scrim" aria-label="Close menu" onclick={() => (drawer = false)}></button>
   {/if}
 
-  <main class="list" data-pane="list" class:focused={focused === 'list'}>
+  {#if layout.hidden.list}
+    <button class="rail rail-list" data-cmd="toggle-list" aria-label="Show the list" title={tip('Show the list', 'toggle-list')} onclick={() => setHidden('list', false)}><span>List</span></button>
+  {/if}
+  <main class="list" class:gone={!shows('list')} data-pane="list" class:focused={focused === 'list'}>
     <ListPane {view} {error} onmenu={() => (drawer = true)} onchange={refresh} />
   </main>
+  {#if !layout.hidden.list}
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="grip grip-list" class:active={dragging === 'list'} class:hiding={hiding === 'list'} aria-hidden="true"
+      title="Drag to resize the list and the detail, to the edge to hide the list; double-click for the default split"
+      onpointerdown={(e) => drag(e, 'list')} ondblclick={() => resetWidth('list')}></div>
+  {/if}
 
-  <aside class="detail" data-pane="detail" class:focused={focused === 'detail'}>
+  <aside class="detail" class:gone={!shows('detail')} data-pane="detail" class:focused={focused === 'detail'}>
     {#if route.item}
       <LazyPanel view={import('./components/Detail.svelte')} item={shownItem} error={itemError} onchange={refresh} />
     {:else if route.settings}
@@ -289,8 +371,93 @@
 <style>
   .shell {
     display: grid;
-    grid-template-columns: 248px minmax(380px, 1fr) minmax(420px, 1.15fr);
+    grid-template-columns: var(--cols);
     height: calc(100dvh - var(--modeline-h));
+  }
+  /* The wide layout: sidebar, grip, list, grip, detail (layout.svelte.js's
+     columns()); a hidden pane leaves a rail, and fullscreen shows only the
+     focused pane. */
+  @media (min-width: 901px) {
+    .shell > * {
+      grid-row: 1;
+    }
+    .side,
+    .rail-side {
+      grid-column: 1;
+    }
+    .grip-side {
+      grid-column: 2;
+    }
+    .list,
+    .rail-list {
+      grid-column: 3;
+    }
+    .grip-list {
+      grid-column: 4;
+    }
+    .detail {
+      grid-column: 5;
+    }
+    .shell.full > * {
+      grid-column: 1;
+    }
+    .gone,
+    .shell.full :is(.rail, .grip) {
+      display: none;
+    }
+    .shell.full .detail {
+      border-left: 0;
+    }
+  }
+  .grip {
+    position: relative;
+    z-index: 6;
+    width: 9px;
+    margin-left: -4px;
+    cursor: col-resize;
+    touch-action: none;
+  }
+  .grip::after {
+    content: '';
+    position: absolute;
+    inset: 0 3px;
+    background: var(--accent);
+    opacity: 0;
+    transition: opacity 0.12s;
+  }
+  .grip:hover::after,
+  .grip.active::after {
+    opacity: 0.55;
+  }
+  .grip.hiding::after {
+    background: var(--blocked);
+    opacity: 0.8;
+  }
+  .shell.dragging {
+    cursor: col-resize;
+    user-select: none;
+  }
+  .rail {
+    display: flex;
+    justify-content: center;
+    padding: 12px 0;
+    border: 0;
+    border-right: 1px solid var(--line);
+    background: var(--panel);
+    color: var(--faint);
+    font: inherit;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+  .rail span {
+    writing-mode: vertical-rl;
+  }
+  .rail:hover {
+    background: var(--sunken);
+    color: var(--text);
   }
   /* The pane keys act on, once the keyboard is in use. */
   .focused {
@@ -421,16 +588,14 @@
     }
   }
 
-  @media (max-width: 1180px) {
-    .shell {
-      grid-template-columns: 220px minmax(320px, 1fr) minmax(380px, 1fr);
-    }
-  }
-
   /* Phone and narrow windows: one column; the item opens over the list. */
   @media (max-width: 900px) {
     .shell {
       grid-template-columns: 1fr;
+    }
+    .rail,
+    .grip {
+      display: none;
     }
     .side {
       position: fixed;

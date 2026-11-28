@@ -40,8 +40,33 @@ keyboard marks with a line along its top.
 - In the list, `l`, `o` or `RET` reads the open item in the detail pane, and
   `h` goes to the sidebar. In the detail pane `h` comes back to the list and
   `q` closes the item.
+- `M-1`, `M-2`, `M-3` (or `SPC w 1`, `2`, `3`) go straight to the sidebar,
+  the list or the detail.
 
-On a phone there is one pane at a time: the list, or the open item.
+The layout is kept per device, in the browser:
+
+- **Resize:** drag the line between two panes; double-click it for the
+  default width. `C-w <` / `C-w >` make the focused pane 40 pixels narrower or
+  wider (`5 C-w >` five times that); the detail gives to or takes from the
+  list.
+- **Hide:** `C-w c` hides the focused pane, the sidebar or the list (the
+  detail stays); `SPC t b` and `SPC t l` hide or show the sidebar and the
+  list from anywhere. Dragging the line almost to the pane's left edge hides
+  it too. A hidden pane leaves a thin rail: click it to bring the pane back.
+  `C-w h` / `C-w l` pass a hidden pane by, but going to it by name (`h` from
+  the list, `M-1`) shows it again.
+- **Fullscreen:** `C-w o` (or `SPC t f`) shows only the focused pane, across
+  the whole window; every key that changes the focused pane switches which
+  one shows (`C-w h` / `C-w l` / `C-w w`, `M-1` to `M-3`, `h` and `l`). A
+  click that opens something shows its pane, as on a phone: a row or a page
+  opens in the detail, a project in the list. `C-w o` again shows every pane.
+- `C-w =` brings every pane back at its default width, out of fullscreen.
+- The mode line's buttons at its right end do the same with the mouse:
+  hide or show the sidebar and the list, and fullscreen, where they become a
+  tab per pane.
+
+On a phone, or a window under 900 pixels wide, there is one pane at a time
+(the list, or the open item) and the layout above does not apply.
 
 ## The list
 
@@ -144,10 +169,11 @@ entry reuses the letter of its short key (`p` pins, so `SPC b p` pins).
   which deliverables to list (unread latest, latest, all), `t` the Tasks
   section's menu (open only, or also those finished in the last 15 minutes
   to 30 days), `c` auto-continue, `C` let the agent's auto-continue follow
-  its default again.
+  its default again, `b` / `l` hide or show the sidebar or the list, `f`
+  fullscreen (see Panes).
 - `SPC x`: selecting: `a` every item, `c` clear, `d` mark every unread item
   in the list read.
-- `SPC w`: panes, as `C-w`.
+- `SPC w`: panes, as `C-w`, and `s` / `d` the sidebar or the detail.
 - `SPC h`: help. `SPC h b` (or `SPC ?`) lists every binding that applies here;
   `?` shows the cheatsheet. `SPC h k` then a key sequence says what that key
   runs here and what it does elsewhere, without running it (`C-g` cancels).

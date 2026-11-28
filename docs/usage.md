@@ -586,7 +586,8 @@ project) and opens the way to each match. While a set is focused, "All projects"
 hides that needs you (hover it for the breakdown); clicking it leaves the
 focus.
 
-The same sections as the inbox, on a desktop in three panes and on a phone
+The same sections as the inbox, on a desktop in three panes (resize,
+hide and fullscreen them: [keyboard.md](keyboard.md), "Panes") and on a phone
 in one column: Needs you, Out of quota, Deliverables, Pinned, Responses to
 you (the agents' answers to what you asked), Tasks, New, and the run tree; a
 section with nothing in it is left out, Needs you, New and Tasks excepted.

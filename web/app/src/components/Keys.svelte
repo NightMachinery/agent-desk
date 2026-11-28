@@ -1,5 +1,6 @@
 <script>
   import { cheatsheetNow } from '../lib/shortcuts.js';
+  import PaneControls from './PaneControls.svelte';
   // What the keyboard layer draws: the mode line, the which-key popup, the
   // list of every binding, the M-x palette and the link hints.
   import { keys, keymap, pane, continuations, activeBindings, matches, closePalette, paletteHistory, labelOf, description, describeCommand } from '../lib/keys.svelte.js';
@@ -247,6 +248,7 @@
   {#if pos.at}<span class="mono">{pos.at}/{pos.of}</span>{/if}
   <span class="mono path">{route.path || 'everything'}{route.q ? ` /${route.q}` : ''}</span>
   <span class="faint"><kbd>SPC</kbd> leader · <kbd>?</kbd> keys</span>
+  <PaneControls />
 </div>
 
 <style>

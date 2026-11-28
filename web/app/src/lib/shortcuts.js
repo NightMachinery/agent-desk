@@ -113,6 +113,8 @@ const cheatsheet = [
       [[k('fold')], 'Fold or unfold this section'],
       [[k('fold-all'), k('unfold-all')], 'Fold or unfold all'],
       [[k('pane-left'), k('pane-right')], 'Pane to the left or right'],
+      [[k('pane-fullscreen', 'normal', 'C-w o'), k('pane-hide', 'normal', 'C-w c')], 'Fullscreen; hide the pane'],
+      [[k('pane-narrower', 'normal', 'C-w <'), k('pane-wider', 'normal', 'C-w >')], 'Pane narrower or wider'],
       [[k('read-in-detail', 'list', 'l'), k('back-to-list')], 'Into the item, back to the list'],
       [[k('search')], 'Search'],
       [[k('refresh')], 'Refresh'],

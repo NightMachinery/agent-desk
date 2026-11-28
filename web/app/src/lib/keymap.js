@@ -2,6 +2,7 @@
 // the components), so a key and a click do exactly the same. Each command is
 // defined once with command(name, ...); keys.edn binds keys to its name, so
 // M-x, SPC SPC and help list a command even when it has no key.
+import { flushSync } from 'svelte';
 import { requestFocus } from './focus.js';
 import { ALL_CLEAR, ALL_CLEAR_KEY } from './moveon.js';
 import { arrival, isAutoArrival } from './arrival.js';
@@ -20,6 +21,7 @@ import {
   commands, commandItems, keysOf, keyFor, applies, describeKey, describeCommand, setVisual, syncMode, selectedField, selectField,
 } from './keys.svelte.js';
 import { failed } from './errors.svelte.js';
+import { layout, screen, reachable, setHidden, setFull, setSide, setListWidth, saveLayout, resetLayout, paneLabel } from './layout.svelte.js';
 
 // --- helpers -----------------------------------------------------------------
 
@@ -159,11 +161,20 @@ function scroll(p, by) {
 }
 
 function focusPane(p) {
-  if (matchMedia('(max-width: 900px)').matches) {
+  if (!screen.wide) {
     if (p === 'list' && (route.item || pageOpen())) return escape();
     return say('One pane at a time on a narrow screen');
   }
+  // Going to a hidden pane by name shows it again; moving left or right
+  // passes it by (reachable()).
+  if (!layout.full && layout.hidden[p]) {
+    setHidden(p, false);
+    say(`${paneLabel[p]} shown again`);
+  }
   keys.pane = p;
+  // In fullscreen or after showing it again, the pane is drawn first, so
+  // there is something to focus in it.
+  flushSync();
   keys.used = true;
   const el = paneEl(p);
   if (p === 'side') {
@@ -177,8 +188,55 @@ function focusPane(p) {
     if (!route.item && !pageOpen() && nav.order.length && !ctx.view()?.node) openItem(nav.order[0]);
   }
 }
-const panes = ['side', 'list', 'detail'];
-const nextPane = (d) => focusPane(panes[(panes.indexOf(pane()) + d + panes.length) % panes.length]);
+function nextPane(d) {
+  const ps = reachable();
+  focusPane(ps[(Math.max(0, ps.indexOf(pane())) + d + ps.length) % ps.length]);
+}
+
+// The wide screen's layout (layout.svelte.js). A narrow screen shows one
+// pane at a time, so these only say so there.
+const wideOnly = (f) => (n) => (screen.wide ? f(n) : say('One pane at a time on a narrow screen'));
+const hint = (cmd) => (keyFor(cmd) ? ` (${keyFor(cmd)})` : '');
+function fullscreen() {
+  setFull(!layout.full);
+  if (!layout.full) return say('Every pane again');
+  const sw = ['pane-left', 'pane-right'].map(keyFor).filter(Boolean).join(' / ');
+  say(`Fullscreen: ${paneLabel[keys.pane].toLowerCase()}. ${sw ? `${sw} switch panes, ` : ''}${keyFor('pane-fullscreen') || 'pane-fullscreen'} leaves`, 5000);
+}
+function hidePane() {
+  if (layout.full) return say(`Fullscreen shows one pane anyway${hint('pane-fullscreen')}`);
+  const p = pane();
+  if (p === 'detail') return say(`The detail pane stays; fullscreen shows it alone${hint('pane-fullscreen')}`);
+  const toggle = p === 'side' ? 'toggle-sidebar' : 'toggle-list';
+  setHidden(p, true);
+  say(`${paneLabel[p]} hidden${keyFor(toggle) ? `: ${keyFor(toggle)} shows it` : ''}`);
+}
+function toggleHidden(p) {
+  if (layout.full) return say(`Fullscreen shows one pane${hint('pane-fullscreen')}`);
+  setHidden(p, !layout.hidden[p]);
+  say(`${paneLabel[p]} ${layout.hidden[p] ? 'hidden' : 'shown'}`);
+}
+// C-w < and >: the focused pane narrower or wider by STEP px a time. The
+// detail has no width of its own: it gives to or takes from the list, or
+// the sidebar when the list is hidden.
+const STEP = 40;
+function resize(n) {
+  if (layout.full) return say('Fullscreen: one pane, nothing to resize');
+  const p = pane();
+  const by = n * STEP;
+  const before = `${layout.side} ${layout.split}`;
+  if (p === 'side' || (p === 'detail' && layout.hidden.list)) {
+    if (layout.hidden.side) return say('Nothing beside the detail to resize');
+    setSide(layout.side + (p === 'side' ? by : -by));
+  } else {
+    const l = paneEl('list')?.getBoundingClientRect();
+    const d = paneEl('detail')?.getBoundingClientRect();
+    if (!l || !d) return;
+    setListWidth(l.width + (p === 'list' ? by : -by), d.right - l.left);
+  }
+  if (`${layout.side} ${layout.split}` === before) return say(`The ${paneLabel[p].toLowerCase()} is as ${n > 0 ? 'wide' : 'narrow'} as it goes`);
+  saveLayout();
+}
 
 function focusBox(id, missing) {
   const el = document.getElementById(id);
@@ -281,7 +339,7 @@ function escape() {
   } else if (sel.ids.size || sel.mode) clear();
   else if (route.item) {
     go({ item: '' });
-    keys.pane = 'list';
+    keys.pane = layout.hidden.list && !layout.full ? 'detail' : 'list';
   } else if (pageOpen()) go({ settings: false, verbatim: false, tasks: false });
   else if (route.q) go({ q: '' }, { replace: true });
   else /** @type {HTMLElement} */ (document.activeElement)?.blur?.();
@@ -506,7 +564,15 @@ C('pane-left', 'Focus the pane on the left', () => nextPane(-1));
 C('pane-right', 'Focus the pane on the right', () => nextPane(1));
 C('pane-next', 'Focus the next pane', () => nextPane(1));
 C('pane-side', 'Focus the sidebar', () => focusPane('side'));
+C('pane-list', 'Focus the list', () => focusPane('list'));
 C('pane-detail', 'Focus the detail pane', () => focusPane('detail'));
+C('pane-fullscreen', 'Fullscreen: show only the focused pane (the pane keys switch it), or every pane again', wideOnly(fullscreen));
+C('pane-hide', 'Hide the focused pane (the sidebar or the list)', wideOnly(hidePane));
+C('toggle-sidebar', 'Hide or show the sidebar', wideOnly(() => toggleHidden('side')));
+C('toggle-list', 'Hide or show the list', wideOnly(() => toggleHidden('list')));
+C('pane-wider', 'Make the focused pane wider', wideOnly((n) => resize(n)));
+C('pane-narrower', 'Make the focused pane narrower', wideOnly((n) => resize(-n)));
+C('panes-reset', 'Every pane back at its default width, out of fullscreen', wideOnly(() => (resetLayout(), say('Every pane back at its default width'))));
 
 // The open item (or the selection).
 C('answer', 'Answer the question', () => focusBox('answer-box', 'Not an open question'));

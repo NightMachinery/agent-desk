@@ -157,6 +157,9 @@
   "SPC t s" :toggle-select
   "SPC t c" :toggle-auto-continue
   "SPC t C" :auto-continue-default
+  "SPC t b" :toggle-sidebar
+  "SPC t l" :toggle-list
+  "SPC t f" :pane-fullscreen
 
   ; SPC w and C-w: panes.
   "SPC w h" :pane-left
@@ -164,9 +167,25 @@
   "SPC w w" :pane-next
   "SPC w s" :pane-side
   "SPC w d" :pane-detail
+  "SPC w 1" :pane-side
+  "SPC w 2" :pane-list
+  "SPC w 3" :pane-detail
+  "SPC w o" :pane-fullscreen
+  "SPC w c" :pane-hide
+  "SPC w =" :panes-reset
+  "SPC w <" :pane-narrower
+  "SPC w >" :pane-wider
   "C-w h"   :pane-left
   "C-w l"   :pane-right
   "C-w w"   :pane-next
+  "C-w o"   :pane-fullscreen
+  "C-w c"   :pane-hide
+  "C-w ="   :panes-reset
+  "C-w <"   :pane-narrower
+  "C-w >"   :pane-wider
+  "M-1"     :pane-side
+  "M-2"     :pane-list
+  "M-3"     :pane-detail
 
   ; y: everything copyable.
   "y y"     :yank-link
