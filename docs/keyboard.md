@@ -202,7 +202,8 @@ swallows the next key, so it never runs a short key by accident.
   note, `l` start an agent on it.
 - A deliverable: `o` open its link, `g` download its file, `w` Works: send
   with "This worked." in front.
-- A question asking for the screen: `y` grant, `n` deny.
+- A question asking for the screen: `y` grant, `n` deny, `s` ask: send
+  what the answer box holds as a message, leaving the request open.
 - A message that failed: `r` retry the delivery, `t` retry the
   transcription, `s` send it without the recording.
 - An out-of-quota agent, or one stopped by an error, while focus is in

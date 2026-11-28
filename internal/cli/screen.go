@@ -404,6 +404,35 @@ func (a *App) screenDecide(token string, grant bool, source string) error {
 	return a.recordAnswer(d, q, text, source, "", nil)
 }
 
+// screenAnswer answers a request in the user's own words, which decide it
+// (screenDecision), and returns the decision: {decision: grant or deny,
+// until: when a grant ends}.
+func (a *App) screenAnswer(token, text, source string) (map[string]string, error) {
+	d, err := a.load()
+	if err != nil {
+		return nil, err
+	}
+	q, err := d.Resolve(token)
+	if err != nil {
+		return nil, err
+	}
+	if q.Kind != "ask" || desk.Meta(q)["screen"] == nil {
+		return nil, usagef("%s is not a request for the screen", d.Display(q.ID))
+	}
+	if strings.TrimSpace(text) == "" {
+		return nil, usagef("an answer needs words: approve or deny it instead")
+	}
+	se, _ := a.screenDecision(q, text, source)
+	if err := a.recordAnswer(d, q, text, source, "", nil); err != nil {
+		return nil, err
+	}
+	out := map[string]string{"decision": desk.MetaString(se, "action")}
+	if u := desk.MetaString(se, "until"); u != "" {
+		out["until"] = u
+	}
+	return out, nil
+}
+
 // screenDecision is the screen event an answer to a screen request implies:
 // a grant, unless the answer says no.
 var screenNo = regexp.MustCompile(`(?i)^\s*(no|deny|denied|not now|don'?t|do not)\b`)

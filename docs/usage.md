@@ -1287,7 +1287,10 @@ agent that moved on never withdraws its own, and it would otherwise keep
 every later request from that grant. You may approve a request at any time, whatever your idle time:
 **Approve** or **Deny** on the dashboard, `agent-desk screen grant|deny
 <q-id>`, or any answer (an answer that starts with "no", "deny" or "not
-now" denies it). The answer reaches the agent as usual; `take --wait` also
+now" denies it; on the dashboard, a toast says which it was and until
+when a grant lasts). To ask the agent something first, **Ask** beside
+Answer (`s`) sends what you typed as a message and leaves the request
+open. The answer reaches the agent as usual; `take --wait` also
 notices the grant itself. After a denial the agent may not ask again for 10
 minutes.
 

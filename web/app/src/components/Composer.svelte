@@ -24,8 +24,9 @@
   // starts from that box's own draft, with no files or notify overrides
   // carried over from the last one.
   // alongside: buttons beside Send that send what is typed their own way,
-  // { label, cmd, title, wrap(text) }; wrap turns the text (maybe empty)
-  // into the message, so they work with the box empty too. linked: other
+  // { label, cmd, title, wrap(text), send }; wrap turns the text (maybe
+  // empty) into the message, so they work with the box empty too; send, if
+  // given, sends it in place of the box's own send (as send does). linked: other
   // drafts that Discard drops with this box's (a question's picks).
   // ondiscard(restore), when given, takes over after Discard (the item page
   // moves on, with Undo running restore); else a toast offers Undo.
@@ -366,12 +367,12 @@
   const overridden = $derived(!!(notify.desktop || notify.remote));
   const remoteName = $derived(target?.remote_label || 'Phone');
 
-  async function submit(value = text, behavior = '', allowMissing = false) {
+  async function submit(value = text, behavior = '', allowMissing = false, via = send) {
     if (busy || uploading) return;
     const status = Object.fromEntries(Object.entries(voiceStatus).map(([id, rec]) => [id, rec.status]));
     const { used, ask: removed } = sortVoice(value, voiceDraft, status);
     if (!allowMissing && removed.length) {
-      missing = { value, behavior, removed };
+      missing = { value, behavior, removed, via };
       missingOpen = true;
       return;
     }
@@ -385,7 +386,7 @@
       if (overridden) opts.notify = Object.fromEntries(Object.entries(notify).filter(([, v]) => v));
       if (readyFiles.length) opts.media = readyFiles.map((f) => f.ref);
       if (used.length) opts.voice_recordings = used.map(({ id }) => id);
-      if (await send(value, opts)) {
+      if (await via(value, opts)) {
         if (draftOf === key) void capture?.stop();
         clearDraft(key);
         clearDraft('voice:' + key);
@@ -424,7 +425,7 @@
         voiceStatus[rec.id] = rec;
       }
     }
-    if (entries.every((entry) => entry.status === 'fulfilled')) await submit(text, choices.behavior, true);
+    if (entries.every((entry) => entry.status === 'fulfilled')) await submit(text, choices.behavior, true, choices.via);
   }
 
   /** Sends what is in the box, as ⌘/Ctrl+Enter there does (for the
@@ -522,7 +523,7 @@
     <span class="hint faint" title={hint || undefined}>{hint}</span>
     <div class="sends">
     {#each alongside as a (a.label)}
-      <button data-cmd={a.cmd} class="btn small alongside" {...off(tip(a.title, a.cmd), [busy, SENDING], [uploading, UPLOADING])} onclick={() => submit(a.wrap(text.trim()))}>{a.label}</button>
+      <button data-cmd={a.cmd} class="btn small alongside" {...off(tip(a.title, a.cmd), [busy, SENDING], [uploading, UPLOADING])} onclick={() => submit(a.wrap ? a.wrap(text.trim()) : text.trim(), '', false, a.send ?? send)}>{a.label}</button>
     {/each}
     <div class="split">
       <button data-cmd="send" class="btn primary small main" onclick={() => submit()} {...off(tip(behaviorHelp[def] || 'Send', 'send'), ...sendWhy)}>
@@ -547,7 +548,7 @@
     <p>{missing.removed.length === 1 ? '1 recording is' : `${missing.removed.length} recordings are`} no longer in the text.</p>
     <div class="bar">
       <button data-keys="none" class="btn small" onclick={restoreMissing}>Put {missing.removed.length === 1 ? 'it' : 'them'} at the end</button>
-      <button data-keys="none" class="btn small" onclick={() => { const choice = missing; missing = null; missingOpen = false; submit(choice.value, choice.behavior, true); }}>Leave out</button>
+      <button data-keys="none" class="btn small" onclick={() => { const choice = missing; missing = null; missingOpen = false; submit(choice.value, choice.behavior, true, choice.via); }}>Leave out</button>
     </div>
   {/if}
 </Sheet>

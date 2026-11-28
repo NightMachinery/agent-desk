@@ -326,7 +326,23 @@
   $effect(() => {
     if (replyActive && e?.id) warmSendCache('reply', replyingTo?.id || e.id);
   });
+  // A screen request answered in words: the desk decides it from them
+  // (grant, unless they say no) and says which, so the toast can.
+  async function screenAnswer(text) {
+    const host = e.meta.screen.host;
+    try {
+      const res = await post('screen', { action: 'answer', id: it.display_id, text });
+      const until = res.until ? new Date(res.until).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+      moveOn(res.decision === 'grant' ? `Your answer approved it: the agent has the screen on ${host}${until ? ' until ' + until : ''}.` : 'Your answer starts with no, so it denied the screen.');
+      onchange();
+      return true;
+    } catch (err) {
+      failed(err);
+      return false;
+    }
+  }
   async function answer(text, opts = {}) {
+    if (e.meta?.screen) return screenAnswer(text);
     const { id } = e;
     const page = route.item;
     const choice = await chooseSendCache('answer', id);
@@ -391,6 +407,11 @@
       failed(err);
     }
   }
+  // A screen request's Ask, beside Answer: what is typed goes to the agent
+  // as a message about the request, which stays open (Answer decides it).
+  const asking = [
+    { label: 'Ask', cmd: 'screen-ask', title: 'Send it to the agent as a message without deciding: the request stays open in Needs you', send: (t, opts) => reply(t, opts) },
+  ];
   // A deliverable's Works, beside Send: the message starts "This worked.",
   // with anything typed after it.
   const tried = [
@@ -645,6 +666,7 @@
           target={item.target}
           send={answer}
           ondiscard={discarded}
+          alongside={e.meta?.screen && item.target ? asking : []}
         />
       </section>
     {/if}

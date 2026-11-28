@@ -461,3 +461,44 @@ func TestScreenSweeper(t *testing.T) {
 		t.Fatalf("after the sweeper: %+v", st)
 	}
 }
+
+// The dashboard answers a request in words through the screen API, which
+// says what the words decided: a grant, unless they say no.
+func TestScreenAnswerSaysWhatItDecided(t *testing.T) {
+	h := newHarness(t)
+	writeConfig(t, h, "[screen]\nidle_command = 'printf IDLE'\nbanner_on = 'printf ON'\nbanner_off = 'printf OFF'\n")
+	h.respond = func(name string, args []string) (string, error) {
+		if name == "sh" && len(args) == 2 && args[1] == "printf IDLE" {
+			return "1\n", nil // at the machine: a take asks
+		}
+		return "", nil
+	}
+	request := func(session, reason string) string {
+		if _, _, code := h.run(h.as(session), "", "screen", "take", "--reason", reason); code != ScreenWaiting {
+			t.Fatalf("take %s: %d", reason, code)
+		}
+		for _, f := range strings.Split(h.ok(nil, "", "search", reason), "\n") {
+			if fs := strings.Fields(f); len(fs) > 0 && strings.HasPrefix(fs[0], "q-") {
+				return fs[0]
+			}
+		}
+		t.Fatalf("no request for %s", reason)
+		return ""
+	}
+	qa := request(sessA, "Resizing windows")
+	a, _, _ := h.app(nil, "")
+	out, err := a.screenAnswer(qa, "Sure, go ahead.", "web")
+	if err != nil || out["decision"] != "grant" || out["until"] == "" {
+		t.Fatalf("yes: %v %v", out, err)
+	}
+	h.ok(h.as(sessA), "", "screen", "release")
+	qb := request(sessB, "Recording a screencast")
+	a, _, _ = h.app(nil, "")
+	if out, err = a.screenAnswer(qb, "No, I am typing.", "web"); err != nil || out["decision"] != "deny" {
+		t.Fatalf("no: %v %v", out, err)
+	}
+	a, _, _ = h.app(nil, "")
+	if _, err = a.screenAnswer(qb, "  ", "web"); err == nil {
+		t.Fatal("an empty answer was taken")
+	}
+}

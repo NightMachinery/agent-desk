@@ -306,7 +306,8 @@
  ; A question asking for the screen.
  :screen
  {"y"       :screen-grant
-  "n"       :screen-deny}
+  "n"       :screen-deny
+  "s"       :screen-ask}
 
  ; A message that failed to deliver, or whose recording failed to transcribe.
  :message

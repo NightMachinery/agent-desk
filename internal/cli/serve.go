@@ -533,12 +533,15 @@ func (s *server) apiUnread(app *App, body request) (any, error) {
 	return map[string]string{}, app.run(append([]string{"unread", "--"}, body.list(body.ID)...))
 }
 
-// apiScreen decides a request for the screen (grant, deny), or takes the
-// screen back from the agent that holds it (release, on this machine only).
+// apiScreen decides a request for the screen (grant, deny), answers it in
+// the user's words and says what that decided (answer), or takes the screen
+// back from the agent that holds it (release, on this machine only).
 func (s *server) apiScreen(app *App, body request) (any, error) {
 	switch body.Action {
 	case "grant", "deny":
 		return map[string]string{}, app.screenDecide(body.ID, body.Action == "grant", "web")
+	case "answer":
+		return app.screenAnswer(body.ID, body.Text, "web")
 	case "release":
 		d, err := app.load()
 		if err != nil {
@@ -550,7 +553,7 @@ func (s *server) apiScreen(app *App, body request) (any, error) {
 		}
 		return map[string]string{}, app.screenLetGo(ident.Resolve(app.Env), st, "user")
 	}
-	return nil, usagef("screen action is grant, deny or release")
+	return nil, usagef("screen action is grant, deny, answer or release")
 }
 
 // apiTask changes tasks' state, or launches them; the response's "out" is

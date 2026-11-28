@@ -601,6 +601,7 @@ C('send-menu', 'Send how? (steer, queue, interrupt)', () => click('send-menu', '
 C('attach', 'Attach a file to the message', () => click('attach'), tagged('attach', 'a message box'));
 C('screen-grant', 'Screen request: grant it', () => click('screen-grant'), tagged('screen-grant', 'an open screen request'));
 C('screen-deny', 'Screen request: deny it', () => click('screen-deny'), tagged('screen-deny', 'an open screen request'));
+C('screen-ask', 'Screen request: send what the answer box holds to the agent as a question, without deciding', () => click('screen-ask'), tagged('screen-ask', 'an open screen request whose agent can be messaged'));
 C('screen-release', 'Release the screen lock', () => click('screen-release'), tagged('screen-release', 'a screen lock held here'));
 C('deliver-retry', 'Retry delivering the message', () => click('deliver-retry'), tagged('deliver-retry', 'a message that failed to deliver'));
 C('yank-link', 'Copy a link to the item', () => yank(open() ? location.href : '', 'Link'));
